@@ -7,7 +7,7 @@ from typing_extensions import Self
 from numpy import random
 
 from frame.git_tools import get_commit_hash, is_git_head_clean
-from frame.time_tools import get_unix_timestamp
+from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 
 
 @dataclass
@@ -21,6 +21,7 @@ class Config:
     user: str
     out_dir: Path
     scripts_dir: Path
+    time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp()
 
     @classmethod
