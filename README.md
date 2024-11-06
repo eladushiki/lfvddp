@@ -18,8 +18,8 @@ The files used in our paper (https://arxiv.org/abs/2401.09530) are in paper scri
 analyze:
 
 	fix_plots_for_paper - the main notebook for producing plots. There are a few more in extra_plots_yuval it seems like.
- 	new_analysis_utils - analyzing the saved files. You may also use new_analysis_utils_copy.
-	new_plot_utils - for plotting.
+ 		new_analysis_utils - analyzing the saved files. You may also use new_analysis_utils_copy.
+		new_plot_utils - for plotting.
 
  Make sure to change the paths for dir (where the output of the training was saved) and plots_dir (where you want to save the plots). Also need access to "/storage/agrp/yuvalzu/mattiasdata" on the cluster.
 
