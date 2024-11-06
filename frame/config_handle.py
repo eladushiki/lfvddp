@@ -2,18 +2,34 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from typing import List
 from typing_extensions import Self
 
 from frame.git_tools import get_commit_hash, is_git_head_clean
 
+
 @dataclass
 class Config:
+    """
+    An extendable class for handling configuration informatino.
+    The basic always-needed configuration parameters are those that are user dependent.
+    Any other class that inherits from this should add its own parameters, such that 
+    their existence is checked upon loading the configuration and later stored when running.
+    """
+    user: str
+    out_dir: Path
+    scripts_dir: Path
 
     @classmethod
-    def load_from_file(cls, config_path: Path) -> Self:
-        with open(config_path, 'r') as file:
-            config = json.load(file)
-        return cls(**config)
+    def load_from_files(cls, config_paths: List[Path]) -> Self:
+        config_params = {}
+
+        for config_path in config_paths:
+            with open(config_path, 'r') as file:
+                config = json.load(file)
+                config_params.update(config)
+
+        return cls(**config_params)
 
     def save_to_file(self, config_path: Path) -> None:
         with open(config_path, 'w') as file:
@@ -27,7 +43,7 @@ class ExecutionContext:
 
 
 @contextmanager
-def version_controlled_execution(output_path: Path, config: Config):
+def version_controlled_execution_context(config: Config):
     """
     Create a context which should contain any run dependent information.
     The data is later stored in the output_path for documentatino.
@@ -38,5 +54,5 @@ def version_controlled_execution(output_path: Path, config: Config):
     
     yield context
     
-    with open(output_path / "context.json", 'w') as file:
+    with open(Config.out_dir / "context.json", 'w') as file:
         json.dump(context, file, indent=4)

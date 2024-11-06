@@ -1,15 +1,11 @@
 from frame.config_handle import Config
-from frame.user_config import UserConfig
 
 
 class ClusterConfig(Config):
     njobs: int
 
 
-class TrainConfig(Config):
-    user_config: UserConfig
-    cluster_config: ClusterConfig
-    
+class TrainConfig(ClusterConfig):
     # todo: some of these, say bools, are sometimes put as strings ("False")
     ch: str
     vars: str
