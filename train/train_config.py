@@ -2,7 +2,7 @@ from frame.config_handle import Config
 
 
 class ClusterConfig(Config):
-    njobs: int
+    n_jobs: int
 
 
 class TrainConfig(ClusterConfig):
