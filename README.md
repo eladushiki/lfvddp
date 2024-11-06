@@ -32,7 +32,6 @@ This is the new code Yuval wrote. Should be much neater, but Inbar didn't test i
 # Additional Remarks
 
 Mcoll - e-\mu data, exp - exp background with various signals, NPLM - just the method from https://arxiv.org/abs/1806.02350, resample - premutation tests.
-Things you probably don't need - anything with _crossentropy.
 
 ---
 
