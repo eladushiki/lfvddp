@@ -4,8 +4,6 @@
 	
 new_submit_(inbar_*) - submitting jobs for specific scenario. 
 Make sure to change the paths for outdir (where you want the output of the training to be saved) and scriptsdir (where the python code to run is), and append the path to the configs if you're using them. Also need access to "/storage/agrp/yuvalzu/mattiasdata" on the cluster.
- 		
-new_training  - script for trainning. You may also run new_training_copy.
 	 
 new_setting - preparing the datasets input to the model for training. You may also use new_setting_copy.
 		 
@@ -49,3 +47,9 @@ To be able to keep track of every run and its products, a running context is imp
 - Saves it in a file, that should be adjacent to the resulting output
 
 To use this functionality in any new entry point, run the main function inside the context.
+
+## Training
+
+Training entry points:
+- `submit_train.py` for remote submission
+- `single_train.py` for the server to run each time

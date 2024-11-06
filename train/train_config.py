@@ -1,8 +1,19 @@
+from random import sample
+import test
 from frame.config_handle import Config
 
 
 class ClusterConfig(Config):
     n_jobs: int
+    runtag: str
+    train_size: str  # as a fraction
+    test_size: str  # as a fraction
+    number_of_signals: int
+    walltime: str  # in the form of "12:00:00"
+    save_walltime: str  # in the form of "05:00"
+    remove: bool
+    sample: str  # "exp" or ??
+    pdf: int
 
 
 class TrainConfig(ClusterConfig):
