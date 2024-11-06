@@ -1,6 +1,6 @@
 # LFVNN-symmetrized
 
-The files used in our paper (https://arxiv.org/abs/2401.09530) are in paper scripts.
+the files used for generating the paper (https://arxiv.org/abs/2401.09530) are in paper scripts.
 
   train:
 	
@@ -32,3 +32,6 @@ table scripts:
 
 
 This is the new code Yuval wrote. Should be much neater, but I haven't tested it myself.
+
+# Paper metadata
+
