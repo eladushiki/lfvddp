@@ -1,23 +1,21 @@
 import tensorflow as tf
-import h5py
-from tensorflow import keras
-from tensorflow.keras.constraints import Constraint
-from tensorflow.keras import metrics, losses, optimizers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Input, Layer
+from tensorflow.python.keras.constraints import Constraint
+from tensorflow.python.keras.models import Model
+from tensorflow.python.keras.layers import Dense
 from tensorflow import Variable
-from tensorflow import linalg as la
-from tensorflow.keras import initializers
-import numpy as np
+from tensorflow.python.keras import initializers
 import logging
 
-class WeightClip(Constraint):
-    '''Clips the weights incident to each hidden unit to be inside a range                                                                                                       
+class SymmetricWeightClip(Constraint):
     '''
-    def __init__(self, c=2):
-        self.c = c
-    def __call__(self, p):
-        return tf.clip_by_value(p, clip_value_min=-self.c, clip_value_max=self.c)
+    Clips the weights incident to each hidden unit to be inside a range
+    '''
+    def __init__(self, clip_abs_value=2):
+        self.c = clip_abs_value
+    
+    def __call__(self, tensor):
+        return tf.clip_by_value(tensor, clip_value_min=-self.c, clip_value_max=self.c)
+    
     def get_config(self):
         return {'name': self.__class__.__name__, 'c': self.c}
 
@@ -27,21 +25,23 @@ class BSMfinderNet(Model):
         # default initializer
         kernel_initializer = "glorot_uniform"
         bias_initializer   = "zeros"
-        if not initializer==None:
+        if not initializer is None:
             kernel_initializer = initializer
             bias_initializer = initializer
+
         super().__init__(name=name, **kwargs)
-        if weight_clipping ==None:
+
+        if weight_clipping is None:
             self.hidden_layers = [Dense(architecture[i+1], input_shape=(architecture[i],), activation=activation, trainable=trainable,
                                         kernel_initializer=initializer, bias_initializer=initializer) for i in range(len(architecture)-2)]
             self.output_layer  = Dense(architecture[-1], input_shape=(architecture[-2],), activation='linear', trainable=trainable,
                                        kernel_initializer=initializer, bias_initializer=initializer)
         else:
             self.hidden_layers = [Dense(architecture[i+1], input_shape=(architecture[i],), activation=activation, trainable=trainable,
-                                        kernel_constraint = WeightClip(weight_clipping), 
+                                        kernel_constraint = SymmetricWeightClip(weight_clipping), 
                                         kernel_initializer=initializer, bias_initializer=initializer) for i in range(len(architecture)-2)]
             self.output_layer  = Dense(architecture[-1], input_shape=(architecture[-2],), activation='linear', trainable=trainable,
-                                       kernel_constraint = WeightClip(weight_clipping), 
+                                       kernel_constraint = SymmetricWeightClip(weight_clipping), 
                                        kernel_initializer=initializer, bias_initializer=initializer)
         self.build(input_shape)
 
@@ -52,7 +52,7 @@ class BSMfinderNet(Model):
         return x
 
 
-class imperfect_model(Model):
+class ImperfectModel(Model):
     def __init__(self, input_shape, NU_S, NUR_S, NU0_S, SIGMA_S, NU_N, NUR_N, NU0_N, SIGMA_N,
                  BSMarchitecture=[1, 10, 1], BSMweight_clipping=1., correction='', 
                  shape_dictionary_list=[None],
@@ -205,7 +205,7 @@ class TaylorExpansionNet(Model):
             output = []
             for i in range(self.degree):
                 output.append(self.a[i](x))
-            output  = tf.keras.layers.Concatenate(axis=1)(output)
+            output  = tf.python.keras.layers.Concatenate(axis=1)(output)
             return output
 
 
