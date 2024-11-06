@@ -1,0 +1,10 @@
+# Python Environment
+.venv/
+
+# IDE
+.vscode/
+
+# Configuration Files
+configs/**/*.json
+!configs/basic_config.json
+!configs/user/basic_user_config.json
