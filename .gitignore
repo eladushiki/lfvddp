@@ -1,10 +1,14 @@
-# Python Environment
+# Python environment
 .venv/
 
 # IDE
 .vscode/
 
-# Configuration Files
+# Configuration files
 configs/**/*.json
-!configs/basic_config.json
+!configs/training/basic_training_config.json
 !configs/user/basic_user_config.json
+
+# Mid process files and results
+results/
+temp/
