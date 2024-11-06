@@ -44,6 +44,7 @@ To be able to keep track of every run and its products, a running context is imp
 - Records the current Git commit
 - To do so reliably, forces you to commit changes before running
 - Enables the user to add any additional context as new parameters of the context to be documented
+- Forces seeding of numpy random, for reproducibility of the results.
 - Saves it in a file, that should be adjacent to the resulting output.
 
 To use this functionality in any new entry point, run the main function inside the context.

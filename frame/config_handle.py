@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 from typing import List
 from typing_extensions import Self
+from numpy import random
 
 from frame.git_tools import get_commit_hash, is_git_head_clean
+from frame.time_tools import get_unix_timestamp
 
 
 @dataclass
@@ -19,6 +21,7 @@ class Config:
     user: str
     out_dir: Path
     scripts_dir: Path
+    random_seed: int = get_unix_timestamp()
 
     @classmethod
     def load_from_files(cls, config_paths: List[Path]) -> Self:
@@ -50,6 +53,9 @@ def version_controlled_execution_context(config: Config):
     """
     if not is_git_head_clean():
         raise RuntimeError("Commit changes before running the script.")
+    
+    random.seed(config.random_seed)
+
     context = ExecutionContext(get_commit_hash(), config)
     
     yield context
