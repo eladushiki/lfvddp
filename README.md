@@ -1,5 +1,10 @@
 # LFVNN-symmetrized
 
+## Paper Scripts
+
+Existing file in commit 01017a30 were used to generate the paper (https://arxiv.org/abs/2401.09530).
+Relevant files are in a directory that was called then paper scripts.
+
 ## Training
 	
 new_submit_(inbar_*) - submitting jobs for specific scenario. 
@@ -17,11 +22,6 @@ new_analysis_utils - analyzing the saved files. You may also use new_analysis_ut
 new_plot_utils - for plotting.
 
 Make sure to change the paths for dir (where the output of the training was saved) and plots_dir (where you want to save the plots). Also need access to "/storage/agrp/yuvalzu/mattiasdata" on the cluster.
-
-## Paper Scripts
-
-Existing file in commit 01017a30 were used to generate the paper (https://arxiv.org/abs/2401.09530).
-Relevant files are in a directory that was called then paper scripts.
 
 ## Table Scripts
 
@@ -46,7 +46,16 @@ To be able to keep track of every run and its products, a running context is imp
 - Forces seeding of numpy random, for reproducibility of the results
 - Saves it in a file, that should be adjacent to the resulting output
 
+What is not version controlled:
+
+- External databases used, should be version controlled separately (although their locations are).
+- That inclueds the version of NN's and such (although their locations are).
+- Virtual environment dependency versions are not (yet) well documented.
+- Any configuration of external tools.
+
 To use this functionality in any new entry point, run the main function inside the context.
+
+**This means that we are not allowed to tamper with git history. Amending or rewriting commits in any other way is prohibited, for it may create results that are non-reproducible!**
 
 ## Training
 

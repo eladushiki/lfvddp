@@ -1,6 +1,9 @@
 # Python environment
 .venv/
 
+# Python installation artifacts
+**.egg-info/
+
 # IDE
 .vscode/
 
