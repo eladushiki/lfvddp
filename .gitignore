@@ -3,6 +3,7 @@
 
 # Python installation artifacts
 **.egg-info/
+**/__pycache__/
 
 # IDE
 .vscode/

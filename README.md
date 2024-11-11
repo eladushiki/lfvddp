@@ -32,6 +32,13 @@ This is the new code Yuval wrote. Should be much neater, but Inbar didn't test i
 Mcoll - e-\mu data, exp - exp background with various signals, NPLM - just the method from https://arxiv.org/abs/1806.02350, resample - premutation tests.
 
 ---
+# Installation
+
+It is customary to run
+
+> pip install -e .
+
+to be able to run the code locally while editing it in place.
 
 # Usage and Expansion Explanation
 ## Everyting runs in a context
