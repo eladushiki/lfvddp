@@ -52,3 +52,6 @@ class TrainConfig(ClusterConfig):
     train__nn_architecture: str  # "1:4:1"
     train__nn_input_size: int
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
+
+    # Still unclear parameters
+    train__N_poiss: int

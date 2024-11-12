@@ -47,19 +47,19 @@ def main(context: ExecutionContext) -> None:
         patience = min(config.train__patience, config.train__patience)
 
     if config.train__histogram_analytic_pdf == 'em':
-        sample = em
+        analytic_background_function = em
         kwargs = {
             "binned": config.train__histogram_is_binned,
             "resolution": config.train__histogram_resolution,
         }
     elif config.train__histogram_analytic_pdf == 'em_Mcoll':
-        sample = em_Mcoll
+        analytic_background_function = em_Mcoll
         kwargs = {
             "binned": config.train__histogram_is_binned,
             "resolution": config.train__histogram_resolution,
         }
     elif config.train__histogram_analytic_pdf == 'exp':
-        sample = exp
+        analytic_background_function = exp
         kwargs = {
             "N_Ref": round(219087*float(Fraction(config.train__batch_size)) * config.train__combined_portion),
             "N_Bkg": round(219087*float(Fraction(config.train__test_batch_size)) * config.train__combined_portion),
@@ -74,7 +74,7 @@ def main(context: ExecutionContext) -> None:
 
     # Prepare sample
     feature, target = prepare_training(
-        sample,
+        analytic_background_function,
         config.train__data_background_aux,
         config.train__data_signal_aux,
         config.train__data_background,
@@ -83,7 +83,7 @@ def main(context: ExecutionContext) -> None:
         test_size = config.train__test_batch_size, 
         sig_events = config.train__signal_number_of_events,
         seed = context.random_seed,
-        N_poiss = config.N_poiss,
+        N_poiss = config.train__N_poiss,
         combined_portion=config.train__combined_portion,
         **kwargs,
     )

@@ -32,5 +32,7 @@
     "train__nn_weight_clipping": 0.14,
     "train__nn_architecture": "1:4:1",
     "train__nn_input_size": 1,
-    "train__nn_loss_function": "delta"
+    "train__nn_loss_function": "delta",
+
+    "train__N_poiss": 1
 }

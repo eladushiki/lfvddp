@@ -140,7 +140,7 @@ def resample(feature,target,resample_seed,Bkg_Data_str = "Bkg",label_method="per
 
 
 
-def exp(N_Ref,N_Bkg,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16, N_poiss = True, resonant = True):
+def exp(N_Ref,N_Bkg,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16, N_poiss = True, resonant = True, *args, **kwargs):
     np.random.seed(seed)
 
     N_Bkg_Pois  = np.random.poisson(lam=N_Bkg*np.exp(Norm), size=1)[0] if N_poiss else N_Bkg
@@ -162,7 +162,7 @@ def exp(N_Ref,N_Bkg,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16, N_pois
     return Ref,Bkg,Sig
 
 
-def em(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1):
+def em(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1, *args, **kwargs):
     
     channel='em'
     signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
@@ -192,7 +192,7 @@ def em(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1):
     return Ref/1e5,Bkg/1e5,Sig/1e5
 
 
-def em_Mcoll(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1,binned=False,resolution=0.05):
+def em_Mcoll(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1,binned=False,resolution=0.05, *args, **kwargs):
     
     channel='em'
     signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
@@ -268,30 +268,6 @@ def physics(A_size, B_size, sig_events, seed, channels=['em'], signal_types=["gg
             background[f"{channel}_{var}_background"] = np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy")
             for s in signal_types:
                 signal[f"{s}_{channel}_{var}_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy")
-
-    # np.random.seed(seed)
-    # N_Bkg_Pois  = np.random.poisson(lam=float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion
-    # np.random.seed(seed+1)
-    # N_Ref_Pois  = np.random.poisson(lam=float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion
-    # np.random.seed(seed+2)
-    # N_Sig_Pois = np.random.poisson(lam=sig_events, size=1)[0] if N_poiss else sig_events
-    # print(N_Bkg_Pois,N_Ref_Pois,N_Sig_Pois)
-    
-    # #bootstrapping
-    # Ref = np.random.choice(background["em_background"].reshape(-1,),N_Ref_Pois,replace=True).reshape(-1,1)/1e5
-    # Bkg = np.random.choice(background["em_background"].reshape(-1,),N_Bkg_Pois,replace=True).reshape(-1,1)/1e5
-    # total_Sig = np.concatenate(tuple([signal["%s_%s_signal"%(s,channel)] for s in signal_types]),axis=0).reshape(-1,)
-    # Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)/1e5
-    # if binned:
-    #     Ref = np.floor(Ref/resolution)*resolution
-    #     Bkg = np.floor(Bkg/resolution)*resolution
-    #     Sig = np.floor(Sig/resolution)*resolution
-    
-    # print(f'defs: em, N_Ref={float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion},N_Bkg={float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion},N_Sig={sig_events},seed = {seed}, N_poiss = {N_poiss}')
-    # print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
-
-    # return A,B,Sig
-
 
 def generate_pdf(x,seed,size=3e6):
     '''
