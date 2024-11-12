@@ -162,67 +162,30 @@ def exp(N_Ref,N_Bkg,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16, N_pois
     return Ref,Bkg,Sig
 
 
-def em(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1, *args, **kwargs):
+def em(
+        background_distribution: np.ndarray,
+        signal_distribution: np.ndarray,
+        train_size,
+        test_size,
+        sig_events,
+        seed,
+        N_poiss=True,
+        combined_portion=1,
+        resolution=1,
+        *args, **kwargs
+    ):
     
-    channel='em'
-    signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
-    background = {}
-    signal = {}
-    background["%s_background"%channel] = np.load("/storage/agrp/yuvalzu/NPLM/%s_MLL_dist.npy"%channel)
-    for s in signal_samples:
-        signal["%s_%s_signal"%(s,channel)] = np.load("/storage/agrp/yuvalzu/NPLM/%s_%s_signal_MLL_dist.npy"%(channel,s))
-
-    #bootstrapping
-    np.random.seed(seed)
-    N_Bkg_Pois  = np.random.poisson(lam=float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion
-    np.random.seed(seed+1)
-    N_Ref_Pois  = np.random.poisson(lam=float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion
-    np.random.seed(seed+2)
+    N_Bkg_Pois  = np.random.poisson(lam=float(Fraction(test_size))*background_distribution.shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(test_size))*background_distribution.shape[0]*combined_portion
+    N_Ref_Pois  = np.random.poisson(lam=float(Fraction(train_size))*background_distribution.shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(train_size))*background_distribution.shape[0]*combined_portion
     N_Sig_Pois = np.random.poisson(lam=sig_events, size=1)[0] if N_poiss else sig_events
-    print(N_Bkg_Pois,N_Ref_Pois,N_Sig_Pois)
     
-    Ref = np.random.choice(background["em_background"].reshape(-1,),N_Ref_Pois,replace=True).reshape(-1,1)
-    Bkg = np.random.choice(background["em_background"].reshape(-1,),N_Bkg_Pois,replace=True).reshape(-1,1)
-    total_Sig = np.concatenate(tuple([signal["%s_%s_signal"%(s,channel)] for s in signal_samples]),axis=0).reshape(-1,)
+    Ref = np.random.choice(background_distribution.reshape(-1,),N_Ref_Pois,replace=True).reshape(-1,1)
+    Bkg = np.random.choice(background_distribution.reshape(-1,),N_Bkg_Pois,replace=True).reshape(-1,1)
+    total_Sig = np.concatenate(tuple(signal_distribution),axis=0).reshape(-1,)
     Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
 
-    print(f'defs: em, N_Ref={float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion},N_Bkg={float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion},N_Sig={sig_events},seed = {seed}, N_poiss = {N_poiss}')
-    print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
-
-    return Ref/1e5,Bkg/1e5,Sig/1e5
-
-
-def em_Mcoll(train_size,test_size,sig_events,seed,N_poiss=True,combined_portion=1,binned=False,resolution=0.05, *args, **kwargs):
-    
-    channel='em'
-    signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
-    background = {}
-    signal = {}
-    background["%s_background"%channel] = np.load("/storage/agrp/yuvalzu/NPLM/%s_Mcoll_dist.npy"%channel)
-    for s in signal_samples:
-        signal["%s_%s_signal"%(s,channel)] = np.load("/storage/agrp/yuvalzu/NPLM/%s_%s_signal_Mcoll_dist.npy"%(channel,s))
-
-    #bootstrapping
-    np.random.seed(seed)
-    N_Bkg_Pois  = np.random.poisson(lam=float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion
-    np.random.seed(seed+1)
-    N_Ref_Pois  = np.random.poisson(lam=float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion
-    np.random.seed(seed+2)
-    N_Sig_Pois = np.random.poisson(lam=sig_events, size=1)[0] if N_poiss else sig_events
-    print(N_Bkg_Pois,N_Ref_Pois,N_Sig_Pois)
-    
-    Ref = np.random.choice(background["em_background"].reshape(-1,),N_Ref_Pois,replace=True).reshape(-1,1)/1e5
-    Bkg = np.random.choice(background["em_background"].reshape(-1,),N_Bkg_Pois,replace=True).reshape(-1,1)/1e5
-    total_Sig = np.concatenate(tuple([signal["%s_%s_signal"%(s,channel)] for s in signal_samples]),axis=0).reshape(-1,)
-    Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)/1e5
-    if binned:
-        Ref = np.floor(Ref/resolution)*resolution
-        Bkg = np.floor(Bkg/resolution)*resolution
-        Sig = np.floor(Sig/resolution)*resolution
-    
-    print(f'defs: em, N_Ref={float(Fraction(train_size))*background["em_background"].shape[0]*combined_portion},N_Bkg={float(Fraction(test_size))*background["em_background"].shape[0]*combined_portion},N_Sig={sig_events},seed = {seed}, N_poiss = {N_poiss}')
-    print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
-
+    # todo: I deleted here some 1e5 factors that divide all of these in the case of em and others for em_Mcoll
+    # Need to go over it when I'll understand where the data comes from know the meaning of it
     return Ref,Bkg,Sig
 
 

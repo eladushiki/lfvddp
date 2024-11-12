@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from frame.config_handle import Config
 
 @dataclass
@@ -11,6 +12,11 @@ class ClusterConfig(Config):
 
 @dataclass
 class TrainConfig(ClusterConfig):
+    # Data generation data locations
+    train__data_dir: Path
+    train__backgournd_distribution_path: Path
+    train__signal_distribution_path: Path
+
     # Data set sizing
     train__batch_size: str  # as a fraction
     train__test_batch_size: str  # as a fraction

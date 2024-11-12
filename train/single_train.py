@@ -1,4 +1,5 @@
 from logging import config
+import signal
 import sys, os, time, datetime, h5py, json, argparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -46,15 +47,15 @@ def main(context: ExecutionContext) -> None:
         epochs = max(config.train__epochs, config.train__epochs)
         patience = min(config.train__patience, config.train__patience)
 
-    if config.train__histogram_analytic_pdf == 'em':
+    background = np.load(config.train__data_dir / config.train__backgournd_distribution_path)
+    signal = np.load(config.train__data_dir / config.train__signal_distribution_path)
+
+    if config.train__histogram_analytic_pdf == 'em' or \
+        config.train__histogram_analytic_pdf == 'em_Mcoll': # TODO: there should be a difference in scale between both
         analytic_background_function = em
         kwargs = {
-            "binned": config.train__histogram_is_binned,
-            "resolution": config.train__histogram_resolution,
-        }
-    elif config.train__histogram_analytic_pdf == 'em_Mcoll':
-        analytic_background_function = em_Mcoll
-        kwargs = {
+            "background_distribution": background,
+            "signal_distribution": signal,
             "binned": config.train__histogram_is_binned,
             "resolution": config.train__histogram_resolution,
         }
