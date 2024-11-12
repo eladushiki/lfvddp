@@ -109,12 +109,16 @@ def main(context: ExecutionContext) -> None:
         OUTPUT_FILE_ID = "pdf_"+OUTPUT_FILE_ID
         
     ## Get Tau term model
-    t_model = imperfect_model(input_shape=input_shape,
-                        NU_S=NUR_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S, 
-                        NU_N=NUR_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
-                        correction=config.train__nuisance_correction, 
-                        #shape_dictionary_list=[parNN_list['scale']],
-                        BSMarchitecture=config.train__nn_architecture, BSMweight_clipping=config.train__nn_weight_clipping, train_f=True, train_nu=False)
+    t_model = imperfect_model(
+        input_shape=input_shape,
+        NU_S=NUR_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S, 
+        NU_N=NUR_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
+        correction=config.train__nuisance_correction, 
+        BSMarchitecture=config.train__nn_architecture,
+        BSMweight_clipping=config.train__nn_weight_clipping,
+        train_f=True,
+        train_nu=False
+    )
     print(t_model.summary())
 
     t_model.compile(loss=imperfect_loss,  optimizer='adam')
