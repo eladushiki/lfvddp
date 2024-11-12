@@ -31,6 +31,8 @@ class Config:
                 config = json.load(file)
                 config_params.update(config)
 
+        convert_string_filenames_to_paths(config_params)
+
         return cls(**config_params)
 
     def save_to_file(self, config_path: Path) -> None:
@@ -38,6 +40,16 @@ class Config:
             json.dump(self.__dict__, file, indent=4)
 
 
+def convert_string_filenames_to_paths(config_params: dict) -> None:
+    """
+    Convert all string filenames to Path objects.
+    """
+    for key, value in config_params.items():
+        if isinstance(value, str):
+            if (string_as_path := Path(value)).exists():
+                config_params[key] = string_as_path
+
+        
 @dataclass
 class ExecutionContext:
     commit_hash: str
