@@ -58,7 +58,7 @@ What is not version controlled:
 - External databases used, should be version controlled separately (although their locations are).
 - That inclueds the version of NN's and such (although their locations are).
 - Virtual environment dependency versions are not (yet) well documented.
-- Any configuration of external tools.
+- Any configuration of external tools. Any scripts in user defined "scripts_dir".
 
 To use this functionality in any new entry point, run the main function inside the context.
 
