@@ -21,8 +21,6 @@ class Config:
     user: str
     out_dir: Path
     scripts_dir: Path
-    time: str = get_time_and_date_string()
-    random_seed: int = get_unix_timestamp()
 
     @classmethod
     def load_from_files(cls, config_paths: List[Path]) -> Self:
@@ -44,7 +42,8 @@ class Config:
 class ExecutionContext:
     commit_hash: str
     config: Config
-
+    time: str = get_time_and_date_string()
+    random_seed: int = get_unix_timestamp()
 
 @contextmanager
 def version_controlled_execution_context(config: Config):
@@ -55,9 +54,9 @@ def version_controlled_execution_context(config: Config):
     if not is_git_head_clean():
         raise RuntimeError("Commit changes before running the script.")
     
-    random.seed(config.random_seed)
-
     context = ExecutionContext(get_commit_hash(), config)
+
+    random.seed(context.random_seed)
     
     yield context
     

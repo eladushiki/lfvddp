@@ -1,0 +1,36 @@
+{
+    "train__batch_size": 0.5,
+    "train__test_batch_size": 0.5,
+    "train__combined_portion": 1,
+
+    "train__data_background_aux": "Ref",
+    "train__data_signal_aux": "Sig+Bkg",
+    "train__data_background": "Bkg",
+    "train__data_signal": "Sig",
+
+    "train__histogram_is_binned": "False",
+    "train__histogram_resolution": 10,
+    "train__histogram_is_use_analytic": 1,
+    "train__histogram_analytic_pdf": "em",
+
+    "train__signal_number_of_events": 1000,
+    "train__signal_types": "em",
+    "train__signal_resonant": "True",
+    "train__signal_location": 10,
+    "train__signal_scale": 0.16,
+
+    "train__nuisance_correction": "SHAPE",
+    "train__nuisance_scale": 0.16,
+    "train__nuisance_norm": 1,
+    "train__nuisance_sigma_s": 1,
+    "train__nuisance_sigma_n": 1,
+
+    "train__epochs_type": "delta",
+    "train__epochs": 10,
+    "train__patience": 1,
+
+    "train__nn_weight_clipping": 0.14,
+    "train__nn_architecture": "1:4:1",
+    "train__nn_input_size": 1,
+    "train__nn_loss_function": "delta"
+}
