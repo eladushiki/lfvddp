@@ -1,11 +1,13 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
+from os import makedirs
 from pathlib import Path
 from typing import List
 from typing_extensions import Self
 from numpy import random
 
+from frame.file_structure import CONTEXT_FILE_NAME
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 
@@ -56,6 +58,29 @@ class ExecutionContext:
     config: Config
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp()
+    run_successful: bool = False
+
+    @property
+    def uniique_descriptor(self) -> str:
+        return f"run_of_commit_{self.commit_hash}_time_{self.time}_seed_{self.random_seed}"
+
+    @staticmethod
+    def serialize(object) -> dict:
+        series = object.__dict__.copy()
+
+        # Convert non-serializable objects
+        for key, value in series.items():
+            if isinstance(value, Path):
+                series[key] = str(value)
+            elif isinstance(value, Config):
+                series[key] = ExecutionContext.serialize(value)
+
+        return series
+    
+    def save_to_out_path(self) -> None:
+        makedirs(self.config.out_dir / self.uniique_descriptor, exist_ok=False)
+        with open(self.config.out_dir / self.uniique_descriptor / CONTEXT_FILE_NAME, 'w') as file:
+            json.dump(ExecutionContext.serialize(self), file, indent=4)
 
 @contextmanager
 def version_controlled_execution_context(config: Config):
@@ -63,14 +88,20 @@ def version_controlled_execution_context(config: Config):
     Create a context which should contain any run dependent information.
     The data is later stored in the output_path for documentatino.
     """
+    # Force run on strict commit
     if not is_git_head_clean():
         raise RuntimeError("Commit changes before running the script.")
     
+    # Initialize
     context = ExecutionContext(get_commit_hash(), config)
-
     random.seed(context.random_seed)
+
+    # Save in case run terminates prematurely
+    context.save_to_out_path()
     
+    # Do everyting, add imoprttant stufff as parameters to context object
     yield context
-    
-    with open(Config.out_dir / "context.json", 'w') as file:
-        json.dump(context, file, indent=4)
+
+    # Overwrite saved context at end of run
+    context.run_successful = True    
+    context.save_to_out_path()

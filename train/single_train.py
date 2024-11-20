@@ -36,13 +36,8 @@ def main(context: ExecutionContext) -> None:
     if not isinstance(config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
 
-    train__batch_train_fraction = 1 - float(Fraction(config.train__batch_test_fraction))
-
     # training time settings
-    if config.train__epochs_type == 'TAU':
-        epochs = config.train__epochs
-        patience = config.train__patience
-    elif config.train__epochs_type == 'delta':
+    if config.train__epochs_type == 'TAU' or config.train__epochs_type == 'delta':
         epochs = config.train__epochs
         patience = config.train__patience
     else:
@@ -55,8 +50,8 @@ def main(context: ExecutionContext) -> None:
     if config.train__histogram_analytic_pdf == 'exp':
         analytic_background_function = exp
         kwargs = {
-            "N_Ref": round(219087 * float(train__batch_train_fraction) * config.train__combined_portion),
-            "N_Bkg": round(219087 * float(Fraction(config.train__batch_test_fraction)) * config.train__combined_portion),
+            "N_Ref": round(219087 * config.train__batch_train_fraction * config.train__data_usage_fraction),
+            "N_Bkg": round(219087 * config.train__batch_test_fraction * config.train__data_usage_fraction),
             "N_sig": config.train__signal_number_of_events,
             "Scale": config.train__nuisance_scale,
             "Sig_loc": config.train__signal_location,
@@ -66,8 +61,8 @@ def main(context: ExecutionContext) -> None:
     elif config.train__histogram_analytic_pdf == 'gauss':
         analytic_background_function = gauss
         kwargs = {
-            "N_Ref": round(219087 * float(train__batch_train_fraction) * config.train__combined_portion),
-            "N_Bkg": round(219087 * float(Fraction(config.train__batch_test_fraction)) * config.train__combined_portion),
+            "N_Ref": round(219087 * float(config.train__batch_train_fraction) * config.train__data_usage_fraction),
+            "N_Bkg": round(219087 * float(Fraction(config.train__batch_test_fraction)) * config.train__data_usage_fraction),
             "Sig_loc": config.train__signal_location,
             "Sig_scale": config.train__signal_scale,
             "NR": config.train__nuisance_norm,  # verify this interpretation
@@ -97,7 +92,7 @@ def main(context: ExecutionContext) -> None:
         sig_events = config.train__signal_number_of_events,
         seed = context.random_seed,
         N_poiss = config.train__N_poiss,
-        combined_portion=config.train__combined_portion,
+        combined_portion=config.train__data_usage_fraction,
         **kwargs,
     )
 

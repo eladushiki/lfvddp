@@ -18,9 +18,11 @@ class TrainConfig(ClusterConfig):
     train__signal_distribution_path: Path
 
     # Data set sizing
-    train__batch_size: str  # as a fraction
-    train__batch_test_fraction: str  # as a fraction
-    train__combined_portion: float  # as a fraction. total number of events (as a fraction) in the over-all sample (before splitting into A and B).
+    train__batch_test_fraction: float  # as a fraction
+    @property
+    def train__batch_train_fraction(self):
+        return 1 - self.train__batch_test_fraction
+    train__data_usage_fraction: float  # as a fraction. total number of events (as a fraction) in the over-all sample (before splitting into A and B).
 
     # Data set types
     train__data_background_aux: str  # string of data sets in the auxillary background (e.g. 'Ref' or 'Sig+Bkg+Ref')

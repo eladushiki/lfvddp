@@ -1,4 +1,5 @@
 # file title constants
+CONTEXT_FILE_NAME = "context.json"
 OUTPUT_FILE_NAME = "output.txt"
 WEIGHTS_FILE_NAME = "weights.h5"
 LOG_FILE_NAME = "train.log"
