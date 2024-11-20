@@ -5,7 +5,7 @@ from scipy.integrate import quad
 
 sys.path.insert(0,"/storage/agrp/yuvalzu/mattiasdata")
 import save_jobs_script as jobs
-import utils as u
+import frame.command_line.execution as u
 
 #------------------------------------------------------------------------------------------------------------------------#
 

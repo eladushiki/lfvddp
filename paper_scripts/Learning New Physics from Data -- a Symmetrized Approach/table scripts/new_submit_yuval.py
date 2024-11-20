@@ -1,6 +1,6 @@
 import sys,os,time
 sys.path.insert(0,"/storage/agrp/yuvalzu/mattiasdata")
-import utils as u
+import frame.submit
 import save_jobs_script as jobs
 from fractions import Fraction
 import datetime
@@ -43,14 +43,14 @@ def submit_jobs(outdir,scriptsdir):
                     fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_{jobid}_{i}_{sig}_{config_num}_TAU_{pdf}.sh"
                     cmd_TAU=f"/usr/local/anaconda/3.8/bin/python {scriptsdir}/new_training_table.py -j {jobid} -A {A_size} -B {B_size} -s {sig} -c {scriptsdir}/config{config_num}.json -o {outdir}/training_outcomes --seed {seed} "
                     cmd_TAU+=f"-t TAU --BDstr Bkg --SDstr Sig --BAstr Ref+Bkg+Sig --smlpdf {pdf}"
-                    u.prepare_submit_file(fsubname,setupLines,[cmd_TAU],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_TAU_{pdf}",setupATLAS=False)
-                    u.submit_job(fsubname,walltime=walltime[i],io=0,mem=2)
+                    frame.submit.prepare_submit_file(fsubname,setupLines,[cmd_TAU],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_TAU_{pdf}",setupATLAS=False)
+                    frame.submit.submit_job(fsubname,walltime=walltime[i],io=0,mem=2)
 
                     fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_{jobid}_{i}_{sig}_{config_num}_delta_{pdf}.sh"
                     cmd_delta=f"/usr/local/anaconda/3.8/bin/python {scriptsdir}/new_training_table.py -j {jobid} -A {A_size} -B {B_size} -s {sig} -c {scriptsdir}/config{config_num}.json -o {outdir}/training_outcomes --seed {seed} "
                     cmd_delta+=f"-t delta --BDstr Ref --BAstr Ref+Bkg+Sig --smlpdf {pdf}"
-                    u.prepare_submit_file(fsubname,setupLines,[cmd_delta],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_delta_{pdf}",setupATLAS=False)
-                    u.submit_job(fsubname,walltime=walltime[i],io=0,mem=4)
+                    frame.submit.prepare_submit_file(fsubname,setupLines,[cmd_delta],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_delta_{pdf}",setupATLAS=False)
+                    frame.submit.submit_job(fsubname,walltime=walltime[i],io=0,mem=4)
 
                 fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_save_{i}_{sig}_{config_num}.sh"
                 setupLines=[f"cd {outdir}"]

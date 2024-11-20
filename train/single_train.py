@@ -23,7 +23,7 @@ from NPLM.ANALYSISutils import *
 from fractions import Fraction
 from data_tools.profile_likelihood import *
 from data_tools.histogram_generation import *
-from frame.command_line_args import context_controlled_execution
+from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
 from frame.file_structure import LOG_FILE_NAME, LOG_HISTORY_FILE_NAME, OUTPUT_FILE_NAME, WEIGHTS_FILE_NAME
 from train.train_config import TrainConfig

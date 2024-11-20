@@ -1,10 +1,84 @@
-def submit_job(command: str, walltime: str, io: int, mem: int) -> None:
-    """
-    Submit a job to the cluster.
-    """
-    pass
+from frame.command_line.execution import execute_in_process
 
-def prepare_submit_files_save(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",shortname="",mail=False):
+
+
+def submit_save_jobs(fsubname,N_jobs,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[],mail=False):
+    ## Get submit command
+    user = execute_in_process('whoami')[0][2:-3]
+    host = execute_in_process('hostname')[0][2:-3]
+    # email = f'{user}@{host}'
+    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
+    waitjobids = execute_in_process(f"qstat -u {user} | tail -n {N_jobs} | sed -e 's/\..*$//' | tr '\n' ' '")[0][2:-1].split()
+    if mem!=None:
+        subcmd+=",mem=%sg"%mem # Default in farm is 2g
+    if cores!=None:
+        subcmd+=",ppn=%s"%cores 
+    # if mail:
+    #     subcmd+=f" -M {email}"
+    if waitjobids!=[]:
+        subcmd+=" -W depend=afterok"
+        for wjid in waitjobids:
+            subcmd+=":%s.wipp-pbs"%wjid
+    subcmd+=" %s"%fsubname
+    ## Submit
+    returncode=""
+    tries=[]
+    while returncode!=0 and len(tries)<50:
+        if returncode!="":
+            print(returncode,err)
+        out,err,returncode=execute_in_process(subcmd)
+        if returncode==228:
+            # warn("Too many jobs submitted")
+            return None
+        tries.append(returncode)
+    if returncode!=0:
+        # warn("Problem submitting job",fname)
+        print("Submit command:",subcmd)
+        print("Returncodes per try:")
+        print(tries)
+        return None
+    ## Return jobID
+    jobID=out.split('.')[0].rstrip()
+    print(jobID,fsubname)
+    return jobID
+
+
+def submit_job(fsubname,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[]):
+    ## Get submit command
+    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
+    if mem!=None:
+        subcmd+=",mem=%sg"%mem # Default in farm is 2g
+    if cores!=None:
+        subcmd+=",ppn=%s"%cores
+    if waitjobids!=[]:
+        subcmd+=" -W depend=afterany"
+        for wjid in waitjobids:
+            subcmd+=":%s.wipp-pbs"%wjid
+    subcmd+=" %s"%fsubname
+    ## Submit
+    returncode=""
+    tries=[]
+    while returncode!=0 and len(tries)<50:
+        if returncode!="":
+            print(returncode,err)
+        out,err,returncode=execute_in_process(subcmd)
+        if returncode==228:
+            # warn("Too many jobs submitted")
+            return None
+        tries.append(returncode)
+    if returncode!=0:
+        # warn("Problem submitting job",fname)
+        print("Submit command:",subcmd)
+        print("Returncodes per try:")
+        print(tries)
+        return None
+    ## Return jobID
+    jobID=out.split('.')[0].rstrip()
+    print(jobID,fsubname)
+    return jobID
+
+
+def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",shortname=""):
     jobname=shortname if shortname else fsubname.rsplit('/',1)[1].split('.')[0]
     flogname=fsubname.replace('.sh','.log')
     fsub=open(fsubname,"w")
@@ -12,7 +86,7 @@ def prepare_submit_files_save(fsubname,setupLines,cmdLines,setupATLAS=True,queue
         "#!/bin/zsh",
         "",
         "#PBS -j oe",
-        f"#PBS -m {'e' if mail else 'n'}",
+        "#PBS -m n",
         "#PBS -o %s"%flogname,
         "#PBS -q %s"%queue,
         "#PBS -N %s"%jobname,
@@ -32,43 +106,3 @@ def prepare_submit_files_save(fsubname,setupLines,cmdLines,setupATLAS=True,queue
     for l in lines:
         fsub.write(l+"\n")
     fsub.close()
-
-def submit_save_jobs(fsubname,N_jobs,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[],mail=False):
-    ## Get submit command
-    user = cmdline('whoami')[0][2:-3]
-    host = cmdline('hostname')[0][2:-3]
-    # email = f'{user}@{host}'
-    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
-    waitjobids = cmdline(f"qstat -u {user} | tail -n {N_jobs} | sed -e 's/\..*$//' | tr '\n' ' '")[0][2:-1].split()
-    if mem!=None:
-        subcmd+=",mem=%sg"%mem # Default in farm is 2g
-    if cores!=None:
-        subcmd+=",ppn=%s"%cores 
-    # if mail:
-    #     subcmd+=f" -M {email}"
-    if waitjobids!=[]:
-        subcmd+=" -W depend=afterok"
-        for wjid in waitjobids:
-            subcmd+=":%s.wipp-pbs"%wjid
-    subcmd+=" %s"%fsubname
-    ## Submit
-    returncode=""
-    tries=[]
-    while returncode!=0 and len(tries)<50:
-        if returncode!="":
-            print(returncode,err)
-        out,err,returncode=cmdline(subcmd)
-        if returncode==228:
-            # warn("Too many jobs submitted")
-            return None
-        tries.append(returncode)
-    if returncode!=0:
-        # warn("Problem submitting job",fname)
-        print("Submit command:",subcmd)
-        print("Returncodes per try:")
-        print(tries)
-        return None
-    ## Return jobID
-    jobID=out.split('.')[0].rstrip()
-    print(jobID,fsubname)
-    return jobID

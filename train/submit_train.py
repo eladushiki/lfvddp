@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from time import sleep
 
-from frame.command_line_args import context_controlled_execution
+from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext, version_controlled_execution_context
 from frame.submit import prepare_submit_files_save, submit_save_jobs
 from train.train_config import TrainConfig
