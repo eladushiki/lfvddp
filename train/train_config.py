@@ -19,8 +19,8 @@ class TrainConfig(ClusterConfig):
 
     # Data set sizing
     train__batch_size: str  # as a fraction
-    train__test_batch_size: str  # as a fraction
-    train__combined_portion: float  # as a fraction
+    train__batch_test_fraction: str  # as a fraction
+    train__combined_portion: float  # as a fraction. total number of events (as a fraction) in the over-all sample (before splitting into A and B).
 
     # Data set types
     train__data_background_aux: str  # string of data sets in the auxillary background (e.g. 'Ref' or 'Sig+Bkg+Ref')
@@ -55,7 +55,7 @@ class TrainConfig(ClusterConfig):
 
     # NN parameters
     train__nn_weight_clipping: float
-    train__nn_architecture: str  # "1:4:1"
+    train__nn_architecture: str  # "1:4:1", first digit is dimension - 1 = 1d, 2 = table = 2d
     train__nn_input_size: int
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
 

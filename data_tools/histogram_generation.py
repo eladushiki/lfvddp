@@ -4,14 +4,13 @@ from sklearn.model_selection import train_test_split
 from fractions import Fraction
 
 
-#def prepare_training(data_sets,featureData_str,featureRef_str,*args, **kwargs):
-def prepare_training(data_sets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,*args, **kwargs):
+def prepare_training(datasets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,*args, **kwargs):
     '''
     Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
     
     Parameters
     ----------
-    data_sets : function
+    datasets : function
         represents the name of physical distribution- em or exp.
     
     Bkg_Aux_str : str
@@ -29,13 +28,13 @@ def prepare_training(data_sets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str
     returns feature and target
     '''
     print("creating dict")
-    data_sets_dict = {'Ref':np.array([]),'Bkg':np.array([]),'Sig':np.array([]),'':np.array([[]])}
-    data_sets_dict['Ref'],data_sets_dict['Bkg'],data_sets_dict['Sig'] = data_sets(*args, **kwargs)
+    datasets_dict = {'Ref':np.array([]),'Bkg':np.array([]),'Sig':np.array([]),'':np.array([[]])}
+    datasets_dict['Ref'],datasets_dict['Bkg'],datasets_dict['Sig'] = datasets(*args, **kwargs)
     print("finish dict")
-    Bkg_Aux = np.concatenate(tuple([data_sets_dict[key] for key in Bkg_Aux_str.split('+',Bkg_Aux_str.count('+'))]),axis=0).reshape(-1,1)
-    Sig_Aux = np.concatenate(tuple([data_sets_dict[key] for key in Sig_Aux_str.split('+',Sig_Aux_str.count('+'))]),axis=0).reshape(-1,1)
-    Bkg_Data = np.concatenate(tuple([data_sets_dict[key] for key in Bkg_Data_str.split('+',Bkg_Data_str.count('+'))]),axis=0).reshape(-1,1)
-    Sig_Data = np.concatenate(tuple([data_sets_dict[key] for key in Sig_Data_str.split('+',Sig_Data_str.count('+'))]),axis=0).reshape(-1,1)
+    Bkg_Aux = np.concatenate(tuple([datasets_dict[key] for key in Bkg_Aux_str.split('+',Bkg_Aux_str.count('+'))]),axis=0)
+    Sig_Aux = np.concatenate(tuple([datasets_dict[key] for key in Sig_Aux_str.split('+',Sig_Aux_str.count('+'))]),axis=0) if Sig_Aux_str!='' else np.zeros((0,Bkg_Aux.shape[1]))
+    Bkg_Data = np.concatenate(tuple([datasets_dict[key] for key in Bkg_Data_str.split('+',Bkg_Data_str.count('+'))]),axis=0)
+    Sig_Data = np.concatenate(tuple([datasets_dict[key] for key in Sig_Data_str.split('+',Sig_Data_str.count('+'))]),axis=0) if Sig_Data_str!='' else np.zeros((0,Bkg_Data.shape[1]))
    
     N_Bkg = Bkg_Data.shape[0]
     print(N_Bkg)
@@ -46,14 +45,14 @@ def prepare_training(data_sets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str
     print(N_ref)
 
     feature     = np.concatenate((featureData, featureRef), axis=0)
-    N_R        = N_ref
-    N_D        = featureData.shape[0]#N_Bkg
+    N_R        = N_ref if not isinstance(NR,int) else NR
+    N_D        = featureData.shape[0] if not isinstance(ND,int) else ND#N_Bkg
 
     ## target
-    targetData  = np.ones_like(featureData)
-    targetRef   = np.zeros_like(featureRef)
-    weightsData = np.ones_like(featureData)
-    weightsRef  = np.ones_like(featureRef)*N_D*1./N_R
+    targetData  = np.ones_like(featureData,shape=(featureData.shape[0],1))    # 1 for dim 1 because the NN's output is 1D.
+    targetRef   = np.zeros_like(featureRef,shape=(featureRef.shape[0],1))
+    weightsData = np.ones_like(featureData,shape=(featureData.shape[0],1))
+    weightsRef  = np.ones_like(featureRef,shape=(featureRef.shape[0],1))*N_D*1./N_R
     target      = np.concatenate((targetData, targetRef), axis=0)
     weights     = np.concatenate((weightsData, weightsRef), axis=0)
     target      = np.concatenate((target, weights), axis=1)
@@ -114,10 +113,10 @@ def resample(feature,target,resample_seed,Bkg_Data_str = "Bkg",label_method="per
         return feature,target
 
     if "Ref" in Bkg_Data_str:
-        featureData = data_B
+        featureData = data_B.copy()
         print("Ref")
     else:
-        featureData = data_A
+        featureData = data_A.copy()
         print("Bkg")
 
     featureRef = np.concatenate((data_A,data_B),axis=0)
@@ -140,7 +139,39 @@ def resample(feature,target,resample_seed,Bkg_Data_str = "Bkg",label_method="per
 
 
 
-def exp(N_Ref,N_Bkg,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16, N_poiss = True, resonant = True, *args, **kwargs):
+def exp(N_A,N_B,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16,N_poiss=True,resonant=True):
+    '''
+    Returns exponential samples A, B and Sig suitable for fitting.
+    
+    Parameters
+    ----------
+    N_A : int
+        number of events in sample A.
+    N_B : int
+        number of events in sample B.
+    N_Sig : int
+        number of events in sample Sig.
+    seed : int
+        seed for random functions.
+    Scale : float
+        scale of the exponential distribution.
+    Norm : float
+        normalization of the exponential distribution.
+    Sig_loc : float
+        mean of the gaussian distribution of the signal.
+    Sig_scale : float
+        standard deviation of the gaussian distribution of the signal.
+    N_poiss : bool
+        True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
+    resonant : bool
+        True - add gaussian signal. False - add non-resonant signal.
+
+    Returns
+    -------
+    A : numpy array
+    B : numpy array
+    Sig : numpy array
+    '''
     np.random.seed(seed)
 
     N_Bkg_Pois  = np.random.poisson(lam=N_Bkg*np.exp(Norm), size=1)[0] if N_poiss else N_Bkg
@@ -157,10 +188,79 @@ def exp(N_Ref,N_Bkg,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16, N_pois
             dist = x**2*np.exp(-x)
             return dist/np.sum(dist)
         Sig = np.random.choice(np.linspace(0,100,100000),size=(N_Sig_Pois,1),replace=True,p=Sig_dist(np.linspace(0,100,100000)))*np.exp(Scale)   
-    print(f'defs: exp, N_Ref={N_Ref},N_Bkg={N_Bkg},N_Sig={N_Sig},seed = {seed},Scale={Scale},Norm={Norm},Sig_loc={Sig_loc},Sig_scale={Sig_scale}, N_poiss = {N_poiss}, resonant = {resonant}')
+    print(f'defs: exp, N_Ref={N_A},N_Bkg={N_B},N_Sig={N_Sig},seed = {seed},Scale={Scale},Norm={Norm},Sig_loc={Sig_loc},Sig_scale={Sig_scale}, N_poiss = {N_poiss}, resonant = {resonant}')
+    print('Ref',A.shape,'Bkg',B.shape, 'Sig',Sig.shape)
+    return A,B,Sig
+
+
+def gauss(N_A,N_B,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16,N_poiss=True,resonant=True,dim=2):
+    '''
+    Returns gaussian samples A, B and Sig suitable for fitting.
+    
+    Parameters
+    ----------
+    N_A : int
+        number of events in sample A.
+    N_B : int
+        number of events in sample B.
+    N_Sig : int
+        number of events in sample Sig.
+    seed : int
+        seed for random functions.
+    Scale : float
+        scale of the gaussian distribution.
+    Norm : float
+        normalization of the gaussian distribution.
+    Sig_loc : float
+        mean of the gaussian distribution of the signal.
+    Sig_scale : float
+        standard deviation of the gaussian distribution of the signal.
+    N_poiss : bool
+        True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
+    resonant : bool
+        True - add gaussian signal. False - add non-resonant signal.
+    dim : int
+        dimension of the gaussian distribution.
+
+    Returns
+    -------
+    A : numpy array
+    B : numpy array
+    Sig : numpy array
+    '''
+    np.random.seed(seed)
+
+    N_B_Pois  = np.random.poisson(lam=N_B*np.exp(Norm), size=1)[0] if N_poiss else N_B
+    N_A_Pois  = np.random.poisson(lam=N_A*np.exp(Norm), size=1)[0] if N_poiss else N_A
+    N_Sig_Pois = np.random.poisson(lam=N_Sig*np.exp(Norm), size=1)[0] if N_poiss else N_Sig
+    print(N_B_Pois,N_A_Pois,N_Sig_Pois)
+
+    B = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=N_B_Pois)
+    A  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=N_A_Pois)
+    Sig = np.random.multivariate_normal(mean=Sig_loc*np.ones(dim), cov=Sig_scale*np.ones((dim,dim)), size=N_Sig_Pois)
+    print(f'defs: gauss, N_Ref={N_Ref},N_Bkg={N_Bkg},N_Sig={N_Sig},seed = {seed},Scale={Scale},Norm={Norm},Sig_loc={Sig_loc},Sig_scale={Sig_scale}, N_poiss = {N_poiss}, resonant = {resonant}')
     print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
     return Ref,Bkg,Sig
 
+
+def normalize(dataset, normalization=1e5):
+    '''
+    Normalizes the dataset according to the normalization.
+    
+    Parameters
+    ----------
+    normalization : float, str
+        if float - the normalization factor. if str ('min-max' or 'standard') - the type of the normalization (incomplete for now).
+    '''
+    if normalization == 'min-max':
+        dataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
+    elif normalization == 'standard':
+        dataset = (dataset - np.mean(dataset)) / np.std(dataset)
+    elif isinstance(normalization,float) or isinstance(normalization,int):
+        dataset = dataset/normalization
+    else:
+        raise ValueError("Invalid normalization, see docstring for options")
+    return dataset
 
 def em(
         background_distribution: np.ndarray,
@@ -188,7 +288,6 @@ def em(
     # Need to go over it when I'll understand where the data comes from know the meaning of it
     return Ref,Bkg,Sig
 
-
 def physics(A_size, B_size, sig_events, seed, channels=['em'], signal_types=["ggH_taue","vbfH_taue"], phys_variables=['Mcoll'], N_poiss=True ,combined_portion=1, binned=False, resolution=0.05):
     '''
     Turns samples of the selected physical parameters into numpy arrays of samples A, B and Sig suitable for fitting.
@@ -203,8 +302,8 @@ def physics(A_size, B_size, sig_events, seed, channels=['em'], signal_types=["gg
         number of total signal events. According to it, selecting randomly from all signal types, with replacement and equal probability)
     seed : int
         seed for random functions.
-    channels : list of str
-        decay channels to be used. ('ee','em','me','mm')
+    channels : str
+        decay channel to be used. ('ee','em','me','mm')
     signal_types : list of str
         new physics signal types to be used. ('ggH_taue','ggH_taumu','vbfH_taue','vbfH_taumu','Z_taue','Z_taumu')
     phys_variables : list of str
@@ -226,11 +325,47 @@ def physics(A_size, B_size, sig_events, seed, channels=['em'], signal_types=["gg
     '''
     background = {}
     signal = {}
-    for channel in channels:
-        for var in phys_variables:            
-            background[f"{channel}_{var}_background"] = np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy")
-            for s in signal_types:
-                signal[f"{s}_{channel}_{var}_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy")
+    vars = phys_variables
+    # background[f"{channel}_background"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars),axis=1)
+    # for s in signal_types:
+    #     signal[f"{s}_{channel}_signal"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars),axis=1)
+    # total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in sig_types]),axis=0)
+    background[f"{channel}_background"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars]),axis=1)
+    for s in signal_types:
+        signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if sig_events>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
+    total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in signal_types]),axis=0)
+
+    np.random.seed(seed)
+    N_A_Pois  = np.random.poisson(lam=float(Fraction(A_size))*background[f"{channel}_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(A_size))*background[f"{channel}_background"].shape[0]*combined_portion
+    np.random.seed(seed+1)
+    N_B_Pois  = np.random.poisson(lam=float(Fraction(B_size))*background[f"{channel}_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(B_size))*background[f"{channel}_background"].shape[0]*combined_portion
+    np.random.seed(seed+2)
+    N_Sig_Pois = np.random.poisson(lam=sig_events, size=1)[0] if N_poiss else sig_events
+    print(N_A_Pois,N_B_Pois,N_Sig_Pois)
+    
+    # bootstrapping
+    # A = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_A_Pois,replace=True).reshape(-1,1)
+    # B = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_B_Pois,replace=True).reshape(-1,1)
+    # Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
+    A_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_A_Pois,replace=True)
+    A = background[f"{channel}_background"][A_events]
+    B_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_B_Pois,replace=True)
+    B = background[f"{channel}_background"][B_events]
+    Sig_events = np.random.choice(np.arange(total_Sig.shape[0]),N_Sig_Pois,replace=True)
+    Sig = total_Sig[Sig_events]
+
+    if binned:
+        A = np.floor(A/resolution)*resolution
+        B = np.floor(B/resolution)*resolution
+        Sig = np.floor(Sig/resolution)*resolution
+    A = normalize(A, normalization)
+    B = normalize(B, normalization)
+    Sig = normalize(Sig, normalization)
+    print(f'setting: {channel}, N_A = {float(Fraction(A_size))*background["em_background"].shape[0]*combined_portion}, N_B = {float(Fraction(B_size))*background["em_background"].shape[0]*combined_portion}, N_Sig = {sig_events}, seed = {seed}, N_poiss = {N_poiss}')
+    print('A: ',A.shape,' B: ',B.shape, ' Sig: ',Sig.shape)
+
+    return A,B,Sig
+
 
 def generate_pdf(x,seed,size=3e6):
     '''
