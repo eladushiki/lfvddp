@@ -52,11 +52,11 @@ def main(context: ExecutionContext) -> None:
         kwargs = {
             "N_Ref": round(219087 * config.train__batch_train_fraction * config.train__data_usage_fraction),
             "N_Bkg": round(219087 * config.train__batch_test_fraction * config.train__data_usage_fraction),
-            "N_sig": config.train__signal_number_of_events,
             "Scale": config.train__nuisance_scale,
             "Sig_loc": config.train__signal_location,
             "Sig_scale": config.train__signal_scale,
             "resonant": config.train__signal_resonant,
+            "combined_portion": config.train__data_usage_fraction,
         }
     elif config.train__histogram_analytic_pdf == 'gauss':
         analytic_background_function = gauss
@@ -67,12 +67,14 @@ def main(context: ExecutionContext) -> None:
             "Sig_scale": config.train__signal_scale,
             "NR": config.train__nuisance_norm,  # verify this interpretation
             "ND": config.train__nuisance_sigma_n,  # verify this interpretation
+            "combined_portion": config.train__data_usage_fraction,
         }
     elif config.train__histogram_analytic_pdf == 'physics':
         analytic_background_function = physics
         kwargs = {
-            "N_Ref": train__batch_train_fraction,
+            "N_Ref": config.train__batch_train_fraction,
             "N_Bkg": config.train__batch_test_fraction,
+            "N_Sig": config.train__signal_number_of_events,
             "signal_types": config.train__signal_types,
             "phys_variables": config.phys_variables,
             "binned": config.train__histogram_is_binned,
@@ -89,10 +91,7 @@ def main(context: ExecutionContext) -> None:
         config.train__data_signal_aux,
         config.train__data_background,
         config.train__data_signal,
-        sig_events = config.train__signal_number_of_events,
-        seed = context.random_seed,
         N_poiss = config.train__N_poiss,
-        combined_portion=config.train__data_usage_fraction,
         **kwargs,
     )
 

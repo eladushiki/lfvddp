@@ -193,54 +193,43 @@ def exp(N_A,N_B,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16,N_poiss=Tru
     return A,B,Sig
 
 
-def gauss(N_A,N_B,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16,N_poiss=True,resonant=True,dim=2):
+def gauss(
+        N_Ref: int,
+        N_Bkg: int,
+        N_Sig: int,
+        Norm: float,
+        Sig_loc: float,
+        Sig_scale: float,
+        N_poiss: bool,
+        dim=2):
     '''
     Returns gaussian samples A, B and Sig suitable for fitting.
     
     Parameters
     ----------
-    N_A : int
-        number of events in sample A.
-    N_B : int
-        number of events in sample B.
-    N_Sig : int
-        number of events in sample Sig.
-    seed : int
-        seed for random functions.
-    Scale : float
-        scale of the gaussian distribution.
-    Norm : float
-        normalization of the gaussian distribution.
-    Sig_loc : float
-        mean of the gaussian distribution of the signal.
-    Sig_scale : float
-        standard deviation of the gaussian distribution of the signal.
-    N_poiss : bool
-        True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
-    resonant : bool
-        True - add gaussian signal. False - add non-resonant signal.
-    dim : int
-        dimension of the gaussian distribution.
+    N_Ref: number of events in sample A.
+    N_Bkg: number of events in sample B.
+    N_Sig: number of events in sample Sig.
+    Norm: normalization of the gaussian distribution.
+    Sig_loc: mean of the gaussian distribution of the signal.
+    Sig_scale: standard deviation of the gaussian distribution of the signal.
+    N_poiss: True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
+    resonant: True - add gaussian signal. False - add non-resonant signal.
+    dim: dimension of the gaussian distribution.
 
     Returns
     -------
-    A : numpy array
-    B : numpy array
-    Sig : numpy array
+    reference: numpy array
+    background: numpy array
+    signal: numpy array
     '''
-    np.random.seed(seed)
-
-    N_B_Pois  = np.random.poisson(lam=N_B*np.exp(Norm), size=1)[0] if N_poiss else N_B
-    N_A_Pois  = np.random.poisson(lam=N_A*np.exp(Norm), size=1)[0] if N_poiss else N_A
-    N_Sig_Pois = np.random.poisson(lam=N_Sig*np.exp(Norm), size=1)[0] if N_poiss else N_Sig
-    print(N_B_Pois,N_A_Pois,N_Sig_Pois)
-
-    B = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=N_B_Pois)
-    A  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=N_A_Pois)
-    Sig = np.random.multivariate_normal(mean=Sig_loc*np.ones(dim), cov=Sig_scale*np.ones((dim,dim)), size=N_Sig_Pois)
-    print(f'defs: gauss, N_Ref={N_Ref},N_Bkg={N_Bkg},N_Sig={N_Sig},seed = {seed},Scale={Scale},Norm={Norm},Sig_loc={Sig_loc},Sig_scale={Sig_scale}, N_poiss = {N_poiss}, resonant = {resonant}')
-    print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
-    return Ref,Bkg,Sig
+    n_bkg_pois  = np.random.poisson(lam = N_Bkg * np.exp(Norm), size = 1)[0] if N_poiss else N_Bkg
+    n_ref_pois  = np.random.poisson(lam = N_Ref * np.exp(Norm), size = 1)[0] if N_poiss else N_Ref
+    n_Sig_Pois = np.random.poisson(lam = N_Sig * np.exp(Norm), size = 1)[0] if N_poiss else N_Sig
+    background = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_bkg_pois)
+    reference  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_ref_pois)
+    signal = np.random.multivariate_normal(mean = Sig_loc * np.ones(dim), cov = Sig_scale * np.ones((dim, dim)), size = n_Sig_Pois)
+    return reference, background, signal
 
 
 def normalize(dataset, normalization=1e5):
