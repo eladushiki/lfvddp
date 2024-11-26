@@ -2,11 +2,6 @@ from logging import config
 import signal
 import sys, os, time, datetime, h5py, json, argparse
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as font_manager
-from scipy.stats import norm, expon, chi2, uniform, chisquare
-import scipy.stats as sps
-from sklearn.model_selection import train_test_split
 
 import tensorflow as tf
 from tensorflow import keras
@@ -27,6 +22,8 @@ from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
 from frame.file_structure import LOG_FILE_NAME, LOG_HISTORY_FILE_NAME, OUTPUT_FILE_NAME, WEIGHTS_FILE_NAME
 from train.train_config import TrainConfig
+from neural_networks.NNutils import ImperfectModel, imperfect_loss
+from configs.config_utils import parNN_list
 
 @context_controlled_execution
 def main(context: ExecutionContext) -> None:
@@ -131,14 +128,15 @@ def main(context: ExecutionContext) -> None:
     OUTPUT_FILE_ID = OUTPUT_FILE_NAME
     if config.train__histogram_is_use_analytic:
         OUTPUT_FILE_ID = "pdf_"+OUTPUT_FILE_ID
-        
+    
     ## Get Tau term model
-    t_model = imperfect_model(
+    t_model = ImperfectModel(
         input_shape=input_shape,
         NU_S=NUR_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S, 
         NU_N=NUR_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
-        correction=config.train__nuisance_correction, 
-        BSMarchitecture=config.train__nn_architecture,
+        correction = config.train__nuisance_correction,
+        shape_dictionary_list = [parNN_list['scale']],
+        BSMarchitecture = [int(layer_width) for layer_width in config.train__nn_architecture.split(":")],
         BSMweight_clipping=config.train__nn_weight_clipping,
         train_f=True,
         train_nu=False
@@ -150,7 +148,7 @@ def main(context: ExecutionContext) -> None:
     ## Train
     print("\nStarting training")
     t0=time.time()
-    hist_t_model = t_model.fit(feature, target, batch_size=batch_size, epochs=epochs, verbose=0)
+    t_mdoel_history = t_model.fit(feature, target, batch_size=batch_size, epochs=epochs, verbose=0)
     t1=time.time()
     print('Training time (seconds):')
     print(t1-t0,"\n")
@@ -158,7 +156,7 @@ def main(context: ExecutionContext) -> None:
     ## Save
 
     # metrics                      
-    loss_t_model  = np.array(hist_t_model.history['loss'])
+    loss_t_model  = np.array(t_mdoel_history.history['loss'])
 
     # test statistic                                         
     final_loss = loss_t_model[-1]
@@ -176,8 +174,8 @@ def main(context: ExecutionContext) -> None:
     patience_t = patience
     keepEpoch   = epoch % patience_t == 0
     f.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
-    for key in list(hist_t_model.history.keys()):
-        monitored = np.array(hist_t_model.history[key])
+    for key in list(t_mdoel_history.history.keys()):
+        monitored = np.array(t_mdoel_history.history[key])
         print('%s: %f'%(key, monitored[-1]))
         f.create_dataset(key, data=monitored[keepEpoch],   compression='gzip')
     f.close()

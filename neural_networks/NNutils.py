@@ -1,10 +1,11 @@
-import tensorflow as tf
-from tensorflow.python.keras.constraints import Constraint
-from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.layers import Dense
-from tensorflow import Variable
-from tensorflow.python.keras import initializers
 import logging
+
+import tensorflow as tf
+from tensorflow import Variable
+from tensorflow.keras.initializers import Zeros
+from tensorflow.keras.constraints import Constraint
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense
 
 class SymmetricWeightClip(Constraint):
     '''
@@ -160,19 +161,6 @@ class ImperfectModel(Model):
             BSM = self.BSMfinder(x)
         output  = tf.keras.layers.Concatenate(axis=1)([BSM+Lratio, Laux])
 
-        #monitoring
-        if not self.correction=='':
-            self.add_metric(tf.reduce_mean(Laux),  aggregation='mean', name='Laux')
-            self.add_metric(tf.reduce_sum(Lratio), aggregation='sum',  name='Lratio')
-        if self.train_f:
-            self.add_metric(tf.reduce_sum(BSM),    aggregation='sum',  name='BSM')
-        if self.correction == 'SHAPE':
-            for i in range(self.nu_s.shape[0]):
-                self.add_metric(self.nu_s[i], aggregation='mean', name='shape_%i'%(i))
-            self.add_metric(self.nu_n, aggregation='mean', name='norm_0')
-        if self.correction == 'NORM':
-            self.add_metric(self.nu_n, aggregation='mean', name='norm_0')
-
         return output
 
 
@@ -191,7 +179,7 @@ class TaylorExpansionNet(Model):
         for i in range(degree):
             initializer = None
             if init_null[i]:
-                initializer = initializers.Zeros()
+                initializer = Zeros()
             self.a.append(BSMfinderNet(input_shape, architectures[i], weight_clippings[i], activation=activation, trainable=train[i], initializer=initializer))
             if not (initial_model[i]==None or initial_model[i]==False):
                 self.a[-1].load_weights(initial_model[i], by_name=True)
