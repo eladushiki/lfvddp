@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import json
 import random
-from os import makedirs
+from os import makedirs, getpid
 from pathlib import Path
 from typing import List
 from typing_extensions import Self
@@ -62,8 +62,8 @@ class ExecutionContext:
     run_successful: bool = False
 
     @property
-    def uniique_descriptor(self) -> str:
-        return f"run_of_commit_{self.commit_hash}_time_{self.time}_seed_{self.random_seed}"
+    def unique_descriptor(self) -> str:
+        return f"run_of_commit_{self.commit_hash:5s}_time_{self.time}_seed_postfix_{self.random_seed}_pid_{getpid()}"
 
     @staticmethod
     def serialize(object) -> dict:
@@ -79,8 +79,8 @@ class ExecutionContext:
         return series
     
     def save_to_out_path(self) -> None:
-        makedirs(self.config.out_dir / self.uniique_descriptor, exist_ok=False)
-        with open(self.config.out_dir / self.uniique_descriptor / CONTEXT_FILE_NAME, 'w') as file:
+        makedirs(self.config.out_dir / self.unique_descriptor, exist_ok=False)
+        with open(self.config.out_dir / self.unique_descriptor / CONTEXT_FILE_NAME, 'w') as file:
             json.dump(ExecutionContext.serialize(self), file, indent=4)
 
 @contextmanager
