@@ -52,7 +52,7 @@ def convert_string_filenames_to_paths(config_params: dict) -> None:
             if (string_as_path := Path(value)).exists():
                 config_params[key] = string_as_path
 
-        
+
 @dataclass
 class ExecutionContext:
     commit_hash: str
@@ -61,9 +61,17 @@ class ExecutionContext:
     random_seed: int = get_unix_timestamp()
     run_successful: bool = False
 
+    def __post_init__(self):
+        # Initialize once unique output directory
+        makedirs(self.unique_out_dir, exist_ok=False)
+
     @property
     def unique_descriptor(self) -> str:
         return f"run_of_commit_{self.commit_hash:5s}_time_{self.time}_seed_postfix_{self.random_seed}_pid_{getpid()}"
+
+    @property
+    def unique_out_dir(self) -> Path:
+        return self.config.out_dir / self.unique_descriptor
 
     @staticmethod
     def serialize(object) -> dict:
@@ -78,9 +86,8 @@ class ExecutionContext:
 
         return series
     
-    def save_to_out_path(self) -> None:
-        makedirs(self.config.out_dir / self.unique_descriptor, exist_ok=False)
-        with open(self.config.out_dir / self.unique_descriptor / CONTEXT_FILE_NAME, 'w') as file:
+    def save_to_out_file(self) -> None:
+        with open(self.unique_out_dir / CONTEXT_FILE_NAME, 'w') as file:
             json.dump(ExecutionContext.serialize(self), file, indent=4)
 
 @contextmanager
@@ -99,11 +106,11 @@ def version_controlled_execution_context(config: Config, is_debug_mode: bool = F
     npramdom.seed(context.random_seed)
 
     # Save in case run terminates prematurely
-    context.save_to_out_path()
+    context.save_to_out_file()
     
     # Do everyting, add imoprttant stufff as parameters to context object
     yield context
 
     # Overwrite saved context at end of run
     context.run_successful = True    
-    context.save_to_out_path()
+    context.save_to_out_file()

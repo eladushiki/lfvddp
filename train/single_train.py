@@ -20,7 +20,7 @@ from data_tools.profile_likelihood import *
 from data_tools.histogram_generation import *
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
-from frame.file_structure import LOG_FILE_NAME, LOG_HISTORY_FILE_NAME, OUTPUT_FILE_NAME, WEIGHTS_FILE_NAME
+from frame.file_structure import TRAINING_LOG_FILE_NAME, TRAINING_HISTORY_FILE_NAME, OUTPUT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from train.train_config import TrainConfig
 from neural_networks.NNutils import ImperfectModel, imperfect_loss
 from configs.config_utils import parNN_list
@@ -124,11 +124,6 @@ def main(context: ExecutionContext) -> None:
 
     input_shape = (None, inputsize)
 
-    OUTPUT_PATH    = config.out_dir
-    OUTPUT_FILE_ID = OUTPUT_FILE_NAME
-    if config.train__histogram_is_use_analytic:
-        OUTPUT_FILE_ID = "pdf_"+OUTPUT_FILE_ID
-    
     ## Get Tau term model
     t_model = ImperfectModel(
         input_shape=input_shape,
@@ -163,13 +158,16 @@ def main(context: ExecutionContext) -> None:
     t_model_OBS    = -2*final_loss
     print('t_model_OBS: %f'%(t_model_OBS))
 
+    out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
+    os.makedirs(out_dir, exist_ok=False)
+
     # save t
-    with open(LOG_FILE_NAME, 'w') as log:
+    with open(out_dir / TRAINING_LOG_FILE_NAME, 'w') as log:
         log.write("%f\n" %(t_model_OBS))
 
     # save the training history                                       
-    log_history = LOG_HISTORY_FILE_NAME
-    f           = h5py.File(log_history,"w")
+    log_history = TRAINING_HISTORY_FILE_NAME
+    f           = h5py.File(out_dir / log_history,"w")
     epoch       = np.array(range(epochs))
     patience_t = patience
     keepEpoch   = epoch % patience_t == 0
@@ -182,7 +180,7 @@ def main(context: ExecutionContext) -> None:
     print("\nsaved history")
 
     # save the model weights
-    log_weights = config.out_dir / WEIGHTS_FILE_NAME
+    log_weights = out_dir / WEIGHTS_OUTPUT_FILE_NAME
     t_model.save_weights(log_weights)
 
 if __name__ == "__main__":

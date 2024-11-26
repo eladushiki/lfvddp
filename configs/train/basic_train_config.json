@@ -16,7 +16,7 @@
     "train__histogram_is_use_analytic": 1,
     "train__histogram_analytic_pdf": "gauss",
 
-    "train__resample_is_resample": true,
+    "train__resample_is_resample": false,
     "train__resample_label_method": "binomial",
     "train__resample_method_type": "fixed",
     "train__resample_is_replacement": true,
@@ -27,7 +27,7 @@
     "train__signal_location": 10,
     "train__signal_scale": 0.16,
 
-    "train__nuisance_correction": "SHAPE",
+    "train__nuisance_correction": "NORM",
     "train__nuisance_scale": 0.16,
     "train__nuisance_norm": 1,
     "train__nuisance_sigma_s": 1,

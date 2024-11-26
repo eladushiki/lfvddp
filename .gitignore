@@ -15,5 +15,9 @@ configs/**/*.json
 !configs/cluster/basic_cluster_config.json
 
 # Mid process files and results
+## Untracked directories
 results/
 temp/
+## Untracked file types
+**.h5
+**.log
