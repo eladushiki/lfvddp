@@ -3,9 +3,10 @@ import numpy as np
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
 from fractions import Fraction
+from random import choices
 
 
-def prepare_training(datasets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,*args, **kwargs):
+def prepare_training(datasets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,NR="False",ND="False",*args, **kwargs):
     '''
     Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
     
@@ -28,22 +29,18 @@ def prepare_training(datasets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,
     
     returns feature and target
     '''
-    print("creating dict")
     datasets_dict = {'Ref':np.array([]),'Bkg':np.array([]),'Sig':np.array([]),'':np.array([[]])}
     datasets_dict['Ref'],datasets_dict['Bkg'],datasets_dict['Sig'] = datasets(*args, **kwargs)
-    print("finish dict")
     Bkg_Aux = np.concatenate(tuple([datasets_dict[key] for key in Bkg_Aux_str.split('+',Bkg_Aux_str.count('+'))]),axis=0)
     Sig_Aux = np.concatenate(tuple([datasets_dict[key] for key in Sig_Aux_str.split('+',Sig_Aux_str.count('+'))]),axis=0) if Sig_Aux_str!='' else np.zeros((0,Bkg_Aux.shape[1]))
     Bkg_Data = np.concatenate(tuple([datasets_dict[key] for key in Bkg_Data_str.split('+',Bkg_Data_str.count('+'))]),axis=0)
     Sig_Data = np.concatenate(tuple([datasets_dict[key] for key in Sig_Data_str.split('+',Sig_Data_str.count('+'))]),axis=0) if Sig_Data_str!='' else np.zeros((0,Bkg_Data.shape[1]))
    
     N_Bkg = Bkg_Data.shape[0]
-    print(N_Bkg)
     featureData = np.concatenate((Bkg_Data,Sig_Data),axis=0)
 
     featureRef = np.concatenate((Bkg_Aux,Sig_Aux),axis=0)
     N_ref = featureRef.shape[0]
-    print(N_ref)
 
     feature     = np.concatenate((featureData, featureRef), axis=0)
     N_R        = N_ref if not isinstance(NR,int) else NR
@@ -61,59 +58,60 @@ def prepare_training(datasets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,
     return feature,target
 
 
-def resample(feature,target,resample_seed,Bkg_Data_str = "Bkg",label_method="permute", N_method = "fixed", replacement = True):
+def resample(
+        feature: np.ndarray,
+        target: np.ndarray,
+        background_data_str: str = "Bkg",
+        label_method: str = "permute",
+        method_type: str = "fixed",
+        replacement: bool = True
+    ):
     '''
     Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
     
     Parameters
     ----------
-    label_method : str = "permute"|"binomial"|"bootstrap" 
+    feature: ??
+    target: ??
+    background_data_str: = "Ref"|"Bkg"
+    label_method: = "permute"|"binomial"|"bootstrap" 
         "permute": train_test_split according to current ratio (number of events in each sample remains unchanged)
         "binomial": determine label according to binomial distribution with p_A = N_A/(N_A+N_B) - only total number of events is fixed
         "bootstrap": resample uniformly (with/wo replacement) with sizes N_A and N_B 
-    
-    N_method : str = "fixed"|"binomial"
-    N_A, N_B : mean number of events 
-
+    method_type: = "fixed"|"binomial"|"poiss"
     replacement : for bootstrap only - whether events can be repeated. True = repeat events, False - do not repeat events.
 
-    returns feature and target
+    Returns
+    ----------
+    feature, target
     '''
     combined_data = feature[target[:, 0]==0]
     N_combined = combined_data.shape[0]
-    np.random.seed(resample_seed)
-    if "Ref" in Bkg_Data_str:
+    if "Ref" in background_data_str:
         N_B = feature[target[:, 0]==1].shape[0]
         N_A = N_combined-N_B
-        print("Bkg")
     else:
         N_A = feature[target[:, 0]==1].shape[0]
         N_B = N_combined-N_A
-        print("Bkg")
     
-    if N_method=="poiss":
+    if method_type=="poiss":
         N_A = np.random.poisson(lam=N_A, size=1)[0]
         N_B = np.random.poisson(lam=N_B, size=1)[0]
-
-    print(f"N_A = {N_A}, N_B = {N_B}")
     
     if label_method=="permute":
         data_A, data_B = train_test_split(combined_data,train_size=N_A,test_size = N_B,random_state=resample_seed)
     elif label_method =="binomial":
-        np.random.seed(resample_seed)
-        label = np.random.choices(["A","B"],weights = [N_A/(N_A+N_B),N_B/(N_A+N_B)],k = N_combined)
+        label = choices(["A","B"],weights = [N_A/(N_A+N_B),N_B/(N_A+N_B)],k = N_combined)
         data_A = combined_data[label=="A"]
         data_B = combined_data[label=="B"]
     elif label_method=="bootstrap":
-        np.random.seed(resample_seed)
-        data_A = np.random.choices(combined_data, replace = replacement, k=N_A)
-        np.random.seed(resample_seed+1)
-        data_B = np.random.choices(combined_data, replace = replacement, k=N_B)
+        # Note: to have no replacement random.choice should actually be replaced by random.sample
+        data_A = choices(combined_data, replace = replacement, k=N_A)
+        data_B = choices(combined_data, replace = replacement, k=N_B)
     else:
-        print("no resampling")
-        return feature,target
+        raise ValueError(f"Invalid label_method for resample: {label_method}")
 
-    if "Ref" in Bkg_Data_str:
+    if "Ref" in background_data_str:
         featureData = data_B.copy()
         print("Ref")
     else:
@@ -137,7 +135,6 @@ def resample(feature,target,resample_seed,Bkg_Data_str = "Bkg",label_method="per
     target      = np.concatenate((target, weights), axis=1)
 
     return feature,target
-
 
 
 def exp(
@@ -189,6 +186,7 @@ def exp(
     print(f'defs: exp, N_Ref={n_ref},N_Bkg={n_bkg},N_Sig={n_signal},Scale={scale_factor},Norm={normalization_factor},Sig_loc={signal_location},Sig_scale={signal_scale}, N_poiss = {poisson_fluctuations}, resonant = {is_resonant_signal_shape}')
     print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
     return Ref,Bkg,Sig
+
 
 def gauss(
         n_ref: int,
@@ -302,6 +300,7 @@ def physics(
 
     return A,B,Sig
 
+
 def normalize(dataset, normalization=1e5):
     '''
     Normalizes the dataset according to the normalization.
@@ -320,6 +319,7 @@ def normalize(dataset, normalization=1e5):
     else:
         raise ValueError("Invalid normalization, see docstring for options")
     return dataset
+
 
 def em(
         background_distribution: np.ndarray,
@@ -346,6 +346,7 @@ def em(
     # todo: I deleted here some 1e5 factors that divide all of these in the case of em and others for em_Mcoll
     # Need to go over it when I'll understand where the data comes from know the meaning of it
     return Ref,Bkg,Sig
+
 
 def generate_pdf(x,seed,size=3e6):
     '''

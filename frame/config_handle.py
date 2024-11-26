@@ -1,11 +1,12 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
+import random
 from os import makedirs
 from pathlib import Path
 from typing import List
 from typing_extensions import Self
-from numpy import random
+from numpy import random as npramdom
 
 from frame.file_structure import CONTEXT_FILE_NAME
 from frame.git_tools import get_commit_hash, is_git_head_clean
@@ -95,6 +96,7 @@ def version_controlled_execution_context(config: Config, is_debug_mode: bool = F
     # Initialize
     context = ExecutionContext(get_commit_hash(), config)
     random.seed(context.random_seed)
+    npramdom.seed(context.random_seed)
 
     # Save in case run terminates prematurely
     context.save_to_out_path()

@@ -36,6 +36,12 @@ class TrainConfig(ClusterConfig):
     train__histogram_is_use_analytic: int  # if 1: generate data from pdf
     train__histogram_analytic_pdf: str  # decides which samples to use (em or exp)
 
+    # Resampling settings
+    train__resample_is_resample: bool
+    train__resample_label_method: str
+    train__resample_method_type: str
+    train__resample_is_replacement: bool
+
     # Signal parameters
     train__signal_number_of_events: int
     train__signal_types: str

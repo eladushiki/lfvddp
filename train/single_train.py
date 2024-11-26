@@ -96,18 +96,19 @@ def main(context: ExecutionContext) -> None:
         config.train__data_signal_aux,
         config.train__data_background,
         config.train__data_signal,
+        NR = "False",  # config.NR
+        ND = "False",  # config.ND
         **kwargs,
     )
 
-    if config.resample:
+    if config.train__resample_is_resample:
         feature,target = resample(
             feature = feature,
             target = target,
-            resample_seed = 0,  # todo: remove this
-            Bkg_Data_str = config.train__data_background ,
-            label_method = config.label_method,
-            N_method = config.N_method,
-            replacement = config.replacement,
+            background_data_str = config.train__data_background ,
+            label_method = config.train__resample_label_method,
+            method_type = config.train__resample_method_type,
+            replacement = config.train__resample_is_replacement,
         )
 
     # Done preparing sample
