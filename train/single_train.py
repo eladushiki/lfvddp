@@ -50,36 +50,41 @@ def main(context: ExecutionContext) -> None:
     if config.train__histogram_analytic_pdf == 'exp':
         analytic_background_function = exp
         kwargs = {
-            "N_Ref": round(219087 * config.train__batch_train_fraction * config.train__data_usage_fraction),
-            "N_Bkg": round(219087 * config.train__batch_test_fraction * config.train__data_usage_fraction),
-            "Scale": config.train__nuisance_scale,
-            "Sig_loc": config.train__signal_location,
-            "Sig_scale": config.train__signal_scale,
-            "resonant": config.train__signal_resonant,
-            "combined_portion": config.train__data_usage_fraction,
+            "n_ref": round(219087 * config.train__batch_train_fraction * config.train__data_usage_fraction),
+            "n_bkg": round(219087 * config.train__batch_test_fraction * config.train__data_usage_fraction),
+            "n_signal": config.train__signal_number_of_events,
+            "scale_factor": 1,
+            "normalization_factor": 1,
+            "signal_location": config.train__signal_location,
+            "signal_scale": config.train__signal_scale,
+            "poisson_fluctuations": config.train__N_poiss,
+            "is_resonant_signal_shape": config.train__signal_resonant,
         }
     elif config.train__histogram_analytic_pdf == 'gauss':
         analytic_background_function = gauss
         kwargs = {
-            "N_Ref": round(219087 * float(config.train__batch_train_fraction) * config.train__data_usage_fraction),
-            "N_Bkg": round(219087 * float(Fraction(config.train__batch_test_fraction)) * config.train__data_usage_fraction),
-            "Sig_loc": config.train__signal_location,
-            "Sig_scale": config.train__signal_scale,
-            "NR": config.train__nuisance_norm,  # verify this interpretation
-            "ND": config.train__nuisance_sigma_n,  # verify this interpretation
-            "combined_portion": config.train__data_usage_fraction,
+            "n_ref": round(219087 * float(config.train__batch_train_fraction) * config.train__data_usage_fraction),
+            "n_bkg": round(219087 * float(Fraction(config.train__batch_test_fraction)) * config.train__data_usage_fraction),
+            "n_signal": config.train__signal_number_of_events,
+            "normalization_factor": 1,
+            "signal_location": config.train__signal_location,
+            "signal_scale": config.train__signal_scale,
+            "poisson_fluctuations": config.train__N_poiss,
+            "dim": 1,
         }
     elif config.train__histogram_analytic_pdf == 'physics':
         analytic_background_function = physics
         kwargs = {
-            "N_Ref": config.train__batch_train_fraction,
-            "N_Bkg": config.train__batch_test_fraction,
-            "N_Sig": config.train__signal_number_of_events,
-            "signal_types": config.train__signal_types,
-            "phys_variables": config.phys_variables,
-            "binned": config.train__histogram_is_binned,
-            "resolution": config.train__histogram_resolution,
-            "normalization": config.norm,
+            "n_ref": config.train__batch_train_fraction,
+            "n_bkg": config.train__batch_test_fraction,
+            "n_signal": config.train__signal_number_of_events,
+            "channel": 'em',
+            "signal_types": ["ggH_taue","vbfH_taue"],
+            "used_physical_variables": ['Mcoll'],
+            "poisson_fluctuations": config.train__N_poiss,
+            "combimed_portion": config.train__data_usage_fraction,
+            "binned": False,
+            "resolution": 0.1,
         }
     else:
         raise ValueError(f"Invalid sample_string: {config.train__histogram_analytic_pdf}")
@@ -91,7 +96,6 @@ def main(context: ExecutionContext) -> None:
         config.train__data_signal_aux,
         config.train__data_background,
         config.train__data_signal,
-        N_poiss = config.train__N_poiss,
         **kwargs,
     )
 

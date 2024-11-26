@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
@@ -139,32 +140,31 @@ def resample(feature,target,resample_seed,Bkg_Data_str = "Bkg",label_method="per
 
 
 
-def exp(N_A,N_B,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16,N_poiss=True,resonant=True):
+def exp(
+        n_ref: int,
+        n_bkg: int,
+        n_signal: int,
+        scale_factor: float = 0,
+        normalization_factor: float = 0,
+        signal_location: float = 6.4,
+        signal_scale: float = 0.16,
+        poisson_fluctuations: bool = True,
+        is_resonant_signal_shape: bool = True
+    ):
     '''
     Returns exponential samples A, B and Sig suitable for fitting.
     
     Parameters
     ----------
-    N_A : int
-        number of events in sample A.
-    N_B : int
-        number of events in sample B.
-    N_Sig : int
-        number of events in sample Sig.
-    seed : int
-        seed for random functions.
-    Scale : float
-        scale of the exponential distribution.
-    Norm : float
-        normalization of the exponential distribution.
-    Sig_loc : float
-        mean of the gaussian distribution of the signal.
-    Sig_scale : float
-        standard deviation of the gaussian distribution of the signal.
-    N_poiss : bool
-        True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
-    resonant : bool
-        True - add gaussian signal. False - add non-resonant signal.
+    n_ref: number of events in sample A.
+    n_bkg: number of events in sample B.
+    n_signal: number of events in the added signal.
+    scale_factor: scale of the exponential distribution.
+    normalization_factor: normalization of the exponential distribution.
+    signal_location: mean of the gaussian distribution of the signal.
+    signal_scale: standard deviation of the gaussian distribution of the signal.
+    poisson_fluctuations: True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
+    is_resonant_signal_shape: True - add gaussian signal. False - add non-resonant signal.
 
     Returns
     -------
@@ -172,49 +172,46 @@ def exp(N_A,N_B,N_Sig,seed,Scale=0,Norm=0,Sig_loc=6.4,Sig_scale=0.16,N_poiss=Tru
     B : numpy array
     Sig : numpy array
     '''
-    np.random.seed(seed)
-
-    N_Bkg_Pois  = np.random.poisson(lam=N_Bkg*np.exp(Norm), size=1)[0] if N_poiss else N_Bkg
-    N_Ref_Pois  = np.random.poisson(lam=N_Ref*np.exp(Norm), size=1)[0] if N_poiss else N_Ref
-    N_Sig_Pois = np.random.poisson(lam=N_Sig*np.exp(Norm), size=1)[0] if N_poiss else N_Sig
+    N_Bkg_Pois  = np.random.poisson(lam=n_bkg*np.exp(normalization_factor), size=1)[0] if poisson_fluctuations else n_bkg
+    N_Ref_Pois  = np.random.poisson(lam=n_ref*np.exp(normalization_factor), size=1)[0] if poisson_fluctuations else n_ref
+    N_Sig_Pois = np.random.poisson(lam=n_signal*np.exp(normalization_factor), size=1)[0] if poisson_fluctuations else n_signal
     print(N_Bkg_Pois,N_Ref_Pois,N_Sig_Pois)
 
-    Bkg = np.random.exponential(scale=np.exp(1*Scale), size=(N_Bkg_Pois, 1))
+    Bkg = np.random.exponential(scale=np.exp(1*scale_factor), size=(N_Bkg_Pois, 1))
     Ref  = np.random.exponential(scale=1., size=(N_Ref_Pois, 1))
-    if resonant:
-        Sig = np.random.normal(loc=Sig_loc, scale=Sig_scale, size=(N_Sig_Pois,1))*np.exp(Scale)
-    if not resonant:
+    if is_resonant_signal_shape:
+        Sig = np.random.normal(loc=signal_location, scale=signal_scale, size=(N_Sig_Pois,1))*np.exp(scale_factor)
+    else:
         def Sig_dist(x):
             dist = x**2*np.exp(-x)
             return dist/np.sum(dist)
-        Sig = np.random.choice(np.linspace(0,100,100000),size=(N_Sig_Pois,1),replace=True,p=Sig_dist(np.linspace(0,100,100000)))*np.exp(Scale)   
-    print(f'defs: exp, N_Ref={N_A},N_Bkg={N_B},N_Sig={N_Sig},seed = {seed},Scale={Scale},Norm={Norm},Sig_loc={Sig_loc},Sig_scale={Sig_scale}, N_poiss = {N_poiss}, resonant = {resonant}')
-    print('Ref',A.shape,'Bkg',B.shape, 'Sig',Sig.shape)
-    return A,B,Sig
-
+        Sig = np.random.choice(np.linspace(0,100,100000),size=(N_Sig_Pois,1),replace=True,p=Sig_dist(np.linspace(0,100,100000)))*np.exp(scale_factor)   
+    print(f'defs: exp, N_Ref={n_ref},N_Bkg={n_bkg},N_Sig={n_signal},Scale={scale_factor},Norm={normalization_factor},Sig_loc={signal_location},Sig_scale={signal_scale}, N_poiss = {poisson_fluctuations}, resonant = {is_resonant_signal_shape}')
+    print('Ref',Ref.shape,'Bkg',Bkg.shape, 'Sig',Sig.shape)
+    return Ref,Bkg,Sig
 
 def gauss(
-        N_Ref: int,
-        N_Bkg: int,
-        N_Sig: int,
-        Norm: float,
-        Sig_loc: float,
-        Sig_scale: float,
-        N_poiss: bool,
-        dim=2):
+        n_ref: int,
+        n_bkg: int,
+        n_signal: int,
+        noramlization_factor: float,
+        signal_location: float,
+        signal_scale: float,
+        poisson_fluctuations: bool,
+        dim: int = 2
+    ):
     '''
     Returns gaussian samples A, B and Sig suitable for fitting.
     
     Parameters
     ----------
-    N_Ref: number of events in sample A.
-    N_Bkg: number of events in sample B.
-    N_Sig: number of events in sample Sig.
-    Norm: normalization of the gaussian distribution.
-    Sig_loc: mean of the gaussian distribution of the signal.
-    Sig_scale: standard deviation of the gaussian distribution of the signal.
-    N_poiss: True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
-    resonant: True - add gaussian signal. False - add non-resonant signal.
+    n_ref: number of events in sample A.
+    n_bkg: number of events in sample B.
+    n_signal: number of events in the added signal.
+    noramlization_factor: normalization of the gaussian distribution.
+    signal_location: mean of the gaussian distribution of the signal.
+    signal_scale: standard deviation of the gaussian distribution of the signal.
+    poisson_fluctuations: True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
     dim: dimension of the gaussian distribution.
 
     Returns
@@ -223,14 +220,87 @@ def gauss(
     background: numpy array
     signal: numpy array
     '''
-    n_bkg_pois  = np.random.poisson(lam = N_Bkg * np.exp(Norm), size = 1)[0] if N_poiss else N_Bkg
-    n_ref_pois  = np.random.poisson(lam = N_Ref * np.exp(Norm), size = 1)[0] if N_poiss else N_Ref
-    n_Sig_Pois = np.random.poisson(lam = N_Sig * np.exp(Norm), size = 1)[0] if N_poiss else N_Sig
+    n_bkg_pois  = np.random.poisson(lam = n_bkg * np.exp(noramlization_factor), size = 1)[0] if poisson_fluctuations else n_bkg
+    n_ref_pois  = np.random.poisson(lam = n_ref * np.exp(noramlization_factor), size = 1)[0] if poisson_fluctuations else n_ref
+    n_Sig_Pois = np.random.poisson(lam = n_signal * np.exp(noramlization_factor), size = 1)[0] if poisson_fluctuations else n_signal
     background = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_bkg_pois)
     reference  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_ref_pois)
-    signal = np.random.multivariate_normal(mean = Sig_loc * np.ones(dim), cov = Sig_scale * np.ones((dim, dim)), size = n_Sig_Pois)
+    signal = np.random.multivariate_normal(mean = signal_location * np.ones(dim), cov = signal_scale * np.ones((dim, dim)), size = n_Sig_Pois)
     return reference, background, signal
 
+def physics(
+        n_ref: int,
+        n_bkg: int,
+        n_signal: int,
+        channel: str = 'em',
+        signal_types: List[str] = ["ggH_taue","vbfH_taue"],
+        used_physical_variables: List[str] = ['Mcoll'],
+        poisson_fluctuations: bool = True,
+        combined_portion: float = 1,
+        binned=False,
+        resolution=0.05
+    ):
+    '''
+    Turns samples of the selected physical parameters into numpy arrays of samples A, B and Sig suitable for fitting.
+    
+    Parameters
+    ----------
+    n_ref: number of events in sample A as a fraction of the total number of events in the sample. (e.g. '1/2','1/10'...)
+    n_bkg: number of events in sample B as a fraction of the total number of events in the sample. (e.g. '1/2','1/10'...)
+    n_signal: number of total signal events. According to it, selecting randomly from all signal types, with replacement and equal probability)
+    channels: decay channel to be used. ('ee','em','me','mm')
+    signal_types: new physics signal types to be used. ('ggH_taue','ggH_taumu','vbfH_taue','vbfH_taumu','Z_taue','Z_taumu')
+    used_physical_variables: physical variables to be used. ('Mcoll','Lep0Pt','MLL',...)
+    poisson_fluctuations: True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
+    combined_portion: total number of events (as a fraction) in the over-all sample (before splitting into A and B). (e.g. 1 for ~2e5 events, 0.05 for ~1e4 events)
+    binned: True - round the samples to the nearest integer multiple of 'resolution' (if we want to limit ourselves to detectors resolution, for example.). False - do not round the samples.
+    resolution: the resolution to which we round the samples (if binned = True).
+    
+    Returns
+    -------
+    A: numpy array
+    B: numpy array
+    Sig: numpy array
+    '''
+    background = {}
+    signal = {}
+    vars = used_physical_variables
+    # background[f"{channel}_background"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars),axis=1)
+    # for s in signal_types:
+    #     signal[f"{s}_{channel}_signal"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars),axis=1)
+    # total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in sig_types]),axis=0)
+    background[f"{channel}_background"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars]),axis=1)
+    for s in signal_types:
+        signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if n_signal>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
+    total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in signal_types]),axis=0)
+
+    N_A_Pois  = np.random.poisson(lam=float(Fraction(n_ref))*background[f"{channel}_background"].shape[0]*combined_portion, size=1)[0] if poisson_fluctuations else float(Fraction(n_ref))*background[f"{channel}_background"].shape[0]*combined_portion
+    N_B_Pois  = np.random.poisson(lam=float(Fraction(n_bkg))*background[f"{channel}_background"].shape[0]*combined_portion, size=1)[0] if poisson_fluctuations else float(Fraction(n_bkg))*background[f"{channel}_background"].shape[0]*combined_portion
+    N_Sig_Pois = np.random.poisson(lam=n_signal, size=1)[0] if poisson_fluctuations else n_signal
+    print(N_A_Pois,N_B_Pois,N_Sig_Pois)
+    
+    # bootstrapping
+    # A = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_A_Pois,replace=True).reshape(-1,1)
+    # B = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_B_Pois,replace=True).reshape(-1,1)
+    # Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
+    A_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_A_Pois,replace=True)
+    A = background[f"{channel}_background"][A_events]
+    B_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_B_Pois,replace=True)
+    B = background[f"{channel}_background"][B_events]
+    Sig_events = np.random.choice(np.arange(total_Sig.shape[0]),N_Sig_Pois,replace=True)
+    Sig = total_Sig[Sig_events]
+
+    if binned:
+        A = np.floor(A/resolution)*resolution
+        B = np.floor(B/resolution)*resolution
+        Sig = np.floor(Sig/resolution)*resolution
+    A = normalize(A, normalization)
+    B = normalize(B, normalization)
+    Sig = normalize(Sig, normalization)
+    print(f'setting: {channel}, N_A = {float(Fraction(n_ref))*background["em_background"].shape[0]*combined_portion}, N_B = {float(Fraction(n_bkg))*background["em_background"].shape[0]*combined_portion}, N_Sig = {n_signal}, N_poiss = {poisson_fluctuations}')
+    print('A: ',A.shape,' B: ',B.shape, ' Sig: ',Sig.shape)
+
+    return A,B,Sig
 
 def normalize(dataset, normalization=1e5):
     '''
@@ -276,85 +346,6 @@ def em(
     # todo: I deleted here some 1e5 factors that divide all of these in the case of em and others for em_Mcoll
     # Need to go over it when I'll understand where the data comes from know the meaning of it
     return Ref,Bkg,Sig
-
-def physics(A_size, B_size, sig_events, seed, channels=['em'], signal_types=["ggH_taue","vbfH_taue"], phys_variables=['Mcoll'], N_poiss=True ,combined_portion=1, binned=False, resolution=0.05):
-    '''
-    Turns samples of the selected physical parameters into numpy arrays of samples A, B and Sig suitable for fitting.
-    
-    Parameters
-    ----------
-    A_size : str
-        number of events in sample A as a fraction of the total number of events in the sample. (e.g. '1/2','1/10'...)
-    B_size : str
-        number of events in sample B as a fraction of the total number of events in the sample. (e.g. '1/2','1/10'...)
-    sig_events : int
-        number of total signal events. According to it, selecting randomly from all signal types, with replacement and equal probability)
-    seed : int
-        seed for random functions.
-    channels : str
-        decay channel to be used. ('ee','em','me','mm')
-    signal_types : list of str
-        new physics signal types to be used. ('ggH_taue','ggH_taumu','vbfH_taue','vbfH_taumu','Z_taue','Z_taumu')
-    phys_variables : list of str
-        physical variables to be used. ('Mcoll','Lep0Pt','MLL',...)
-    N_poiss : bool
-        True - add poisson fluctuations to the number of events in each sample. False - do not add poisson fluctuations.
-    combined_portion : float
-        total number of events (as a fraction) in the over-all sample (before splitting into A and B). (e.g. 1 for ~2e5 events, 0.05 for ~1e4 events)
-    binned : bool
-        True - round the samples to the nearest integer multiple of 'resolution' (if we want to limit ourselves to detectors resolution, for example.). False - do not round the samples.
-    resolution : float
-        the resolution to which we round the samples (if binned = True).
-    
-    Returns
-    -------
-    A : numpy array
-    B : numpy array
-    Sig : numpy array
-    '''
-    background = {}
-    signal = {}
-    vars = phys_variables
-    # background[f"{channel}_background"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars),axis=1)
-    # for s in signal_types:
-    #     signal[f"{s}_{channel}_signal"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars),axis=1)
-    # total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in sig_types]),axis=0)
-    background[f"{channel}_background"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars]),axis=1)
-    for s in signal_types:
-        signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if sig_events>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
-    total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in signal_types]),axis=0)
-
-    np.random.seed(seed)
-    N_A_Pois  = np.random.poisson(lam=float(Fraction(A_size))*background[f"{channel}_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(A_size))*background[f"{channel}_background"].shape[0]*combined_portion
-    np.random.seed(seed+1)
-    N_B_Pois  = np.random.poisson(lam=float(Fraction(B_size))*background[f"{channel}_background"].shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(B_size))*background[f"{channel}_background"].shape[0]*combined_portion
-    np.random.seed(seed+2)
-    N_Sig_Pois = np.random.poisson(lam=sig_events, size=1)[0] if N_poiss else sig_events
-    print(N_A_Pois,N_B_Pois,N_Sig_Pois)
-    
-    # bootstrapping
-    # A = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_A_Pois,replace=True).reshape(-1,1)
-    # B = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_B_Pois,replace=True).reshape(-1,1)
-    # Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
-    A_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_A_Pois,replace=True)
-    A = background[f"{channel}_background"][A_events]
-    B_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_B_Pois,replace=True)
-    B = background[f"{channel}_background"][B_events]
-    Sig_events = np.random.choice(np.arange(total_Sig.shape[0]),N_Sig_Pois,replace=True)
-    Sig = total_Sig[Sig_events]
-
-    if binned:
-        A = np.floor(A/resolution)*resolution
-        B = np.floor(B/resolution)*resolution
-        Sig = np.floor(Sig/resolution)*resolution
-    A = normalize(A, normalization)
-    B = normalize(B, normalization)
-    Sig = normalize(Sig, normalization)
-    print(f'setting: {channel}, N_A = {float(Fraction(A_size))*background["em_background"].shape[0]*combined_portion}, N_B = {float(Fraction(B_size))*background["em_background"].shape[0]*combined_portion}, N_Sig = {sig_events}, seed = {seed}, N_poiss = {N_poiss}')
-    print('A: ',A.shape,' B: ',B.shape, ' Sig: ',Sig.shape)
-
-    return A,B,Sig
-
 
 def generate_pdf(x,seed,size=3e6):
     '''
