@@ -194,7 +194,7 @@ def gauss(
         n_ref: int,
         n_bkg: int,
         n_signal: int,
-        noramlization_factor: float,
+        normalization_factor: float,
         signal_location: float,
         signal_scale: float,
         poisson_fluctuations: bool,
@@ -220,9 +220,9 @@ def gauss(
     background: numpy array
     signal: numpy array
     '''
-    n_bkg_pois  = np.random.poisson(lam = n_bkg * np.exp(noramlization_factor), size = 1)[0] if poisson_fluctuations else n_bkg
-    n_ref_pois  = np.random.poisson(lam = n_ref * np.exp(noramlization_factor), size = 1)[0] if poisson_fluctuations else n_ref
-    n_Sig_Pois = np.random.poisson(lam = n_signal * np.exp(noramlization_factor), size = 1)[0] if poisson_fluctuations else n_signal
+    n_bkg_pois  = np.random.poisson(lam = n_bkg * np.exp(normalization_factor), size = 1)[0] if poisson_fluctuations else n_bkg
+    n_ref_pois  = np.random.poisson(lam = n_ref * np.exp(normalization_factor), size = 1)[0] if poisson_fluctuations else n_ref
+    n_Sig_Pois = np.random.poisson(lam = n_signal * np.exp(normalization_factor), size = 1)[0] if poisson_fluctuations else n_signal
     background = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_bkg_pois)
     reference  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_ref_pois)
     signal = np.random.multivariate_normal(mean = signal_location * np.ones(dim), cov = signal_scale * np.ones((dim, dim)), size = n_Sig_Pois)

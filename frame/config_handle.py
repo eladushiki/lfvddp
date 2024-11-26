@@ -83,13 +83,13 @@ class ExecutionContext:
             json.dump(ExecutionContext.serialize(self), file, indent=4)
 
 @contextmanager
-def version_controlled_execution_context(config: Config):
+def version_controlled_execution_context(config: Config, is_debug_mode: bool = False):
     """
     Create a context which should contain any run dependent information.
     The data is later stored in the output_path for documentatino.
     """
     # Force run on strict commit
-    if not is_git_head_clean():
+    if not is_debug_mode and not is_git_head_clean():
         raise RuntimeError("Commit changes before running the script.")
     
     # Initialize

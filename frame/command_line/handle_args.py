@@ -30,9 +30,15 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         "--train-config", type=Path, required=False,
         help="Path to training configuration file", dest="train_config_path"
     )
+    ## Running options
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Run in debug mode"
+    )
 
     args = parser.parse_args()
 
+    # Parse configuration files
     config_paths = [args.user_config_path]
     config_class = Config
     if args.cluster_config_path:
@@ -43,13 +49,16 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         config_class = TrainConfig
     config = config_class.load_from_files(config_paths)
 
+    # Additional options
+    is_debug_mode = args.debug
+
     @wraps(function)
     def context_controlled_function(*args, **kwargs):
         """
         Run any decorated function in this run with the documentation of the
         confguration file parsed above.
         """
-        with version_controlled_execution_context(config) as context:
+        with version_controlled_execution_context(config, is_debug_mode) as context:
             function(*args, **kwargs, context=context)
 
     return context_controlled_function
