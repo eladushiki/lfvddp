@@ -2,15 +2,22 @@ from argparse import ArgumentParser
 from pathlib import Path
 from time import sleep
 
+from frame.cluster.remote_version_control import is_same_version_as_remote
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext, version_controlled_execution_context
-from frame.submit import prepare_submit_files_save, submit_save_jobs
+from frame.submit import prepare_submit_files_save, submit_cluster_job
 from train.train_config import TrainConfig
 
 @context_controlled_execution
 def train(context: ExecutionContext) -> None:
     if not isinstance(context.config, TrainConfig):
         raise ValueError("Expected TrainConfig, got {context.config.__class__.__name__}")
+    
+    # Prepare training job
+    ## Verify commit hash matching with remote repository
+    is_same_version_as_remote(context.config)
+
+    # Submit training job
     submit_train_job(context.config)
 
 

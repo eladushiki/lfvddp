@@ -66,6 +66,13 @@ To use this functionality in any new entry point, run the main function inside t
 
 **This means that we are not allowed to tamper with git history. Amending or rewriting commits in any other way is prohibited, for it may create results that are non-reproducible!**
 
+# Configuration files
+The configuration files and then the Config* dataclasses are the structures that should contain all the parameters that are run-individual.
+
+While Config* classes' contents are divided logically to different classes, the program can be called with any number of `.json` configuration file types, as long as they contain togehter all the necessary parameters. This is implemented so to enable single-file-for-run usage, as well as separation for personal privacy and context-dependent needs.
+
+Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `basic_user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
+
 ## Training
 
 Training entry points:

@@ -6,11 +6,12 @@ from frame.config_handle import Config
 class ClusterConfig(Config):
     runtag: str
 
-    # SSH parameters
+    # PERSONAL SSH parameters
+    cluster__host_address: str
     cluster__user: str
     cluster__password: str
 
-    # run parameters
+    # PERSONAL run parameters
     cluster__remote_repository_dir: Path
     cluster__working_dir: Path
 
@@ -23,9 +24,6 @@ class ClusterConfig(Config):
     # qstat command parameters
     cluster__qstat_n_jobs: int
     
-    # todo: revise where this is used?
-    save_walltime: str  # in the form of "05:00"
-    remove: bool
 
 @dataclass
 class TrainConfig(ClusterConfig):
