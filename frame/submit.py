@@ -1,5 +1,11 @@
+from contextlib import contextmanager
+from functools import wraps
 from logging import info, warning
+from pathlib import Path
+from typing import Optional
 from frame.command_line.execution import build_qsub_command, execute_in_process, build_qstat_command
+from frame.file_structure import PROJECT_ROOT
+from frame.ssh_tools import copy_remote_file
 from train.train_config import ClusterConfig
 
 
@@ -30,6 +36,41 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
             return accepted_job_id
         
     raise RuntimeError(f"Submission failed after {max_tries} attempts")
+
+
+def output_from_remote_file(submission_function):
+    """
+    Retrieve the output file from the remote server
+    Return its context as the return value of the wrapped function.
+    """
+    @wraps(submission_function)
+    def retrieving_function(config: ClusterConfig, *args, **kwargs) -> Optional[str]:
+        remote_output_path = submission_function(config, *args, **kwargs)
+        if remote_output_path:
+            return retrieve_file(config, remote_output_path)
+    
+    return retrieving_function
+
+
+def retrieve_file(config: ClusterConfig, relative_file_path_from_root: Path):
+    """
+    Copy a file from a remote path, within the repository,
+    to the same relative path on the local machine.
+    """
+    remote_file_path = config.cluster__remote_repository_dir / relative_file_path_from_root
+    local_file_path = PROJECT_ROOT / relative_file_path_from_root
+    local_file = copy_remote_file(
+        config.cluster__host_address,
+        config.cluster__user,
+        config.cluster__password,
+        remote_file_path,
+        local_file_path
+    )
+    if local_file:
+        with open(local_file, "r") as f:
+            return f.read()
+    else:
+        raise FileNotFoundError(f"File not found: {remote_file_path}")
 
 
 # todo: revise
