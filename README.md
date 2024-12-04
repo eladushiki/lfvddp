@@ -40,6 +40,8 @@ It is customary to run
 
 to be able to run the code locally while editing it in place.
 
+To submit SGE jobs to the WIS cluster, you should install slurm. The [specific isntallation command](https://command-not-found.com/qsub) depends on your OS.
+
 # Usage and Expansion Explanation
 ## Everyting runs in a context
 

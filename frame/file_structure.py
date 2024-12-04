@@ -1,3 +1,9 @@
+from pathlib import Path
+
+
+# project hierarchy
+PROJECT_ROOT = Path(__file__).parent.parent
+
 # file title constants
 CONTEXT_FILE_NAME = "context.json"
 OUTPUT_FILE_NAME = "output.txt"

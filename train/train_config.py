@@ -4,9 +4,26 @@ from frame.config_handle import Config
 
 @dataclass
 class ClusterConfig(Config):
-    n_jobs: int
     runtag: str
-    walltime: str  # in the form of "12:00:00"
+
+    # SSH parameters
+    cluster__user: str
+    cluster__password: str
+
+    # run parameters
+    cluster__remote_repository_dir: Path
+    cluster__working_dir: Path
+
+    # qsub command parameters
+    cluster__qsub_walltime: str  # in the form of "12:00:00"
+    cluster__qsub_io: int
+    cluster__qsub_mem: int
+    cluster__qsub_cores: int
+
+    # qstat command parameters
+    cluster__qstat_n_jobs: int
+    
+    # todo: revise where this is used?
     save_walltime: str  # in the form of "05:00"
     remove: bool
 

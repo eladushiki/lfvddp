@@ -1,83 +1,38 @@
-from frame.command_line.execution import execute_in_process
+from logging import info, warning
+from frame.command_line.execution import build_qsub_command, execute_in_process, build_qstat_command
+from train.train_config import ClusterConfig
 
 
+def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50):
+    # wait for existing jobs to finish
+    qstat_command = build_qstat_command(config.user, config.cluster__qstat_n_jobs)
+    wait_job_ids = execute_in_process(qstat_command)[0][2:-1].split()
 
-def submit_save_jobs(fsubname,N_jobs,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[],mail=False):
-    ## Get submit command
-    user = execute_in_process('whoami')[0][2:-3]
-    host = execute_in_process('hostname')[0][2:-3]
-    # email = f'{user}@{host}'
-    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
-    waitjobids = execute_in_process(f"qstat -u {user} | tail -n {N_jobs} | sed -e 's/\..*$//' | tr '\n' ' '")[0][2:-1].split()
-    if mem!=None:
-        subcmd+=",mem=%sg"%mem # Default in farm is 2g
-    if cores!=None:
-        subcmd+=",ppn=%s"%cores 
-    # if mail:
-    #     subcmd+=f" -M {email}"
-    if waitjobids!=[]:
-        subcmd+=" -W depend=afterok"
-        for wjid in waitjobids:
-            subcmd+=":%s.wipp-pbs"%wjid
-    subcmd+=" %s"%fsubname
-    ## Submit
-    returncode=""
-    tries=[]
-    while returncode!=0 and len(tries)<50:
-        if returncode!="":
-            print(returncode,err)
-        out,err,returncode=execute_in_process(subcmd)
-        if returncode==228:
-            # warn("Too many jobs submitted")
-            return None
-        tries.append(returncode)
-    if returncode!=0:
-        # warn("Problem submitting job",fname)
-        print("Submit command:",subcmd)
-        print("Returncodes per try:")
-        print(tries)
-        return None
-    ## Return jobID
-    jobID=out.split('.')[0].rstrip()
-    print(jobID,fsubname)
-    return jobID
+    # build submission command
+    qsub_command = build_qsub_command(
+        command,
+        config.cluster__qsub_walltime,
+        config.cluster__qsub_io,
+        config.cluster__qsub_mem,
+        config.cluster__qsub_cores,
+        wait_job_ids,
+    )
+
+    for round in range(max_tries):
+        out, err, return_code = execute_in_process(qsub_command)
+        if return_code == 228:
+            raise RuntimeError(f"Submission attempt {round}: Too many jobs submitted")
+        elif return_code != 0:
+            warning(f"Submission attempt {round}: received return code {return_code}, retrying")
+        elif return_code == 0:
+            accepted_job_id = out.split('.')[0].rstrip()
+            info(f"Submitted job with id: {accepted_job_id}")
+            return accepted_job_id
+        
+    raise RuntimeError(f"Submission failed after {max_tries} attempts")
 
 
-def submit_job(fsubname,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[]):
-    ## Get submit command
-    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
-    if mem!=None:
-        subcmd+=",mem=%sg"%mem # Default in farm is 2g
-    if cores!=None:
-        subcmd+=",ppn=%s"%cores
-    if waitjobids!=[]:
-        subcmd+=" -W depend=afterany"
-        for wjid in waitjobids:
-            subcmd+=":%s.wipp-pbs"%wjid
-    subcmd+=" %s"%fsubname
-    ## Submit
-    returncode=""
-    tries=[]
-    while returncode!=0 and len(tries)<50:
-        if returncode!="":
-            print(returncode,err)
-        out,err,returncode=execute_in_process(subcmd)
-        if returncode==228:
-            # warn("Too many jobs submitted")
-            return None
-        tries.append(returncode)
-    if returncode!=0:
-        # warn("Problem submitting job",fname)
-        print("Submit command:",subcmd)
-        print("Returncodes per try:")
-        print(tries)
-        return None
-    ## Return jobID
-    jobID=out.split('.')[0].rstrip()
-    print(jobID,fsubname)
-    return jobID
-
-
+# todo: revise
 def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",shortname=""):
     jobname=shortname if shortname else fsubname.rsplit('/',1)[1].split('.')[0]
     flogname=fsubname.replace('.sh','.log')
