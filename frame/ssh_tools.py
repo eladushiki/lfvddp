@@ -5,13 +5,13 @@ from scp import SCPClient
 from paramiko import SSHClient
 
 
-def copy_remote_file(
+def scp_connection(
         remote_host: str,
         user_name: str,
         password: str,
         remote_file: Path,
         local_file: Path,
-    ) -> Optional[Path]:
+    ):
     """
     Copy a file using SCP client.
     Returns: the file path on success, None otherwise.
@@ -25,8 +25,29 @@ def copy_remote_file(
     )
 
     # Use existing connection to call SCP
-    scp = SCPClient(ssh.get_transport())
-    scp.get(str(remote_file), str(local_file))
+    return SCPClient(ssh.get_transport())
+
+
+def scp_get_remote_file(
+        remote_host: str,
+        user_name: str,
+        password: str,
+        remote_file: Path,
+        local_file: Path,
+    ) -> Optional[Path]:
+    connection = scp_connection(remote_host, user_name, password, remote_file, local_file)
+    connection.get(str(remote_file), str(local_file))
 
     if isfile(local_file):
         return local_file
+
+
+def scp_put_file_to_remote(
+        remote_host: str,
+        user_name: str,
+        password: str,
+        remote_file: Path,
+        local_file: Path,
+    ) -> None:
+    connection = scp_connection(remote_host, user_name, password, remote_file, local_file)
+    connection.put(str(local_file), str(remote_file))

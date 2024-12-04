@@ -1,24 +1,31 @@
-from argparse import ArgumentParser
 from pathlib import Path
-from time import sleep
 
+from frame.cluster.call_scripts import run_remote_python
 from frame.cluster.remote_version_control import is_same_version_as_remote
 from frame.command_line.handle_args import context_controlled_execution
-from frame.config_handle import ExecutionContext, version_controlled_execution_context
-from frame.submit import prepare_submit_files_save, submit_cluster_job
+from frame.config_handle import ExecutionContext
+from frame.file_structure import CONFIGS_DIR, get_relpath_from_root, get_remote_equivalent_path
+from frame.ssh_tools import scp_put_file_to_remote
 from train.train_config import TrainConfig
 
+SINGLE_TRAIN_PATH = Path(__file__).parent / "single_train.py"
+
+
 @context_controlled_execution
-def train(context: ExecutionContext) -> None:
+def submit_train(context: ExecutionContext) -> None:
     if not isinstance(context.config, TrainConfig):
         raise ValueError("Expected TrainConfig, got {context.config.__class__.__name__}")
     
     # Prepare training job
     ## Verify commit hash matching with remote repository
-    is_same_version_as_remote(context.config)
+    is_same_version_as_remote(context)
 
     # Submit training job
-    submit_train_job(context.config)
+    run_remote_python(
+        context,
+        get_relpath_from_root(SINGLE_TRAIN_PATH),
+        script_arguments=context.command_line_args
+    )
 
 
 def submit_train_job(train_config: TrainConfig) -> None:
@@ -48,23 +55,5 @@ def submit_train_job(train_config: TrainConfig) -> None:
     # submit_save_jobs(fsubname, N_jobs_wait,walltime=train_config.save_walltime, io=0, mem=2)
 
 
-def main():
-    parser = ArgumentParser()
-
-    # Arguments for running training
-    parser.add_argument(
-        "--cluster-config", type=Path, required=True,
-        help="Path to cluster configuration file", dest="cluster_config_path"
-    )
-    parser.add_argument(
-        "--train-config", type=Path, required=True,
-        help="Path to training configuration file", dest="train_config_path"
-    )
-
-    args = parser.parse_args()
-
-    # Call main with configuration paths
-    train(args.cluster_config_path, args.train_config_path)
-
 if __name__ == "__main__":
-    main()
+    submit_train()

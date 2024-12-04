@@ -3,6 +3,12 @@ from pathlib import Path
 
 # project hierarchy
 PROJECT_ROOT = Path(__file__).parent.parent
+def get_relpath_from_root(local_absolute_path: Path) -> Path:
+    return Path(local_absolute_path).relative_to(PROJECT_ROOT)
+def get_remote_equivalent_path(remote_root_path, local_absolute_path):
+    return remote_root_path / get_relpath_from_root(local_absolute_path)
+
+CONFIGS_DIR = PROJECT_ROOT / "configs"
 
 # file title constants
 CONTEXT_FILE_NAME = "context.json"

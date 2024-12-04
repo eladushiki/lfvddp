@@ -1,11 +1,11 @@
-from contextlib import contextmanager
 from functools import wraps
 from logging import info, warning
 from pathlib import Path
 from typing import Optional
 from frame.command_line.execution import build_qsub_command, execute_in_process, build_qstat_command
-from frame.file_structure import PROJECT_ROOT
-from frame.ssh_tools import copy_remote_file
+from frame.config_handle import ExecutionContext
+from frame.file_structure import CONFIGS_DIR, PROJECT_ROOT, get_remote_equivalent_path
+from frame.ssh_tools import scp_get_remote_file, scp_put_file_to_remote
 from train.train_config import ClusterConfig
 
 
@@ -38,28 +38,53 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
     raise RuntimeError(f"Submission failed after {max_tries} attempts")
 
 
+def export_config_to_remote(submission_function):
+    """
+    Export currently used configuration files before running a remote script with them.
+    """
+    @wraps(submission_function)
+    def submisison_configuring_function(context: ExecutionContext, *args, **kwargs):
+        if not isinstance((config := context.config), ClusterConfig):
+            raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+        
+        for config_file in context.command_line_args:
+            if (config_file_as_path := Path(config_file)).is_file():
+                scp_put_file_to_remote(
+                    config.cluster__host_address,
+                    config.cluster__user,
+                    config.cluster__password,
+                    get_remote_equivalent_path(config.cluster__remote_repository_dir, CONFIGS_DIR),
+                    config_file_as_path,
+            )
+
+    return submisison_configuring_function
+
+
 def output_from_remote_file(submission_function):
     """
     Retrieve the output file from the remote server
     Return its context as the return value of the wrapped function.
     """
     @wraps(submission_function)
-    def retrieving_function(config: ClusterConfig, *args, **kwargs) -> Optional[str]:
-        remote_output_path = submission_function(config, *args, **kwargs)
+    def submission_retrieving_function(context: ExecutionContext, *args, **kwargs) -> Optional[str]:
+        remote_output_path = submission_function(context, *args, **kwargs)
         if remote_output_path:
-            return retrieve_file(config, remote_output_path)
+            return retrieve_file(context, remote_output_path)
     
-    return retrieving_function
+    return submission_retrieving_function
 
 
-def retrieve_file(config: ClusterConfig, relative_file_path_from_root: Path):
+def retrieve_file(context: ExecutionContext, relative_file_path_from_root: Path):
     """
     Copy a file from a remote path, within the repository,
     to the same relative path on the local machine.
     """
+    if not isinstance((config := context.config), ClusterConfig):
+        raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+    
     remote_file_path = config.cluster__remote_repository_dir / relative_file_path_from_root
     local_file_path = PROJECT_ROOT / relative_file_path_from_root
-    local_file = copy_remote_file(
+    local_file = scp_get_remote_file(
         config.cluster__host_address,
         config.cluster__user,
         config.cluster__password,

@@ -1,4 +1,4 @@
-
+from sys import argv
 from argparse import ArgumentParser
 from functools import wraps
 from pathlib import Path
@@ -58,7 +58,7 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         Run any decorated function in this run with the documentation of the
         confguration file parsed above.
         """
-        with version_controlled_execution_context(config, is_debug_mode) as context:
+        with version_controlled_execution_context(config, argv, is_debug_mode) as context:
             function(*args, **kwargs, context=context)
 
     return context_controlled_function
