@@ -5,6 +5,11 @@
 
     "cluster__user": "",
     "cluster__password": "",
+    "cluster__is_use_ssh_jump": false,
+    "cluster__jump_host_address": "",
+    "cluster__jump_user": "",
+    "cluster__jump_password": "",
+
     "cluster__remote_repository_dir": "",
     "cluster__working_dir": ""
 }

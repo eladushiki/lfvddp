@@ -5,14 +5,18 @@ from typing import Optional
 from frame.command_line.execution import build_qsub_command, execute_in_process, build_qstat_command
 from frame.config_handle import ExecutionContext
 from frame.file_structure import CONFIGS_DIR, PROJECT_ROOT, get_remote_equivalent_path
-from frame.ssh_tools import scp_get_remote_file, scp_put_file_to_remote
+from frame.ssh_tools import run_command_over_ssh, scp_get_remote_file, scp_put_file_to_remote
 from train.train_config import ClusterConfig
 
 
 def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50):
     # wait for existing jobs to finish
     qstat_command = build_qstat_command(config.user, config.cluster__qstat_n_jobs)
-    wait_job_ids = execute_in_process(qstat_command)[0][2:-1].split()  # todo: this runs locally
+    stdin, stdout, stderr = run_command_over_ssh(
+        config,
+        qstat_command,
+    )
+    wait_job_ids = stdout.read().decode('utf-8')[0][2:-1].split()
 
     # build submission command
     qsub_command = build_qsub_command(
@@ -26,6 +30,11 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
 
     for round in range(max_tries):
         out, err, return_code = execute_in_process(qsub_command)  # todo: this runs locally
+        stdin, stdout, stderr = run_command_over_ssh(
+            config,
+            qstat_command,
+        )
+        return_code = stdout.read().decode('utf-8')
         if return_code == 228:
             raise RuntimeError(f"Submission attempt {round}: Too many jobs submitted")
         elif return_code != 0:
@@ -51,9 +60,7 @@ def export_config_to_remote(submission_function):
         for config_file in context.command_line_args[1:]:
             if (config_file_abs_path := Path(config_file).absolute()).is_file():
                 scp_put_file_to_remote(
-                    config.cluster__host_address,
-                    config.cluster__user,
-                    config.cluster__password,
+                    config,
                     get_remote_equivalent_path(config.cluster__remote_repository_dir, config_file_abs_path),
                     config_file_abs_path,
                 )
@@ -88,9 +95,7 @@ def retrieve_file(context: ExecutionContext, relative_file_path_from_root: Path)
     remote_file_path = config.cluster__remote_repository_dir / relative_file_path_from_root
     local_file_path = PROJECT_ROOT / relative_file_path_from_root
     local_file = scp_get_remote_file(
-        config.cluster__host_address,
-        config.cluster__user,
-        config.cluster__password,
+        config,
         remote_file_path,
         local_file_path
     )

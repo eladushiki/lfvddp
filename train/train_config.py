@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import Optional
+
+from scipy import cluster
 from frame.config_handle import Config
 
 @dataclass
@@ -10,6 +13,12 @@ class ClusterConfig(Config):
     cluster__host_address: str
     cluster__user: str
     cluster__password: str
+
+    # PERSONAL optional SSH jump for WIS remote work
+    cluster__is_use_ssh_jump: bool
+    cluster__jump_host_address: Optional[str]
+    cluster__jump_user: Optional[str]
+    cluster__jump_password: Optional[str]
 
     # PERSONAL run parameters
     cluster__remote_repository_dir: PurePosixPath
