@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from frame.config_handle import Config
 
 @dataclass
@@ -12,7 +12,7 @@ class ClusterConfig(Config):
     cluster__password: str
 
     # PERSONAL run parameters
-    cluster__remote_repository_dir: Path
+    cluster__remote_repository_dir: PurePosixPath
     cluster__working_dir: Path
 
     # qsub command parameters

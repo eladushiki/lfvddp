@@ -4,17 +4,16 @@ from frame.cluster.call_scripts import run_remote_python
 from frame.cluster.remote_version_control import is_same_version_as_remote
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, get_relpath_from_root, get_remote_equivalent_path
-from frame.ssh_tools import scp_put_file_to_remote
+from frame.file_structure import CONFIGS_DIR, get_relpath_from_root
 from train.train_config import TrainConfig
 
-SINGLE_TRAIN_PATH = Path(__file__).parent / "single_train.py"
+SINGLE_TRAIN_ABS_PATH = Path(__file__).parent.absolute() / "single_train.py"
 
 
 @context_controlled_execution
 def submit_train(context: ExecutionContext) -> None:
     if not isinstance(context.config, TrainConfig):
-        raise ValueError("Expected TrainConfig, got {context.config.__class__.__name__}")
+        raise ValueError(f"Expected TrainConfig, got {context.config.__class__.__name__}")
     
     # Prepare training job
     ## Verify commit hash matching with remote repository
@@ -23,7 +22,7 @@ def submit_train(context: ExecutionContext) -> None:
     # Submit training job
     run_remote_python(
         context,
-        get_relpath_from_root(SINGLE_TRAIN_PATH),
+        get_relpath_from_root(SINGLE_TRAIN_ABS_PATH),
         script_arguments=context.command_line_args
     )
 

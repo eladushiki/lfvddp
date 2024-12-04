@@ -5,7 +5,7 @@ from frame.file_structure import get_remote_equivalent_path
 from frame.git_tools import get_commit_hash
 from train.train_config import ClusterConfig
 
-IS_SAME_AS_COMMIT_PY_PATH = Path(__file__).parent / "is_same_as_commit.py"
+IS_SAME_AS_COMMIT_PY_ABS_PATH = Path(__file__).parent.absolute() / "is_same_as_commit.py"
 
 
 def is_same_version_as_remote(
@@ -21,11 +21,12 @@ def is_same_version_as_remote(
     
     local_commit_hash = get_commit_hash()
 
-    remote_script = get_remote_equivalent_path(config.cluster__remote_repository_dir, IS_SAME_AS_COMMIT_PY_PATH)
+    remote_script = get_remote_equivalent_path(config.cluster__remote_repository_dir, IS_SAME_AS_COMMIT_PY_ABS_PATH)
     comparison_result = run_remote_python(
         context,
         remote_script,
-        script_arguments=[local_commit_hash]
+        script_arguments=[local_commit_hash],
+        cluster_output_file=Path("a.txt"),  # todo: this is not good
     )
 
     return comparison_result == "0"

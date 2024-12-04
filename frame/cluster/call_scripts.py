@@ -1,18 +1,18 @@
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import List, Optional
 from frame.config_handle import ExecutionContext
-from frame.file_structure import get_relpath_from_root
-from frame.submit import export_config_to_remote, output_from_remote_file, submit_cluster_job
+from frame.file_structure import get_remote_equivalent_path
+from frame.submit import export_config_to_remote, retrieve_output_from_remote_file, submit_cluster_job
 from train.train_config import ClusterConfig
 
-RUN_PYTHON_JOB_SH_PATH = Path(__file__).parent / "run_python_job.sh"
+RUN_PYTHON_JOB_SH_ABS_PATH = Path(__file__).parent.absolute() / "run_python_job.sh"
 
 
 @export_config_to_remote
-@output_from_remote_file
+@retrieve_output_from_remote_file
 def run_remote_python(
         context: ExecutionContext,
-        python_script_relpath_from_workdir: Path,
+        python_script_relpath_from_workdir: PurePath,
         script_arguments: List[str],
         max_tries: int = 50,
         cluster_output_file: Optional[Path] = None,
@@ -20,7 +20,7 @@ def run_remote_python(
     if not isinstance(config := context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {config.__class__.__name__}")
 
-    run_python_job_sh_path = config.cluster__remote_repository_dir / get_relpath_from_root(RUN_PYTHON_JOB_SH_PATH)
+    run_python_job_sh_path = get_remote_equivalent_path(config.cluster__remote_repository_dir, RUN_PYTHON_JOB_SH_ABS_PATH)
     command = f"{run_python_job_sh_path} {config.cluster__working_dir} {python_script_relpath_from_workdir} {' '.join(script_arguments)}"
 
     if cluster_output_file:

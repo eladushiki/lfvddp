@@ -12,7 +12,7 @@ from train.train_config import ClusterConfig
 def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50):
     # wait for existing jobs to finish
     qstat_command = build_qstat_command(config.user, config.cluster__qstat_n_jobs)
-    wait_job_ids = execute_in_process(qstat_command)[0][2:-1].split()
+    wait_job_ids = execute_in_process(qstat_command)[0][2:-1].split()  # todo: this runs locally
 
     # build submission command
     qsub_command = build_qsub_command(
@@ -25,7 +25,7 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
     )
 
     for round in range(max_tries):
-        out, err, return_code = execute_in_process(qsub_command)
+        out, err, return_code = execute_in_process(qsub_command)  # todo: this runs locally
         if return_code == 228:
             raise RuntimeError(f"Submission attempt {round}: Too many jobs submitted")
         elif return_code != 0:
@@ -47,20 +47,23 @@ def export_config_to_remote(submission_function):
         if not isinstance((config := context.config), ClusterConfig):
             raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
         
-        for config_file in context.command_line_args:
-            if (config_file_as_path := Path(config_file)).is_file():
+        # Copy relevant input files, not including the script itself
+        for config_file in context.command_line_args[1:]:
+            if (config_file_abs_path := Path(config_file).absolute()).is_file():
                 scp_put_file_to_remote(
                     config.cluster__host_address,
                     config.cluster__user,
                     config.cluster__password,
-                    get_remote_equivalent_path(config.cluster__remote_repository_dir, CONFIGS_DIR),
-                    config_file_as_path,
-            )
+                    get_remote_equivalent_path(config.cluster__remote_repository_dir, config_file_abs_path),
+                    config_file_abs_path,
+                )
+                
+        return submission_function(context, *args, **kwargs)
 
     return submisison_configuring_function
 
 
-def output_from_remote_file(submission_function):
+def retrieve_output_from_remote_file(submission_function):
     """
     Retrieve the output file from the remote server
     Return its context as the return value of the wrapped function.
