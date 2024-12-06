@@ -48,7 +48,7 @@ def convert_string_filenames_to_paths(config_params: dict) -> None:
     Convert all string filenames to Path objects.
     """
     for key, value in config_params.items():
-        if isinstance(value, str):
+        if isinstance(value, str) and value != "":
             if (string_as_path := Path(value)).exists():
                 config_params[key] = string_as_path
 

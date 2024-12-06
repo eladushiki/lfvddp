@@ -1,3 +1,4 @@
+from os import system
 from subprocess import PIPE, Popen
 from typing import Dict, List, Optional
 
@@ -10,6 +11,19 @@ def execute_in_process(command):
     out,err=process.communicate()
     returncode=process.returncode
     return str(out),str(err),returncode
+
+
+def execute_in_wsl(cmd_command: str):
+    """
+    Used to run commands from a windows machine in a WSL shell.
+    Double quotes and quote signs may cause execution problems.
+    """
+    if '"' in cmd_command:
+        separator = "'"
+    else:
+        separator = '"'
+    wsl_command = f"wsl ~ -e sh -c {separator}{cmd_command}{separator}"
+    return system(wsl_command)
 
 
 def build_qsub_command(

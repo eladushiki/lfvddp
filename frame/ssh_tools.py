@@ -1,10 +1,11 @@
 from contextlib import contextmanager
 from os.path import isfile
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Dict, Optional
 from scp import SCPClient
 from paramiko import AutoAddPolicy, SSHClient
 
+from frame.command_line.execution import execute_in_wsl
 from train.train_config import ClusterConfig
 
 
@@ -80,17 +81,67 @@ def open_scp_client(config: ClusterConfig):
             scp_client.close()
     
 
+def build_scp_command(
+        source_file: str,
+        dest_file: str,
+        source_user: Optional[str] = None,
+        source_host: Optional[str] = None,
+        is_source_windows_type: bool = False,
+        password: Optional[str] = None,
+        dest_user: Optional[str] = None,
+        dest_host: Optional[str] = None,
+        options: Dict[str, str] = {},
+    ):
+
+    if password:
+        command = f"sshpass -p {password} scp "
+    else:
+        command = "scp "
+
+    for key, value in options.items():
+        command += f"{key} {value} "
+
+    if source_user and source_host:
+        command += f"{source_user}@{source_host}:"
+
+    if is_source_windows_type:
+        source_file = source_file.replace("\\", "/")
+        command += f"/mnt/{source_file[0].lower()}/{source_file[3:]} "
+    else:
+        command += f"{source_file} "
+
+    if dest_user and dest_host:
+        command += f"{dest_user}@{dest_host}:"
+    
+    command += f"{dest_file}"
+
+    return command
+
+
 def scp_get_remote_file(
         config: ClusterConfig,
         remote_file: PurePosixPath,
         local_file: Path,
     ) -> Optional[Path]:
 
-    with open_scp_client(config) as client:
-        client.get(str(remote_file), str(local_file))
+    if config.cluster__is_use_wsl_command_line:
+        scp_command = build_scp_command(
+            source_file=str(remote_file),
+            dest_file=str(local_file),
+            source_user=config.cluster__user,
+            source_host=config.cluster__host_address,
+            is_source_windows_type=config.cluster__is_use_wsl_command_line,
+            password=config.cluster__password if config.cluster__password else None,
+        )
+        exit_code = execute_in_wsl(scp_command)
+        if exit_code == 0:
+            return local_file
+    else:  # Not sure this is needed, rather than removing ProxyJump
+        with open_scp_client(config) as client:
+            client.get(str(remote_file), str(local_file))
 
-    if isfile(local_file):
-        return local_file
+        if isfile(local_file):
+            return local_file
 
 
 def scp_put_file_to_remote(
@@ -98,14 +149,35 @@ def scp_put_file_to_remote(
         remote_file: PurePosixPath,
         local_file: Path,
     ) -> None:
-    with open_scp_client(config) as client:
-        client.put(str(local_file), str(remote_file))
+    if config.cluster__is_use_wsl_command_line:
+        scp_command = build_scp_command(
+            source_file=str(local_file),
+            dest_file=str(remote_file),
+            is_source_windows_type=config.cluster__is_use_wsl_command_line,
+            password=config.cluster__password if config.cluster__password else None,
+            dest_user=config.cluster__user,
+            dest_host=config.cluster__host_address,
+        )
+        execute_in_wsl(scp_command)
+
+    else:  # Not sure this is needed, rather than removing ProxyJump
+        with open_scp_client(config) as client:
+            client.put(str(local_file), str(remote_file))
 
 
 def run_command_over_ssh(
         config: ClusterConfig,
         command: str,
     ):
+    if config.cluster__is_use_wsl_command_line:
+        command_to_run = f"ssh {config.cluster__user}@{config.cluster__host_address} {command}"
+
+        if config.cluster__password:
+            command_to_run = f"sshpass -p {config.cluster__password} {command_to_run}"
+        
+        exit_code = execute_in_wsl(command_to_run)
+        return None, exit_code, None
+    
     with open_ssh_client(config) as ssh_client:
         stdin, stdout, stderr = ssh_client.exec_command(command)
         return stdin, stdout, stderr

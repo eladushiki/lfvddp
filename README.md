@@ -42,6 +42,17 @@ to be able to run the code locally while editing it in place.
 
 To submit SGE jobs to the WIS cluster, you should install slurm. The [specific isntallation command](https://command-not-found.com/qsub) depends on your OS.
 
+# Project configuration
+## ATLAS Cluster SSH connection
+
+This might be a tricky part. There is adifferent way to connect to the cluster, whether you're inside WIS_Secure wifi or outside the institute using a VPN.
+
+Starting form the simple part - if you're in the institute you should be able to SSH seamlessly to the cluster using your username and password, after creating one OFC. Contact lcg-managers@weizmann.ac.il for help on this (or any cluster related issue).
+
+There is a more complex procedure if you're using a VPN, which requires you to use a proxy jump, as of the time of writing this. You can contact Elad to save time on configuring this.
+
+Be sure to use different configuration files (explained below) for each case.
+
 # Usage and Expansion Explanation
 ## Everyting runs in a context
 
