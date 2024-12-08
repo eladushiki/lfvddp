@@ -20,3 +20,7 @@ TRIANING_OUTCOMES_DIR_NAME = "training_outcomes"
 TRAINING_HISTORY_FILE_NAME = "history.h5"
 TRAINING_LOG_FILE_NAME = "train.log"
 WEIGHTS_OUTPUT_FILE_NAME = "training_result.weights.h5"
+
+def convert_win_path_to_wsl(path: str) -> str:
+        path = path.replace("\\", "/")
+        return f"/mnt/{path[0].lower()}/{path[3:]}"

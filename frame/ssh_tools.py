@@ -6,6 +6,7 @@ from scp import SCPClient
 from paramiko import AutoAddPolicy, SSHClient
 
 from frame.command_line.execution import execute_in_wsl
+from frame.file_structure import convert_win_path_to_wsl
 from train.train_config import ClusterConfig
 
 
@@ -90,8 +91,13 @@ def build_scp_command(
         password: Optional[str] = None,
         dest_user: Optional[str] = None,
         dest_host: Optional[str] = None,
+        is_dest_file_windows_type: bool = False,
         options: Dict[str, str] = {},
     ):
+    """
+    Build a unix type scp command.
+    Had this function been called on a windows machine, the build command should be run on wsl shell.
+    """
 
     if password:
         command = f"sshpass -p {password} scp "
@@ -105,14 +111,14 @@ def build_scp_command(
         command += f"{source_user}@{source_host}:"
 
     if is_source_windows_type:
-        source_file = source_file.replace("\\", "/")
-        command += f"/mnt/{source_file[0].lower()}/{source_file[3:]} "
-    else:
-        command += f"{source_file} "
+        source_file = convert_win_path_to_wsl(source_file)
+    command += f"{source_file} "
 
     if dest_user and dest_host:
         command += f"{dest_user}@{dest_host}:"
     
+    if is_dest_file_windows_type:
+        dest_file = convert_win_path_to_wsl(dest_file)
     command += f"{dest_file}"
 
     return command
