@@ -14,6 +14,6 @@ cd $WORKDIR
 
 # run python script with the rest of the arguments
 shift 1
-python $SCRIPT_RELPATH
+python $SCRIPT_RELPATH $PYTHON_ARGS
 
 echo "Done, `date`"
