@@ -16,7 +16,7 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
         config,
         qstat_command,
     )
-    wait_job_ids = stdout.read().decode('utf-8')[0][2:-1].split()
+    wait_job_ids = stdout.split()
 
     # build submission command
     qsub_command = build_qsub_command(
@@ -29,12 +29,11 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
     )
 
     for round in range(max_tries):
-        out, err, return_code = execute_in_process(qsub_command)  # todo: this runs locally
         stdin, stdout, stderr = run_command_over_ssh(
             config,
-            qstat_command,
+            qsub_command,
         )
-        return_code = stdout.read().decode('utf-8')
+        return_code = int(stdout)
         if return_code == 228:
             raise RuntimeError(f"Submission attempt {round}: Too many jobs submitted")
         elif return_code != 0:

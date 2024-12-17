@@ -1,5 +1,4 @@
-from os import system
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, check_output
 from typing import Dict, List, Optional
 
 def execute_in_process(command):
@@ -23,7 +22,7 @@ def execute_in_wsl(cmd_command: str):
     else:
         separator = '"'
     wsl_command = f"wsl ~ -e sh -c {separator}{cmd_command}{separator}"
-    return system(wsl_command)
+    return check_output(wsl_command, shell=True, text=True)
 
 
 def build_qsub_command(
@@ -36,7 +35,7 @@ def build_qsub_command(
         command_line_arguments: Optional[List[str]] = None,
         environment_variables: Optional[Dict[str, str]] = None,
     ) -> str:
-    command = f"qsub -l walltime={walltime},io={io}" \
+    command = f"/opt/pbs/bin/qsub -l walltime={walltime},io={io}" \
         + (f",mem={mem}g" if mem is not None else "") \
         + (f",ppn={cores}" if cores is not None else "")
     
@@ -59,5 +58,5 @@ def build_qsub_command(
 
 
 def build_qstat_command(user: str, n_jobs: int):
-    command = f"qstat -u {user} | tail -n {n_jobs} | sed -e 's/\..*$//' | tr '\n' ' '"
-    return command
+    # return f"qstat -u {user} | tail -n {n_jobs} | sed -e 's/\..*$//'"
+    return f"/opt/pbs/bin/qstat | tail -n {n_jobs} | sed -e 's/\..*$//'"

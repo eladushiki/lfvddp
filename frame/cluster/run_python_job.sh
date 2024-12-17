@@ -12,9 +12,6 @@ echo "jobs id: ${PBS_JOBID}"
 # cd to the required directory
 cd $1
 
-# load python
-module load /usr/bin/python
-
 # run python script with the rest of the arguments
 shift 1
 python $@

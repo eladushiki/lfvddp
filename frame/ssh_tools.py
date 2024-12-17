@@ -181,9 +181,9 @@ def run_command_over_ssh(
         if config.cluster__password:
             command_to_run = f"sshpass -p {config.cluster__password} {command_to_run}"
         
-        exit_code = execute_in_wsl(command_to_run)
-        return None, exit_code, None
+        stdout = execute_in_wsl(command_to_run)
+        return None, stdout, None
     
     with open_ssh_client(config) as ssh_client:
         stdin, stdout, stderr = ssh_client.exec_command(command)
-        return stdin, stdout, stderr
+        return stdin, stdout.read().decode('utf-8'), stderr
