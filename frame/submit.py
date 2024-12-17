@@ -2,9 +2,9 @@ from functools import wraps
 from logging import info, warning
 from pathlib import Path
 from typing import Optional
-from frame.command_line.execution import build_qsub_command, execute_in_process, build_qstat_command
+from frame.command_line.execution import build_qsub_command, build_qstat_command
 from frame.config_handle import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, PROJECT_ROOT, get_remote_equivalent_path
+from frame.file_structure import PROJECT_ROOT, get_remote_equivalent_path
 from frame.ssh_tools import run_command_over_ssh, scp_get_remote_file, scp_put_file_to_remote
 from train.train_config import ClusterConfig
 

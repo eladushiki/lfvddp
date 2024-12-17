@@ -32,7 +32,6 @@ def build_qsub_command(
         mem: int,
         cores: int,
         wait_job_ids: List[str],
-        command_line_arguments: Optional[List[str]] = None,
         environment_variables: Optional[Dict[str, str]] = None,
     ) -> str:
     command = f"/opt/pbs/bin/qsub -l walltime={walltime},io={io}" \
@@ -42,7 +41,7 @@ def build_qsub_command(
     if wait_job_ids:
         command += " -W depend=afterok"
         for id in wait_job_ids:
-            command += f":{id}.wipp-pbs"
+            command += f":{id}.pbs"
 
     if environment_variables:
         command += " -v "
@@ -50,13 +49,8 @@ def build_qsub_command(
         
     command += f" {submitted_command}"
     
-    if command_line_arguments:
-        for argument in command_line_arguments:
-            command += f" {argument}"
-
     return command
 
 
 def build_qstat_command(user: str, n_jobs: int):
-    # return f"qstat -u {user} | tail -n {n_jobs} | sed -e 's/\..*$//'"
-    return f"/opt/pbs/bin/qstat | tail -n {n_jobs} | sed -e 's/\..*$//'"
+    return f"/opt/pbs/bin/qstat -u {user} | tail -n {n_jobs} | sed -e 's/\..*$//'"

@@ -1,5 +1,5 @@
 from pathlib import Path, PurePath
-from typing import List, Optional
+from typing import Dict, Optional
 from frame.config_handle import ExecutionContext
 from frame.file_structure import get_remote_equivalent_path
 from frame.submit import export_config_to_remote, retrieve_output_from_remote_file, submit_cluster_job
@@ -13,7 +13,7 @@ RUN_PYTHON_JOB_SH_ABS_PATH = Path(__file__).parent.absolute() / "run_python_job.
 def run_remote_python(
         context: ExecutionContext,
         python_script_relpath_from_workdir: PurePath,
-        script_arguments: List[str],
+        script_arguments: Dict[str, str] = {},
         max_tries: int = 50,
         cluster_output_file: Optional[Path] = None,
     ) -> Optional[Path]:
@@ -21,7 +21,11 @@ def run_remote_python(
         raise ValueError(f"Expected ClusterConfig, got {config.__class__.__name__}")
 
     run_python_job_sh_path = get_remote_equivalent_path(config.cluster__remote_repository_dir, RUN_PYTHON_JOB_SH_ABS_PATH)
-    command = f"{run_python_job_sh_path} {config.cluster__working_dir} {python_script_relpath_from_workdir} {' '.join(script_arguments)}"
+    
+    script_arguments["WORKDIR"] = str(config.cluster__working_dir)
+    script_arguments["SCRIPT_RELPATH"] = str(python_script_relpath_from_workdir)
+    arguments_digest = ",".join([f"{key}={value}" for key, value in script_arguments.items()])
+    command = f"-v {arguments_digest} {run_python_job_sh_path}"
 
     if cluster_output_file:
         command += f" > {cluster_output_file}"

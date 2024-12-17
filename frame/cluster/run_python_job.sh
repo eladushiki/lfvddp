@@ -10,10 +10,10 @@ echo "Starting on `hostname`, `date`"
 echo "jobs id: ${PBS_JOBID}"
 
 # cd to the required directory
-cd $1
+cd $WORKDIR
 
 # run python script with the rest of the arguments
 shift 1
-python $@
+python $SCRIPT_RELPATH
 
 echo "Done, `date`"
