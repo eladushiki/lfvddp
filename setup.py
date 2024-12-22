@@ -12,6 +12,7 @@ setup(
         'console_scripts': [
             'train=train.single_train:main',
             'submit_train=train.submit_train:main',
+            'is_same_as_commit=frame.cluster.is_same_as_commit:main',
         ],
     },
     author='Elad Kliger',

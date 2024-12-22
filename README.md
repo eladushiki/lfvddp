@@ -38,7 +38,17 @@ It is customary to run
 
 > pip install -e .
 
+or possibly
+
+> pip3 install -e .
+
 to be able to run the code locally while editing it in place.
+
+To also be able to run on the cluster, the same command sould be also run there. The following command might be of use beforehand:
+
+> export PATH="$PATH:/srv01/agrp/<your-username>/.local/bin"
+
+if pip is not already recognized.
 
 To submit SGE jobs to the WIS cluster, you should install slurm. The [specific isntallation command](https://command-not-found.com/qsub) depends on your OS.
 

@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Optional
 
-from scipy import cluster
 from frame.config_handle import Config
 
 @dataclass
