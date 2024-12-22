@@ -25,7 +25,7 @@ def is_same_version_as_remote(
     comparison_result = run_remote_python(
         context,
         remote_script,
-        script_arguments=[local_commit_hash],
+        script_arguments=["--commit-hash", local_commit_hash],
     )
 
     return comparison_result == "0"

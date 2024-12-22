@@ -3,8 +3,6 @@
 #PBS -j oe
 #PBS -q N
 #PBS -N SymmetryDDPPythonjob
-#PBS -o SymmetryDDPPythonjob.out
-#PBS -e SymmetryDDPPythonjob.err
 
 echo "Starting on `hostname`, `date`"
 echo "jobs id: ${PBS_JOBID}"
