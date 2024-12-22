@@ -12,8 +12,8 @@ echo "jobs id: ${PBS_JOBID}"
 # cd to the required directory
 cd $WORKDIR
 
-# run python script with the rest of the arguments
-shift 1
+# run python script with arguments
+
 python $SCRIPT_RELPATH $PYTHON_ARGS
 
 echo "Done, `date`"

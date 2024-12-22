@@ -4,7 +4,7 @@ from frame.cluster.call_scripts import run_remote_python
 from frame.cluster.remote_version_control import is_same_version_as_remote
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
-from frame.file_structure import get_relpath_from_root
+from frame.file_structure import get_relpath_from_local_root
 from train.train_config import TrainConfig
 
 SINGLE_TRAIN_ABS_PATH = Path(__file__).parent.absolute() / "single_train.py"
@@ -22,7 +22,7 @@ def submit_train(context: ExecutionContext) -> None:
     # Submit training job
     run_remote_python(
         context,
-        get_relpath_from_root(SINGLE_TRAIN_ABS_PATH),
+        get_relpath_from_local_root(SINGLE_TRAIN_ABS_PATH),
     )
 
 

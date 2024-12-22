@@ -33,6 +33,7 @@ def build_qsub_command(
         cores: int,
         wait_job_ids: List[str],
         environment_variables: Optional[Dict[str, str]] = None,
+        output_file: Optional[str] = None,
     ) -> str:
     command = f"/opt/pbs/bin/qsub -l walltime={walltime},io={io}" \
         + (f",mem={mem}g" if mem is not None else "") \
@@ -45,7 +46,10 @@ def build_qsub_command(
 
     if environment_variables:
         command += " -v "
-        command += ",".join([f"{key}=\"{value}\"" for key, value in environment_variables.items()])
+        command += ",".join([f"{key}={value}" for key, value in environment_variables.items()])
+
+    if output_file:
+        command += f" -o {output_file}"
         
     command += f" {submitted_command}"
     

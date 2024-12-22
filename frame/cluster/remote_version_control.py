@@ -26,7 +26,6 @@ def is_same_version_as_remote(
         context,
         remote_script,
         script_arguments=[local_commit_hash],
-        cluster_output_file=Path("a.txt"),  # todo: this is not good
     )
 
     return comparison_result == "0"

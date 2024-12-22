@@ -1,15 +1,21 @@
 from functools import wraps
 from logging import info, warning
-from pathlib import Path
-from typing import Optional
+from pathlib import Path, PurePosixPath
+from typing import Dict, Optional
 from frame.command_line.execution import build_qsub_command, build_qstat_command
 from frame.config_handle import ExecutionContext
-from frame.file_structure import PROJECT_ROOT, get_remote_equivalent_path
+from frame.file_structure import PROJECT_ROOT, get_local_equivalent_path, get_remote_equivalent_path
 from frame.ssh_tools import run_command_over_ssh, scp_get_remote_file, scp_put_file_to_remote
 from train.train_config import ClusterConfig
 
 
-def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50):
+def submit_cluster_job(
+        config: ClusterConfig,
+        command: str,
+        environment_variables: Optional[Dict[str, str]] = None,
+        output_file: Optional[PurePosixPath] = None,
+        max_tries: int = 50,
+    ):
     # wait for existing jobs to finish
     qstat_command = build_qstat_command(config.user, config.cluster__qstat_n_jobs)
     stdin, stdout, stderr = run_command_over_ssh(
@@ -26,6 +32,8 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
         config.cluster__qsub_mem,
         config.cluster__qsub_cores,
         wait_job_ids,
+        environment_variables,
+        output_file=str(output_file),
     )
 
     for round in range(max_tries):
@@ -33,13 +41,12 @@ def submit_cluster_job(config: ClusterConfig, command: str, max_tries: int = 50)
             config,
             qsub_command,
         )
-        return_code = int(stdout)
-        if return_code == 228:
+        if stderr == "228":  # todo: this is fishy, should not work
             raise RuntimeError(f"Submission attempt {round}: Too many jobs submitted")
-        elif return_code != 0:
-            warning(f"Submission attempt {round}: received return code {return_code}, retrying")
-        elif return_code == 0:
-            accepted_job_id = out.split('.')[0].rstrip()
+        elif stderr and stderr != "0":
+            warning(f"Submission attempt {round}: received return code {stderr}, retrying")
+        else:
+            accepted_job_id = int(stdout.split('.')[0].rstrip())
             info(f"Submitted job with id: {accepted_job_id}")
             return accepted_job_id
         
@@ -82,8 +89,8 @@ def retrieve_output_from_remote_file(submission_function):
     
     return submission_retrieving_function
 
-
-def retrieve_file(context: ExecutionContext, relative_file_path_from_root: Path):
+# todo: add optional local output path so that this will appear in the correct out dir and add the function name b/c this can happen multiple times a run
+def retrieve_file(context: ExecutionContext, remote_output_path: PurePosixPath):
     """
     Copy a file from a remote path, within the repository,
     to the same relative path on the local machine.
@@ -91,18 +98,17 @@ def retrieve_file(context: ExecutionContext, relative_file_path_from_root: Path)
     if not isinstance((config := context.config), ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
     
-    remote_file_path = config.cluster__remote_repository_dir / relative_file_path_from_root
-    local_file_path = PROJECT_ROOT / relative_file_path_from_root
+    local_file_path = get_local_equivalent_path(config.cluster__remote_repository_dir, remote_output_path)
     local_file = scp_get_remote_file(
         config,
-        remote_file_path,
+        remote_output_path,
         local_file_path
     )
     if local_file:
         with open(local_file, "r") as f:
             return f.read()
     else:
-        raise FileNotFoundError(f"File not found: {remote_file_path}")
+        raise FileNotFoundError(f"File not found: {remote_output_path}")
 
 
 # todo: revise

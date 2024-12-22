@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from os.path import isfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Dict, Optional
 from scp import SCPClient
 from paramiko import AutoAddPolicy, SSHClient
@@ -133,10 +133,10 @@ def scp_get_remote_file(
     if config.cluster__is_use_wsl_command_line:
         scp_command = build_scp_command(
             source_file=str(remote_file),
-            dest_file=str(local_file),
+            is_source_windows_type=False,
+            dest_file=str(convert_win_path_to_wsl(PureWindowsPath(local_file))),
             source_user=config.cluster__user,
             source_host=config.cluster__host_address,
-            is_source_windows_type=config.cluster__is_use_wsl_command_line,
             password=config.cluster__password if config.cluster__password else None,
         )
         exit_code = execute_in_wsl(scp_command)
@@ -177,10 +177,6 @@ def run_command_over_ssh(
     ):
     if config.cluster__is_use_wsl_command_line:
         command_to_run = f"ssh {config.cluster__user}@{config.cluster__host_address} {command}"
-
-        if config.cluster__password:
-            command_to_run = f"sshpass -p {config.cluster__password} {command_to_run}"
-        
         stdout = execute_in_wsl(command_to_run)
         return None, stdout, None
     
