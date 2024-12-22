@@ -30,4 +30,4 @@ def parse_arg_commit_hash():
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
