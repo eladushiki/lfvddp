@@ -17,7 +17,7 @@ def submit_train(context: ExecutionContext) -> None:
     
     # Prepare training job
     ## Verify commit hash matching with remote repository
-    is_same_version_as_remote(context)
+    # is_same_version_as_remote(context)  # todo: this does not work asynchronously
 
     # Submit training job
     run_remote_python(

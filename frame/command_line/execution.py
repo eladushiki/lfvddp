@@ -39,10 +39,10 @@ def build_qsub_command(
         + (f",mem={mem}g" if mem is not None else "") \
         + (f",ppn={cores}" if cores is not None else "")
     
-    if wait_job_ids:
-        command += " -W depend=afterok"
-        for id in wait_job_ids:
-            command += f":{id}.pbs"
+    # if wait_job_ids:  # todo: uncomment when this become synchronous
+    #     command += " -W depend=afterok"
+    #     for id in wait_job_ids:
+    #         command += f":{id}.pbs"
 
     if environment_variables:
         command += " -v "
