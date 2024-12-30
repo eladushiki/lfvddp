@@ -27,6 +27,7 @@ from configs.config_utils import parNN_list
 
 @context_controlled_execution
 def main(context: ExecutionContext) -> None:
+    # Naming shortcut
     config = context.config
 
     # type casting safety for the config type
@@ -41,61 +42,20 @@ def main(context: ExecutionContext) -> None:
         epochs = max(config.train__epochs, config.train__epochs)
         patience = min(config.train__patience, config.train__patience)
 
-    background = np.load(config.train__data_dir / config.train__backgournd_distribution_path)
-    signal = np.load(config.train__data_dir / config.train__signal_distribution_path)
-
-    if config.train__histogram_analytic_pdf == 'exp':
-        analytic_background_function = exp
-        kwargs = {
-            "n_ref": round(219087 * config.train__batch_train_fraction * config.train__data_usage_fraction),
-            "n_bkg": round(219087 * config.train__batch_test_fraction * config.train__data_usage_fraction),
-            "n_signal": config.train__signal_number_of_events,
-            "scale_factor": 1,
-            "normalization_factor": 1,
-            "signal_location": config.train__signal_location,
-            "signal_scale": config.train__signal_scale,
-            "poisson_fluctuations": config.train__N_poiss,
-            "is_resonant_signal_shape": config.train__signal_resonant,
-        }
-    elif config.train__histogram_analytic_pdf == 'gauss':
-        analytic_background_function = gauss
-        kwargs = {
-            "n_ref": round(219087 * float(config.train__batch_train_fraction) * config.train__data_usage_fraction),
-            "n_bkg": round(219087 * float(Fraction(config.train__batch_test_fraction)) * config.train__data_usage_fraction),
-            "n_signal": config.train__signal_number_of_events,
-            "normalization_factor": 1,
-            "signal_location": config.train__signal_location,
-            "signal_scale": config.train__signal_scale,
-            "poisson_fluctuations": config.train__N_poiss,
-            "dim": 1,
-        }
-    elif config.train__histogram_analytic_pdf == 'physics':
-        analytic_background_function = physics
-        kwargs = {
-            "n_ref": config.train__batch_train_fraction,
-            "n_bkg": config.train__batch_test_fraction,
-            "n_signal": config.train__signal_number_of_events,
-            "channel": 'em',
-            "signal_types": ["ggH_taue","vbfH_taue"],
-            "used_physical_variables": ['Mcoll'],
-            "poisson_fluctuations": config.train__N_poiss,
-            "combimed_portion": config.train__data_usage_fraction,
-            "binned": False,
-            "resolution": 0.1,
-        }
-    else:
-        raise ValueError(f"Invalid sample_string: {config.train__histogram_analytic_pdf}")
+    # background = np.load(config.train__data_dir / config.train__backgournd_distribution_path)
+    # signal = np.load(config.train__data_dir / config.train__signal_distribution_path)
 
     # Prepare sample
     feature, target = prepare_training(
-        analytic_background_function,
+        config.analytic_background_function,
         config.train__data_background_aux,
         config.train__data_signal_aux,
         config.train__data_background,
         config.train__data_signal,
         NR = "False",  # config.NR
         ND = "False",  # config.ND
-        **kwargs,
+        n_signal = config.train__signal_number_of_events,
+        **config.analytic_background_function_calling_parameters,
     )
 
     if config.train__resample_is_resample:

@@ -6,7 +6,16 @@ from fractions import Fraction
 from random import choices
 
 
-def prepare_training(datasets,Bkg_Aux_str,Sig_Aux_str,Bkg_Data_str,Sig_Data_str,NR="False",ND="False",*args, **kwargs):
+def prepare_training(
+        datasets,
+        Bkg_Aux_str,
+        Sig_Aux_str,
+        Bkg_Data_str,
+        Sig_Data_str,
+        NR="False",
+        ND="False",
+        *args, **kwargs
+    ):
     '''
     Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
     
