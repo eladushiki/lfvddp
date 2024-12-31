@@ -3,12 +3,10 @@ from dataclasses import dataclass
 from fractions import Fraction
 from math import floor
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Type
 
 from data_tools.histogram_generation import exp, gauss, physics
 from frame.config_handle import Config
-
-from __future__ import ExpConfig, GaussConfig, PhysicsConfig
 
 @dataclass
 class ClusterConfig(Config):
@@ -38,12 +36,6 @@ class ClusterConfig(Config):
 
 @dataclass
 class TrainConfig(ClusterConfig, ABC):
-    # Train config subtype by name
-    FUNCTION_CONFIGS_BY_NAME = {
-        "exp": ExpConfig,
-        "gauss": GaussConfig,
-        "physics": PhysicsConfig,
-    }
 
     # Data generation data locations
     train__data_dir: Path
@@ -113,6 +105,15 @@ class TrainConfig(ClusterConfig, ABC):
     @abstractmethod
     def train__number_of_background_events(self) -> int:
         pass
+
+    @classmethod
+    def dynamic_class_resolve(cls, config_params: Dict[str, Any]):
+        defining_attribute_name = "train__histogram_analytic_pdf"
+
+        if defining_attribute_name not in config_params.keys():
+            raise AttributeError(f"Missing defining attribute {defining_attribute_name} to resolve {cls} subclass")
+
+        return TRAIN_CONFIGS_BY_FUNCTION_NAME[config_params[defining_attribute_name]]
 
 
 @dataclass
@@ -195,3 +196,11 @@ class PhysicsConfig(TrainConfig):
 
     train_physics__N_poiss: int
     train_physics__data_usage_fraction: float  # As a fraction
+
+
+# Train config subtype by name
+TRAIN_CONFIGS_BY_FUNCTION_NAME = {
+    "exp": ExpConfig,
+    "gauss": GaussConfig,
+    "physics": PhysicsConfig,
+}

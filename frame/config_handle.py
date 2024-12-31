@@ -4,7 +4,7 @@ import json
 import random
 from os import makedirs, getpid
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Type
 from typing_extensions import Self
 from numpy import random as npramdom
 
@@ -36,7 +36,14 @@ class Config:
 
         convert_string_filenames_to_paths(config_params)
 
-        return cls(**config_params)
+        resolved_class = cls.dynamic_class_resolve(config_params)
+
+        return resolved_class(**config_params)
+
+    @classmethod
+    def dynamic_class_resolve(cls, config_params: Dict[str, Any]):
+        # Override hook to give a subclass that is dynamically resolved
+        return cls
 
     def save_to_file(self, config_path: Path) -> None:
         with open(config_path, 'w') as file:
