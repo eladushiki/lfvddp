@@ -26,6 +26,9 @@ def main():
         if user=="inbarsav":
             outdir = f"/srv01/tgrp/inbarsav/NPLM/NPLM_package"
             scriptsdir = "/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn"
+        if user=="eladklig":
+            outdir = "~/my_storage/SymmetrizedDDP/results"
+            scriptsdir = "~/my_storage/SymmetrizedDDP/paper scripts/train"
     except:
         print("invalid user")
     init_dir(outdir)
