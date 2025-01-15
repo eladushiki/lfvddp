@@ -1,7 +1,6 @@
-from logging import config
-import signal
-import sys, os, time, datetime, h5py, json, argparse
+import os, time, h5py
 import numpy as np
+import logging
 
 import tensorflow as tf
 from tensorflow import keras
@@ -15,12 +14,10 @@ from tensorflow import linalg as la
 from NPLM.NNutils import *
 from NPLM.PLOTutils import *
 from NPLM.ANALYSISutils import *
-from fractions import Fraction
-from data_tools.profile_likelihood import *
-from data_tools.histogram_generation import *
+from data_tools.data_utils import prepare_training, resample
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
-from frame.file_structure import TRAINING_LOG_FILE_NAME, TRAINING_HISTORY_FILE_NAME, OUTPUT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
+from frame.file_structure import TRAINING_LOG_FILE_NAME, TRAINING_HISTORY_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from train.train_config import TrainConfig
 from neural_networks.NNutils import ImperfectModel, imperfect_loss
 from configs.config_utils import parNN_list
@@ -42,21 +39,12 @@ def main(context: ExecutionContext) -> None:
         epochs = max(config.train__epochs, config.train__epochs)
         patience = min(config.train__patience, config.train__patience)
 
+    # todo: what is this?
     # background = np.load(config.train__data_dir / config.train__backgournd_distribution_path)
     # signal = np.load(config.train__data_dir / config.train__signal_distribution_path)
 
     # Prepare sample
-    feature, target = prepare_training(
-        config.analytic_background_function,
-        config.train__data_background_aux,
-        config.train__data_signal_aux,
-        config.train__data_background,
-        config.train__data_signal,
-        NR = "False",  # config.NR
-        ND = "False",  # config.ND
-        n_signal = config.train__signal_number_of_events,
-        **config.analytic_background_function_calling_parameters,
-    )
+    feature, target = prepare_training(config)
 
     if config.train__resample_is_resample:
         feature,target = resample(
@@ -84,7 +72,7 @@ def main(context: ExecutionContext) -> None:
 
     input_shape = (None, inputsize)
 
-    ## Get Tau term model
+    # Get Tau term model
     t_model = ImperfectModel(
         input_shape=input_shape,
         NU_S=NUR_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S, 
@@ -96,48 +84,40 @@ def main(context: ExecutionContext) -> None:
         train_f=True,
         train_nu=False
     )
-    print(t_model.summary())
+    logging.info(t_model.summary())
 
     t_model.compile(loss=imperfect_loss,  optimizer='adam')
 
-    ## Train
-    print("\nStarting training")
+    # Train
+    logging.debug("Starting training")
     t0=time.time()
     t_mdoel_history = t_model.fit(feature, target, batch_size=batch_size, epochs=epochs, verbose=0)
-    t1=time.time()
-    print('Training time (seconds):')
-    print(t1-t0,"\n")
-
-    ## Save
+    logging.debug(f'Training time (seconds): {time.time() - t0}')
 
     # metrics                      
-    loss_t_model  = np.array(t_mdoel_history.history['loss'])
-
-    # test statistic                                         
+    loss_t_model  = np.array(t_mdoel_history.history['loss'])                
     final_loss = loss_t_model[-1]
     t_model_OBS    = -2*final_loss
-    print('t_model_OBS: %f'%(t_model_OBS))
-
+    logging.info('t_model_OBS (test statistic): %f'%(t_model_OBS))
+    
+    # Save
+    ## Training log
     out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
     os.makedirs(out_dir, exist_ok=False)
+    with open(out_dir / TRAINING_LOG_FILE_NAME, 'w') as training_log:
+        training_log.write("%f\n" %(t_model_OBS))
 
-    # save t
-    with open(out_dir / TRAINING_LOG_FILE_NAME, 'w') as log:
-        log.write("%f\n" %(t_model_OBS))
-
-    # save the training history                                       
-    log_history = TRAINING_HISTORY_FILE_NAME
-    f           = h5py.File(out_dir / log_history,"w")
-    epoch       = np.array(range(epochs))
-    patience_t = patience
-    keepEpoch   = epoch % patience_t == 0
-    f.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
-    for key in list(t_mdoel_history.history.keys()):
-        monitored = np.array(t_mdoel_history.history[key])
-        print('%s: %f'%(key, monitored[-1]))
-        f.create_dataset(key, data=monitored[keepEpoch],   compression='gzip')
-    f.close()
-    print("\nsaved history")
+    ## Training history
+    with h5py.File(out_dir / TRAINING_HISTORY_FILE_NAME,"w") as history_file:
+        epoch       = np.array(range(epochs))
+        patience_t = patience
+        keepEpoch   = epoch % patience_t == 0
+        history_file.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
+        for key in list(t_mdoel_history.history.keys()):
+            monitored = np.array(t_mdoel_history.history[key])
+            logging.debug('%s: %f'%(key, monitored[-1]))
+            history_file.create_dataset(key, data=monitored[keepEpoch], compression='gzip')
+        logging.info("saved history")
 
     # save the model weights
     log_weights = out_dir / WEIGHTS_OUTPUT_FILE_NAME

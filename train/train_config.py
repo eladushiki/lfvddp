@@ -1,11 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from fractions import Fraction
-from math import floor
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Dict, Type
+from typing import Any, Callable, Dict
 
-from data_tools.histogram_generation import exp, gauss, physics
 from frame.config_handle import Config
 
 @dataclass
@@ -36,7 +33,14 @@ class ClusterConfig(Config):
 
 @dataclass
 class TrainConfig(ClusterConfig, ABC):
+    ## This is the defining attribute for the subclass
+    train__histogram_analytic_pdf: str  # decides which samples to use (em or exp)
 
+    # Other histogram settings
+    train__histogram_is_binned: bool
+    train__histogram_resolution: int
+    train__histogram_is_use_analytic: int  # if 1: generate data from pdf
+    
     # Data generation data locations
     train__data_dir: Path
     train__backgournd_distribution_path: Path
@@ -47,18 +51,13 @@ class TrainConfig(ClusterConfig, ABC):
     @property
     def train__batch_train_fraction(self):
         return 1 - self.train__batch_test_fraction
+    train__data_usage_fraction: float  # as a fraction
     
     # Data set types
     train__data_background_aux: str  # string of data sets in the auxillary background (e.g. 'Ref' or 'Sig+Bkg+Ref')
     train__data_signal_aux: str  # string of data sets in the auxillary sig (e.g. '' or 'Sig+Bkg')
     train__data_background: str  # string of data sets in the data background (e.g. 'Bkg' or 'Sig+Bkg')
     train__data_signal: str  # string of data sets in the data sig (e.g. 'Sig' or 'Sig+Bkg')
-
-    # histogram settings
-    train__histogram_is_binned: bool
-    train__histogram_resolution: int
-    train__histogram_is_use_analytic: int  # if 1: generate data from pdf
-    train__histogram_analytic_pdf: str  # decides which samples to use (em or exp)
 
     # Resampling settings
     train__resample_is_resample: bool
@@ -95,15 +94,17 @@ class TrainConfig(ClusterConfig, ABC):
         pass
     @property
     @abstractmethod
-    def analytic_background_function_calling_parameters(self) -> Dict[str, Any]:
-        pass
-    @property
-    @abstractmethod
     def train__number_of_reference_events(self) -> int:
         pass
     @property
     @abstractmethod
     def train__number_of_background_events(self) -> int:
+        pass
+
+    # Must have definition for dynamic class resolution
+    @classmethod
+    @abstractmethod
+    def HISTOGRAM_NAME(cls) -> str:
         pass
 
     @classmethod
@@ -113,94 +114,9 @@ class TrainConfig(ClusterConfig, ABC):
         if defining_attribute_name not in config_params.keys():
             raise AttributeError(f"Missing defining attribute {defining_attribute_name} to resolve {cls} subclass")
 
-        return TRAIN_CONFIGS_BY_FUNCTION_NAME[config_params[defining_attribute_name]]
+        histogram_subtypes = cls.__subclasses__()
+        for histogram_subtype in histogram_subtypes:
+            if histogram_subtype.HISTOGRAM_NAME() == config_params[defining_attribute_name]:
+                return histogram_subtype
 
-
-@dataclass
-class ExpConfig(TrainConfig):
-    @property
-    def analytic_background_function(self) -> Callable:
-        return exp
-    @property
-    def analytic_background_function_calling_parameters(self) -> Dict[str, Any]:
-        return {
-            "n_ref": self.train__number_of_reference_events,
-            "n_bkg": self.train__number_of_background_events,
-            "scale_factor": 1,
-            "normalization_factor": 1,
-            "signal_location": self.train_exp__signal_location,
-            "signal_scale": self.train_exp__signal_scale,
-            "poisson_fluctuations": self.train_exp__N_poiss,
-            "is_resonant_signal_shape": self.train_exp__signal_resonant,
-        }
-    @property
-    def train__number_of_reference_events(self) -> int:
-        return round(219087 * self.train__batch_train_fraction * self.train__data_usage_fraction)
-    @property
-    def train__number_of_background_events(self) -> int:
-        return round(219087 * self.train__batch_test_fraction * self.train__data_usage_fraction)
-    
-    train_exp__signal_location: int
-    train_exp__signal_scale: float
-    train_exp__N_poiss: int
-    train_exp__signal_resonant: bool
-
-
-@dataclass
-class GaussConfig(TrainConfig):
-    @property
-    def analytic_background_function(self) -> Callable:
-        return gauss
-    @property
-    def analytic_background_function_calling_parameters(self) -> Dict[str, Any]:
-        return {
-            "normalization_factor": 1,
-            "signal_location": self.train_gauss__signal_location,
-            "signal_scale": self.train_gauss__signal_scale,
-            "poisson_fluctuations": self.train_gauss__N_poiss,
-            "dim": 1,
-        }
-    @property
-    def train__number_of_reference_events(self) -> int:
-        return round(219087 * float(self.train__batch_train_fraction) * self.train__data_usage_fraction)
-    @property
-    def train__number_of_background_events(self) -> int:
-        return round(219087 * float(Fraction(self.train__batch_test_fraction)) * self.train__data_usage_fraction)
-
-    train_gauss__signal_location: int
-    train_gauss__signal_scale: float
-    train_gauss__N_poiss: int
-
-@dataclass
-class PhysicsConfig(TrainConfig):
-    @property
-    def analytic_background_function(self) -> Callable:
-        return physics
-    @property
-    def analytic_background_function_calling_parameters(self) -> Dict[str, Any]:
-        return {
-            "channel": 'em',
-            "signal_types": ["ggH_taue","vbfH_taue"],
-            "used_physical_variables": ['Mcoll'],
-            "poisson_fluctuations": self.train_physics__N_poiss,
-            "combimed_portion": self.train_physics__data_usage_fraction,
-            "binned": False,
-            "resolution": 0.1,
-        }
-    @property
-    def train__number_of_reference_events(self) -> int:
-        return floor(self.train__batch_train_fraction)
-    @property
-    def train__number_of_background_events(self) -> int:
-        return floor(self.train__batch_test_fraction)
-
-    train_physics__N_poiss: int
-    train_physics__data_usage_fraction: float  # As a fraction
-
-
-# Train config subtype by name
-TRAIN_CONFIGS_BY_FUNCTION_NAME = {
-    "exp": ExpConfig,
-    "gauss": GaussConfig,
-    "physics": PhysicsConfig,
-}
+        return cls
