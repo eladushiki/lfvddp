@@ -1,7 +1,8 @@
 {
     "runtag": "ddp_symmtery",
 
-    "cluster__is_use_wsl_command_line": true,
+    "cluster__is_use_wsl_command_line": false,
+    "cluster__is_use_ssh_jump": false,
     "cluster__host_address": "wipp-an1.weizmann.ac.il",
 
     "cluster__qsub_walltime": "00:30:00",

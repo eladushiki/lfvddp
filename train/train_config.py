@@ -16,6 +16,7 @@ class ClusterConfig(Config):
 
     # PERSONAL optional SSH jump for WIS remote work
     cluster__is_use_wsl_command_line: bool
+    cluster__is_use_ssh_jump: bool
 
     # PERSONAL run parameters
     cluster__remote_repository_dir: PurePosixPath
