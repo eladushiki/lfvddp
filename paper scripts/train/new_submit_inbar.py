@@ -37,19 +37,22 @@ def main():
 def submit_jobs(outdir,scriptsdir):
     for config_num in [22]:
         for sig in number_of_signals:
-            N_jobs = 500 if sig==0 else 100
+            N_jobs = 500 if sig==0 else 100  # 500 for bg and 100 signal
             for i in range(len(train_sizes)):
-                train_size=train_sizes[i]
+                train_size=train_sizes[i]  # this is the proportional part from the data that is taken to be A/B out of some 200000 hardcoded number
                 test_size=test_sizes[i]
                 for jobid in range(N_jobs):
                     seed = datetime.datetime.now().microsecond+datetime.datetime.now().second+datetime.datetime.now().minute
                     setupLines=[f"cd {outdir}"]
+                    
+                    # This is for sample A (bc includes signal)
                     fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_{jobid}_{i}_{sig}_{config_num}_TAU_{sample}_{pdf}.sh"
                     cmd_TAU=f"/usr/local/anaconda/3.8/bin/python {scriptsdir}/new_training.py -j {jobid} -R {train_size} -B {test_size} -s {sig} -c {scriptsdir}/config{config_num}.json -o {outdir}/training_outcomes --seed {seed} "
                     cmd_TAU+=f"-t TAU -S {sample} --BDstr Bkg --SDstr Sig --BAstr Ref+Bkg+Sig --smlpdf {pdf}"
                     u.prepare_submit_file(fsubname,setupLines,[cmd_TAU],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_TAU_{sample}_{pdf}",setupATLAS=False)
                     u.submit_job(fsubname,walltime=walltime[i],io=0,mem=4)
 
+                    # This is for sample B
                     fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_{jobid}_{i}_{sig}_{config_num}_delta_{sample}_{pdf}.sh"
                     cmd_delta=f"/usr/local/anaconda/3.8/bin/python {scriptsdir}/new_training.py -j {jobid} -R {train_size} -B {test_size} -s {sig} -c {scriptsdir}/config{config_num}.json -o {outdir}/training_outcomes --seed {seed} "
                     cmd_delta+=f"-t delta -S {sample} --BDstr Ref --BAstr Ref+Bkg+Sig --smlpdf {pdf}"
