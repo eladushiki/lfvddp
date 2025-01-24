@@ -19,28 +19,25 @@ from NPLM.NNutils import *
 from NPLM.PLOTutils import *
 from NPLM.ANALYSISutils import *
 from fractions import Fraction
-from read_h5_IS import *
-from new_setting import *
+# from read_h5_IS import *  # todo: @Inbar_Savoray What is this for?
+from new_setting import prepare_training, em, em_Mcoll, exp
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-j", "--jobid", help="job id", dest="jobid")
-parser.add_argument("-R", "--train-size", help="train size", dest="train_size")
-parser.add_argument("-B", "--test-size", help="test size", dest="test_size")
-parser.add_argument("-s", "--sig", help="number of signal events", type=int, dest="sig_events")
-parser.add_argument("-c", "--jsonfile", help="json file", dest="jsonfile")
-parser.add_argument("-o", "--outdir", help="output directory", dest="outdir")
-parser.add_argument("--seed", help="seed", type=int, dest="seed")
+parser.add_argument("-R", "--train-size", help="train size, as a string describing a fraction", dest="train_size", required=True)
+parser.add_argument("-B", "--test-size", help="test size, as a string describing a fraction", dest="test_size", required=True)
+parser.add_argument("-s", "--sig", help="number of signal events", type=int, dest="sig_events", required=True)
+parser.add_argument("-c", "--jsonfile", help="json file", dest="jsonfile", required=True)
+parser.add_argument("-o", "--outdir", help="output directory", dest="outdir", required=True)
+parser.add_argument("--seed", help="seed", type=int, dest="seed", required=True)
 parser.add_argument("-t", "--loss", help="string before history/weights.h5 and .txt names (TAU or delta)", dest="t")
 parser.add_argument("--BAstr", help="string of data sets in the auxillary background (e.g. 'Ref' or 'Sig+Bkg+Ref')", default = '' ,dest="Bkg_Aux_str")
 parser.add_argument("--SAstr", help="string of data sets in the auxillary sig (e.g. '' or 'Sig+Bkg')", default = '', dest="Sig_Aux_str")
 parser.add_argument("--BDstr", help="string of data sets in the data background (e.g. 'Bkg' or 'Sig+Bkg')", default = '', dest="Bkg_Data_str")
 parser.add_argument("--SDstr", help="string of data sets in the data sig (e.g. 'Sig' or 'Sig+Bkg')", default = '', dest="Sig_Data_str")
 parser.add_argument("--smlpdf", help="if 1: generate data from pdf", type=int, dest="sample_pdf")
-parser.add_argument("-S","--spl", help="decides which samples to use (em or exp)", dest="sample_str")
-
-
-
+parser.add_argument("-S","--spl", help="decides which samples to use (em, em_Mcoll or exp)", dest="sample_str", required=True)
 
 args = parser.parse_args()
 
@@ -58,7 +55,12 @@ np.random.seed(seed)
 with open(jsonfile, 'r') as js:
     config = json.load(js)
 
-initial_jsonfile = '/srv01/agrp/yuvalzu/scripts/NPLM_package/initial_config.json' if 'yuvalzu' in outdir else '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/initial_config.json'
+if 'yuvalzu' in outdir:
+    initial_jsonfile = '/srv01/agrp/yuvalzu/scripts/NPLM_package/initial_config.json'
+elif 'inbarsav' in outdir:
+    initial_jsonfile = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/initial_config.json'
+else:
+    initial_jsonfile = 'configs/initial_config.json'
 with open(initial_jsonfile, 'r') as js:
     initial_config = json.load(js)
 
@@ -198,7 +200,9 @@ if sample_pdf:
     OUTPUT_FILE_ID = "pdf_"+OUTPUT_FILE_ID
     
 t = args.t
-## Get Tau term model
+## Get Tau term model.
+# Notice: the original `imperfect_model` contains metrics added with `add_metric`,
+#         which is deprecated. If this throws an error, comment them out.
 t_model = imperfect_model(input_shape=input_shape,
                       NU_S=NUR_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S, 
                       NU_N=NUR_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
@@ -207,6 +211,8 @@ t_model = imperfect_model(input_shape=input_shape,
                       BSMarchitecture=BSMarchitecture, BSMweight_clipping=BSMweight_clipping, train_f=True, train_nu=False)
 print(t_model.summary())
 
+# Notice: This code replaces the original `add_metric` code of NPLM's `imperfect_model`
+# metrics = create_metrics(t_model, x)
 t_model.compile(loss=imperfect_loss,  optimizer='adam')
 
 ## Train

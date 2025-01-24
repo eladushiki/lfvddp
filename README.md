@@ -1,6 +1,6 @@
 # LFVNN-symmetrized
 
-The files used in our paper (https://arxiv.org/abs/2401.09530) are in paper scripts.
+The files used in our paper (https://arxiv.org/abs/2401.09530) are in `paper_scripts`.
 
 train:
 
