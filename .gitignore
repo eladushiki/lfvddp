@@ -1,0 +1,23 @@
+# Python environment
+.venv/
+
+# Python installation artifacts
+**.egg-info/
+**/__pycache__/
+
+# IDE
+.vscode/
+
+# Configuration files
+configs/**/*.json
+!configs/training/basic_training_config.json
+!configs/user/basic_user_config.json
+!configs/cluster/basic_cluster_config.json
+
+# Mid process files and results
+## Untracked directories
+results/
+temp/
+## Untracked file types
+**.h5
+**.log
