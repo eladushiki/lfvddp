@@ -25,7 +25,7 @@ def runlocaljob(cmd,debug=False):
 def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",shortname=""):
     jobname=shortname if shortname else fsubname.rsplit('/',1)[1].split('.')[0]
     flogname=fsubname.replace('.sh','.log')
-    fsub=open(fsubname,"w")
+    fsub=open(fsubname,"w+")
     lines=[
         "#!/bin/zsh",
         "",
