@@ -1,3 +1,4 @@
+from pathlib import Path
 import sys, os, time, datetime, h5py, json, argparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -60,7 +61,8 @@ if 'yuvalzu' in outdir:
 elif 'inbarsav' in outdir:
     initial_jsonfile = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/initial_config.json'
 else:
-    initial_jsonfile = 'configs/initial_config.json'
+    project_root = Path(__file__).parent.parent.parent.absolute()
+    initial_jsonfile = str(project_root / 'configs/initial_config.json')  # todo: move this to config files
 with open(initial_jsonfile, 'r') as js:
     initial_config = json.load(js)
 

@@ -23,7 +23,13 @@ scriptsdir = sys.argv[10]
 with open(jsonfile, 'r') as jsonfile:
     config = json.load(jsonfile)
 
-initial_jsonfile = '/srv01/agrp/yuvalzu/scripts/NPLM_package/initial_config.json' if 'yuvalzu' in outdir else '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/initial_config.json'
+if 'yuvalzu' in outdir:
+    initial_jsonfile = '/srv01/agrp/yuvalzu/scripts/NPLM_package/initial_config.json'
+elif 'inbarsav' in outdir:
+    initial_jsonfile = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/initial_config.json'
+else:
+    initial_jsonfile = "configs/initial_config.json"
+
 with open(initial_jsonfile, 'r') as js:
     initial_config = json.load(js)
 
@@ -43,16 +49,16 @@ OUTPUT_FILE = sample+''.join(list((f"{config[key]}{key}" if config[key]!=initial
 if pdf:
     OUTPUT_FILE = "pdf_"+OUTPUT_FILE
 os.chdir(OUTPUT_PATH)
-os.system(f"/usr/local/anaconda/3.8/bin/python /srv01/agrp/yuvalzu/scripts/terminal_scripts/copy_txt_to_csv.py {OUTPUT_FILE} {OUTPUT_FILE}")
+os.system(f"python ../paper_scripts/train/copy_txt_to_csv.py {OUTPUT_FILE} {OUTPUT_FILE}")
 os.system(f"cp {outdir}/{OUTPUT_FILE}.csv {scriptsdir}")
 os.system(f"tar -cz --force-local -f {OUTPUT_FILE}.tar.gz {OUTPUT_FILE}*.h5")
 ### next line removes the .h5 and .txt files!!!
 if remove: 
     os.system(f"rm -r {OUTPUT_FILE}*.txt {OUTPUT_FILE}*.h5")
-
+os.chdir("..")
 
 #read logs and save relevant ones
-log_dir = OUTPUT_PATH.replace("training_outcomes","test/submit")
+log_dir = OUTPUT_PATH + '/' + "test/submit"
 log_files = glob.glob(f"{log_dir}/*.log")
 if os.path.exists(log_dir.replace("test","test_old")):
     log_files = log_files + glob.glob(f'{log_dir.replace("test","test_old")}/*.log')

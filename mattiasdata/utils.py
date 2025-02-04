@@ -44,6 +44,7 @@ def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",s
             "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh",""]
     lines+=setupLines
     lines+=["","#-------------------------------------------------------------------#"]
+    lines+=["source ../.venv/bin/activate"]
     lines+=cmdLines
     lines+=["#-------------------------------------------------------------------#",""]
     lines+=["echo \"Done, `date`\""]
