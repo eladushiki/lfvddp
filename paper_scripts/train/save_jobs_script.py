@@ -69,6 +69,7 @@ def submit_save_jobs(fsubname,N_jobs,walltime="06:00:00",io=5,mem=None,cores=Non
         for wjid in waitjobids:
             # subcmd+=":%s.wipp-pbs"%wjid  # todo: make sure I'm not missing anything by omitting the .wipp-pbs
             subcmd+=":%s"%wjid  # This is an educated guess of how to use OpenPBS here.
+            # Note this also appears in utils.py
     subcmd+=" %s"%fsubname
     ## Submit
     returncode=""

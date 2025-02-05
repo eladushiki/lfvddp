@@ -32,7 +32,7 @@ def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",s
         "#PBS -j oe",
         "#PBS -m n",
         "#PBS -o %s"%flogname,
-        "#PBS -q %s"%queue,
+        "#PBS -q %s"%queue, # This queue has no GPU resources. Hence this does not happen.
         "#PBS -N %s"%jobname,
         "",
         "echo \"Starting on `hostname`, `date`\"",
@@ -52,9 +52,9 @@ def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",s
         fsub.write(l+"\n")
     fsub.close()
 
-def submit_job(fsubname,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[]):
+def submit_job(fsubname,walltime="06:00:00",io=5,mem=None,cores=None,is_gpu=False,waitjobids=[]):
     ## Get submit command
-    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
+    subcmd="qsub -l walltime=%s,io=%s,ngpus=%s"%(walltime,io, 1 if is_gpu else 0)
     if mem!=None:
         subcmd+=",mem=%sg"%mem # Default in farm is 2g
     if cores!=None:
@@ -62,7 +62,8 @@ def submit_job(fsubname,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=
     if waitjobids!=[]:
         subcmd+=" -W depend=afterany"
         for wjid in waitjobids:
-            subcmd+=":%s.wipp-pbs"%wjid
+            # subcmd+=":%s.wipp-pbs"%wjid
+            subcmd+=":%s"%wjid
     subcmd+=" %s"%fsubname
     ## Submit
     returncode=""

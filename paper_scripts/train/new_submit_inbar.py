@@ -53,14 +53,14 @@ def submit_jobs(outdir,scriptsdir,configsdir):
                     cmd_TAU=f"python {scriptsdir}/new_training.py -j {jobid} -R {train_size} -B {test_size} -s {sig} -c {configsdir}/config{config_num}.json -o {outdir}/training_outcomes --seed {seed} "
                     cmd_TAU+=f"-t TAU -S {sample} --BDstr Bkg --SDstr Sig --BAstr Ref+Bkg+Sig --smlpdf {pdf}"
                     u.prepare_submit_file(fsubname,setupLines,[cmd_TAU],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_TAU_{sample}_{pdf}",setupATLAS=False)
-                    u.submit_job(fsubname,walltime=walltime[i],mem=4)
+                    u.submit_job(fsubname,walltime=walltime[i],mem=4,is_gpu=True)
 
                     # This is for sample B
                     fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_{jobid}_{i}_{sig}_{config_num}_delta_{sample}_{pdf}.sh"
                     cmd_delta=f"python {scriptsdir}/new_training.py -j {jobid} -R {train_size} -B {test_size} -s {sig} -c {configsdir}/config{config_num}.json -o {outdir}/training_outcomes --seed {seed} "
                     cmd_delta+=f"-t delta -S {sample} --BDstr Ref --BAstr Ref+Bkg+Sig --smlpdf {pdf}"
                     u.prepare_submit_file(fsubname,setupLines,[cmd_delta],shortname=f"sub_{jobid}_{i}_{sig}_{config_num}_delta_{sample}_{pdf}",setupATLAS=False)
-                    u.submit_job(fsubname,walltime=walltime[i],mem=4)
+                    u.submit_job(fsubname,walltime=walltime[i],mem=4,is_gpu=True)
 
                 fsubname=f"{outdir}/{runtag}"+"/submit/"+f"sub_save_{i}_{sig}_{config_num}.sh"
                 setupLines=[f"cd {outdir}"]
