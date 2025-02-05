@@ -11,15 +11,14 @@ from tensorflow.keras.layers import Dense, Input, Layer
 from tensorflow import Variable
 from tensorflow import linalg as la
 
-from NPLM.NNutils import *
-from NPLM.PLOTutils import *
-from NPLM.ANALYSISutils import *
+from neural_networks.NPLM.src.NPLM.NNutils import *
+from neural_networks.NPLM.src.NPLM.PLOTutils import *
+from neural_networks.NPLM.src.NPLM.ANALYSISutils import *
 from data_tools.data_utils import prepare_training, resample
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
 from frame.file_structure import TRAINING_LOG_FILE_NAME, TRAINING_HISTORY_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from train.train_config import TrainConfig
-from neural_networks.NNutils import ImperfectModel, imperfect_loss
 from configs.config_utils import parNN_list
 
 @context_controlled_execution
@@ -30,18 +29,6 @@ def main(context: ExecutionContext) -> None:
     # type casting safety for the config type
     if not isinstance(config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
-
-    # training time settings
-    if config.train__epochs_type == 'TAU' or config.train__epochs_type == 'delta':
-        epochs = config.train__epochs
-        patience = config.train__patience
-    else:
-        epochs = max(config.train__epochs, config.train__epochs)
-        patience = min(config.train__patience, config.train__patience)
-
-    # todo: what is this?
-    # background = np.load(config.train__data_dir / config.train__backgournd_distribution_path)
-    # signal = np.load(config.train__data_dir / config.train__signal_distribution_path)
 
     # Prepare sample
     feature, target = prepare_training(config)
@@ -73,7 +60,7 @@ def main(context: ExecutionContext) -> None:
     input_shape = (None, inputsize)
 
     # Get Tau term model
-    t_model = ImperfectModel(
+    t_model = imperfect_model(
         input_shape=input_shape,
         NU_S=NUR_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S, 
         NU_N=NUR_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
@@ -91,7 +78,7 @@ def main(context: ExecutionContext) -> None:
     # Train
     logging.debug("Starting training")
     t0=time.time()
-    t_mdoel_history = t_model.fit(feature, target, batch_size=batch_size, epochs=epochs, verbose=0)
+    t_mdoel_history = t_model.fit(feature, target, batch_size=batch_size, epochs=config.train__epochs, verbose=0)
     logging.debug(f'Training time (seconds): {time.time() - t0}')
 
     # metrics                      
@@ -109,8 +96,8 @@ def main(context: ExecutionContext) -> None:
 
     ## Training history
     with h5py.File(out_dir / TRAINING_HISTORY_FILE_NAME,"w") as history_file:
-        epoch       = np.array(range(epochs))
-        patience_t = patience
+        epoch       = np.array(range(config.train__epochs))
+        patience_t = config.train__patience
         keepEpoch   = epoch % patience_t == 0
         history_file.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
         for key in list(t_mdoel_history.history.keys()):

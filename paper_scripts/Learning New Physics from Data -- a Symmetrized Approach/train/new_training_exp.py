@@ -15,9 +15,9 @@ from tensorflow.keras.layers import Dense, Input, Layer
 from tensorflow import Variable
 from tensorflow import linalg as la
 
-from NPLM.NNutils import *
-from NPLM.PLOTutils import *
-from NPLM.ANALYSISutils import *
+from neural_networks.NPLM.src.NPLM.NNutils import *
+from neural_networks.NPLM.src.NPLM.PLOTutils import *
+from neural_networks.NPLM.src.NPLM.ANALYSISutils import *
 from fractions import Fraction
 from read_h5_IS import *
 from new_setting import *
