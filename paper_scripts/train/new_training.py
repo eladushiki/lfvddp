@@ -243,7 +243,7 @@ out.close()
 print("\nsaved t")
 
 # save the training history                                       
-log_history = OUTPUT_PATH+OUTPUT_FILE_ID+f'_{t}_history.h5'
+log_history = OUTPUT_PATH+OUTPUT_FILE_ID+f'_{t}.history.h5'
 f           = h5py.File(log_history,"w")
 epoch       = np.array(range(epochs))
 patience_t = patience
@@ -257,7 +257,7 @@ f.close()
 print("\nsaved history")
 
 # save the model    
-log_weights = OUTPUT_PATH+OUTPUT_FILE_ID+f'_{t}_weights.h5'
+log_weights = OUTPUT_PATH+OUTPUT_FILE_ID+f'_{t}.weights.h5'
 t_model.save_weights(log_weights)
 print(log_weights)
 print("\nsaved weights")

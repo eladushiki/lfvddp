@@ -11,7 +11,7 @@ Make sure to change the paths for outdir (where you want the output of the train
 	new_training  - script for trainning. You may also run new_training_copy.
 	new_setting - preparing the datasets input to the model for training. You may also use new_setting_copy.	 
 	new_make_jobs_tar+csv - compressing h5 files (history and weights) and producing a csv summary with t values at the end of training. You can also try save_jobs_script instead.
-	needs - /srv01/agrp/yuvalzu/scripts/terminal_scripts/copy_txt_to_csv.py -  I no longer have access to this file, but it should still be on the cluster.
+	needs - /srv01/agrp/yuvalzu/scripts/terminal_scripts/copy_txt_to_csv.py -  I no longer have access to this file, but it should still be on the cluster. (E.K: Imported from cluster and now included here)
             
       
 analyze:

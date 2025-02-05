@@ -1,5 +1,6 @@
 # Retrieved from /srv01/agrp/yuvalzu/scripts/terminal_scripts/copy_txt_to_csv.py @ 2025-01-26
 
+# todo: move to a function
 import glob,os,sys,csv
 csv_file = sys.argv[1]
 txt_files = sys.argv[2]

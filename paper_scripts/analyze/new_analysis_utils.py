@@ -1,44 +1,46 @@
+from pathlib import Path
 import numpy as np, os, re, glob, h5py, sys, os, time, tarfile #, pandas as pd
 from scipy.stats import chi2
 import scipy.special as spc
 from scipy.integrate import quad
 
-sys.path.insert(0,"/storage/agrp/yuvalzu/mattiasdata")
-import save_jobs_script as jobs
-import utils as u
+import paper_scripts.train.save_jobs_script as jobs
+import mattiasdata.utils as u
 
 #------------------------------------------------------------------------------------------------------------------------#
 
-def user_dir():
+def user_dir():  # todo: move to config file
     dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
     dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
     plots_dirYuval = '/srv01/agrp/yuvalzu/scripts/NPLM_package/plots/'
     plots_dirInbar = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/plots/' 
     user = jobs.cmdline('whoami')[0][2:-3]
-    try:
-        if user=="yuvalzu":
-            dir = dirYuval
-            # plots_dir =  plots_dirYuval
-        if user=="inbarsav":
-            dir = dirInbar
-            # plots_dir =  plots_dirInbar
-    except:
-        print("invalid user")
+    if user=="yuvalzu":
+        dir = dirYuval
+        # plots_dir =  plots_dirYuval
+    elif user=="inbarsav":
+        dir = dirInbar
+        # plots_dir =  plots_dirInbar
+    else:
+        print("Unspecified user")
+        project_root = Path(__file__).parent.parent.parent
+        dir = str(project_root / 'results/training_outcomes')
     return(dir)
 
-def user_plots_dir():
+def user_plots_dir():  # todo: move to config file
     plots_dirYuval = '/srv01/agrp/yuvalzu/scripts/NPLM_package/plots/'
     plots_dirInbar = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/plots/' 
     user = jobs.cmdline('whoami')[0][2:-3]
-    try:
-        if user=="yuvalzu":
-            #dir = dirYuval
-            plots_dir =  plots_dirYuval
-        if user=="inbarsav":
-            #dir = dirInbar
-            plots_dir =  plots_dirInbar
-    except:
-        print("invalid user")
+    if user=="yuvalzu":
+        #dir = dirYuval
+        plots_dir =  plots_dirYuval
+    elif user=="inbarsav":
+        #dir = dirInbar
+        plots_dir =  plots_dirInbar
+    else:
+        print("Unspecified user")
+        project_root = Path(__file__).parent.parent.parent
+        plots_dir = str(project_root / 'results/plots')
     return(plots_dir)
 
 
@@ -66,9 +68,9 @@ def t_hist_epoch_seeds(epochs_list,t_history,seeds_list,epoch_numbers):
 
 class results:
     N = 219087
-    dir = user_dir()  
-    dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
-    dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
+    dir = user_dir()  # todo: remove this crap
+    # dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
+    # dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
     def __init__(self,file_name):  
         self.file = file_name
         self.tar_file_name = file_name.replace(".csv",".tar.gz") if file_name.endswith(".csv") else file_name
@@ -124,8 +126,9 @@ class results:
      
 
     def get_similar_files(self,epochs='all',patience_tau='all',patience_delta='all'):
-        dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
-        dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
+        # dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
+        # dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
+        dir = user_dir()  # todo: remove this crap
         all_patience_str = self.file
         sub_epochs = '*' if epochs=='all' else f'{epochs}epochs_tau'
         sub_patience_tau = '*' if patience_tau=='all' else f'{patience_tau}patience_tau'
@@ -144,7 +147,7 @@ class results:
         
         
         #Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-        files_all_patience_str = glob.glob(dirYuval+all_patience_str)+glob.glob(dirInbar+all_patience_str)
+        files_all_patience_str = glob.glob(dir+all_patience_str)
         files = files_all_patience_str[:]
         for file_name in files:
             NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name and "Trueresample" not in file_name)) else "False"
@@ -279,7 +282,7 @@ class results:
             sig_filename = '*'+bkg_search_filename.split('signals_')[1]
 
         #print(sig_filename)
-        sig_files = glob.glob(results.dirYuval+sig_filename)+glob.glob(results.dirInbar+sig_filename)
+        sig_files = glob.glob(results.dir+sig_filename)
         #print(sig_files)
         for file in sig_files:
             file = file.split('/')[-1]

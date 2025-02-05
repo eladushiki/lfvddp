@@ -9,7 +9,7 @@ from matplotlib.legend_handler import HandlerPatch
 from matplotlib.animation import FuncAnimation
 from IPython.display import HTML
 
-import new_analysis_utils as au
+import paper_scripts.analyze.new_analysis_utils as au
 
 #------------------------------------------------------------------------------------------------------------------------#
 
