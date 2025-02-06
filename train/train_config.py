@@ -9,24 +9,12 @@ from frame.config_handle import Config
 class ClusterConfig(Config):
     runtag: str
 
-    # PERSONAL SSH parameters
-    cluster__host_address: str
-    cluster__user: str
-    cluster__password: str
-
-    # PERSONAL optional SSH jump for WIS remote work
-    cluster__is_use_wsl_command_line: bool
-    cluster__is_use_ssh_jump: bool
-
-    # PERSONAL run parameters
-    cluster__remote_repository_dir: PurePosixPath
-    cluster__working_dir: Path
-
     # qsub command parameters
     cluster__qsub_walltime: str  # in the form of "12:00:00"
     cluster__qsub_io: int
     cluster__qsub_mem: int
     cluster__qsub_cores: int
+    cluster__qsub_ngpus_for_train: int
 
     # qstat command parameters
     cluster__qstat_n_jobs: int
@@ -69,6 +57,9 @@ class TrainConfig(ClusterConfig, ABC):
     # Signal parameters
     train__signal_number_of_events: int
     train__signal_types: str
+    train__signal_resonant: bool
+    train__signal_location: int
+    train__signal_scale: float
     
     # Nuisance parameters
     train__nuisance_correction: str # "SHAPE" or "NORM"

@@ -1,14 +1,11 @@
 {
     "runtag": "ddp_symmtery",
 
-    "cluster__is_use_wsl_command_line": false,
-    "cluster__is_use_ssh_jump": false,
-    "cluster__host_address": "wipp-an1.weizmann.ac.il",
-
     "cluster__qsub_walltime": "00:30:00",
     "cluster__qsub_io": 1,
     "cluster__qsub_mem": 2,
     "cluster__qsub_cores": 1,
+    "cluster__qsub_ngpus_for_train": 1,
 
     "cluster__qstat_n_jobs": 10
 }

@@ -23,7 +23,6 @@ class Config:
     """
     user: str
     out_dir: Path
-    scripts_dir: Path
 
     @classmethod
     def load_from_files(cls, config_paths: List[Path]) -> Self:
