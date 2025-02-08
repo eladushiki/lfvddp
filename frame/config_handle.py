@@ -66,6 +66,7 @@ class ExecutionContext:
     command_line_args: List[str]
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp()
+    is_debug_mode: bool = False
     run_successful: bool = False
 
     def __post_init__(self):
@@ -108,7 +109,7 @@ def version_controlled_execution_context(config: Config, command_line_args: List
         raise RuntimeError("Commit changes before running the script.")
     
     # Initialize
-    context = ExecutionContext(get_commit_hash(), config, command_line_args)
+    context = ExecutionContext(get_commit_hash(), config, command_line_args, is_debug_mode=is_debug_mode)
     random.seed(context.random_seed)
     npramdom.seed(context.random_seed)
 

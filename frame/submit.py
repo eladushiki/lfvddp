@@ -12,6 +12,7 @@ def submit_cluster_job(
         environment_variables: Optional[Dict[str, str]] = None,
         output_file: Optional[PurePath] = None,
         max_tries: int = 50,
+        is_interactive_mode: bool = False,
     ):
     
     # build submission command
@@ -20,6 +21,7 @@ def submit_cluster_job(
         submitted_command=command,
         environment_variables=environment_variables,
         output_file=str(output_file),
+        is_interactive_mode=is_interactive_mode,
     )
 
     for round in range(max_tries):

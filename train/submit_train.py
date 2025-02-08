@@ -28,6 +28,7 @@ def submit_train(context: ExecutionContext) -> None:
         environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
         python_script_relpath_from_workdir_at_cluster=SINGLE_TRAIN_RELPATH_FROM_ROOT,
         run_python_bash_script_abspath=RUN_PYTHON_JOB_SH_ABS_PATH,
+        is_interactive_mode=context.is_debug_mode,
     )
 
 

@@ -18,6 +18,7 @@ def build_qsub_command(
         submitted_command: str,
         environment_variables: Optional[Dict[str, str]] = None,
         output_file: Optional[str] = None,
+        is_interactive_mode: bool = False,
     ) -> str:
     command = f"/opt/pbs/bin/qsub -l walltime={config.cluster__qsub_walltime},io={config.cluster__qsub_io}" \
         + (f",mem={config.cluster__qsub_mem}g" if config.cluster__qsub_mem is not None else "") \
@@ -29,6 +30,9 @@ def build_qsub_command(
 
     if output_file:
         command += f" -o {output_file}"
+
+    if is_interactive_mode:
+        command += " -I"
         
     command += f" {submitted_command}"
     
