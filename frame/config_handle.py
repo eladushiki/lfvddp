@@ -74,7 +74,7 @@ class ExecutionContext:
 
     @property
     def unique_descriptor(self) -> str:
-        return f"run_of_commit_{self.commit_hash:5s}_time_{self.time}_seed_postfix_{self.random_seed}_pid_{getpid()}"
+        return f"run_at_{self.time}_of_commit_{self.commit_hash[:5]}_pid_{getpid()}"
 
     @property
     def unique_out_dir(self) -> Path:
