@@ -1,12 +1,12 @@
 from pathlib import Path
-from frame.cluster.call_scripts import run_remote_python
+from frame.cluster.call_scripts import RUN_PYTHON_JOB_SH_ABS_PATH, run_remote_python
 from frame.config_handle import ExecutionContext
-from frame.file_structure import get_remote_equivalent_path
+from frame.file_structure import PROJECT_ROOT, get_remote_equivalent_path
 from frame.git_tools import get_commit_hash
 from train.train_config import ClusterConfig
 
 IS_SAME_AS_COMMIT_PY_ABS_PATH = Path(__file__).parent.absolute() / "is_same_as_commit.py"
-
+IS_SAME_AS_COMMIT_DEFAULT_OUTPUT_FILENAME = "is_same_as_commit_output.txt"
 
 def is_same_version_as_remote(
         context: ExecutionContext,
@@ -21,11 +21,14 @@ def is_same_version_as_remote(
     
     local_commit_hash = get_commit_hash()
 
-    remote_script = get_remote_equivalent_path(config.cluster__remote_repository_dir, IS_SAME_AS_COMMIT_PY_ABS_PATH)
     comparison_result = run_remote_python(
-        context,
-        remote_script,
+        config=context.config,
+        run_python_bash_script_abspath=RUN_PYTHON_JOB_SH_ABS_PATH,
+        workdir_at_cluster_abspath=config.cluster__project_root_at_cluster_abspath,
+        environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
+        python_script_relpath_from_workdir_at_cluster=IS_SAME_AS_COMMIT_PY_ABS_PATH,
         script_arguments=["--commit-hash", local_commit_hash],
+        output_file=context.unique_out_dir / IS_SAME_AS_COMMIT_DEFAULT_OUTPUT_FILENAME,
     )
 
     return comparison_result == "0"

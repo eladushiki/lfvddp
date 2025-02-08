@@ -8,6 +8,8 @@ from frame.config_handle import Config
 @dataclass
 class ClusterConfig(Config):
     runtag: str
+    cluster__project_root_at_cluster_abspath: PurePosixPath
+    cluster__environment_activation_script_at_cluster_abspath: PurePosixPath
 
     # qsub command parameters
     cluster__qsub_walltime: str  # in the form of "12:00:00"

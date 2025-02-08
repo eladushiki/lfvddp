@@ -1,5 +1,5 @@
 from logging import error
-from pathlib import PurePosixPath
+from pathlib import PurePath
 from subprocess import CalledProcessError, check_output
 from typing import Dict, Optional
 from frame.command_line.execution import build_qsub_command
@@ -10,7 +10,7 @@ def submit_cluster_job(
         config: ClusterConfig,
         command: str,
         environment_variables: Optional[Dict[str, str]] = None,
-        output_file: Optional[PurePosixPath] = None,
+        output_file: Optional[PurePath] = None,
         max_tries: int = 50,
     ):
     
