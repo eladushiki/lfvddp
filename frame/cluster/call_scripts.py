@@ -17,13 +17,13 @@ def run_remote_python(
         script_arguments: List[str] = [],
         output_file: Optional[Path] = None,
         max_tries: int = 50,
-        is_interactive_mode: bool = False,
     ):
     if not isinstance(config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {config.__class__.__name__}")
 
     environment_variables["WORKDIR"] = str(workdir_at_cluster_abspath)
     environment_variables["ENV_ACTIVATION_SCRIPT"] = str(environment_activation_script_abspath)
+    environment_variables["SCRIPT_RELPATH"] = str(python_script_relpath_from_workdir_at_cluster)
     environment_variables["PYTHON_ARGS"] = f"\'{' '.join(script_arguments)}\'"
 
     submit_cluster_job(
@@ -32,7 +32,6 @@ def run_remote_python(
         environment_variables=environment_variables,
         output_file=output_file,
         max_tries=max_tries,
-        is_interactive_mode=is_interactive_mode,
     )
     # todo: poll for job finish
 
