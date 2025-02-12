@@ -4,7 +4,7 @@ from sys import argv
 from frame.cluster.call_scripts import RUN_PYTHON_JOB_SH_ABS_PATH, run_remote_python
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
-from frame.file_structure import OUTPUT_FILE_NAME, RESULTS_DIR, get_relpath_from_local_root
+from frame.file_structure import get_relpath_from_local_root
 from train.train_config import TrainConfig
 
 SINGLE_TRAIN_RELPATH_FROM_ROOT = get_relpath_from_local_root(Path(__file__).parent.absolute() / "single_train.py")
@@ -29,7 +29,7 @@ def submit_train(context: ExecutionContext) -> None:
         environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
         python_script_relpath_from_workdir_at_cluster=SINGLE_TRAIN_RELPATH_FROM_ROOT,
         script_arguments=argv[1:],
-        output_file=RESULTS_DIR / context.unique_descriptor / OUTPUT_FILE_NAME,
+        output_dir=config.out_dir / context.unique_descriptor,
     )
 
 if __name__ == "__main__":

@@ -21,14 +21,15 @@ def is_same_version_as_remote(
     
     local_commit_hash = get_commit_hash()
 
-    comparison_result = run_remote_python(
+    comparison_result = run_remote_python(  # todo: deprecated, revise
         config=context.config,
         run_python_bash_script_abspath=RUN_PYTHON_JOB_SH_ABS_PATH,
         workdir_at_cluster_abspath=config.cluster__project_root_at_cluster_abspath,
         environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
         python_script_relpath_from_workdir_at_cluster=IS_SAME_AS_COMMIT_PY_ABS_PATH,
         script_arguments=["--commit-hash", local_commit_hash],
-        output_file=context.unique_out_dir / IS_SAME_AS_COMMIT_DEFAULT_OUTPUT_FILENAME,
+        output_dir=context.unique_out_dir,
+        output_filename=IS_SAME_AS_COMMIT_DEFAULT_OUTPUT_FILENAME,
     )
 
     return comparison_result == "0"

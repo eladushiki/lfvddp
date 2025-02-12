@@ -1,5 +1,4 @@
 from logging import error
-from pathlib import PurePath
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Dict, Optional
 from frame.command_line.execution import build_qsub_command
@@ -10,8 +9,7 @@ def submit_cluster_job(
         config: ClusterConfig,
         command: str,
         environment_variables: Optional[Dict[str, str]] = None,
-        output_file: Optional[PurePath] = None,
-        max_tries: int = 50,
+        max_tries: int = 3,
     ):
     
     # build submission command
@@ -19,7 +17,7 @@ def submit_cluster_job(
         config=config,
         submitted_command=command,
         environment_variables=environment_variables,
-        output_file=str(output_file) if output_file else None,
+        number_of_jobs=config.cluster__qsub_n_jobs,
     )
 
     for round in range(max_tries):

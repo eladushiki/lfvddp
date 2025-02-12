@@ -11,11 +11,10 @@ def get_local_equivalent_path(remote_root_path: PurePosixPath, remote_absolute_p
     return PROJECT_ROOT / PurePath(remote_absolute_path.relative_to(remote_root_path))
 
 CONFIGS_DIR = PROJECT_ROOT / "configs"
-RESULTS_DIR = PROJECT_ROOT / "results"
 
 # file title constants
 CONTEXT_FILE_NAME = "context.json"
-OUTPUT_FILE_NAME = "output.txt"
+JOB_OUTPUT_FILE_NAME = "job_output.txt"
 RESULTS_BRIEFING_FILE_NAME = "results_briefing.txt"
 
 # NN training

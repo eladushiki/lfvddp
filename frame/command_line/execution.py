@@ -6,7 +6,7 @@ def build_qsub_command(
         config: ClusterConfig,
         submitted_command: str,
         environment_variables: Optional[Dict[str, str]] = None,
-        output_file: Optional[str] = None,
+        number_of_jobs: int = 1,
     ) -> str:
     command = f"/opt/pbs/bin/qsub -l " \
         + (f"ngpus={config.cluster__qsub_ngpus_for_train}" if config.cluster__qsub_ngpus_for_train else "") \
@@ -28,9 +28,10 @@ def build_qsub_command(
         command += " -v "
         command += ",".join([f"{key}={value}" for key, value in environment_variables.items()])
 
-    if output_file:
-        command += f" -j oe"
-        command += f" -o {output_file}"
+    command += f" -j oe"
+
+    if number_of_jobs > 1:
+        command += f" -J 1-{number_of_jobs}"
         
     command += f" {submitted_command}"
 

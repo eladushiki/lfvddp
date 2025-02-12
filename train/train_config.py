@@ -12,6 +12,7 @@ class ClusterConfig(Config):
     cluster__environment_activation_script_at_cluster_abspath: PurePosixPath
 
     # qsub command parameters
+    cluster__qsub_n_jobs: int
     cluster__qsub_job_name: str
     cluster__qsub_queue: str
     cluster__qsub_walltime: str  # in the form of "12:00:00"
@@ -19,9 +20,6 @@ class ClusterConfig(Config):
     cluster__qsub_mem: int
     cluster__qsub_cores: int
     cluster__qsub_ngpus_for_train: int
-
-    # qstat command parameters
-    cluster__qstat_n_jobs: int
     
 
 @dataclass
