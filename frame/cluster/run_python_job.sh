@@ -7,7 +7,7 @@ echo "jobs id: ${PBS_JOBID}"
 if [ -z "$PBS_ARRAY_INDEX" ]; then
     echo "This is a singular job and not part of an array."
 else
-    echo "Job number within batch is ${PBS_ARRAYID}"
+    echo "Job number within batch is ${PBS_ARRAY_INDEX}"
     OUTPUT_DIR="$OUTPUT_DIR/$PBS_ARRAYID"
 fi
 

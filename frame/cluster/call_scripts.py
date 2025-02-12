@@ -18,7 +18,7 @@ def run_remote_python(
         script_arguments: List[str] = [],
         output_dir: Optional[Path] = None,
         output_filename: str = JOB_OUTPUT_FILE_NAME,
-        max_tries: int = 50,
+        max_tries: int = 3,
     ):
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")

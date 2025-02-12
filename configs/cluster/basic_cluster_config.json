@@ -3,10 +3,8 @@
 
     "cluster__qsub_n_jobs": 10,
     "cluster__qsub_job_name": "SymmetryDDPPythonjob",
-    "cluster__qsub_queue": "N",
-    "cluster__qsub_walltime": "00:00:05",
+    "cluster__qsub_walltime": "00:05:00",
     "cluster__qsub_io": 5,
     "cluster__qsub_mem": 2,
-    "cluster__qsub_cores": 1,
     "cluster__qsub_ngpus_for_train": 1
 }

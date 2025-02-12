@@ -11,19 +11,15 @@ def build_qsub_command(
     ) -> str:
     command = f"/opt/pbs/bin/qsub -l " \
         + (f"ngpus={config.cluster__qsub_ngpus_for_train}" if config.cluster__qsub_ngpus_for_train else "") \
+        + f",walltime={config.cluster__qsub_walltime}" \
+        + (f",mem={config.cluster__qsub_mem}g" if config.cluster__qsub_mem is not None else "") \
         + f",io={config.cluster__qsub_io}"
-        # + f"walltime={config.cluster__qsub_walltime}" \
-        # + (f",mem={config.cluster__qsub_mem}g" if config.cluster__qsub_mem is not None else "") \
-        # + (f",ppn={config.cluster__qsub_cores}" if config.cluster__qsub_cores is not None else "") \
     
     # todo: format this so any config would be optional and taken from config
     # and also, remove all duplicate configs from shell file
     
     if config.cluster__qsub_job_name:
         command += f" -N {config.cluster__qsub_job_name}"
-
-    if config.cluster__qsub_queue:
-        command += f" -q {config.cluster__qsub_queue}"
 
     if environment_variables:
         command += " -v "
