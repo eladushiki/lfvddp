@@ -2,6 +2,7 @@ from pathlib import Path
 from sys import argv
 
 from frame.cluster.call_scripts import RUN_PYTHON_JOB_SH_ABS_PATH, run_remote_python
+from frame.cluster.remote_version_control import is_same_version_as_remote
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
 from frame.file_structure import get_relpath_from_local_root
@@ -17,7 +18,7 @@ def submit_train(context: ExecutionContext) -> None:
     
     # Prepare training job
     ## Verify commit hash matching with remote repository
-    # is_same_version_as_remote(context)  # todo: this does not work asynchronously
+    is_same_version_as_remote(context)  # todo: this does not work asynchronously
 
     # Submit training job
     run_remote_python(

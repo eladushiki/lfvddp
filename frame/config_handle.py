@@ -78,7 +78,7 @@ class ExecutionContext:
     def unique_descriptor(self) -> str:
         running_file = argv[0].split('/')[-1]
         process_id = getpid()
-        return f"run_of_{running_file}_at_{self.time}_of_commit_{self.commit_hash[:5]}_pid_{process_id}"
+        return f"run_at_{self.time}_of_{running_file}_on_commit_{self.commit_hash[:5]}_pid_{process_id}"
 
     @property
     def unique_out_dir(self) -> Path:
