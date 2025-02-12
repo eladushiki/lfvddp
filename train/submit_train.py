@@ -18,7 +18,7 @@ def submit_train(context: ExecutionContext) -> None:
     
     # Prepare training job
     ## Verify commit hash matching with remote repository
-    is_same_version_as_remote(context)  # todo: this does not work asynchronously
+    # is_same_version_as_remote(context)  # todo: this does not work asynchronously. Anyway, working commit are documented and running on strict commits.
 
     # Submit training job
     run_remote_python(
@@ -28,7 +28,7 @@ def submit_train(context: ExecutionContext) -> None:
         environment_activation_script_abspath=context.config.cluster__environment_activation_script_at_cluster_abspath,
         python_script_relpath_from_workdir_at_cluster=SINGLE_TRAIN_RELPATH_FROM_ROOT,
         script_arguments=argv[1:],
-        output_dir=context.config.out_dir / context.unique_descriptor,
+        number_of_jobs=context.config.cluster__qsub_n_jobs,
     )
 
 if __name__ == "__main__":

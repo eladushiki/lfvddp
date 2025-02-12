@@ -27,8 +27,8 @@ def is_same_version_as_remote(
         environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
         python_script_relpath_from_workdir_at_cluster=IS_SAME_AS_COMMIT_PY_ABS_PATH,
         script_arguments=["--commit-hash", local_commit_hash],
-        output_dir=context.unique_out_dir,
         output_filename=IS_SAME_AS_COMMIT_DEFAULT_OUTPUT_FILENAME,
+        number_of_jobs=1,  # This job is singular
     )
 
-    return comparison_result == "0"
+    # return comparison_result == "0"  # todo: this is not correct, the output is *****.pbs job name. Need to synchronously poll the output file

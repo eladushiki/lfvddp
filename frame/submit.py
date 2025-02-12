@@ -11,6 +11,7 @@ def submit_cluster_job(
         command: str,
         environment_variables: Optional[Dict[str, str]] = None,
         max_tries: int = 3,
+        number_of_jobs: int = 1,
     ):
     
     if not isinstance(context.config, ClusterConfig):
@@ -21,7 +22,7 @@ def submit_cluster_job(
         config=context.config,
         submitted_command=command,
         environment_variables=environment_variables,
-        number_of_jobs=context.config.cluster__qsub_n_jobs,
+        number_of_jobs=number_of_jobs,
         output_dir=str(context.unique_out_dir),
     )
 
