@@ -2,22 +2,27 @@ from logging import error
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Dict, Optional
 from frame.command_line.execution import build_qsub_command
+from frame.config_handle import ExecutionContext
 from train.train_config import ClusterConfig
 
 
 def submit_cluster_job(
-        config: ClusterConfig,
+        context: ExecutionContext,
         command: str,
         environment_variables: Optional[Dict[str, str]] = None,
         max_tries: int = 3,
     ):
     
+    if not isinstance(context.config, ClusterConfig):
+        raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+
     # build submission command
     qsub_command = build_qsub_command(
-        config=config,
+        config=context.config,
         submitted_command=command,
         environment_variables=environment_variables,
-        number_of_jobs=config.cluster__qsub_n_jobs,
+        number_of_jobs=context.config.cluster__qsub_n_jobs,
+        output_dir=str(context.unique_out_dir),
     )
 
     for round in range(max_tries):

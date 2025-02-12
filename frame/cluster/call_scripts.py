@@ -1,6 +1,6 @@
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Dict, List, Optional
-from frame.config_handle import Config
+from frame.config_handle import ExecutionContext
 from frame.file_structure import JOB_OUTPUT_FILE_NAME
 from frame.submit import submit_cluster_job
 from train.train_config import ClusterConfig
@@ -9,7 +9,7 @@ RUN_PYTHON_JOB_SH_ABS_PATH = Path(__file__).parent.absolute() / "run_python_job.
 
 
 def run_remote_python(
-        config: Config,
+        context: ExecutionContext,
         run_python_bash_script_abspath: Path,
         workdir_at_cluster_abspath: PurePosixPath,
         environment_activation_script_abspath: PurePosixPath,
@@ -20,8 +20,11 @@ def run_remote_python(
         output_filename: str = JOB_OUTPUT_FILE_NAME,
         max_tries: int = 50,
     ):
-    if not isinstance(config, ClusterConfig):
-        raise ValueError(f"Expected ClusterConfig, got {config.__class__.__name__}")
+    if not isinstance(context.config, ClusterConfig):
+        raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+
+    # To allow for nested submission while aggregating the outputs in nested directories, override out_dir in the submitted jobs
+    script_arguments += ["--out-dir", str(context.unique_out_dir)]
 
     environment_variables["WORKDIR"] = str(workdir_at_cluster_abspath)
     environment_variables["OUTPUT_DIR"] = str(output_dir)
@@ -31,7 +34,7 @@ def run_remote_python(
     environment_variables["PYTHON_ARGS"] = f"\'{' '.join(script_arguments)}\'"
 
     return submit_cluster_job(
-        config=config,
+        context=context,
         command=str(run_python_bash_script_abspath),
         environment_variables=environment_variables,
         max_tries=max_tries,

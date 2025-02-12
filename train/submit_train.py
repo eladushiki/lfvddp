@@ -19,17 +19,15 @@ def submit_train(context: ExecutionContext) -> None:
     ## Verify commit hash matching with remote repository
     # is_same_version_as_remote(context)  # todo: this does not work asynchronously
 
-    # todo: job multiplicity should be done inside here
-
     # Submit training job
     run_remote_python(
-        config:=context.config,
+        context=context,
         run_python_bash_script_abspath=RUN_PYTHON_JOB_SH_ABS_PATH,
-        workdir_at_cluster_abspath=config.cluster__project_root_at_cluster_abspath,
-        environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
+        workdir_at_cluster_abspath=context.config.cluster__project_root_at_cluster_abspath,
+        environment_activation_script_abspath=context.config.cluster__environment_activation_script_at_cluster_abspath,
         python_script_relpath_from_workdir_at_cluster=SINGLE_TRAIN_RELPATH_FROM_ROOT,
         script_arguments=argv[1:],
-        output_dir=config.out_dir / context.unique_descriptor,
+        output_dir=context.config.out_dir / context.unique_descriptor,
     )
 
 if __name__ == "__main__":

@@ -33,7 +33,11 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     ## Running options
     parser.add_argument(
         "--debug", action="store_true",
-        help="Run in debug mode"
+        help="Run in debug mode. NOTE: Does not verify running on strict commits"
+    )
+    parser.add_argument(
+        "--out-dir", type=Path,
+        help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
 
     args = parser.parse_args()
@@ -49,8 +53,10 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         config_class = TrainConfig
     config = config_class.load_from_files(config_paths)
 
-    # Additional options
+    # Configuration according to arguments
     is_debug_mode = args.debug
+    if args.out_dir:
+        config.out_dir = Path(args.out_dir)
 
     @wraps(function)
     def context_controlled_function(*args, **kwargs):

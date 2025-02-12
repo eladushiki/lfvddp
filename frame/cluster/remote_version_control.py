@@ -1,7 +1,6 @@
 from pathlib import Path
 from frame.cluster.call_scripts import RUN_PYTHON_JOB_SH_ABS_PATH, run_remote_python
 from frame.config_handle import ExecutionContext
-from frame.file_structure import PROJECT_ROOT, get_remote_equivalent_path
 from frame.git_tools import get_commit_hash
 from train.train_config import ClusterConfig
 
@@ -22,7 +21,7 @@ def is_same_version_as_remote(
     local_commit_hash = get_commit_hash()
 
     comparison_result = run_remote_python(  # todo: deprecated, revise
-        config=context.config,
+        context=context,
         run_python_bash_script_abspath=RUN_PYTHON_JOB_SH_ABS_PATH,
         workdir_at_cluster_abspath=config.cluster__project_root_at_cluster_abspath,
         environment_activation_script_abspath=config.cluster__environment_activation_script_at_cluster_abspath,
