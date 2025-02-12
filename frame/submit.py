@@ -33,33 +33,3 @@ def submit_cluster_job(
             error(f"Unknown error with args: {e.args}\n occurred during submission attempt {round}")
 
     raise RuntimeError(f"Submission failed after {max_tries} attempts")
-
-# todo: revise
-def prepare_submit_file(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",shortname=""):
-    jobname=shortname if shortname else fsubname.rsplit('/',1)[1].split('.')[0]
-    flogname=fsubname.replace('.sh','.log')
-    fsub=open(fsubname,"w")
-    lines=[
-        "#!/bin/zsh",
-        "",
-        "#PBS -j oe",
-        "#PBS -m n",
-        "#PBS -o %s"%flogname,
-        "#PBS -q %s"%queue,
-        "#PBS -N %s"%jobname,
-        "",
-        "echo \"Starting on `hostname`, `date`\"",
-        "echo \"jobs id: ${PBS_JOBID}\"",
-        ""]
-    if setupATLAS:
-        lines+=[
-            "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase",
-            "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh",""]
-    lines+=setupLines
-    lines+=["","#-------------------------------------------------------------------#"]
-    lines+=cmdLines
-    lines+=["#-------------------------------------------------------------------#",""]
-    lines+=["echo \"Done, `date`\""]
-    for l in lines:
-        fsub.write(l+"\n")
-    fsub.close()

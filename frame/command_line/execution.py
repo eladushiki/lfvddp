@@ -1,17 +1,6 @@
-from subprocess import PIPE, Popen
 from typing import Dict, Optional
 
 from train.train_config import ClusterConfig
-
-def execute_in_process(command):
-    process = Popen(
-        args=command,
-        stdout=PIPE,
-        stderr=PIPE,
-    shell=True)
-    out,err=process.communicate()
-    returncode=process.returncode
-    return str(out),str(err),returncode
 
 def build_qsub_command(
         config: ClusterConfig,
