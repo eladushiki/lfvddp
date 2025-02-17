@@ -1,6 +1,7 @@
 # LFVNN-symmetrized
 
 The files used in our paper (https://arxiv.org/abs/2401.09530) are here in paper scripts under the directory with the paper title.
+Note: this folder contains legacy implementation. While it was left untouched, much of the functionality here was imported to other files in a reusable manner.
 
 ## train
 	
