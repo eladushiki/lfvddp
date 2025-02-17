@@ -6,6 +6,7 @@ from frame.cluster.remote_version_control import is_same_version_as_remote
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
 from frame.file_structure import get_relpath_from_local_root
+from train.aggregate_train_results import aggregate_train_results
 from train.train_config import TrainConfig
 
 SINGLE_TRAIN_RELPATH_FROM_ROOT = get_relpath_from_local_root(Path(__file__).parent.absolute() / "single_train.py")
@@ -30,6 +31,11 @@ def submit_train(context: ExecutionContext) -> None:
         script_arguments=argv[1:],
         number_of_jobs=context.config.cluster__qsub_n_jobs,
     )
+
+    # todo: this does not work asynchronously. Poll for jobs.
+    # aggregate_train_results(
+    #     context.unique_out_dir,
+    # )
 
 if __name__ == "__main__":
     submit_train()

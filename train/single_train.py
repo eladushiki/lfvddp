@@ -17,7 +17,7 @@ from neural_networks.NPLM.src.NPLM.ANALYSISutils import *
 from data_tools.data_utils import prepare_training, resample
 from frame.command_line.handle_args import context_controlled_execution
 from frame.config_handle import ExecutionContext
-from frame.file_structure import TRAINING_LOG_FILE_NAME, TRAINING_HISTORY_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
+from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME, TRAINING_HISTORY_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from train.train_config import TrainConfig
 from configs.config_utils import parNN_list
 
@@ -91,7 +91,7 @@ def main(context: ExecutionContext) -> None:
     ## Training log
     out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
     os.makedirs(out_dir, exist_ok=False)
-    with open(out_dir / TRAINING_LOG_FILE_NAME, 'w') as training_log:
+    with open(out_dir / SINGLE_TRAINING_RESULT_FILE_NAME, 'w') as training_log:
         training_log.write("%f\n" %(t_model_OBS))
 
     ## Training history
