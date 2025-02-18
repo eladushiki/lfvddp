@@ -1,5 +1,5 @@
 # Force import of all subtypes of TrainConfig for correct dynamic class resolution
-from train_config import TrainConfig
+from train.train_config import TrainConfig
 
 # Subtype list
 from data_tools.histogram_generation.exp_histogram import exp

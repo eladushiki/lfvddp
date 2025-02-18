@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict
 from frame.config_handle import Config
 
 @dataclass
-class ClusterConfig(Config):
+class ClusterConfig(Config, ABC):
     runtag: str
     cluster__project_root_at_cluster_abspath: PurePosixPath
     cluster__environment_activation_script_at_cluster_abspath: PurePosixPath

@@ -1,3 +1,4 @@
+from abc import ABC
 import numpy as np
 from fractions import Fraction
 from train.train_config import TrainConfig
@@ -9,7 +10,7 @@ from typing import Callable
 
 
 @dataclass
-class PhysicsConfig(TrainConfig):
+class PhysicsConfig(TrainConfig, ABC):
     @classmethod
     def HISTOGRAM_NAME(cls) -> str:
         return "physics"

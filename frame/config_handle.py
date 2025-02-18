@@ -1,12 +1,13 @@
+from abc import ABC
 from contextlib import contextmanager
 from dataclasses import dataclass
-import json
 import random
 from os import makedirs, getpid
 from pathlib import Path
 from sys import argv
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List
 from typing_extensions import Self
+from frame.file_storage import load_dict_from_json, save_dict_to_json
 from numpy import random as npramdom
 
 from frame.file_structure import CONTEXT_FILE_NAME
@@ -15,12 +16,17 @@ from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 
 
 @dataclass
-class Config:
+class Config(ABC):
     """
     An extendable class for handling configuration informatino.
     The basic always-needed configuration parameters are those that are user dependent.
     Any other class that inherits from this should add its own parameters, such that 
     their existence is checked upon loading the configuration and later stored when running.
+
+    How to inherit this class to create a new config?
+    1. Create a new class that inherits from Config *and ABC*. It may inherit from a subclass to enforce the inclusion of that one as well.
+    2. Add an appropriate argument in "handle_args.py" to include the new class interface.
+    2. A class instance is dynamically created each run according to the input config files.
     """
     user: str
     out_dir: Path
@@ -30,9 +36,7 @@ class Config:
         config_params = {}
 
         for config_path in config_paths:
-            with open(config_path, 'r') as file:
-                config = json.load(file)
-                config_params.update(config)
+            config_params.update(load_dict_from_json(config_path))
 
         convert_string_filenames_to_paths(config_params)
 
@@ -46,8 +50,7 @@ class Config:
         return cls
 
     def save_to_file(self, config_path: Path) -> None:
-        with open(config_path, 'w') as file:
-            json.dump(self.__dict__, file, indent=4)
+        save_dict_to_json(self.__dict__, config_path)
 
 
 def convert_string_filenames_to_paths(config_params: dict) -> None:
@@ -98,8 +101,7 @@ class ExecutionContext:
         return series
     
     def save_to_out_file(self) -> None:
-        with open(self.unique_out_dir / CONTEXT_FILE_NAME, 'w') as file:
-            json.dump(ExecutionContext.serialize(self), file, indent=4)
+        save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
 
 @contextmanager
 def version_controlled_execution_context(config: Config, command_line_args: List[str], is_debug_mode: bool = False):
