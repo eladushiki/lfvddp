@@ -25,7 +25,7 @@ class ExecutionContext:
     random_seed: int = get_unix_timestamp()
     is_debug_mode: bool = False
     run_successful: bool = False
-    _products: ExecutionProducts = field(default=ExecutionProducts(), init=False)
+    products: ExecutionProducts = field(default=ExecutionProducts())
 
     def __post_init__(self):
         # Initialize once unique output directory
@@ -42,7 +42,7 @@ class ExecutionContext:
         return self.config.out_dir / self._unique_descriptor
 
     def document_created_product(self, product_descriptor: Any):
-        self._products.add_product(product_descriptor)
+        self.products.add_product(product_descriptor)
 
     @staticmethod
     def serialize(object) -> dict:
