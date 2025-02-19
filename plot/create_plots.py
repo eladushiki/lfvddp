@@ -1,6 +1,6 @@
 
 from frame.command_line.handle_args import context_controlled_execution
-from frame.config_handle import ExecutionContext
+from frame.context.execution_context import ExecutionContext
 from plot.plotting_config import PlottingConfig
 
 

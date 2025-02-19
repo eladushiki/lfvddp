@@ -6,7 +6,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable
 
-from frame.config_handle import Config, version_controlled_execution_context
+from frame.context.execution_context import version_controlled_execution_context
 from frame.file_storage import load_dict_from_json
 from plot.plotting_config import PlottingConfig
 from train.train_config import ClusterConfig, TrainConfig
