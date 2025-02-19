@@ -94,3 +94,12 @@ Training entry points:
 - `single_train.py` for the server to run each time
 
 ## Plotting
+
+Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `basic_plot_config.json` for example).
+
+To implement any new plot, simply define its generating function there in the form of:
+```python
+def plot_something_new(context: ExecutionContext, **kwargs) -> matplotlib.figure.Figure:
+	...
+```
+and you should be able to use it right away through `create_plots.py`.

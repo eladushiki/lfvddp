@@ -1,93 +1,85 @@
 from pathlib import Path
 import numpy as np
 import matplotlib as mpl
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib import font_manager, patches, colormaps
+from matplotlib import font_manager, patches
 from scipy.stats import chi2,norm
-import scipy.special as spc
-from matplotlib.legend_handler import HandlerPatch
 from matplotlib.animation import FuncAnimation
+import scipy.special as spc
 from IPython.display import HTML
 
-from plot.plot_utils import em_results, exp_results, results
+from frame.context.execution_context import ExecutionContext
+from plot.plot_utils import HandlerCircle, HandlerRect, em_results, exp_results, get_z_score, results, scientific_number
 
 
-def Plot_Percentiles_ref(
-        results_file: results,
-        df,
-        patience=1000,
-        xmax=500000,
-        ymax=300,
-        ymin=0,
-        title='',
-        save=False,
-        save_path='',
-        file_name=''
-    ):
+# DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
+# Implement any new plot function here, and you will be able to call it automatically.
+# This being said, the format for implementation has to be:
+#
+# def <name from plot_config.json>(context: ExecutionContext, <instructions from plot_config.json>) -> matplotlib.figure.Figure:
+#    ...
+#
+# Should not save the figure by itself!!! It is done in a well documented way in the calling function.
+
+
+def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=500000, xmin=0, ymax=300, ymin=0, title='', save=False, save_path='', file_name=''):
     '''
-    The funcion creates the plot of the evolution (in terms of epochs) of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
+    The funcion creates the plot of the evolution in the epochs of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
     The percentile lines for the target chi2 distribution are shown as a reference.
     
-    results_file:  (results) results file
-    df:            (int) expected chi2 degrees of freedom
-    patience:      (int) interval between two checkpoints (epochs).
-    xmax:          (int) maximum number of epochs to be shown in the plot.
-    ymax:          (int) maximum value of the y-axis (in terms of t score).
-    ymin:          (int) minimum value of the y-axis (in terms of t score).
-    title:         (str) title of the plot.
-    save:          (bool) if True, the plot is saved to the path specified in save_path, with the name specified in file_name.
-    save_path:     (str) path to the directory where the plot will be saved.
-    file_name:     (str) name of the file where the plot will be saved.
+    patience:      (int) interval between two check points (epochs).
+    tvalues_check: (numpy array shape (N_toys, N_check_points)) array of t=-2*loss
+    df:            (int) chi2 degrees of freedom
     '''
-    
     tvalues_check = results_file.get_t_history_dict()
     colors = ['violet', 'hotpink', 'mediumvioletred', 'mediumorchid', 'darkviolet']
     plt.rcParams["font.family"] = "serif"
     plt.style.use('classic')
     
     fig = plt.figure(figsize=(12, 9))
+    ax = fig.add_subplot(111)
     fig.patch.set_facecolor('white')
     quantiles   = [2.5, 25, 50, 75, 97.5]
     percentiles = np.array([])
-    plt.xlabel('Training Epochs', fontsize=22, fontname="serif", labelpad=18)
-    plt.ylabel('t', fontsize=22, fontname="serif", labelpad=18)
+    plt.xlabel('Training Epochs', fontsize=22, fontname="serif")
+    plt.ylabel('t', fontsize=22, fontname="serif")
     plt.xlim(0, xmax)
     plt.ylim(ymin, ymax)
+    # if wc != None:
+    #     plt.title('Weight Clipping = '+wc, fontsize=16,  fontname="serif")
     epochs_check = []
+    #nr_check_points = tvalues_check.shape[1]
     nr_check_points = round(xmax/patience)#len(tvalues_check.keys())
     for i in range(nr_check_points):
+        #epoch_check = patience*(i+1)
         epochs_check.append(patience*(i+1))
+    #for i in range(tvalues_check.shape[1]):
+        #percentiles_i = np.percentile(tvalues_check[:, i], quantiles)
         percentiles_i = np.percentile(tvalues_check[patience*(i+1)], quantiles)
         percentiles_i = np.expand_dims(percentiles_i, axis=1)
         if not i: percentiles = percentiles_i.T
         else: percentiles = np.concatenate((percentiles, percentiles_i.T))
     legend = []
     for j in range(percentiles.shape[1]):
-        plt.plot(epochs_check, percentiles[:, j], linewidth=3, color=colors[j], label = f'{quantiles[j]}% quantile')
+        plt.plot(epochs_check, percentiles[:, j], linewidth=3, color=colors[j])
+        legend.append(str(quantiles[j])+'% quantile')
     for j in range(percentiles.shape[1]):
-        if j==0:
-            plt.plot(epochs_check, chi2.ppf(quantiles[j]/100., df=df, loc=0, scale=1)*np.ones_like(epochs_check),
-                    color=colors[j], ls='--', linewidth=1.5, label = f'Target $\\chi^2_{{{df}}}$')
-        else:
-            plt.plot(epochs_check, chi2.ppf(quantiles[j]/100., df=df, loc=0, scale=1)*np.ones_like(epochs_check),
-                    color=colors[j], ls='--', linewidth=1.5)
-    font = font_manager.FontProperties(family='serif', size=20)
-    handles, labels = plt.gca().get_legend_handles_labels()
-    handles[:-1] = handles[-2::-1]
-    labels[:-1] = labels[-2::-1]         
-    plt.legend(handles, labels, prop=font, frameon = False, markerscale=0)
-    plt.gca().get_legend().legendHandles[-1].set_color('black')
+        plt.plot(epochs_check, chi2.ppf(quantiles[j]/100., df=df, loc=0, scale=1)*np.ones_like(epochs_check),
+                color=colors[j], ls='--', linewidth=1)
+        if j==0: legend.append("Target "+r"$\chi^2($"+str(df)+")")
+    font = font_manager.FontProperties(family='serif', size=20)         
+    plt.legend(legend, prop=font, frameon = False, markerscale=0)
     plt.yticks(fontsize=20, fontname="serif")
     if xmax == 500000:
         plt.xticks(np.arange(100000,xmax+1,100000),fontsize=20, fontname="serif")
     elif xmax == 1500000:
         plt.xticks(np.arange(500000,xmax+1,500000),fontsize=20, fontname="serif")
+    # use scientific notation for x axis ticks with 1e5 spacing    
     plt.ticklabel_format(axis="x", style="scientific", scilimits=(0,0))
-    offset_text = plt.gca().get_xaxis().get_offset_text()
-    offset_text.set_size(20)
-    offset_text.set_fontname("serif")
-    plt.title(title, fontsize=22, fontname="serif")
+    ax.xaxis.get_offset_text().set_fontsize(18)
+    plt.title(title, fontsize=24, fontname="serif")
     plt.figure()
     
     if save:
@@ -100,8 +92,128 @@ def Plot_Percentiles_ref(
     plt.close(fig)
 
 
+def plot_old_t_distribution(
+        context: ExecutionContext,
+        t_values,
+        ref_str,
+        bkg_str,
+        df,
+        epoch = 500000,
+        xmin=0,
+        xmax=300,
+        nbins=10,
+        NPLM=True,
+        samples_to_take=2000,
+        vlines=[],
+        add_z='',
+        label='',
+        title='',
+        save=False,
+        save_path='',
+        file_name=''
+    ) -> Figure:
+    '''
+    Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
+    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
+    
+    t:  (numpy array shape (None,))
+    df: (int) chi2 degrees of freedom
+    '''
+    # t_dict = results_file.get_t_history_dict()
+    # max_epoch = max(t_dict.keys())
+    # t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
+    t = np.loadtxt(t_values, delimiter=',', usecols=0)
+    if samples_to_take != 'all':
+        t = t[:samples_to_take]
+    plt.rcParams["font.family"] = "serif"
+    plt.style.use('classic')
+    fig  = plt.figure(figsize=(16, 12))
+    fig.patch.set_facecolor('white')
+    ax = fig.add_subplot(111)
+    #set ax size
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
+    # plot distribution histogram
+    bins      = np.linspace(xmin, xmax, nbins+1)
+    Z_obs     = norm.ppf(chi2.cdf(np.median(t), df))
+    t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
+    Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
+    Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
+    Ref_ratio = float(ref_str[0])/float(ref_str[1]) if len(ref_str)>1 else float(ref_str[0])
+    Ref_events = int(219087*Ref_ratio)
+    Bkg_ratio = float(bkg_str[0])/float(bkg_str[1]) if len(bkg_str)>1 else float(bkg_str[0])
+    Bkg_events = int(219087*Bkg_ratio)
+    t_num_of_nan = np.sum(np.isnan(t))
+    # if label == "":
+    #     events = r', $N_A^0=$'+f"{scientific_number(Ref_events)}"+r', $N_B^0=$'+f"{scientific_number(Bkg_events)}"
+    #     label = 'exp'+events        
+    # label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
+    label  = 'med: %s \nstd: %s'%(str(np.around(np.median(t), 2)), str(np.around(np.std(t), 2)))
+    if title == '':
+        title = r'$N_A^0=$'+f"{scientific_number(Ref_events)}"+r',   $N_B^0=$'+f"{scientific_number(Bkg_events)}"
+    # label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
+    binswidth = (xmax-xmin)*1./nbins
+    if not NPLM:
+        color = 'plum'
+        ec = 'darkorchid'
+        chi2_color = 'grey'
+    elif NPLM:
+        color = 'lightcoral'
+        ec = 'red'
+        chi2_color = 'grey'
+    h = ax.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color, ec=ec,
+                 bins=bins, label=label)
+    err = np.sqrt(h[0]/(t.shape[0]*binswidth))
+    x   = 0.5*(bins[1:]+bins[:-1])
+    ax.errorbar(x, h[0], yerr = err, color=ec, marker='o', ls='')
+    # plot reference chi2
+    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
+    ax.plot(x, chi2.pdf(x, df),chi2_color, lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
+    colors = ['red', 'green', 'blue']
+    if len(vlines)>0:
+        for i,vline in enumerate(vlines):
+            if vline: ax.axvline(vline, color=colors[i], linestyle='--', linewidth=3)
+    font = font_manager.FontProperties(family='serif', size=24) 
+    # plt.legend(prop=font,frameon=False)
+    circ = patches.Circle((0,0), 1, facecolor=color, edgecolor=ec)
+    rect1 = patches.Rectangle((0,0), 1, 1, color=chi2_color,alpha=0.8)
+    ax.legend((circ, rect1), (label, f'$\chi^{2}_{{{df}}}$'),
+            handler_map={
+            patches.Rectangle: HandlerRect(),
+            patches.Circle: HandlerCircle(),
+            },
+            prop=font,frameon=False)
+    if t_num_of_nan > 0:
+        rect2 = patches.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
+        legend = ax.legend((circ, rect1, rect2), (label, f'$\chi^{2}_{{{df}}}$',f'NaN: {t_num_of_nan/t.shape[0]*100:.1f}%'),
+            handler_map={
+            patches.Rectangle: HandlerRect(),
+            patches.Circle: HandlerCircle(),
+            },
+            prop=font,frameon=False)
+    if len(vlines)>0:
+        z_color = [colors[i] for i in np.where(vlines)[0].tolist()][0]
+        ax.text(0.63, 0.57, f'Z: {add_z}', transform=ax.transAxes, fontsize=23, fontname="serif", color=z_color)
+    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
+    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
+    ax.set_ylim(0, 0.1)
+    plt.yticks([0.03,0.06,0.09], fontsize=24, fontname="serif")
+    plt.xticks(fontsize=24, fontname="serif")
+    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
+    if save:
+        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
+        else:
+            if file_name=='': file_name = '1distribution'
+            else: file_name += '_1distribution'
+            plt.savefig(save_path+file_name+'.pdf')
+    plt.show()
+    plt.close(fig)
+    return fig
+
+
 def plot_t_distribution(
-        results_file: results,
+        context: ExecutionContext,
+        results_dir: Path,
         df,
         epoch = 500000,
         xmin=0,
@@ -136,15 +248,15 @@ def plot_t_distribution(
     save_path: (str) path to the directory where the plot will be saved.
     file_name: (str) name of the file where the plot will be saved.
     '''
-    
-    t_dict = results_file.get_t_history_dict()
+    result = results(results_dir, context)
+    t_dict = result.get_t_history_dict()
     max_epoch = max(t_dict.keys())
     t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
     if samples_to_take != 'all':
         t = t[:samples_to_take]
-    Ref_events = results_file.Ref_events
-    Bkg_events = results_file.Bkg_events
-    Sig_events = results_file.Sig_events
+    Ref_events = result.Ref_events
+    Bkg_events = result.Bkg_events
+    Sig_events = result.Sig_events
     plt.rcParams["font.family"] = "serif"
     plt.style.use('classic')
     fig  = plt.figure(figsize=(16, 12))
@@ -167,10 +279,10 @@ def plot_t_distribution(
         if Sig_events > 0:
             title += r',   $N_{sig}^0=$'+f"{scientific_number(Sig_events)}"
     binswidth = (xmax-xmin)*1./nbins
-    if (results_file.NPLM == 'False') and colors==[]:
+    if (result.NPLM == 'False') and colors==[]:
         color = 'plum'
         ec = 'darkorchid'
-    elif (results_file.NPLM == 'True') and colors==[]:
+    elif (result.NPLM == 'True') and colors==[]:
         color = 'lightcoral'
         ec = 'red'
     elif colors!=[]:
@@ -223,62 +335,142 @@ def plot_t_distribution(
     plt.close(fig)
 
 
-def plot_t_2distributions(
-        results_file1: Path,
-        results_file2: Path,
-        df, epoch=500000,
-        xmin=0,
-        xmax=300,
-        ymax=0.1,
-        nbins=10,
-        colors1=[],
-        colors2=[],
-        alphas=[],
-        labels=[0,0],
-        title='',
-        save=False,
-        save_path='',
-        file_name=''
-    ):
+def plot_old_t_2distributions(t_values1, t_values2, ref_str, bkg_str, df, epoch = 500000,xmin=0, xmax=300, ymin=0, ymax=0.1, nbins=10, label='', title='', save=False, save_path='', file_name=''):
     '''
-    Plot the histogram of the test scores for the toys in results_file1 and results_file2, and the target chi2 distribution.
+    Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
+    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
     
-    results_file1: (results) results file
-    results_file2: (results) results file (for comparison)
-    df:            (int) expected chi2 degrees of freedom. If df=0 or df=False, the chi2 distribution is not shown.
-    epoch:         (int) epoch for which the test scores are plotted
-    xmin:          (float) minimum value of the x-axis (in terms of t score).
-    xmax:          (float) maximum value of the x-axis (in terms of t score).
-    nbins:         (int) number of bins in the histogram.
-    colors1:       (list) list of colors for the first histogram. If empty, the default colors are used, else 2-element list of colors for the bins and edges respectively.
-    colors2:       (list) list of colors for the reference histogram. If empty, the default colors are used, else 2-element list of colors for the bins and edges respectively.
-    alphas:        (list) list of alpha values for the histograms. If empty, the default values are used, else 2-element list of alpha values for the first and second histograms respectively.
-    labels:        (str) text for the legend of the first histogram. Use 0 for default text.
-    title:         (str) title of the plot.
-    save:          (bool) if True, the plot is saved to the path specified in save_path, with the name specified in file_name.
-    save_path:     (str) path to the directory where the plot will be saved.
-    file_name:     (str) name of the file where the plot will be saved.
+    t:  (numpy array shape (None,))
+    df: (int) chi2 degrees of freedom
     '''
+    # t_dict = results_file.get_t_history_dict()
+    # max_epoch = max(t_dict.keys())
+    # t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
+    t1 = t_values1
+    t2 = t_values2
+    plt.rcParams["font.family"] = "serif"
+    plt.style.use('classic')
+    fig  = plt.figure(figsize=(16, 12))
+    fig.patch.set_facecolor('white')
+    ax = fig.add_subplot(111)
+    #set ax size
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
+    # plot distribution histogram
+    bins      = np.linspace(xmin, xmax, nbins+1)
+    Z_obs1     = norm.ppf(chi2.cdf(np.median(t1), df))
+    Z_obs2     = norm.ppf(chi2.cdf(np.median(t2), df))
+    t_obs_err1 = 1.2533*np.std(t1)*1./np.sqrt(t1.shape[0])
+    t_obs_err2 = 1.2533*np.std(t2)*1./np.sqrt(t2.shape[0])
+    Z_obs_p1   = norm.ppf(chi2.cdf(np.median(t1)+t_obs_err1, df))
+    Z_obs_p2   = norm.ppf(chi2.cdf(np.median(t2)+t_obs_err2, df))
+    Z_obs_m1   = norm.ppf(chi2.cdf(np.median(t1)-t_obs_err1, df))
+    Z_obs_m2   = norm.ppf(chi2.cdf(np.median(t2)-t_obs_err2, df))
+    Ref_ratio = float(ref_str[0])/float(ref_str[1]) if len(ref_str)>1 else float(ref_str[0])
+    Ref_events = int(219087*Ref_ratio)
+    Bkg_ratio = float(bkg_str[0])/float(bkg_str[1]) if len(bkg_str)>1 else float(bkg_str[0])
+    Bkg_events = int(219087*Bkg_ratio)
+    # if label == "":
+    #     events = r', $N_A^0=$'+f"{scientific_number(Ref_events)}"+r', $N_B^0=$'+f"{scientific_number(Bkg_events)}"
+    #     label = 'exp'+events        
+    # label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
+    label1  = 'med: %s \nstd: %s'%(str(np.around(np.median(t1), 2)), str(np.around(np.std(t1), 2)))
+    t2_median = np.median(t2[np.where(np.logical_not(np.isnan(t2)))])
+    t2_std = np.std(t2[np.where(np.logical_not(np.isnan(t2)))])
+    t1_num_of_nan = np.sum(np.isnan(t1))
+    t2_num_of_nan = np.sum(np.isnan(t2))
+    print('NumOfNans1: ', t1_num_of_nan, 'NumOfNans2: ', t2_num_of_nan)
+    label2  = 'med: %s \nstd: %s'%(str(np.around(t2_median, 2)), str(np.around(t2_std, 2)))
+    title = r'$N_A^0=$'+f"{scientific_number(Ref_events)}"+r',   $N_B^0=$'+f"{scientific_number(Bkg_events)}" if not title else title
+    # label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
+    binswidth = (xmax-xmin)*1./nbins
+    # if t1_num_of_nan > 0:
+    #     t1[np.where(np.isnan(t1))[0]] = xmax - binswidth/2
+    # if t2_num_of_nan > 0:
+    #     t2[np.where(np.isnan(t2))[0]] = xmax - binswidth/2
+    h1 = ax.hist(t1, weights=np.ones_like(t1)*1./(t1.shape[0]*binswidth), color='plum', ec='darkorchid',
+                 bins=bins, label=label, alpha=0.8)
+    h2 = ax.hist(t2, weights=np.ones_like(t2)*1./(t2.shape[0]*binswidth), color='lightcoral', ec='red',
+                 bins=bins, label=label, alpha=0.5)
+    err1 = np.sqrt(h1[0]/(t1.shape[0]*binswidth))
+    err2 = np.sqrt(h2[0]/(t2.shape[0]*binswidth))
+    x   = 0.5*(bins[1:]+bins[:-1])
+    ax.errorbar(x, h1[0], yerr = err1, color='darkorchid', marker='o', ls='')
+    ax.errorbar(x, h2[0], yerr = err2, color='red', marker='o', ls='')
+    # plot reference chi2
+    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
+    ax.plot(x, chi2.pdf(x, df),'grey', lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
+    font = font_manager.FontProperties(family='serif', size=24) 
+    # plt.legend(prop=font,frameon=False)
+    circ1 = patches.Circle((0,0), 1, facecolor='plum', edgecolor='darkorchid')
+    circ2 = patches.Circle((0,0), 1, facecolor='lightcoral', edgecolor='red')
+    rect = patches.Rectangle((0,0), 1, 1, color='grey', alpha=0.8)
+    ax.legend((circ1, circ2, rect), (label1, label2, f'$\chi^{2}_{{{df}}}$'),
+            handler_map={
+               patches.Rectangle: HandlerRect(),
+               patches.Rectangle: HandlerRect(),
+               patches.Circle: HandlerCircle(),
+            },
+            prop=font,frameon=False)
+    if (t1_num_of_nan > 0) or (t2_num_of_nan > 0):
+        NaN_ratio = t1_num_of_nan/t1.shape[0] if t1_num_of_nan > 0 else t2_num_of_nan/t2.shape[0]
+        rect2 = patches.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
+        legend = ax.legend((circ1, circ2, rect, rect2), (label1, label2, f'$\chi^{2}_{{{df}}}$',f'NaN: {NaN_ratio*100:.1f}%'),
+            handler_map={
+            patches.Rectangle: HandlerRect(),
+            patches.Rectangle: HandlerRect(),
+            patches.Circle: HandlerCircle(),
+            },
+            prop=font,frameon=False)
+    ax.set_ylim(ymin,ymax)
+    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
+    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
+    ticks_list = [0.03,0.06,0.09]
+    if ymax>=0.12: 
+        ticks_list += [0.12]
+    plt.yticks(ticks_list, fontsize=24, fontname="serif")
+    plt.xticks(fontsize=24, fontname="serif")
+    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
+    if save:
+        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
+        else:
+            if file_name=='': file_name = '2distributions'
+            else: 
+                if (t1_num_of_nan > 0):
+                    file_name += f'_{t1_num_of_nan}NaN'
+                if (t2_num_of_nan > 0):
+                    file_name += f'_{t2_num_of_nan}NaN'
+                file_name += '_2distributions'
+            plt.savefig(save_path+file_name+'.pdf')
+    plt.show()
+    plt.close(fig)
 
-    results1 = results(results_file1)
-    results2 = results(results_file2)
 
-    t1_dict = results1.get_t_history_dict()
-    t2_dict = results2.get_t_history_dict()
+def plot_t_2distributions(results_file1:results, results_file2:results, df, epoch = 500000,xmin=0, xmax=300, nbins=10, label='', title='', save=False, save_path='', file_name=''):
+    '''
+    Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
+    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
+    
+    t:  (numpy array shape (None,))
+    df: (int) chi2 degrees of freedom
+    '''
+    # t1 = results_file1.get_t_history()[0][:,-1]
+    # t2 = results_file2.get_t_history()[0][:,-1]
+
+    t1_dict = results_file1.get_t_history_dict()
+    t2_dict = results_file2.get_t_history_dict()
     max_epoch = min(max(t1_dict.keys()),max(t2_dict.keys()))
     t1 = t1_dict[epoch] if ((epoch in t1_dict.keys()) and (epoch in t2_dict.keys())) else t1_dict[max_epoch]
     t2 = t2_dict[epoch] if ((epoch in t1_dict.keys()) and (epoch in t2_dict.keys())) else t1_dict[max_epoch]
 
-    color1 = ['plum', 'darkorchid'] if colors1==[] else colors1
-    color2 = ['lightcoral', 'crimson'] if colors2==[] else colors2
-    alpha = [0.8, 0.5] if alphas==[] else alphas
+    color1 = ['plum', 'darkorchid']
+    color2 = ['lightcoral', 'crimson']
+    alpha = [0.8, 0.5]
     plt.rcParams["font.family"] = "serif"
     plt.style.use('classic')
-    fig  = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(111)
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
+    fig  = plt.figure(figsize=(12, 9))
     fig.patch.set_facecolor('white')
+    # plot distribution histogram
     for i in [1,2]:
         t = t1 if i==1 else t2
         color = color1 if i==1 else color2
@@ -287,43 +479,29 @@ def plot_t_2distributions(
         t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
         Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
         Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
-        label  = 'med: %s \nstd: %s'%(str(np.around(np.median(t), 2)), str(np.around(np.std(t), 2))) if labels[i-1]==0 else labels[i-1]
-        if i==1:
-            label1 = label
-        if i==2:
-            label2 = label
+        label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
+        label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
         binswidth = (xmax-xmin)*1./nbins
-        h = ax.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color[0], ec=color[1],
+        h = plt.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color[0], ec=color[1],
                     bins=bins, label=label, alpha=alpha[i-1])
         err = np.sqrt(h[0]/(t.shape[0]*binswidth))
         x   = 0.5*(bins[1:]+bins[:-1])
-        ax.errorbar(x, h[0], yerr = err, color=color[1], marker='o', ls='')
-    chi2_color = 'grey'
-    if df:
-        x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-        ax.plot(x, chi2.pdf(x, df),chi2_color, lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    font = font_manager.FontProperties(family='serif', size=24) 
-    circ1 = patches.Circle((0,0), 1, facecolor=colors1[0], edgecolor=colors1[1]) if alphas[0] else patches.Circle((0,0), 1, facecolor=colors1[1], edgecolor='black')
-    circ2 = patches.Circle((0,0), 1, facecolor=colors2[0], edgecolor=colors2[1]) if alphas[1] else patches.Circle((0,0), 1, facecolor=colors2[1], edgecolor='black')
-    rect1 = patches.Rectangle((0,0), 1, 1, color=chi2_color, alpha=0.8)
-    handles, labels = ((circ1, circ2, rect1), (label1, label2, f'$\chi^{2}_{{{df}}}$')) if df else ((circ1, circ2), (label1, label2))
-    legend = ax.legend(handles, labels,
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylim(0,ymax)
-    plt.yticks(np.arange(0,ymax+0.001,0.03)[1:], fontsize=24, fontname="serif")
-    plt.xticks(fontsize=24, fontname="serif")
-    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
+        plt.errorbar(x, h[0], yerr = err, color=color[1], marker='o', ls='')
+    # plot reference chi2
+    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
+    plt.plot(x, chi2.pdf(x, df),'rebeccapurple', lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
+    font = font_manager.FontProperties(family='serif', size=14) 
+    plt.legend(prop=font,frameon=False)
+    plt.xlabel('t', fontsize=18, fontname="serif")
+    plt.ylabel('PDF', fontsize=18, fontname="serif")
+    plt.yticks(fontsize=16, fontname="serif")
+    plt.xticks(fontsize=16, fontname="serif")
+    plt.title(title, fontsize=18, fontname="serif")
     if save:
         if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
         else:
-            if file_name=='': file_name = '2distributions'
-            else: file_name += '_2distributions'
+            if file_name=='': file_name = '1distribution'
+            else: file_name += '_1distribution'
             plt.savefig(save_path+file_name+'.pdf')
     plt.show()
     plt.close(fig)
@@ -461,7 +639,7 @@ def exp_performance_plot(Bkg_only_files, sig_type:int, title="", title_fs=24, la
             Sig_file = exp_results(sig)
             if Sig_file.resample!="True":
                 print(sig)
-                z_score, Sig_t, Bkg_t = au.get_z_score(Sig_file,Bkg_only_file)
+                z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
                 if len(Sig_t)>0 and len(Bkg_t)>0:
                     Sig_z_score.append(z_score)
                     approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
@@ -562,7 +740,7 @@ def exp_multiple_performance_plot(Bkg_only_files, sig_type, title="", title_fs=2
                 if Sig_file.csv_file_name in ignore_files: continue
                 if Sig_file.resample!="True":
                     print(sig)
-                    z_score, Sig_t, Bkg_t = au.get_z_score(Sig_file,Bkg_only_file)
+                    z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
                     if len(Sig_t)>0 and len(Bkg_t)>0:
                         Sig_z_score.append(z_score)
                         approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
@@ -659,7 +837,7 @@ def em_performance_plot(Bkg_only_files, title="", title_fs=24, labels_fs=22, tic
         Z_score_m =[]
         for sig in Sig_file_names:
             Sig_file = em_results(sig)
-            z_score, Sig_t, Bkg_t = au.get_z_score(Sig_file,Bkg_only_file)
+            z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
             Sig_z_score.append(z_score)
             approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
             Sig_q0.append(Sig_file.get_binned_sqrt_q0())
@@ -743,7 +921,7 @@ def em_performance_plot_BR(Bkg_only_files, title="", title_fs=24, labels_fs=22, 
         lumi = 20*Bkg_only_file.Bkg_ratio
         for sig in Sig_file_names:
             Sig_file = em_results(sig)
-            z_score, Sig_t, Bkg_t = au.get_z_score(Sig_file,Bkg_only_file)
+            z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
             Sig_z_score.append(z_score)
             approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
             BR.append((20*1/456)*Sig_file.Sig_events/lumi)
@@ -833,7 +1011,7 @@ def em_luminosity_plot(Bkg_only_files, S_in_20=1200,title="", title_fs=24, label
             Sig_file = em_results(sig)
             if Sig_file.Sig_events==N_sig:
                 print(Sig_file.Sig_events)
-                z_score, Sig_t, Bkg_t = au.get_z_score(Sig_file,Bkg_only_file)
+                z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
                 Sig_z_score.append(z_score)
                 approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
                 Sig_q0.append(Sig_file.get_sqrt_q0())

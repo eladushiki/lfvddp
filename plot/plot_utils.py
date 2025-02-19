@@ -1,55 +1,68 @@
 from glob import glob
+import os
 from os import system
 from os.path import exists
 from pathlib import Path
+from typing import Union
+
+from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRIANING_OUTCOMES_DIR_NAME
 import numpy as np
 import tarfile
 from matplotlib import patches
+from plot.plotting_config import PlottingConfig
 import scipy.special as spc
 from scipy.integrate import quad
 from matplotlib.legend_handler import HandlerPatch
 import re
 
+from train.train_config import TrainConfig
+
 
 class HandlerRect(HandlerPatch):
-    '''
-    The class is used to create a legend with a rectangle patch.
-    '''
 
-    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
-        '''
-        The function creates a rectangle patch with the same properties as the original patch.
-        '''
+    def create_artists(self, legend, orig_handle,
+                       xdescent, ydescent, width, height,
+                       fontsize, trans):
 
         x = width//3
         y = 0
         w = 25
         h = 10
+
+        # create
         p = patches.Rectangle(xy=(x, y), width=w, height=h)
+
+        # update with data from oryginal object
         self.update_prop(p, orig_handle, legend)
+
+        # move xy to legend
         p.set_transform(trans)
+
         return [p]
     
     
 class HandlerCircle(HandlerPatch):
-    '''
-    The class is used to create a legend with a circle patch.
-    '''
 
-    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
-        '''
-        The function creates a circle patch with the same properties as the original patch.
-        '''
+    def create_artists(self, legend, orig_handle,
+                       xdescent, ydescent, width, height,
+                       fontsize, trans):
 
         r = 5
         x = r + width//2
         y = height//2
-        p = patches.Circle(xy=(x, y), radius=r)
-        self.update_prop(p, orig_handle, legend)
-        p.set_transform(trans)
-        return [p]
 
+        # create 
+        p = patches.Circle(xy=(x, y), radius=r)
+
+        # update with data from oryginal object
+        self.update_prop(p, orig_handle, legend)
+
+        # move xy to legend
+        p.set_transform(trans)
+
+        return [p]
+    
 
 def t_hist_epoch(epochs_list,t_history,epoch_numbers):
     t_hist_dict ={}
@@ -61,59 +74,55 @@ def t_hist_epoch(epochs_list,t_history,epoch_numbers):
     return t_hist_dict 
 
 
-class results:
+class results:  # todo: deprecate
     N = 219087
 
-    def __init__(self,file_name):  
-        self.file = file_name
-        self.tar_file_name = file_name.replace(".csv",".tar.gz") if file_name.endswith(".csv") else file_name
-        self.csv_file_name = file_name.replace(".tar.gz",".csv") if file_name.endswith(".tar.gz") else file_name
-        self.total_events = float(re.search(r'\d.\d+combined', file_name)[0][:-len('combined')])*results.N if 'combined' in file_name else results.N
-        total_factor =  float(re.search(r'\d.\d+combined', file_name)[0][:-len('combined')]) if 'combined' in file_name else 1.0
-        bkg_str = re.search(r'\d+:?\d*Bkg', file_name)[0][:-len('Bkg')].split(':')
-        self.Bkg_ratio = total_factor*float(bkg_str[0])/float(bkg_str[1]) if len(bkg_str)>1 else total_factor*float(bkg_str[0])
-        self.Bkg_events = int(results.N*self.Bkg_ratio)
-        ref_str = re.search(r'\d+:?\d*Ref', file_name)[0][:-len('Ref')].split(':')
-        self.Ref_ratio = total_factor*float(ref_str[0])/float(ref_str[1]) if len(ref_str)>1 else total_factor*float(ref_str[0])
-        self.Ref_events = int(results.N*self.Ref_ratio)
-        self.Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-        self.Bkg_sample = "exp" if "exp" in file_name else "em_Mcoll" if "em_Mcoll" in file_name else "em"
-        self.binned = "True" if "Truebinned" in file_name else "False"
-        self.resolution = float(re.search(r'\d.\d+resolution', file_name)[0][:-len('resolution')]) if 'resolution' in file_name else 0
-        wc = 9
-        if "BSMweight_clipping" in file_name:
-            if "NoneBSMweight_clipping" in file_name:
-                wc = "None"
-            else:
-                wc = float(re.search(r'\d+.?\d*BSMweight_clipping', file_name)[0][:-len('BSMweight_clipping')])
-        self.WC = wc 
-        self.N_poiss = "True" if "TrueN_poiss" in file_name else "False"
+    # members:
+    _context: ExecutionContext
+    _config: Union[PlottingConfig, TrainConfig]
+
+    def __init__(self, containing_directory, context: ExecutionContext):  
+        if not isinstance(config := context.config, TrainConfig):
+            raise ValueError(f"Expected TrainConfig, got {type(config)}")
+        if not isinstance(config, PlottingConfig):
+            raise ValueError(f"Expected PlottingConfig, got {type(config)}")
+        self._context = context
+        self._config = config
+        self._dir = containing_directory
+        self.file = glob(containing_directory + "/**/*.csv", recursive=True)[0]
+        self.csv_file_name = self.file
+        self.tar_file_name = self.file.replace(".csv",".tar.gz") if self.file.endswith(".csv") else self.file
+        self.total_events = self._config.train__data_usage_fraction * results.N
+        self.Bkg_ratio = self._config.train__batch_train_fraction
+        self.Bkg_events = int(results.N * self.Bkg_ratio)
+        self.Ref_ratio = self._config.train__batch_test_fraction
+        self.Ref_events = int(results.N * self.Ref_ratio)
+        self.Sig_events = self._config.train__signal_number_of_events
+        self.Bkg_sample = self._config.train__histogram_analytic_pdf
+        self.binned = self._config.train__histogram_is_binned
+        self.resolution = self._config.train__histogram_resolution
+        self.WC = self._config.train__nn_weight_clipping
+
+        if hasattr(self._config, "train_physics__n_poisson_fluctuations"):
+            self.N_poiss = self._config.train_physics__n_poisson_fluctuations
+        elif hasattr(self._config, "train_gauss__n_poisson_fluctuations"):
+            self.N_poiss = self._config.train_gauss__n_poisson_fluctuations
+        elif hasattr(self._config, "train_exp__n_poisson_fluctuations"):
+            self.N_poiss = self._config.train_exp__n_poisson_fluctuations
+        else:
+            self.N_poiss = "False"
 
         #self.NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name)) else "False" if ("FalseNPLM" in file_name) else "
-        self.NPLM = "False"
-        if "NPLM" in file_name:
-            self.NPLM = "True" if "TrueNPLM" in file_name else "False"
-            #self.NPLM = "False" if "FalseNPLM" in file_name
-        else:
-            self.NPLM = "True" if ("delta" not in file_name and "Trueresample" not in file_name) else "False"    # "Trueresample" not in file_name was for the permutations plots
-
-        self.Sig_resonant = "False" if "Falseresonan" in file_name else "True"
-        self.Sig_loc = float(re.search(r'\d+.?\d*Sig_loc', file_name)[0][:-len('Sig_loc')]) if 'Sig_loc' in file_name else 6.4
-        self.Sig_scale = float(re.search(r'\d+.?\d*Sig_scale', file_name)[0][:-len('Sig_scale')]) if 'Sig_scale' in file_name else 0.16
-
-        self.resample = "True" if "Trueresample" in file_name else "False"
-        if self.resample=="True":
-            self.label_method = re.search(r'sample\S+label', file_name)[0][len('sample'):-len('label')]
-            self.N_method = re.search(r'method\S+N', file_name)[0][len('method'):-len('N')]
-            self.replacement = "True" if "Truereplacement" in file_name else "False"
-            self.original_seed = int(re.search(r'\d+original_seed', file_name)[0][:-len('original_seed')])
-        else:
-            self.label_method = ""
-            self.N_method = ""
-            self.replacement = ""
-            self.original_seed = None
-
-        self.tot_epochs = float(re.search(r'\d+epochs_tau',file_name)[0][:-len('epochs_tau')]) if 'epochs_tau' in file_name else 300000
+        self.NPLM = "True"
+        self.Sig_resonant = self._config.train__signal_resonant
+        self.Sig_loc = self._config.train__signal_location
+        self.Sig_scale = self._config.train__signal_scale
+        self.resample = self._config.train__resample_is_resample
+        self.label_method = self._config.train__resample_label_method
+        self.N_method = self._config.train__resample_method_type
+        self.replacement = self._config.train__resample_is_replacement
+        self.original_seed = self._context.random_seed
+        self.tot_epochs = self._config.train__epochs
 
     def get_similar_files(self,epochs='all',patience_tau='all',patience_delta='all'):
         all_patience_str = self.file
@@ -185,7 +194,7 @@ class results:
         return TAU_plus_delta, delta_names
              
     def get_t_history(self):
-        dir = results.dir
+        dir = self._dir
         similar_files= self.get_similar_files()
         #file_search_name = self.similar_search_name
         for file in similar_files:
@@ -400,17 +409,19 @@ class em_results(results):
     
 
 def scientific_number(num, digits=2):
-    '''
-    The function takes a number and returns a string of the form $coeff\times 10^{exp}$.
-    
-    num:    (float) number to be converted
-    digits: (int) number of decimal digits in the coefficient
-    '''
-
-    exp = int(np.floor(np.log10(num)))
-    coeff = round(num/(10**exp),digits)
-    sn_string = f"${coeff}\\times {{10}}^{{{exp}}}$"
-    print(sn_string)
+    if num==0:
+        return "0"
+    exp = int(np.floor(np.log10(np.abs(num))))
+    coeff = round(np.abs(num)/(10**exp),digits)
+    if num<0:
+        coeff = -coeff
+    if exp==0:
+        sn_string = f"{coeff}"
+    elif exp==-1:
+        sn_string = f"0.{str(10*coeff).split('.')[0]}"
+    else:
+        sn_string = f"${coeff}\\times{{10}}^{{{exp}}}$"
+    # print(sn_string)
     return sn_string
 
 

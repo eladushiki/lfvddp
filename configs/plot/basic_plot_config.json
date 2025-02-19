@@ -1,0 +1,18 @@
+{
+    "plot__plot_specifications": [
+        {
+            "name": "plot_old_t_distribution",
+            "instructions": {
+                "t_values": "/storage/agrp/eladklig/SymmetrizedDDP/results/run_at_20250212_190443_of_submit_train.py_on_commit_00a55_pid_3621029/aggregated_results.csv",
+                "ref_str": ["1","2"],
+                "bkg_str": ["1","2"],
+                "df": 13,
+                "xmax": 60,
+                "nbins": 30,
+                "save": true,
+                "save_path": "/storage/agrp/eladklig/SymmetrizedDDP/results/run_at_20250212_190443_of_submit_train.py_on_commit_00a55_pid_3621029/",
+                "file_name": "example500000epochs_bkg_size_109544_ref_size_109544_remastered"
+            }
+        }
+    ]
+}
