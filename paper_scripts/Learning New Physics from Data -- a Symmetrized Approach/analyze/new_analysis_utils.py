@@ -4,14 +4,8 @@ from scipy.stats import chi2
 import scipy.special as spc
 from scipy.integrate import quad
 
-<<<<<<<< HEAD:paper_scripts/analyze/new_analysis_utils.py
 import paper_scripts.train.save_jobs_script as jobs
 import mattiasdata.utils as u
-========
-sys.path.insert(0,"/storage/agrp/yuvalzu/mattiasdata")
-import save_jobs_script as jobs
-import frame.command_line.execution as u
->>>>>>>> feature/framework-organization:paper_scripts/Learning New Physics from Data -- a Symmetrized Approach/analyze/new_analysis_utils.py
 
 #------------------------------------------------------------------------------------------------------------------------#
 
