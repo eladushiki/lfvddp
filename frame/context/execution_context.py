@@ -1,8 +1,10 @@
 from contextlib import contextmanager
 import random
 from numpy import random as npramdom
+from matplotlib.figure import Figure
 from frame.config_handle import Config
-from frame.file_storage import save_dict_to_json
+from frame.file_system.image_storage import save_figure
+from frame.file_system.textual_data import save_dict_to_json
 from frame.file_structure import CONTEXT_FILE_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
@@ -57,7 +59,15 @@ class ExecutionContext:
 
         return series
 
-    def save_to_out_file(self) -> None:
+    def save_and_document_dict(self, dict: dict, file_path: Path):
+        save_dict_to_json(dict, file_path)
+        self.document_created_product(file_path)
+
+    def save_and_documnt_figure(self, figure: Figure, path: Path):
+        save_figure(figure, path)
+        self.document_created_product(path)
+
+    def save_self_to_out_file(self) -> None:
         save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
 
 
@@ -77,11 +87,11 @@ def version_controlled_execution_context(config: Config, command_line_args: List
     npramdom.seed(context.random_seed)
 
     # Save in case run terminates prematurely
-    context.save_to_out_file()
+    context.save_self_to_out_file()
 
     # Do everyting, add imoprttant stufff as parameters to context object
     yield context
 
     # Overwrite saved context at end of run
     context.run_successful = True
-    context.save_to_out_file()
+    context.save_self_to_out_file()

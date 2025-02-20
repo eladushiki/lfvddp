@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 from typing_extensions import Self
-from frame.file_storage import load_dict_from_json
+from frame.file_system.textual_data import load_dict_from_json
 
 
 @dataclass

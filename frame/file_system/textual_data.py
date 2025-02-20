@@ -7,10 +7,9 @@ def load_dict_from_json(file_path: Path) -> dict:
         return load(file)
 
 
-def save_dict_to_json(dictionary: dict, file_path: Path) -> None:
+def save_dict_to_json(dictionary: dict, file_path: Path):
     with open(file_path, 'w') as file:
         dump(dictionary, file, indent=4, cls=FallbackJSONEncoder)
-
 
 class FallbackJSONEncoder(JSONEncoder):
     def default(self, o):

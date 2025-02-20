@@ -16,9 +16,8 @@ def create_plots(context: ExecutionContext):
     for plot in plotting_config:
         figure = plot_factory.generate_plot(plot)
 
-        plot_filename = context.unique_out_dir / f"{plot.name}.png"  # todo: extract hardcoded file extension
-        figure.savefig(plot_filename)
-        context.document_created_product(plot_filename)  # todo: this should not be possible to forget
+        image_filename = context.unique_out_dir / plot.plot_filename
+        context.save_and_documnt_figure(figure, image_filename)
 
 
 if __name__ == "__main__":
