@@ -1,7 +1,8 @@
 from inspect import isfunction
 from types import FunctionType
 from frame.context.execution_context import ExecutionContext
-from plot.plotting_config import PlotInstructions
+from plot.plotting_config import PlotInstructions, PlottingConfig
+from matplotlib.figure import Figure
 
 import plot.plots as plots
 
@@ -17,6 +18,11 @@ class PlotFactory:
     def __init__(self, context: ExecutionContext):
         self._context = context
 
+        if not isinstance(config := context.config, PlottingConfig):
+            raise TypeError(f"Can't instantiate a PlotFactory without a PlottingConfig, got {type(config)}")
+
+        self._config = config
+
     @property
     def plot_functions_by_name(self):
         return {
@@ -31,6 +37,6 @@ class PlotFactory:
         except KeyError as ke:
             raise KeyError(f"Could not find a plot answering to the name: {plot_name}")
 
-    def generate_plot(self, plot_instructions: PlotInstructions):
+    def generate_plot(self, plot_instructions: PlotInstructions) -> Figure:
         generating_function = self[plot_instructions.name]
         return generating_function(self._context, **plot_instructions.instructions)

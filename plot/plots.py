@@ -5,6 +5,8 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import font_manager, patches
+from plot.plotting_config import PlottingConfig
+from plot.carpenter import Carpenter
 from scipy.stats import chi2,norm
 from matplotlib.animation import FuncAnimation
 import scipy.special as spc
@@ -12,6 +14,7 @@ from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
 from plot.plot_utils import HandlerCircle, HandlerRect, em_results, exp_results, get_z_score, results, scientific_number
+from train.train_config import TrainConfig
 
 
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
@@ -94,120 +97,93 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
 
 def plot_old_t_distribution(
         context: ExecutionContext,
-        t_values,
-        ref_str,
-        bkg_str,
-        df,
-        epoch = 500000,
-        xmin=0,
-        xmax=300,
-        nbins=10,
-        NPLM=True,
-        samples_to_take=2000,
-        vlines=[],
-        add_z='',
-        label='',
-        title='',
-        save=False,
-        save_path='',
-        file_name=''
+        t_values_csv: Path,
+        chi2_degrees_of_freedom: int,
+        xmin: int,
+        xmax: int,
+        number_of_bins: int,
     ) -> Figure:
     '''
     Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
     The median and the error on the median are calculated in order to calculate the median Z-score and its error.
     
-    t:  (numpy array shape (None,))
     df: (int) chi2 degrees of freedom
     '''
-    # t_dict = results_file.get_t_history_dict()
-    # max_epoch = max(t_dict.keys())
-    # t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
-    t = np.loadtxt(t_values, delimiter=',', usecols=0)
-    if samples_to_take != 'all':
-        t = t[:samples_to_take]
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(16, 12))
-    fig.patch.set_facecolor('white')
+    if not isinstance(config := context.config, PlottingConfig):
+        raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
+    if not isinstance(config, TrainConfig):
+        raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
+    style = config.plot__figure_styling["plot"]
+
+    # Figure
+    t = np.loadtxt(t_values_csv, delimiter=',', usecols=0)
+    c = Carpenter(context)
+    fig  = c.figure()
     ax = fig.add_subplot(111)
-    #set ax size
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
+
     # plot distribution histogram
-    bins      = np.linspace(xmin, xmax, nbins+1)
-    Z_obs     = norm.ppf(chi2.cdf(np.median(t), df))
-    t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
-    Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
-    Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
-    Ref_ratio = float(ref_str[0])/float(ref_str[1]) if len(ref_str)>1 else float(ref_str[0])
-    Ref_events = int(219087*Ref_ratio)
-    Bkg_ratio = float(bkg_str[0])/float(bkg_str[1]) if len(bkg_str)>1 else float(bkg_str[0])
-    Bkg_events = int(219087*Bkg_ratio)
-    t_num_of_nan = np.sum(np.isnan(t))
-    # if label == "":
-    #     events = r', $N_A^0=$'+f"{scientific_number(Ref_events)}"+r', $N_B^0=$'+f"{scientific_number(Bkg_events)}"
-    #     label = 'exp'+events        
-    # label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
-    label  = 'med: %s \nstd: %s'%(str(np.around(np.median(t), 2)), str(np.around(np.std(t), 2)))
-    if title == '':
-        title = r'$N_A^0=$'+f"{scientific_number(Ref_events)}"+r',   $N_B^0=$'+f"{scientific_number(Bkg_events)}"
-    # label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
-    binswidth = (xmax-xmin)*1./nbins
-    if not NPLM:
-        color = 'plum'
-        ec = 'darkorchid'
-        chi2_color = 'grey'
-    elif NPLM:
-        color = 'lightcoral'
-        ec = 'red'
-        chi2_color = 'grey'
-    h = ax.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color, ec=ec,
-                 bins=bins, label=label)
-    err = np.sqrt(h[0]/(t.shape[0]*binswidth))
-    x   = 0.5*(bins[1:]+bins[:-1])
-    ax.errorbar(x, h[0], yerr = err, color=ec, marker='o', ls='')
+    bins      = np.linspace(xmin, xmax, number_of_bins + 1)
+    bin_width = (xmax - xmin) * 1./number_of_bins
+    label     = f"median: {str(np.around(np.median(t), 2))} \nstd: {str(np.around(np.std(t), 2))}"
+    
+    h = ax.hist(
+        t,
+        weights=np.ones_like(t)*1./(t.shape[0]*bin_width),
+        color=style["histogram_color"],
+        ec=style["edge_color"],
+        bins=bins,
+        label=label,
+    )
+    
+    y_error     = np.sqrt(h[0] / (t.shape[0] * bin_width))
+    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+    
+    ax.errorbar(
+        bin_centers,
+        h[0],
+        yerr=y_error,
+        color=style["edge_color"],
+        marker='o', 
+        ls='',
+    )
+
     # plot reference chi2
-    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-    ax.plot(x, chi2.pdf(x, df),chi2_color, lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    colors = ['red', 'green', 'blue']
-    if len(vlines)>0:
-        for i,vline in enumerate(vlines):
-            if vline: ax.axvline(vline, color=colors[i], linestyle='--', linewidth=3)
-    font = font_manager.FontProperties(family='serif', size=24) 
-    # plt.legend(prop=font,frameon=False)
-    circ = patches.Circle((0,0), 1, facecolor=color, edgecolor=ec)
-    rect1 = patches.Rectangle((0,0), 1, 1, color=chi2_color,alpha=0.8)
-    ax.legend((circ, rect1), (label, f'$\chi^{2}_{{{df}}}$'),
-            handler_map={
+    bin_centers  = np.linspace(chi2.ppf(0.0001, chi2_degrees_of_freedom), chi2.ppf(0.9999, chi2_degrees_of_freedom), 1000)
+
+    ax.plot(
+        bin_centers,
+        chi2.pdf(bin_centers, chi2_degrees_of_freedom),
+        style["chi2_color"],
+        linewidth=style["linewidth"],
+        alpha=style["alpha"],
+        label=f'$\chi^{2}_{{{chi2_degrees_of_freedom}}}$',
+    )
+
+    # Legend
+    circ = patches.Circle((0,0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"])
+    rect1 = patches.Rectangle((0,0), 1, 1, color=style["chi2_color"], alpha=style["alpha"])
+    
+    ax.legend(
+        (circ, rect1),
+        (label, f'$\chi^{2}_{{{chi2_degrees_of_freedom}}}$'),
+        handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    if t_num_of_nan > 0:
-        rect2 = patches.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
-        legend = ax.legend((circ, rect1, rect2), (label, f'$\chi^{2}_{{{df}}}$',f'NaN: {t_num_of_nan/t.shape[0]*100:.1f}%'),
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    if len(vlines)>0:
-        z_color = [colors[i] for i in np.where(vlines)[0].tolist()][0]
-        ax.text(0.63, 0.57, f'Z: {add_z}', transform=ax.transAxes, fontsize=23, fontname="serif", color=z_color)
-    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
+        },
+        frameon=False,
+    )
+    
+    # Texting
+    number_of_test_events = scientific_number(config.train__batch_test_fraction * results.N)
+    number_of_background_events = scientific_number(config.train__number_of_background_events * results.N)
+    histogram_title = r'$N_A^0=$'+f"{number_of_test_events}"+r',   $N_B^0=$'+f"{number_of_background_events}"
+    ax.set_title(histogram_title, fontsize=30, pad=20)
+    ax.set_xlabel('t', labelpad=20)
+    ax.set_ylabel('PDF', labelpad=20)
     ax.set_ylim(0, 0.1)
-    plt.yticks([0.03,0.06,0.09], fontsize=24, fontname="serif")
-    plt.xticks(fontsize=24, fontname="serif")
-    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = '1distribution'
-            else: file_name += '_1distribution'
-            plt.savefig(save_path+file_name+'.pdf')
-    plt.show()
-    plt.close(fig)
+    plt.yticks([0.03, 0.06, 0.09])
+    plt.xticks()
+
     return fig
 
 

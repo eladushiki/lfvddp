@@ -1,7 +1,8 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
+from frame.file_structure import PLOT_FILE_EXTENSION
 from train.train_config import TrainConfig
 
 
@@ -14,6 +15,10 @@ class PlotInstructions:
     name: str
     instructions: Dict[str, Any]
 
+    @property
+    def plot_filename(self):
+        return f"{self.name}.{PLOT_FILE_EXTENSION}"
+
 
 @dataclass
 class PlottingConfig(TrainConfig, ABC):
@@ -22,7 +27,12 @@ class PlottingConfig(TrainConfig, ABC):
     """
 
     # General plot settings
-    pass
+    ## Styling
+    plot__pyplot_styling: Dict[str, Any]
+    plot__figure_styling: Dict[str, Any]
+
+    ## Sizing
+    plot__figure_size: Tuple[int, int]
 
     # Additional settings for each plot
     plot__plot_specifications: List[Dict[str, Any]]
