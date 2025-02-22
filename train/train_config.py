@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 from frame.config_handle import Config
 
@@ -42,11 +42,21 @@ class TrainConfig(ClusterConfig, ABC):
         return 1 - self.train__batch_test_fraction
     train__data_usage_fraction: float  # as a fraction
     
-    # Data set types
-    train__data_background_aux: str  # string of data sets in the auxillary background (e.g. 'Ref' or 'Sig+Bkg+Ref')
-    train__data_signal_aux: str  # string of data sets in the auxillary sig (e.g. '' or 'Sig+Bkg')
-    train__data_background: str  # string of data sets in the data background (e.g. 'Bkg' or 'Sig+Bkg')
-    train__data_signal: str  # string of data sets in the data sig (e.g. 'Sig' or 'Sig+Bkg')
+    ## Data set composition definitions
+    # Each string can be any of:
+    # 'Ref' - reference data, represents the null (SM) hypothesis, or - when all nuisance parameters are 0
+    # 'Bkg' - background data
+    # 'Sig' - signal data
+
+    # We postulate that the auxiliary data has no expressions of new physics
+    # in it, and it is used to measure the nuisance parameters independently.
+    train__data_aux_background_composition: List[str]  # data sets in the auxillary background (e.g. ['Ref'] or ['Sig', 'Bkg', 'Ref'])
+    train__data_aux_signal_composition: List[str]  # data sets in the auxillary signal (e.g. [] or ['Sig', 'Bkg'])
+    # "Experimental" datasets resemble the to-be experimental data, though composed of
+    # "fake" (generated) signal.
+    # The dataset of interest (toy or not) is composed of these two.
+    train__data_experimental_background_composition: List[str]  # data sets in the data background (e.g. ['Bkg'] or ['Sig', 'Bkg'])
+    train__data_experimental_signal_composition: List[str]  # data sets in the data sig (e.g. ['Sig'] or ['Sig', 'Bkg'])
 
     # Resampling settings
     train__resample_is_resample: bool
@@ -74,15 +84,23 @@ class TrainConfig(ClusterConfig, ABC):
     train__patience: int
 
     # NN parameters
+    ## Max for a single weight - a hyperparameter
     train__nn_weight_clipping: float
-    train__nn_architecture: str  # "1:4:1", first digit is dimension - 1 = 1d, 2 = table = 2d
+    ## Architecture of the NN
+    ## composed of input and output dimensions, and the number of nodes in the inner layer
+    train__nn_input_dimension: int
+    train__nn_output_dimension: int
+    train__nn_inner_layer_nodes: int
+    @property
+    def train__nn_architecture(self) -> str:
+        return f"{self.train__nn_input_dimension}:{self.train__nn_inner_layer_nodes}:{self.train__nn_output_dimension}"
     train__nn_input_size: int
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
 
     # Common properties with different implementations
     @property
     @abstractmethod
-    def analytic_background_function(self) -> Callable:
+    def train__analytic_background_function(self) -> Callable:
         pass
     @property
     @abstractmethod

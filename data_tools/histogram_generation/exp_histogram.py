@@ -13,7 +13,7 @@ class ExpConfig(TrainConfig, ABC):
         return "exp"
     
     @property
-    def analytic_background_function(self) -> Callable:
+    def train__analytic_background_function(self) -> Callable:
         return exp
     @property
     def train__number_of_reference_events(self) -> int:

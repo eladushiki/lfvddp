@@ -1,3 +1,7 @@
+from enum import Enum
+from typing import List
+
+from regex import D
 import numpy as np
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
@@ -7,47 +11,69 @@ from random import choices
 from train.train_config import TrainConfig
 
 
+class DataGeneration:
+
+    class DataSet(Enum):
+        REF = "Ref"
+        BKG = "Bkg"
+        SIG = "Sig"
+
+    def __init__(self, config: TrainConfig):
+        self._config = config
+
+        self._reference_dataset, self._background_dataset, self._signal_dataset = \
+            self._config.train__analytic_background_function(config)
+        
+    def _generate_dataset(self, components: List[DataSet]):
+        included_datasets = []
+
+        if DataGeneration.DataSet.REF in components:
+            included_datasets.append(self._reference_dataset)
+        if DataGeneration.DataSet.BKG in components:
+            included_datasets.append(self._background_dataset)
+        if DataGeneration.DataSet.SIG in components:
+            included_datasets.append(self._signal_dataset)
+
+        return np.concatenate(included_datasets, axis=0)
+
+    def generate_dataset(self, data_sets: List[str]):
+        return self._generate_dataset([DataGeneration.DataSet(ds) for ds in data_sets])
+
+
 def prepare_training(config: TrainConfig):
     '''
     Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
     
     Parameters
     ----------
-    config : any instantiated subtime of TrainConfig.
+    config :
         Includes the parameters necessary for training with the specific function.
     
-    returns feature and target
+    returns feature_dataset and target_structure
     '''
-    datasets_dict = {'Ref':np.array([]),'Bkg':np.array([]),'Sig':np.array([]),'':np.array([[]])}
-    datasets_dict['Ref'],datasets_dict['Bkg'],datasets_dict['Sig'] = config.analytic_background_function(config)
-    Bkg_Aux = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_background_aux.split('+',config.train__data_background_aux.count('+'))]),axis=0)
-    Sig_Aux = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_signal_aux.split('+',config.train__data_signal_aux.count('+'))]),axis=0) if config.train__data_signal_aux!='' else np.zeros((0,Bkg_Aux.shape[1]))
-    Bkg_Data = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_background.split('+',config.train__data_background.count('+'))]),axis=0)
-    Sig_Data = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_signal.split('+',config.train__data_signal.count('+'))]),axis=0) if config.train__data_signal!='' else np.zeros((0,Bkg_Data.shape[1]))
-   
-    N_Bkg = Bkg_Data.shape[0]
-    featureData = np.concatenate((Bkg_Data,Sig_Data),axis=0)
+    # Generate datasets by config instructions
+    dg = DataGeneration(config)
+    aux_background_dataset = dg.generate_dataset(config.train__data_aux_background_composition)
+    aux_signal_dataset = dg.generate_dataset(config.train__data_aux_signal_composition)
+    exp_background_dataset = dg.generate_dataset(config.train__data_experimental_background_composition)
+    exp_signal_dataset = dg.generate_dataset(config.train__data_experimental_signal_composition)
+       
+    feature_reference = np.concatenate((aux_background_dataset, aux_signal_dataset), axis=0)
+    feature_data = np.concatenate((exp_background_dataset, exp_signal_dataset), axis=0)
+    feature_dataset     = np.concatenate((feature_data, feature_reference), axis=0)
 
-    featureRef = np.concatenate((Bkg_Aux,Sig_Aux),axis=0)
-    N_ref = featureRef.shape[0]
-
-    NR = "False"  # config.NR?
-    ND = "False"  # config.ND?
-
-    feature     = np.concatenate((featureData, featureRef), axis=0)
-    N_R        = N_ref if not isinstance(NR,int) else NR
-    N_D        = featureData.shape[0] if not isinstance(ND,int) else ND#N_Bkg
-
-    ## target
-    targetData  = np.ones_like(featureData,shape=(featureData.shape[0],1))    # 1 for dim 1 because the NN's output is 1D.
-    targetRef   = np.zeros_like(featureRef,shape=(featureRef.shape[0],1))
-    weightsData = np.ones_like(featureData,shape=(featureData.shape[0],1))
-    weightsRef  = np.ones_like(featureRef,shape=(featureRef.shape[0],1))*N_D*1./N_R
-    target      = np.concatenate((targetData, targetRef), axis=0)
-    weights     = np.concatenate((weightsData, weightsRef), axis=0)
-    target      = np.concatenate((target, weights), axis=1)
+    ## target structure
+    n_reference_samples = feature_reference.shape[0]
+    n_background_samples = feature_data.shape[0]
+    targetData       = np.ones_like(feature_data, shape=(feature_data.shape[0], 1))    # 1 for dim 1 because the NN's output is 1D.
+    targetRef        = np.zeros_like(feature_reference, shape=(feature_reference.shape[0],1))
+    weightsData      = np.ones_like(feature_data, shape=(feature_data.shape[0], 1))
+    weightsRef       = np.ones_like(feature_reference, shape=(feature_reference.shape[0],1)) * n_background_samples * 1. / n_reference_samples
+    target           = np.concatenate((targetData, targetRef), axis=0)
+    weights          = np.concatenate((weightsData, weightsRef), axis=0)
+    target_structure = np.concatenate((target, weights), axis=1)
     
-    return feature,target
+    return feature_dataset, target_structure
 
 
 def resample(

@@ -14,7 +14,7 @@ class GaussConfig(TrainConfig, ABC):
         return "gauss"
 
     @property
-    def analytic_background_function(self) -> Callable:
+    def train__analytic_background_function(self) -> Callable:
         return gauss
     @property
     def train__number_of_reference_events(self) -> int:
