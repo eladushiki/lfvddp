@@ -72,11 +72,19 @@ class TrainConfig(ClusterConfig, ABC):
     train__signal_scale: float
     
     # Nuisance parameters
-    train__nuisance_correction: str # "SHAPE" or "NORM"
-    train__nuisance_scale: str      # shape nuisance reference
-    train__nuisance_norm: str       # norm nuisance reference
-    train__nuisance_sigma_s: str    # shape nuisance sigma
-    train__nuisance_sigma_n: str    # norm nuisance sigma
+    ## Correction - what should be taken into account about the nuisance parameters?
+    ## - "SHAPE" - both normalization and shape uncertainties are considered
+    ## - "NORM" - only normalization uncertainties are considered
+    ## - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
+    train__nuisance_correction: str  # "SHAPE", "NORM" or "".
+
+    train__nuisances_shape_std: float        # shape nuisance sigma  # todo: convert to a list to enable any number of those
+    train__nuisances_shape_mean: float       # shape nuisance reference, in terms of std
+    train__nuisances_shape_reference: float  # norm nuisance reference, in terms of std
+    
+    train__nuisances_norm_std: float        # norm nuisance sigma
+    train__nuisances_norm_mean: float       # in terms of std
+    train__nuisances_norm_reference: float  # in terms of std
 
     # Timing parameters
     train__epochs_type: str  # "TAU" or "delta"
@@ -92,8 +100,8 @@ class TrainConfig(ClusterConfig, ABC):
     train__nn_output_dimension: int
     train__nn_inner_layer_nodes: int
     @property
-    def train__nn_architecture(self) -> str:
-        return f"{self.train__nn_input_dimension}:{self.train__nn_inner_layer_nodes}:{self.train__nn_output_dimension}"
+    def train__nn_architecture(self) -> List[int]:
+        return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     train__nn_input_size: int
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
 

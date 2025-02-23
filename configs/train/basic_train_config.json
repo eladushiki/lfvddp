@@ -29,10 +29,14 @@
     "train__signal_scale": 0.16,
 
     "train__nuisance_correction": "NORM",
-    "train__nuisance_scale": 0.16,
-    "train__nuisance_norm": 1,
-    "train__nuisance_sigma_s": 1,
-    "train__nuisance_sigma_n": 1,
+    
+    "train__nuisances_shape_std": 0.16,
+    "train__nuisances_shape_mean": 1,
+    "train__nuisances_shape_reference": 1,
+
+    "train__nuisances_norm_std": 0.15,
+    "train__nuisances_norm_mean": 0.15,
+    "train__nuisances_norm_reference": 0,
 
     "train__epochs_type": "delta",
     "train__epochs": 10,
