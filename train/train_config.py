@@ -12,6 +12,7 @@ class ClusterConfig(Config, ABC):
     cluster__environment_activation_script_at_cluster_abspath: PurePosixPath
 
     # qsub command parameters
+    cluster__qsub_queue: str
     cluster__qsub_n_jobs: int
     cluster__qsub_job_name: str
     cluster__qsub_walltime: str  # in the form of "12:00:00"
@@ -40,7 +41,7 @@ class TrainConfig(ClusterConfig, ABC):
     @property
     def train__batch_train_fraction(self):
         return 1 - self.train__batch_test_fraction
-    train__data_usage_fraction: float  # as a fraction
+    train__data_usage_fraction: float  # as a fraction, previously "combined portion"
     
     ## Data set composition definitions
     # Each string can be any of:
@@ -102,7 +103,6 @@ class TrainConfig(ClusterConfig, ABC):
     @property
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
-    train__nn_input_size: int
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
 
     # Common properties with different implementations

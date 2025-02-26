@@ -1,8 +1,6 @@
 {
     "train__histogram_analytic_pdf": "gauss",
     
-    "train__histogram_is_binned": false,
-    "train__histogram_resolution": 10,
     "train__histogram_is_use_analytic": 1,
 
     "train__data_dir": "temp/data",
@@ -46,6 +44,5 @@
     "train__nn_input_dimension": 1,
     "train__nn_output_dimension": 1,
     "train__nn_inner_layer_nodes": 4,
-    "train__nn_input_size": 1,
     "train__nn_loss_function": "delta"
 }
