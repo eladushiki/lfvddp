@@ -88,7 +88,7 @@ def train_for_t_using_nn(
         NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters
         NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,  # integers
         correction = config.train__nuisance_correction,
-        shape_dictionary_list = build_shape_dictionary_list(),
+        # shape_dictionary_list = build_shape_dictionary_list(),  # todo: what with this?
         BSMarchitecture = config.train__nn_architecture,
         BSMweight_clipping = config.train__nn_weight_clipping,
         train_f = True,  # = Should create model.BSMfinderNet
@@ -112,7 +112,6 @@ def train_for_t_using_nn(
     )
     logging.debug(f'Training time (seconds): {time.time() - t0}')
 
-    # metrics                      
     loss_t_model  = np.array(t_model_history.history['loss'])                
     final_loss = loss_t_model[-1]
     t_model_OBS    = -2 * final_loss

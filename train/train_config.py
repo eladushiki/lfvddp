@@ -23,20 +23,13 @@ class ClusterConfig(Config, ABC):
 
 @dataclass
 class TrainConfig(ClusterConfig, ABC):
-    ## This is the defining attribute for the subclass
-    train__histogram_analytic_pdf: str  # decides which samples to use (em or exp)
-
-    # Other histogram settings
-    train__histogram_is_binned: bool
-    train__histogram_resolution: int
-    train__histogram_is_use_analytic: int  # if 1: generate data from pdf
     
-    # Data generation data locations
+    ## Data generation data locations
     train__data_dir: Path
     train__backgournd_distribution_path: Path
     train__signal_distribution_path: Path
 
-    # Data set sizing
+    ## Data set sizing
     train__batch_test_fraction: float  # as a fraction
     @property
     def train__batch_train_fraction(self):
@@ -46,8 +39,8 @@ class TrainConfig(ClusterConfig, ABC):
     ## Data set composition definitions
     # Each string can be any of:
     # 'Ref' - reference data, represents the null (SM) hypothesis, or - when all nuisance parameters are 0
-    # 'Bkg' - background data
-    # 'Sig' - signal data
+    # 'Bkg' - background data, later composing the "real experimental" data
+    # 'Sig' - signal data, later added to the background to simulate new physics
 
     # We postulate that the auxiliary data has no expressions of new physics
     # in it, and it is used to measure the nuisance parameters independently.
@@ -59,24 +52,31 @@ class TrainConfig(ClusterConfig, ABC):
     train__data_experimental_background_composition: List[str]  # data sets in the data background (e.g. ['Bkg'] or ['Sig', 'Bkg'])
     train__data_experimental_signal_composition: List[str]  # data sets in the data sig (e.g. ['Sig'] or ['Sig', 'Bkg'])
 
-    # Resampling settings
+    ## Resampling settings
     train__resample_is_resample: bool
     train__resample_label_method: str
     train__resample_method_type: str
     train__resample_is_replacement: bool
 
-    # Signal parameters
+    ## Signal parameters
     train__signal_number_of_events: int
-    train__signal_types: str
     train__signal_resonant: bool
     train__signal_location: int
     train__signal_scale: float
     
-    # Nuisance parameters
-    ## Correction - what should be taken into account about the nuisance parameters?
-    ## - "SHAPE" - both normalization and shape uncertainties are considered
-    ## - "NORM" - only normalization uncertainties are considered
-    ## - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
+    ## This is the defining attribute for the subclass
+    train__histogram_analytic_pdf: str  # decides which samples to use (em or exp)
+
+    # Other histogram settings
+    train__histogram_is_binned: bool
+    train__histogram_resolution: int
+    train__histogram_is_use_analytic: int  # if 1: generate data from pdf
+
+    ## Nuisance parameters
+    # Correction - what should be taken into account about the nuisance parameters?
+    # - "SHAPE" - both normalization and shape uncertainties are considered
+    # - "NORM" - only normalization uncertainties are considered
+    # - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
     train__nuisance_correction: str  # "SHAPE", "NORM" or "".
 
     train__nuisances_shape_std: float        # shape nuisance sigma  # todo: convert to a list to enable any number of those
@@ -87,16 +87,16 @@ class TrainConfig(ClusterConfig, ABC):
     train__nuisances_norm_mean: float       # in terms of std
     train__nuisances_norm_reference: float  # in terms of std
 
-    # Timing parameters
+    ## Timing parameters
     train__epochs_type: str  # "TAU" or "delta"
     train__epochs: int
     train__patience: int
 
-    # NN parameters
-    ## Max for a single weight - a hyperparameter
+    ## NN parameters
+    # Max for a single weight - a hyperparameter
     train__nn_weight_clipping: float
-    ## Architecture of the NN
-    ## composed of input and output dimensions, and the number of nodes in the inner layer
+    # Architecture of the NN
+    # composed of input and output dimensions, and the number of nodes in the inner layer
     train__nn_input_dimension: int
     train__nn_output_dimension: int
     train__nn_inner_layer_nodes: int
@@ -105,7 +105,7 @@ class TrainConfig(ClusterConfig, ABC):
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
 
-    # Common properties with different implementations
+    ## Common properties with different implementations
     @property
     @abstractmethod
     def train__analytic_background_function(self) -> Callable:
@@ -119,7 +119,7 @@ class TrainConfig(ClusterConfig, ABC):
     def train__number_of_background_events(self) -> int:
         pass
 
-    # Must have definition for dynamic class resolution
+    ## Must have definition for dynamic class resolution
     @classmethod
     @abstractmethod
     def HISTOGRAM_NAME(cls) -> str:
