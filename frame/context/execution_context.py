@@ -24,7 +24,7 @@ class ExecutionContext:
     config: Config
     command_line_args: List[str]
     time: str = get_time_and_date_string()
-    random_seed: int = get_unix_timestamp()
+    random_seed: int = get_unix_timestamp() + getpid()
     is_debug_mode: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
