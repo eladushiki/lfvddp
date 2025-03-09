@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from logging import info
 import random
 from numpy import random as npramdom
 from matplotlib.figure import Figure
@@ -47,6 +48,7 @@ class ExecutionContext:
 
     def document_created_product(self, product_descriptor: Any):
         self.products.add_product(product_descriptor)
+        info(f"Documented product: {product_descriptor}")
 
     @staticmethod
     def serialize(object) -> dict:

@@ -1,6 +1,6 @@
 import numpy as np
 
-from configs.config_utils import parNN_list
+from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 
 
 def build_feature_for_model_train(exp_dataset, aux_dataset):
@@ -25,5 +25,4 @@ def build_target_for_model_loss(exp_dataset, aux_dataset):
 
 def build_shape_dictionary_list():
     # todo: this should be drawn from the config
-    return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model impolementation
-
+    return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model implementation

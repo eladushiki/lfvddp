@@ -1,5 +1,8 @@
+from pathlib import Path
 import numpy as np
-weights_file  = './LINEAR_Parametric_EXPO1D_batches_ref40000_bkg40000_sigmaS0.1_-1.0_-0.5_0.5_1.0_patience300_epochs30000_layers1_4_1_actrelu_model_weights9300.h5'
+
+# todo: this should be configurable
+weights_file  = str(Path(__file__).parent / "LINEAR_Parametric_EXPO1D_batches_ref40000_bkg40000_sigmaS0.1_-1.0_-0.5_0.5_1.0_patience300_epochs30000_layers1_4_1_actrelu_model_weights9300.h5")
 
 sigma = weights_file.split('sigmaS', 1)[1]                                                                                                                 
 sigma = float(sigma.split('_', 1)[0])                                                                                                                        
@@ -28,17 +31,19 @@ elif 'QUADRATIC' in weights_file:
 elif 'CUBIC' in weights_file:
     poly_degree = 3
 else:
-    poly_degree = None
+    raise ValueError('Unknown polynomial degree')
     
-scale_parNN = { 
+
+scale_parNN = {
     'poly_degree'   : poly_degree,
     'architectures' : [architecture for i in range(poly_degree)],
     'wclips'        : [wclip for i in range(poly_degree)],
     'activation'    : activation,
     'shape_std'     : shape_std,
     'weights_file'  : weights_file
-    }
+}
 
-parNN_list = { 
+
+parNN_list = {
     'scale': scale_parNN
-    }
+}

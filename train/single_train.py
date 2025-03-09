@@ -1,4 +1,5 @@
 import os, time, h5py
+from typing import Any, Dict
 from neural_networks.NPLM_adapters import build_feature_for_model_train, build_shape_dictionary_list, build_target_for_model_loss
 import numpy as np
 import logging
@@ -97,8 +98,8 @@ def train_for_t_using_nn(
         input_shape=(None, input_size),
         NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters
         NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,  # integers
-        correction = config.train__nuisance_correction,
-        # shape_dictionary_list = build_shape_dictionary_list(),  # todo: what with this?
+        correction = "SHAPE",
+        shape_dictionary_list = build_shape_dictionary_list(),  # todo: what with this?
         BSMarchitecture = config.train__nn_architecture,
         BSMweight_clipping = config.train__nn_weight_clipping,
         train_f = True,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta). We generally want to train for both.
@@ -113,13 +114,6 @@ def train_for_t_using_nn(
 
     logging.debug("Starting training")
     t0=time.time()
-    # t_model_history = tau_model.fit(  # todo: NPLM uses their own train_model instead of model.fit. Why? [[toy_batch.py]]
-    #     np.array(feature_dataset._data, dtype=np.float32),
-    #     np.array(target_structure, dtype=np.float32),
-    #     batch_size=batch_size,
-    #     epochs=config.train__epochs,
-    #     verbose=0,
-    # )
     t_model_history = train_model(
         model=tau_model,
         feature=np.array(feature_dataset._data, dtype=np.float32),
@@ -127,15 +121,15 @@ def train_for_t_using_nn(
         loss=imperfect_loss,
         optimizer=optimizers.legacy.Adam(),
         total_epochs=config.train__epochs,
-        patience=config.train__patience,
+        patience=config.train__number_of_epochs_for_checkpoint,
         clipping=True,
         verbose=context.is_debug_mode,
     )
     logging.debug(f'Training time (seconds): {time.time() - t0}')
 
-    loss_t_model  = np.array(t_model_history.history['loss'])                
-    final_loss = loss_t_model[-1]
-    t_model_OBS    = -2 * final_loss
+    loss_t_model = np.array(t_model_history['loss'])                
+    final_loss   = loss_t_model[-1]
+    t_model_OBS  = -2 * final_loss
     logging.info('t_model_OBS (test statistic): %f'%(t_model_OBS))
     return t_model_OBS, t_model_history, tau_model
 
@@ -143,9 +137,12 @@ def train_for_t_using_nn(
 def save_training_outcomes(
         context: ExecutionContext,
         t_model_OBS: float,
-        t_model_history: tf.keras.callbacks.History,
+        t_model_history: Dict[str, Any],
         t_model: Model,
     ) -> None:
+    if not isinstance(config := context.config, TrainConfig):
+        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
+    
     ## Training log
     out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
     os.makedirs(out_dir, exist_ok=False)
@@ -155,16 +152,13 @@ def save_training_outcomes(
     )
 
     ## Training history
-    with h5py.File(out_dir / TRAINING_HISTORY_FILE_NAME,"w") as history_file:
-        epoch       = np.array(range(context.config.train__epochs))
-        patience_t = context.config.train__patience
-        keepEpoch   = epoch % patience_t == 0
-        history_file.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
-        for key in list(t_model_history.history.keys()):
-            monitored = np.array(t_model_history.history[key])
+    history_path = out_dir / TRAINING_HISTORY_FILE_NAME
+    with h5py.File(history_path,"w") as history_file:
+        for key in list(t_model_history.keys()):
+            monitored = np.array(t_model_history[key])
             logging.debug('%s: %f'%(key, monitored[-1]))
-            history_file.create_dataset(key, data=monitored[keepEpoch], compression='gzip')
-        logging.info("saved history")
+            history_file.create_dataset(key, data=monitored, compression='gzip')
+        context.document_created_product(history_path)
 
     # save the model weights
     context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
