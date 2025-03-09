@@ -98,7 +98,6 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
 def plot_old_t_distribution(
         context: ExecutionContext,
         t_values_csv: Path,
-        chi2_degrees_of_freedom: int,
         xmin: int,
         xmax: int,
         number_of_bins: int,
@@ -149,15 +148,19 @@ def plot_old_t_distribution(
     )
 
     # plot reference chi2
-    bin_centers  = np.linspace(chi2.ppf(0.0001, chi2_degrees_of_freedom), chi2.ppf(0.9999, chi2_degrees_of_freedom), 1000)
+    bin_centers  = np.linspace(
+        chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom),
+        chi2.ppf(0.9999, chi2_dof),
+        1000
+    )
 
     ax.plot(
         bin_centers,
-        chi2.pdf(bin_centers, chi2_degrees_of_freedom),
+        chi2.pdf(bin_centers, chi2_dof),
         style["chi2_color"],
         linewidth=style["linewidth"],
         alpha=style["alpha"],
-        label=f'$\chi^{2}_{{{chi2_degrees_of_freedom}}}$',
+        label=f'$\chi^{2}_{{{chi2_dof}}}$',
     )
 
     # Legend

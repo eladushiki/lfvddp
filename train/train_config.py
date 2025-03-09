@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from frame.config_handle import Config
+from neural_networks.NPLM.src.NPLM.PLOTutils import compute_df
 
 @dataclass
 class ClusterConfig(Config, ABC):
@@ -36,16 +37,20 @@ class TrainConfig(ClusterConfig, ABC):
         return 1 - self.train__batch_test_fraction
     train__data_usage_fraction: float  # as a fraction, previously "combined portion"
     
-    ## Data set composition definitions
+    ## Generated data set composition definitions
     # Each string can be any of:
     # 'Ref' - reference data, represents the null (SM) hypothesis, or - when all nuisance parameters are 0
     # 'Bkg' - background data, later composing the "real experimental" data
     # 'Sig' - signal data, later added to the background to simulate new physics
 
-    # We postulate that the auxiliary data has no expressions of new physics
-    # in it, and it is used to measure the nuisance parameters independently.
+    # We postulate that the auxiliary data has no expressions of new physics and that it contains
+    # expression of the nuisance parameters. The dataset contains their statistics, and we
+    # use it to measure them independently.
+    # We generate an auxiliary dataset that contains the known physics with some disruption, to train the
+    # net for the nuisace parameters.
     train__data_aux_background_composition: List[str]  # data sets in the auxillary background (e.g. ['Ref'] or ['Sig', 'Bkg', 'Ref'])
     train__data_aux_signal_composition: List[str]  # data sets in the auxillary signal (e.g. [] or ['Sig', 'Bkg'])
+    
     # "Experimental" datasets resemble the to-be experimental data, though composed of
     # "fake" (generated) signal.
     # The dataset of interest (toy or not) is composed of these two.
@@ -79,16 +84,15 @@ class TrainConfig(ClusterConfig, ABC):
     # - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
     train__nuisance_correction: str  # "SHAPE", "NORM" or "".
 
-    train__nuisances_shape_std: float        # shape nuisance sigma  # todo: convert to a list to enable any number of those
-    train__nuisances_shape_mean: float       # shape nuisance reference, in terms of std
-    train__nuisances_shape_reference: float  # norm nuisance reference, in terms of std
+    train__nuisances_shape_sigma: float        # shape nuisance sigma  # todo: convert to a list to enable any number of those
+    train__nuisances_shape_mean_sigmas: float       # shape nuisance reference, in terms of std
+    train__nuisances_shape_reference_sigmas: float  # norm nuisance reference, in terms of std
     
-    train__nuisances_norm_std: float        # norm nuisance sigma
-    train__nuisances_norm_mean: float       # in terms of std
-    train__nuisances_norm_reference: float  # in terms of std
+    train__nuisances_norm_sigma: float        # norm nuisance sigma
+    train__nuisances_norm_mean_sigmas: float       # in terms of std
+    train__nuisances_norm_reference_sigmas: float  # in terms of std
 
     ## Timing parameters
-    train__epochs_type: str  # "TAU" or "delta"
     train__epochs: int
     train__patience: int
 
@@ -103,6 +107,13 @@ class TrainConfig(ClusterConfig, ABC):
     @property
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
+    @property
+    def train__nn_degrees_of_freedom(self) -> int:
+        return compute_df(
+            input_size=self.train__nn_input_dimension,
+            hidden_layers=1,
+            output_size=self.train__nn_output_dimension,
+        )
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
 
     ## Common properties with different implementations
