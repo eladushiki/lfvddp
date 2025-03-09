@@ -77,6 +77,13 @@ class TrainConfig(ClusterConfig, ABC):
     train__histogram_resolution: int
     train__histogram_is_use_analytic: int  # if 1: generate data from pdf
 
+    ## Nuisance parameters
+    # Correction - what should be taken into account about the nuisance parameters?
+    # - "SHAPE" - both normalization and shape uncertainties are considered
+    # - "NORM" - only normalization uncertainties are considered
+    # - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
+    train__nuisance_correction: str  # "SHAPE", "NORM" or "".
+
     train__nuisances_shape_sigma: float        # shape nuisance sigma  # todo: convert to a list to enable any number of those
     train__nuisances_shape_mean_sigmas: float       # shape nuisance reference, in terms of std
     train__nuisances_shape_reference_sigmas: float  # norm nuisance reference, in terms of std

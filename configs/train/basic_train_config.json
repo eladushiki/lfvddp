@@ -22,6 +22,8 @@
     "train__signal_scale": 0.16,
 
     "train__histogram_analytic_pdf": "em",
+    
+    "train__nuisance_correction": "NORM",
 
     "train__histogram_is_binned": false,
     "train__histogram_resolution": 10,

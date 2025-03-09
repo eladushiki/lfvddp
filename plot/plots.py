@@ -1211,19 +1211,3 @@ def animated_t_2distributions(results_file1:results, results_file2:results, df, 
             else: file_name += '_2distributions'
             anim.save(save_path+file_name+'.gif', writer='imagemagick', fps=30)
     return HTML(anim.to_jshtml())
-
-
-# ---- imported plots from NPLM ----
-from neural_networks.NPLM.src.NPLM.PLOTutils import plot_training_data as _plot_training_data
-
-def plot_training_data(
-        context: ExecutionContext,
-        experimental_data: DataSet,
-        auxiliary_data: DataSet,
-
-):
-    _plot_training_data(
-        data=experimental_dataset._data,
-        weight_data=experimental_data._data
-        ref=axiliary_data._data,
-    )

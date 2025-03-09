@@ -22,6 +22,8 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME, TRAINING_HISTORY_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from train.train_config import TrainConfig
 
+TRAINING_METHOD = "SYMMETRY"  # else, "ORIGINAL_NPLM"
+
 @context_controlled_execution
 def main(context: ExecutionContext) -> None:
 
@@ -59,12 +61,20 @@ def main(context: ExecutionContext) -> None:
             exp_dataset=exp_dataset,
         )
 
-    save_training_outcomes(
-        context,
-        t_model_OBS,
-        t_model_history,
-        t_model,
-    )
+    if TRAINING_METHOD == "SYMMETRY":
+        save_training_outcomes(
+            context,
+            t_model_OBS,
+            t_model_history,
+            t_model,
+        )
+    elif TRAINING_METHOD == "ORIGINAL":  # Mimic NPLM's saving (after same-wise training)
+        save_NPLM_training_outcomes(
+            context,
+            t_model_OBS,
+            t_model_history,
+            t_model,
+        )
 
 
 def train_for_t_using_nn(
@@ -90,7 +100,6 @@ def train_for_t_using_nn(
 
     ## Done preparing sample
     feature_dataset = build_feature_for_model_train(exp_dataset, aux_dataset)
-    batch_size  = feature_dataset.n_samples
     input_size  = feature_dataset._data.shape[1]  # Number of input variables
 
     # Get Tau term model
@@ -98,8 +107,8 @@ def train_for_t_using_nn(
         input_shape=(None, input_size),
         NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters
         NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,  # integers
-        correction = "SHAPE",
-        shape_dictionary_list = build_shape_dictionary_list(),  # todo: what with this?
+        correction = config.train__nuisance_correction,
+        shape_dictionary_list = build_shape_dictionary_list(),  # This is used in "SHAPE" correction case
         BSMarchitecture = config.train__nn_architecture,
         BSMweight_clipping = config.train__nn_weight_clipping,
         train_f = True,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta). We generally want to train for both.
@@ -114,27 +123,40 @@ def train_for_t_using_nn(
 
     logging.debug("Starting training")
     t0=time.time()
-    t_model_history = train_model(
-        model=tau_model,
-        feature=np.array(feature_dataset._data, dtype=np.float32),
-        target=np.array(target_structure, dtype=np.float32),
-        loss=imperfect_loss,
-        optimizer=optimizers.legacy.Adam(),
-        total_epochs=config.train__epochs,
-        patience=config.train__number_of_epochs_for_checkpoint,
-        clipping=True,
-        verbose=context.is_debug_mode,
-    )
-    logging.debug(f'Training time (seconds): {time.time() - t0}')
+    if TRAINING_METHOD == "SYMMETRY":  # Mimic Yuval and Inbar's training
+        t_model_history = tau_model.fit(  # todo: NPLM uses their own train_model instead of model.fit. Why? [[toy_batch.py]]
+            np.array(feature_dataset._data, dtype=np.float32),
+            np.array(target_structure, dtype=np.float32),
+            batch_size=feature_dataset.n_samples,
+            epochs=config.train__epochs,
+            verbose=0,
+        )
+        loss_t_model = np.array(t_model_history.history['loss'])                
 
-    loss_t_model = np.array(t_model_history['loss'])                
+    elif TRAINING_METHOD == "ORIGINAL":  # Mimic NPLM's training (currently causes loss divergence)
+        t_model_history = train_model(
+            model=tau_model,
+            feature=np.array(feature_dataset._data, dtype=np.float32),
+            target=np.array(target_structure, dtype=np.float32),
+            loss=imperfect_loss,
+            optimizer=optimizers.legacy.Adam(),
+            total_epochs=config.train__epochs,
+            patience=config.train__number_of_epochs_for_checkpoint,
+            clipping=True,
+            verbose=context.is_debug_mode,
+        )
+        loss_t_model = np.array(t_model_history['loss'])                
+    
+    logging.debug(f'Training time (seconds): {time.time() - t0}')
+        
     final_loss   = loss_t_model[-1]
     t_model_OBS  = -2 * final_loss
     logging.info('t_model_OBS (test statistic): %f'%(t_model_OBS))
+    
     return t_model_OBS, t_model_history, tau_model
 
 
-def save_training_outcomes(
+def save_NPLM_training_outcomes(
         context: ExecutionContext,
         t_model_OBS: float,
         t_model_history: Dict[str, Any],
@@ -159,6 +181,35 @@ def save_training_outcomes(
             logging.debug('%s: %f'%(key, monitored[-1]))
             history_file.create_dataset(key, data=monitored, compression='gzip')
         context.document_created_product(history_path)
+
+    # save the model weights
+    context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
+
+def save_training_outcomes(
+        context: ExecutionContext,
+        t_model_OBS: float,
+        t_model_history: tf.keras.callbacks.History,
+        t_model: Model,
+    ) -> None:
+    ## Training log
+    out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
+    os.makedirs(out_dir, exist_ok=False)
+    context.save_and_document_text(
+        f"{t_model_OBS}\n",
+        path=out_dir / SINGLE_TRAINING_RESULT_FILE_NAME
+    )
+
+    ## Training history
+    with h5py.File(out_dir / TRAINING_HISTORY_FILE_NAME,"w") as history_file:
+        epoch       = np.array(range(context.config.train__epochs))
+        patience_t = context.config.train__number_of_epochs_for_checkpoint
+        keepEpoch   = epoch % patience_t == 0
+        history_file.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
+        for key in list(t_model_history.history.keys()):
+            monitored = np.array(t_model_history.history[key])
+            logging.debug('%s: %f'%(key, monitored[-1]))
+            history_file.create_dataset(key, data=monitored[keepEpoch], compression='gzip')
+        logging.info("saved history")
 
     # save the model weights
     context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
