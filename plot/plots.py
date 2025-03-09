@@ -169,7 +169,7 @@ def plot_old_t_distribution(
     
     ax.legend(
         (circ, rect1),
-        (label, f'$\chi^{2}_{{{chi2_degrees_of_freedom}}}$'),
+        (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
         handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),

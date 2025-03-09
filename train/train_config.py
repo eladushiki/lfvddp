@@ -104,7 +104,7 @@ class TrainConfig(ClusterConfig, ABC):
     def train__nn_degrees_of_freedom(self) -> int:
         return compute_df(
             input_size=self.train__nn_input_dimension,
-            hidden_layers=1,
+            hidden_layers=self.train__nn_architecture[1:-1],
             output_size=self.train__nn_output_dimension,
         )
     train__nn_loss_function: str  # string before history/weights.h5 and .txt names (TAU or delta)
