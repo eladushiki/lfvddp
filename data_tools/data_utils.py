@@ -41,6 +41,14 @@ class DataGeneration:
         BKG = "Bkg"
         SIG = "Sig"
 
+    _instance = None
+
+    def __new__(cls, config: TrainConfig):
+        if cls._instance is None:
+            cls._instance = super(DataGeneration, cls).__new__(cls)
+            cls._instance.__init__(config)
+        return cls._instance
+
     def __init__(self, config: TrainConfig):
         self._config = config
 
@@ -65,28 +73,9 @@ class DataGeneration:
         return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
 
 
-def prepare_training(config: TrainConfig) -> Tuple[DataSet, DataSet]:
-    '''
-    Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
-    
-    Parameters
-    ----------
-    config :
-        Includes the parameters necessary for training with the specific function.
-    
-    returns feature_dataset and target_structure
-    '''
-    # Generate datasets by config instructions
+def compose_dataset(config: TrainConfig, background_composition: List[str], signal_composition: List[str]) -> DataSet:
     dg = DataGeneration(config)
-    aux_background_dataset = dg.generate_dataset(config.train__data_aux_background_composition)
-    aux_signal_dataset     = dg.generate_dataset(config.train__data_aux_signal_composition)
-    aux_dataset            = aux_background_dataset + aux_signal_dataset
-    
-    exp_background_dataset = dg.generate_dataset(config.train__data_experimental_background_composition)
-    exp_signal_dataset     = dg.generate_dataset(config.train__data_experimental_signal_composition)   
-    exp_dataset            = exp_background_dataset + exp_signal_dataset
-    
-    return exp_dataset, aux_dataset
+    return dg.generate_dataset(background_composition) + dg.generate_dataset(signal_composition)
 
 
 def resample(

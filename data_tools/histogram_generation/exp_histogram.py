@@ -43,12 +43,12 @@ def exp(config: TrainConfig):
     if not isinstance(config, ExpConfig):
         raise TypeError(f"Expected ExpConfig, got {config.__class__.__name__}")
 
-    N_Bkg_Pois  = np.random.poisson(lam=config.train__number_of_background_events*np.exp(config.train__nuisances_norm_reference), size=1)[0] if config.train_exp__n_poisson_fluctuations else config.train__number_of_background_events
-    N_Ref_Pois  = np.random.poisson(lam=config.train__number_of_reference_events*np.exp(config.train__nuisances_norm_reference), size=1)[0] if config.train_exp__n_poisson_fluctuations else config.train__number_of_reference_events
-    N_Sig_Pois = np.random.poisson(lam=config.train__signal_number_of_events*np.exp(config.train__nuisances_norm_reference), size=1)[0] if config.train_exp__n_poisson_fluctuations else config.train__signal_number_of_events
+    N_Bkg_Pois  = np.random.poisson(lam=config.train__number_of_background_events*np.exp(config.train__nuisances_norm_reference_sigmas), size=1)[0] if config.train_exp__n_poisson_fluctuations else config.train__number_of_background_events
+    N_Ref_Pois  = np.random.poisson(lam=config.train__number_of_reference_events*np.exp(config.train__nuisances_norm_reference_sigmas), size=1)[0] if config.train_exp__n_poisson_fluctuations else config.train__number_of_reference_events
+    N_Sig_Pois = np.random.poisson(lam=config.train__signal_number_of_events*np.exp(config.train__nuisances_norm_reference_sigmas), size=1)[0] if config.train_exp__n_poisson_fluctuations else config.train__signal_number_of_events
     info(f"Drawn background samples: {N_Bkg_Pois}, reference sampels: {N_Ref_Pois} and signal samples: {N_Sig_Pois}")
 
-    Bkg = np.random.exponential(scale=np.exp(config.train__nuisances_shape_reference), size=(N_Bkg_Pois, 1))
+    Bkg = np.random.exponential(scale=np.exp(config.train__nuisances_shape_reference_sigmas), size=(N_Bkg_Pois, 1))
     Ref  = np.random.exponential(scale=1., size=(N_Ref_Pois, 1))
     if config.train__signal_resonant:
         Sig = np.random.normal(loc=config.train__signal_location, scale=config.train__signal_scale, size=(N_Sig_Pois,1))*np.exp(scale_factor)
@@ -56,7 +56,7 @@ def exp(config: TrainConfig):
         def Sig_dist(x):
             dist = x**2*np.exp(-x)
             return dist/np.sum(dist)
-        Sig = np.random.choice(np.linspace(0,100,100000),size=(N_Sig_Pois,1),replace=True,p=Sig_dist(np.linspace(0,100,100000)))*np.exp(config.train__nuisances_shape_reference)
+        Sig = np.random.choice(np.linspace(0,100,100000),size=(N_Sig_Pois,1),replace=True,p=Sig_dist(np.linspace(0,100,100000)))*np.exp(config.train__nuisances_shape_reference_sigmas)
     
     info(f"Generated datasets;" \
           f" Ref of shape {Ref.shape}," \

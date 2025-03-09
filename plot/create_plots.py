@@ -17,7 +17,7 @@ def create_plots(context: ExecutionContext):
         figure = plot_factory.generate_plot(plot)
 
         image_filename = context.unique_out_dir / plot.plot_filename
-        context.save_and_documnt_figure(figure, image_filename)
+        context.save_and_document_figure(figure, image_filename)
 
 
 if __name__ == "__main__":
