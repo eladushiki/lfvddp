@@ -1,3 +1,4 @@
+from frame.file_system.training_weights import save_training_history
 import os, time, h5py
 from typing import Any, Dict
 from neural_networks.NPLM_adapters import build_feature_for_model_train, build_shape_dictionary_list, build_target_for_model_loss
@@ -180,7 +181,7 @@ def save_NPLM_training_outcomes(
             monitored = np.array(t_model_history[key])
             logging.debug('%s: %f'%(key, monitored[-1]))
             history_file.create_dataset(key, data=monitored, compression='gzip')
-        context.document_created_product(history_path)
+    context.document_created_product(history_path)
 
     # save the model weights
     context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
@@ -200,16 +201,14 @@ def save_training_outcomes(
     )
 
     ## Training history
-    with h5py.File(out_dir / TRAINING_HISTORY_FILE_NAME,"w") as history_file:
-        epoch       = np.array(range(context.config.train__epochs))
-        patience_t = context.config.train__number_of_epochs_for_checkpoint
-        keepEpoch   = epoch % patience_t == 0
-        history_file.create_dataset('epoch', data=epoch[keepEpoch], compression='gzip')
-        for key in list(t_model_history.history.keys()):
-            monitored = np.array(t_model_history.history[key])
-            logging.debug('%s: %f'%(key, monitored[-1]))
-            history_file.create_dataset(key, data=monitored[keepEpoch], compression='gzip')
-        logging.info("saved history")
+    history_file_name = out_dir / TRAINING_HISTORY_FILE_NAME
+    save_training_history(
+        model_history=t_mdoel_history,
+        weights_file_path=history_file_name,
+        epochs=context.config.train__epochs,
+        epochs_checkpoint=context.config.train__number_of_epochs_for_checkpoint,
+    ) 
+    context.document_created_product(history_file_name)
 
     # save the model weights
     context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
