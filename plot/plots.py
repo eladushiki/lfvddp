@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 from data_tools.data_utils import DataSet
 import numpy as np
 import matplotlib as mpl
@@ -28,7 +29,14 @@ from train.train_config import TrainConfig
 # Should not save the figure by itself!!! It is done in a well documented way in the calling function.
 
 
-def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=500000, xmin=0, ymax=300, ymin=0, title='', save=False, save_path='', file_name=''):
+def Plot_Percentiles_ref(
+        context: ExecutionContext,
+        history_files_dir: List[Path],
+        xmin=0,
+        xmax=500000,
+        ymin=0,
+        ymax=300,
+    ):
     '''
     The funcion creates the plot of the evolution in the epochs of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
     The percentile lines for the target chi2 distribution are shown as a reference.
@@ -37,33 +45,34 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
     tvalues_check: (numpy array shape (N_toys, N_check_points)) array of t=-2*loss
     df:            (int) chi2 degrees of freedom
     '''
-    raise NotImplementedError('This function is not implemented yet.')
-
+    if not isinstance(config := context.config, PlottingConfig):
+        raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
+    if not isinstance(config, TrainConfig):
+        raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
+    
+    results_file = results(history_files_dir, context)
     tvalues_check = results_file.get_t_history_dict()
     colors = ['violet', 'hotpink', 'mediumvioletred', 'mediumorchid', 'darkviolet']
     plt.rcParams["font.family"] = "serif"
     plt.style.use('classic')
     
-    fig = plt.figure(figsize=(12, 9))
+    # Framing
+    c = Carpenter(context)
+    fig  = c.figure()
     ax = fig.add_subplot(111)
-    fig.patch.set_facecolor('white')
+
     quantiles   = [2.5, 25, 50, 75, 97.5]
     percentiles = np.array([])
     plt.xlabel('Training Epochs', fontsize=22, fontname="serif")
     plt.ylabel('t', fontsize=22, fontname="serif")
     plt.xlim(0, xmax)
     plt.ylim(ymin, ymax)
-    # if wc != None:
-    #     plt.title('Weight Clipping = '+wc, fontsize=16,  fontname="serif")
+    
     epochs_check = []
-    #nr_check_points = tvalues_check.shape[1]
-    nr_check_points = round(xmax/patience)#len(tvalues_check.keys())
+    nr_check_points = round(xmax/config.train__number_of_epochs_for_checkpoint)
     for i in range(nr_check_points):
-        #epoch_check = patience*(i+1)
-        epochs_check.append(patience*(i+1))
-    #for i in range(tvalues_check.shape[1]):
-        #percentiles_i = np.percentile(tvalues_check[:, i], quantiles)
-        percentiles_i = np.percentile(tvalues_check[patience*(i+1)], quantiles)
+        epochs_check.append(config.train__number_of_epochs_for_checkpoint*(i+1))
+        percentiles_i = np.percentile(tvalues_check[config.train__number_of_epochs_for_checkpoint*(i+1)], quantiles)
         percentiles_i = np.expand_dims(percentiles_i, axis=1)
         if not i: percentiles = percentiles_i.T
         else: percentiles = np.concatenate((percentiles, percentiles_i.T))
@@ -72,9 +81,9 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
         plt.plot(epochs_check, percentiles[:, j], linewidth=3, color=colors[j])
         legend.append(str(quantiles[j])+'% quantile')
     for j in range(percentiles.shape[1]):
-        plt.plot(epochs_check, chi2.ppf(quantiles[j]/100., df=df, loc=0, scale=1)*np.ones_like(epochs_check),
+        plt.plot(epochs_check, chi2.ppf(quantiles[j]/100., df=context.train__nn_degrees_of_freedom, loc=0, scale=1)*np.ones_like(epochs_check),
                 color=colors[j], ls='--', linewidth=1)
-        if j==0: legend.append("Target "+r"$\chi^2($"+str(df)+")")
+        if j==0: legend.append("Target "+r"$\chi^2($"+str(context.train__nn_degrees_of_freedom)+")")
     font = font_manager.FontProperties(family='serif', size=20)         
     plt.legend(legend, prop=font, frameon = False, markerscale=0)
     plt.yticks(fontsize=20, fontname="serif")
@@ -88,12 +97,6 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
     plt.title(title, fontsize=24, fontname="serif")
     plt.figure()
     
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = 'PlotPercentiles'
-            else: file_name += '_PlotPercentiles'
-            fig.savefig(save_path+file_name+'.pdf')
     plt.show()
     plt.close(fig)
 
@@ -1058,7 +1061,7 @@ def animated_t_distribution(results_file:results, df, epoch = 500000,xmin=0, xma
         t = t[:samples_to_take]
     Ref_events = results_file.Ref_events
     Bkg_events = results_file.Bkg_events
-    Sig_events = results_file.Sig_events
+    Sig_events = results_file._config.train__signal_number_of_events
     plt.rcParams["font.family"] = "serif"
     plt.style.use('classic')
     fig  = plt.figure(figsize=(12,9))

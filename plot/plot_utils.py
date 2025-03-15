@@ -3,10 +3,11 @@ import os
 from os import system
 from os.path import exists
 from pathlib import Path
-from typing import Union
+from readline import read_history_file
+from typing import List, Union
 
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRIANING_OUTCOMES_DIR_NAME
+from frame.file_structure import AGGREGATED_RESULTS_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
 import numpy as np
 import tarfile
 from matplotlib import patches
@@ -80,6 +81,7 @@ class results:  # todo: deprecate
     # members:
     _context: ExecutionContext
     _config: Union[PlottingConfig, TrainConfig]
+    _history_files: List[Path]
 
     def __init__(self, containing_directory, context: ExecutionContext):  
         if not isinstance(config := context.config, TrainConfig):
@@ -88,21 +90,11 @@ class results:  # todo: deprecate
             raise ValueError(f"Expected PlottingConfig, got {type(config)}")
         self._context = context
         self._config = config
-        self._dir = containing_directory
-        self.file = glob(containing_directory + "/**/*.csv", recursive=True)[0]
-        self.csv_file_name = self.file
-        self.tar_file_name = self.file.replace(".csv",".tar.gz") if self.file.endswith(".csv") else self.file
-        self.total_events = self._config.train__data_usage_fraction * results.N
-        self.Bkg_ratio = self._config.train__batch_train_fraction
-        self.Bkg_events = int(results.N * self.Bkg_ratio)
-        self.Ref_ratio = self._config.train__batch_test_fraction
-        self.Ref_events = int(results.N * self.Ref_ratio)
-        self.Sig_events = self._config.train__signal_number_of_events
-        self.Bkg_sample = self._config.train__histogram_analytic_pdf
-        self.binned = self._config.train__histogram_is_binned
-        self.resolution = self._config.train__histogram_resolution
-        self.WC = self._config.train__nn_weight_clipping
-
+        self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)]
+        self._csv_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{AGGREGATED_RESULTS_FILE_EXTENSION}", recursive=True)]
+        self.Bkg_events = int(results.N * self._config.train__batch_train_fraction)
+        self.Ref_events = int(results.N * self._config.train__batch_test_fraction)
+        
         if hasattr(self._config, "train_physics__n_poisson_fluctuations"):
             self.N_poiss = self._config.train_physics__n_poisson_fluctuations
         elif hasattr(self._config, "train_gauss__n_poisson_fluctuations"):
@@ -111,56 +103,10 @@ class results:  # todo: deprecate
             self.N_poiss = self._config.train_exp__n_poisson_fluctuations
         else:
             self.N_poiss = "False"
-
-        #self.NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name)) else "False" if ("FalseNPLM" in file_name) else "
         self.NPLM = "True"
-        self.Sig_resonant = self._config.train__signal_resonant
-        self.Sig_loc = self._config.train__signal_location
-        self.Sig_scale = self._config.train__signal_scale
-        self.resample = self._config.train__resample_is_resample
-        self.label_method = self._config.train__resample_label_method
-        self.N_method = self._config.train__resample_method_type
-        self.replacement = self._config.train__resample_is_replacement
-        self.original_seed = self._context.random_seed
-        self.tot_epochs = self._config.train__epochs
 
-    def get_similar_files(self,epochs='all',patience_tau='all',patience_delta='all'):
-        all_patience_str = self.file
-        sub_epochs = '*' if epochs=='all' else f'{epochs}epochs_tau'
-        sub_patience_tau = '*' if patience_tau=='all' else f'{patience_tau}patience_tau'
-        sub_patience_delta = '*' if patience_delta=='all' else f'{patience_delta}patience_delta' 
-        all_patience_str = re.sub(r'\d+epochs_delta','*',all_patience_str)
-        all_patience_str = re.sub(r'\d+epochs_tau',sub_epochs,all_patience_str)
-        all_patience_str = re.sub(r'\d+patience_delta',sub_patience_delta,all_patience_str)
-        all_patience_str = re.sub(r'\d+patience_tau',sub_patience_tau,all_patience_str)
-        #sample = "exp" if "exp" in file_name else re.search(r'em_?\S+', file_name)[0]
-        #all_patience_str = self.sample+all_patience_str.split(self.sample)[1]#"exp"+all_patience_str.split('exp')[1] if "exp" in self.file else "em"+all_patience_str.split('em')[1]
-        #all_patience_str = "exp"+all_patience_str.split('exp')[1] if "exp" in self.file else "em"+all_patience_str.split('em')[1]
-        all_patience_str = all_patience_str.split('/')[-1]
-        all_patience_str =re.sub('\*\*+', '*', all_patience_str)
-        #all_patience_str  = re.sub(r'\d+signals',f"[^0-9]?{self.Sig_events}signals",all_patience_str)
-        self.similar_search_name = all_patience_str
-        
-        
-        #Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-        files_all_patience_str = glob(TRIANING_OUTCOMES_DIR_NAME + all_patience_str)
-        files = files_all_patience_str[:]
-        for file_name in files:
-            NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name and "Trueresample" not in file_name)) else "False"
-            sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-            sample = "exp" if "exp" in file_name else "em_Mcoll" if "em_Mcoll" in file_name else "em"
-            if self.NPLM !=NPLM or (self.Sig_events!=sig_events or self.Bkg_sample!=sample):
-                files_all_patience_str.remove(file_name)
-        self.similar_files = files_all_patience_str
-        return files_all_patience_str   
-    
     def __len__(self):
-        count = 0
-        for file in self.get_similar_files():
-            file = file.replace(".csv",".tar.gz") if ".csv" in file else file if ".tar.gz" in file else file+".tar.gz"
-            with tarfile.open(file,"r:gz") as tar:
-                count += len(tar.getnames())
-        return count//4
+        return len(self._history_files)
     
     def read_final_t_csv(self):
         TAU_names = []
@@ -168,7 +114,7 @@ class results:  # todo: deprecate
         delta_names = []
         deltas = []
         TAU_plus_delta =[]
-        for file in self.get_similar_files():
+        for file in self._history_files:
             if ".csv" not in file:
                 file = file.replace("tar.gz","csv") if ".tar.gz" in file else file+".csv"
             csv_file = file
@@ -194,69 +140,40 @@ class results:  # todo: deprecate
         return TAU_plus_delta, delta_names
              
     def get_t_history(self):
-        dir = self._dir
-        similar_files= self.get_similar_files()
-        #file_search_name = self.similar_search_name
-        for file in similar_files:
-            if "tar.gz" not in file:
-                file = file.replace("csv","tar.gz") if ".csv" in file else file+".tar.gz"
-            system(f'tar --force-local -xzf {file} -C {dir}extract_here')
-        tar_file = self.tar_file_name
-        #csv_file = self.csv_file_name
-        t_final,txt_names=self.read_final_t_csv()
-        txt_names = [(name.split("/")[-1]).replace("\n","") for name in txt_names]
-        #os.system(f'tar --force-local -xzf {dir+tar_file} -C {dir}extract_here')
-        history_files = f'{dir}extract_here/*{tar_file.replace(".tar.gz","")}*_history*'
-        files = glob(re.sub('\*\*+', '*',history_files))
+        t_final, txt_names = self.read_final_t_csv()
+        txt_names = [(name.split("/")[-1]).replace("\n", "") for name in txt_names]
+        history_files = f'{dir}extract_here/*{tar_file.replace(".tar.gz", "")}*_history*'
+        files = glob(re.sub('\*\*+', '*', history_files))
         t_history = []
         epochs = []
         seeds = []
-        if len(files)>0:
+        if len(files) > 0:
             for filename in files:
-                patience_tau = float((re.search(r'\d+patience_tau',filename).group()).split("patience")[0] if "patience_tau" in filename else 1000) 
-                patience_delta = float((re.search(r'\d+patience_delta',filename).group()).split("patience")[0] if "patience_delta" in filename else 1000)
-                patience = max(patience_tau,patience_delta)
-                step_tau = round(patience/patience_tau)
-                step_delta = round(patience/patience_delta)
+                patience = self._config.train__number_of_epochs_for_checkpoint
                 if self.NPLM=="False":
                     if (('_TAU_history' in filename) and (filename.replace('_TAU_history','_delta_history') in files)):
-                        with h5py.File(filename, "r") as f1:
-                            keys_list  = [(key) for key in list(f1.keys())]
-                            TAU_history = f1.get(str(keys_list[2]))#'loss'
-                            TAU_history = np.array(TAU_history)
-                        with h5py.File(filename.replace('_TAU_history','_delta_history'), "r") as f2:
-                            keys_list  = [(key) for key in list(f2.keys())]
-                            delta_history = f2.get(str(keys_list[2]))#'loss'
-                            delta_history = np.array(delta_history)
-                        seed_num = int(re.search(r'_seed\d+_',filename)[0][len('_seed'):-len('_')])
-                        t_history.append(-2*(TAU_history[0::step_tau]+delta_history[0::step_delta]))
-                        epochs.append(patience*np.array(range(len(TAU_history[0::step_tau]))))
-                        seeds.append(seed_num*np.ones_like(np.array(range(len(TAU_history[0::step_tau])))))
+                        tau_or_delta_history? = read_history_file(filename)
+                        t_history.append(-2*(TAU_history[0::1]+delta_history[0::1]))
+                        epochs.append(patience*np.array(range(len(TAU_history[0::1]))))
                 elif self.NPLM=="True":
                     if '_TAU_history' in filename:
                         with h5py.File(filename, "r") as f1:
                             keys_list  = [(key) for key in list(f1.keys())]
                             TAU_history = f1.get(str(keys_list[2]))#'loss'
                             TAU_history = np.array(TAU_history)
-                        seed_num = int(re.search(r'_seed\d+_',filename)[0][len('_seed'):-len('_')])
-                        t_history.append(-2*(TAU_history[0::step_tau]))
-                        epochs.append(patience*np.array(range(len(TAU_history[0::step_tau]))))
-                        seeds.append(seed_num*np.ones_like(np.array(range(len(TAU_history[0::step_tau])))))
-        #os.system(f'rm {dir}extract_here/*')
+                        t_history.append(-2*(TAU_history[0::1]))
+                        epochs.append(patience*np.array(range(len(TAU_history[0::1]))))
+
         if len(t_final)>0:
             for i,t in enumerate(t_final):
                     name = txt_names[i]
-                    seed_num = int(re.search(r'_seed\d+_',name)[0][len('_seed'):-len('_')])
-                    tot_epochs = float(re.search(r'\d+epochs_tau',name)[0][:-len('epochs_tau')])
+                    tot_epochs = self._config.train__epochs
                     t_history.append(np.array([t]))
                     epochs.append(np.array([tot_epochs]))
-                    seeds.append(seed_num*np.ones_like(np.array([tot_epochs])))
-        os.system(f'rm -r {dir}extract_here')
-        os.system(f"mkdir {dir}extract_here")
-        return t_history,epochs,seeds
+        return t_history,epochs
     
     def get_t_history_dict(self):
-        t_sig_hist, epochs_sig_list, seeds_list = self.get_t_history()#get_history_t_values(self.file)
+        t_sig_hist, epochs_sig_list = self.get_t_history()
         epochs_list = np.unique(np.concatenate(epochs_sig_list).ravel())
         Sig_t = t_hist_epoch(epochs_sig_list, t_sig_hist,epochs_list)
         self.t_history = Sig_t.copy()
@@ -264,10 +181,8 @@ class results:  # todo: deprecate
     
     def get_signal_files(self,N_sig='all',Sig_loc = 'all',Sig_scale = 'all',resonant="all"):
         filenames = []
-        similar_filenames = self.get_similar_files()
         bkg_search_filename = self.similar_search_name.replace("tar.gz","csv")
-        #bkg_filename = self.csv_file_name.split('/')[-1] if '/' in self.csv_file_name else self.csv_file_name
-        if self.WC!=9:
+        if self._config.train__nn_weight_clipping!=9:
             bkg_search_filename =(bkg_search_filename.split('clipping')[0]+'*'+bkg_search_filename.split('signals_')[1])
             sig_filename = re.sub('\*\*+', '*', bkg_search_filename)
         else:
@@ -281,17 +196,17 @@ class results:  # todo: deprecate
             if "ch-" in file: continue
             params_file = results(file)
             flag = False
-            if (params_file.Bkg_events==self.Bkg_events) and (params_file.Ref_events==self.Ref_events) and (params_file.N_poiss==self.N_poiss) and (params_file.resolution==self.resolution) and (params_file.NPLM==self.NPLM) and (params_file.Bkg_sample==self.Bkg_sample) and (params_file.WC==self.WC):
+            if (params_file.Bkg_events==self.Bkg_events) and (params_file.Ref_events==self.Ref_events) and (params_file.N_poiss==self.N_poiss) and (params_file._config.train__histogram_resolution==self._config.train__histogram_resolution) and (params_file.NPLM==self.NPLM) and (params_file._config.train__histogram_analytic_pdf==self._config.train__histogram_analytic_pdf) and (params_file._config.train__nn_weight_clipping==self._config.train__nn_weight_clipping):
                 flag = True
                 if N_sig!="all":
-                    flag = flag and (params_file.Sig_events in N_sig)
-                if params_file.Sig_events!=0:
+                    flag = flag and (params_file._config.train__signal_number_of_events in N_sig)
+                if params_file._config.train__signal_number_of_events!=0:
                     if Sig_loc!="all":
-                        flag = flag and (params_file.Sig_loc in Sig_loc)
+                        flag = flag and (params_file._config.train__signal_location in Sig_loc)
                     if Sig_scale!="all":
-                        flag = flag and (params_file.Sig_scale in Sig_scale)
+                        flag = flag and (params_file._config.train__signal_scale in Sig_scale)
                     if resonant!="all":
-                        flag = flag and (params_file.Sig_resonant in resonant)
+                        flag = flag and (params_file._config.train__signal_resonant in resonant)
                 if flag and (file not in filenames):
                     filenames.append(file)
         return filenames
@@ -306,16 +221,16 @@ class exp_results(results):
 
     def get_sqrt_q0(self):
         Bkg_pdf = lambda x: np.exp(-x)
-        if 'Falseresonant' in self.file:
+        if not self.N_poiss:
             Sig_pdf = lambda x: x**2*np.exp(-x)/2
-            integrand = lambda x: (self.Sig_events*Sig_pdf(x)+self.Bkg_events*Bkg_pdf(x))*np.log(1+self.Sig_events*Sig_pdf(x)/(self.Bkg_events*Bkg_pdf(x)))
-            sqrt_q0 = -2*(self.Sig_events-(quad(integrand, 0, 200)[0]))#+quad(integrand, 200, np.inf)[0])))
+            integrand = lambda x: (self._config.train__signal_number_of_events*Sig_pdf(x)+self.Bkg_events*Bkg_pdf(x))*np.log(1+self._config.train__signal_number_of_events*Sig_pdf(x)/(self.Bkg_events*Bkg_pdf(x)))
+            sqrt_q0 = -2*(self._config.train__signal_number_of_events-(quad(integrand, 0, 200)[0]))#+quad(integrand, 200, np.inf)[0])))
         else:
             Sig_loc = self.Sig_loc
             sigma = self.Sig_scale
             Sig_pdf = lambda x: (1/(np.sqrt(2*np.pi)*sigma))*np.exp(-(x-Sig_loc)**2/(2*sigma**2))
-            integrand = lambda x: (self.Sig_events*Sig_pdf(x)+self.Bkg_events*Bkg_pdf(x))*np.log(1+self.Sig_events*Sig_pdf(x)/(self.Bkg_events*Bkg_pdf(x)))
-            sqrt_q0 = -2*(self.Sig_events-(quad(integrand, 0, Sig_loc)[0]+quad(integrand, Sig_loc, np.inf)[0]))
+            integrand = lambda x: (self._config.train__signal_number_of_events*Sig_pdf(x)+self.Bkg_events*Bkg_pdf(x))*np.log(1+self._config.train__signal_number_of_events*Sig_pdf(x)/(self.Bkg_events*Bkg_pdf(x)))
+            sqrt_q0 = -2*(self._config.train__signal_number_of_events-(quad(integrand, 0, Sig_loc)[0]+quad(integrand, Sig_loc, np.inf)[0]))
         return np.sqrt(sqrt_q0)
     
 
@@ -340,24 +255,14 @@ class em_results(results):
         super().__init__(file_name)
 
     def collect_data(self):
-        if 'em_Mcoll' in self.file:
-            channel='em'
-            signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
-            background = {}
-            signal = {}
-            background["em_background"] = np.load("/storage/agrp/yuvalzu/NPLM/em_Mcoll_dist.npy")
-            for s in signal_samples:
-                signal[f"{s}_em_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/em_{s}_signal_Mcoll_dist.npy")
-            Bkg = background["em_background"]
-        else:       
-            channel='em'
-            signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
-            background = {}
-            signal = {}
-            background["em_background"] = np.load("/storage/agrp/yuvalzu/NPLM/em_MLL_dist.npy")
-            for s in signal_samples:
-                signal[f"{s}_em_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/em_{s}_signal_MLL_dist.npy")
-            Bkg = background["em_background"]
+        channel='em'
+        signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
+        background = {}
+        signal = {}
+        background["em_background"] = np.load("/storage/agrp/yuvalzu/NPLM/em_MLL_dist.npy")
+        for s in signal_samples:
+            signal[f"{s}_em_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/em_{s}_signal_MLL_dist.npy")
+        Bkg = background["em_background"]
         return Bkg, signal, signal_samples
 
     def get_sqrt_q0(self,Data_bins=6):
@@ -366,14 +271,14 @@ class em_results(results):
         # signal = em_results.signal
         Bkg, signal, signal_samples = self.collect_data()
         Sig = np.concatenate(tuple([signal[f"{s}_em_signal"] for s in signal_samples]),axis=0).reshape(-1,)
-        mu = self.Sig_events/len(Sig)
+        mu = self._config.train__signal_number_of_events/len(Sig)
         bkgFrac = self.Bkg_events/len(Bkg)
         histData = np.histogram(Sig,Data_bins)
         bins = histData[1]
         data = histData[0][histData[0]!=0]
         histBkg = np.histogram(Bkg,bins)
         bkg = histBkg[0][histData[0]!=0]
-        sqrt_q0 = 2*(-self.Sig_events+np.sum((mu*data+(bkg*bkgFrac))*np.log(mu*data/(bkg*bkgFrac)+1)))
+        sqrt_q0 = 2*(-self._config.train__signal_number_of_events+np.sum((mu*data+(bkg*bkgFrac))*np.log(mu*data/(bkg*bkgFrac)+1)))
         return np.sqrt(sqrt_q0)
     
     def get_binned_sqrt_q0(self,resolution=0.05):
@@ -381,7 +286,7 @@ class em_results(results):
         Sig = np.concatenate(tuple([signal[f"{s}_em_signal"] for s in signal_samples]),axis=0).reshape(-1,)
         Bkg = np.floor((Bkg/1e5)/resolution)*resolution
         Sig = np.floor((Sig/1e5)/resolution)*resolution
-        mu = self.Sig_events/len(Sig)
+        mu = self._config.train__signal_number_of_events/len(Sig)
         bkgFrac = self.Bkg_events/len(Bkg)
         decimals = len(str(resolution).split('.')[1])
         histData = np.histogram(Sig, bins=[min(Sig)+round(i*resolution,decimals) for i in range(int((max(Sig)-min(Sig)+round(2*resolution,decimals))/resolution))])
@@ -389,23 +294,13 @@ class em_results(results):
         data = histData[0][histData[0]!=0]
         histBkg = np.histogram(Bkg,bins)
         bkg = histBkg[0][histData[0]!=0]
-        sqrt_q0 = 2*(-self.Sig_events+np.sum((mu*data+(bkg*bkgFrac))*np.log(mu*data/(bkg*bkgFrac)+1)))
+        sqrt_q0 = 2*(-self._config.train__signal_number_of_events+np.sum((mu*data+(bkg*bkgFrac))*np.log(mu*data/(bkg*bkgFrac)+1)))
         return np.sqrt(sqrt_q0)
     
     def get_signals_files(self):
         filenames =self.get_signal_files(Sig_loc = [6.4],Sig_scale = [0.16],resonant=["True"])
         return filenames
-    # def get_signal_files(self):
-    #     filenames = []
-    #     sig_filename = self.csv_file_name.split('clipping')[0]+'*'+self.csv_file_name.split('signals_')[1]
-    #     sig_files = glob.glob(results.dirYuval+sig_filename)+glob.glob(results.dirInbar+sig_filename)
-    #     for file in sig_files:
-    #         file = file.split('/')[-1]
-    #         params_file = results(file)
-    #         if (params_file.Bkg_events==self.Bkg_events) and (params_file.Ref_events==self.Ref_events) and (params_file.N_poiss==self.N_poiss):
-    #             if file not in filenames:
-    #                 filenames.append(file)
-    #     return filenames
+        
     
 
 def scientific_number(num, digits=2):
@@ -443,25 +338,25 @@ def get_z_score(
     #     bkg_file = exp_results(bkg_file_name)
     # elif sig_results.Bkg_sample=="em":
     #     bkg_file = em_results(bkg_file_name)
-    if epoch == sig_results.tot_epochs:
+    if epoch == sig_results._config.train__epochs:
         sig_t = sig_results.read_final_t_csv()[0]
-    if (len(sig_t)<1) or (epoch < sig_results.tot_epochs):
+    if (len(sig_t)<1) or (epoch < sig_results._config.train__epochs):
         sig_t_dict = sig_results.get_t_history_dict()
-        sig_t = sig_t_dict[epoch] if epoch in sig_t_dict.keys() else sig_t_dict[sig_results.tot_epochs]
-    if epoch > sig_results.tot_epochs: 
-        print(f"maximal number of signal epochs = {sig_results.tot_epochs}")
+        sig_t = sig_t_dict[epoch] if epoch in sig_t_dict.keys() else sig_t_dict[sig_results._config.train__epochs]
+    if epoch > sig_results._config.train__epochs: 
+        print(f"maximal number of signal epochs = {sig_results._config.train__epochs}")
         return z_score, sig_t, bkg_t
 
     
     #bkg_t = bkg_file.read_final_t_csv()[0]
 
-    if epoch == bkg_results.tot_epochs:
+    if epoch == bkg_results._config.train__epochs:
         bkg_t = bkg_results.read_final_t_csv()[0]
-    if (len(bkg_t)<1) or (epoch < bkg_results.tot_epochs):
+    if (len(bkg_t)<1) or (epoch < bkg_results._config.train__epochs):
         bkg_t_dict = bkg_results.get_t_history_dict()
-        bkg_t = bkg_t_dict[epoch] if epoch in bkg_t_dict.keys() else bkg_t_dict[sig_results.tot_epochs]
-    if epoch > bkg_results.tot_epochs: 
-        print(f"maximal number of bkg epochs = { background_results.tot_epochs}")
+        bkg_t = bkg_t_dict[epoch] if epoch in bkg_t_dict.keys() else bkg_t_dict[sig_results._config.train__epochs]
+    if epoch > bkg_results._config.train__epochs: 
+        print(f"maximal number of bkg epochs = { background_results._config.train__epochs}")
         return z_score, sig_t, bkg_t
 
     # replace NaNs in bkg_t and sig_t with inf.
