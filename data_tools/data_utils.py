@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 import scipy.stats as sps
@@ -12,7 +12,7 @@ from random import choices
 from train.train_config import TrainConfig
 
 
-class DataSet:
+class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
     def __init__(self, data: Optional[np.ndarray] = None):
         if data is None:
             self._data = np.array([[]])
@@ -71,11 +71,6 @@ class DataGeneration:
 
     def generate_dataset(self, data_sets: List[str]):
         return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
-
-
-def compose_dataset(config: TrainConfig, background_composition: List[str], signal_composition: List[str]) -> DataSet:
-    dg = DataGeneration(config)
-    return dg.generate_dataset(background_composition) + dg.generate_dataset(signal_composition)
 
 
 def resample(

@@ -1,29 +1,12 @@
-from frame.file_system.training_weights import save_training_history
-import os, time, h5py
-from typing import Any, Dict
-from neural_networks.NPLM_adapters import build_feature_for_model_train, build_shape_dictionary_list, build_target_for_model_loss
-import numpy as np
-import logging
+from os import makedirs
+from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME
+from neural_networks.NPLM_adapters import get_tau_predicting_model, train_model_for_tau
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.constraints import Constraint
-from tensorflow.keras import metrics, losses, optimizers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Input, Layer
-from tensorflow import Variable
-from tensorflow import linalg as la
-
-from neural_networks.NPLM.src.NPLM.NNutils import *
-from neural_networks.NPLM.src.NPLM.PLOTutils import *
-from neural_networks.NPLM.src.NPLM.ANALYSISutils import *
-from data_tools.data_utils import DataSet, compose_dataset, resample
+from data_tools.data_utils import DataGeneration, resample
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME, TRAINING_HISTORY_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from train.train_config import TrainConfig
 
-TRAINING_METHOD = "SYMMETRY"  # else, "ORIGINAL_NPLM"
 
 @context_controlled_execution
 def main(context: ExecutionContext) -> None:
@@ -32,18 +15,12 @@ def main(context: ExecutionContext) -> None:
     if not isinstance(config := context.config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
 
-    # Prepare sample
-    aux_dataset = compose_dataset(
-        config,
-        config.train__data_aux_background_composition,
-        config.train__data_aux_signal_composition,
-    )
-    exp_dataset = compose_dataset(
-        config,
-        config.train__data_experimental_background_composition,
-        config.train__data_experimental_signal_composition,
-    )
+    gen = DataGeneration(config)
 
+    # Generate data
+    A_dataset = gen.generate_dataset(config.train__dataset_A_composition)
+    B_dataset = gen.generate_dataset(config.train__dataset_B_composition)
+    
     if config.train__resample_is_resample:  # todo: this was never checked
         raise NotImplementedError("Resampling is not implemented")
         feature_dataset, target_structure = resample(
@@ -55,164 +32,20 @@ def main(context: ExecutionContext) -> None:
             replacement = config.train__resample_is_replacement,
         )
 
-    t_model_OBS, t_model_history, t_model = \
-        train_for_t_using_nn(
-            context=context,
-            aux_dataset=aux_dataset,
-            exp_dataset=exp_dataset,
-        )
+    t_a_model = get_tau_predicting_model(config, name="a_model")
+    t_b_model = get_tau_predicting_model(config, name="b_model")
 
-    if TRAINING_METHOD == "SYMMETRY":
-        save_training_outcomes(
-            context,
-            t_model_OBS,
-            t_model_history,
-            t_model,
-        )
-    elif TRAINING_METHOD == "ORIGINAL":  # Mimic NPLM's saving (after same-wise training)
-        save_NPLM_training_outcomes(
-            context,
-            t_model_OBS,
-            t_model_history,
-            t_model,
-        )
+    # Train symmetrically to obtain the combined loss
+    t_a_loss = train_model_for_tau(context, t_a_model, A_dataset, B_dataset)
+    t_b_loss = train_model_for_tau(context, t_b_model, B_dataset, A_dataset)
+    final_t = t_a_loss + t_b_loss
 
-
-def train_for_t_using_nn(
-        context: ExecutionContext,
-        exp_dataset: DataSet,
-        aux_dataset: DataSet,
-    ):
-    if not isinstance(config := context.config, TrainConfig):
-        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
-
-    ## Treating nuisance parameters
-    # normalization of the nuisance parameters, $\nu_n$ in the text
-    SIGMA_N   = config.train__nuisances_norm_sigma
-    NU_N      = config.train__nuisances_norm_mean_sigmas * SIGMA_N
-    NUR_N     = config.train__nuisances_norm_reference_sigmas * SIGMA_N
-    NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
-
-    # shape of the nuisance parameters, $\nu_s$ in the text
-    SIGMA_S   = np.array([config.train__nuisances_shape_sigma])
-    NU_S      = np.array([config.train__nuisances_shape_mean_sigmas * SIGMA_S])
-    NUR_S     = np.array([config.train__nuisances_shape_reference_sigmas * SIGMA_S])
-    NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
-
-    ## Done preparing sample
-    feature_dataset = build_feature_for_model_train(exp_dataset, aux_dataset)
-    input_size  = feature_dataset._data.shape[1]  # Number of input variables
-
-    # Get Tau term model
-    tau_model = imperfect_model(
-        input_shape=(None, input_size),
-        NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters
-        NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,  # integers
-        correction = config.train__nuisance_correction,
-        shape_dictionary_list = build_shape_dictionary_list(),  # This is used in "SHAPE" correction case
-        BSMarchitecture = config.train__nn_architecture,
-        BSMweight_clipping = config.train__nn_weight_clipping,
-        train_f = True,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta). We generally want to train for both.
-        train_nu = True,
-    )
-    logging.info(tau_model.summary())
-
-    tau_model.compile(loss=imperfect_loss,  optimizer='adam')
-
-    # Train
-    target_structure = build_target_for_model_loss(exp_dataset, aux_dataset)
-
-    logging.debug("Starting training")
-    t0=time.time()
-    if TRAINING_METHOD == "SYMMETRY":  # Mimic Yuval and Inbar's training
-        t_model_history = tau_model.fit(  # todo: NPLM uses their own train_model instead of model.fit. Why? [[toy_batch.py]]
-            np.array(feature_dataset._data, dtype=np.float32),
-            np.array(target_structure, dtype=np.float32),
-            batch_size=feature_dataset.n_samples,
-            epochs=config.train__epochs,
-            verbose=0,
-        )
-        loss_t_model = np.array(t_model_history.history['loss'])                
-
-    elif TRAINING_METHOD == "ORIGINAL":  # Mimic NPLM's training (currently causes loss divergence)
-        t_model_history = train_model(
-            model=tau_model,
-            feature=np.array(feature_dataset._data, dtype=np.float32),
-            target=np.array(target_structure, dtype=np.float32),
-            loss=imperfect_loss,
-            optimizer=optimizers.legacy.Adam(),
-            total_epochs=config.train__epochs,
-            patience=config.train__number_of_epochs_for_checkpoint,
-            clipping=True,
-            verbose=context.is_debug_mode,
-        )
-        loss_t_model = np.array(t_model_history['loss'])                
-    
-    logging.debug(f'Training time (seconds): {time.time() - t0}')
-        
-    final_loss   = loss_t_model[-1]
-    t_model_OBS  = -2 * final_loss
-    logging.info('t_model_OBS (test statistic): %f'%(t_model_OBS))
-    
-    return t_model_OBS, t_model_history, tau_model
-
-
-def save_NPLM_training_outcomes(
-        context: ExecutionContext,
-        t_model_OBS: float,
-        t_model_history: Dict[str, Any],
-        t_model: Model,
-    ) -> None:
-    if not isinstance(config := context.config, TrainConfig):
-        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
-    
     ## Training log
-    out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
-    os.makedirs(out_dir, exist_ok=False)
+    makedirs(context.training_outcomes_dir, exist_ok=True)
     context.save_and_document_text(
-        f"{t_model_OBS}\n",
-        path=out_dir / SINGLE_TRAINING_RESULT_FILE_NAME
+        f"{final_t}\n",
+        path=context.training_outcomes_dir / SINGLE_TRAINING_RESULT_FILE_NAME
     )
-
-    ## Training history
-    history_path = out_dir / TRAINING_HISTORY_FILE_NAME
-    with h5py.File(history_path,"w") as history_file:
-        for key in list(t_model_history.keys()):
-            monitored = np.array(t_model_history[key])
-            logging.debug('%s: %f'%(key, monitored[-1]))
-            history_file.create_dataset(key, data=monitored, compression='gzip')
-    context.document_created_product(history_path)
-
-    # save the model weights
-    context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
-
-def save_training_outcomes(
-        context: ExecutionContext,
-        t_model_OBS: float,
-        t_model_history: tf.keras.callbacks.History,
-        t_model: Model,
-    ) -> None:
-    ## Training log
-    out_dir = context.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
-    os.makedirs(out_dir, exist_ok=False)
-    context.save_and_document_text(
-        f"{t_model_OBS}\n",
-        path=out_dir / SINGLE_TRAINING_RESULT_FILE_NAME
-    )
-
-    ## Training history
-    history_file_name = out_dir / TRAINING_HISTORY_FILE_NAME
-    save_training_history(
-        model_history=t_mdoel_history,
-        weights_file_path=history_file_name,
-        epochs=context.config.train__epochs,
-        epochs_checkpoint=context.config.train__number_of_epochs_for_checkpoint,
-    ) 
-    context.document_created_product(history_file_name)
-
-    # save the model weights
-    context.save_and_document_model_weights(t_model, out_dir / WEIGHTS_OUTPUT_FILE_NAME)
-
 
 if __name__ == "__main__":
     main()

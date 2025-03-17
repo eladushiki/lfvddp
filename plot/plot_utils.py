@@ -90,6 +90,19 @@ class results:  # todo: deprecate
             raise ValueError(f"Expected PlottingConfig, got {type(config)}")
         self._context = context
         self._config = config
+        self._dir = containing_directory
+        self.file = glob(containing_directory + "/**/*.csv", recursive=True)[0]
+        self.csv_file_name = self.file
+        self.tar_file_name = self.file.replace(".csv",".tar.gz") if self.file.endswith(".csv") else self.file
+        self.Bkg_ratio = self._config.train__batch_train_fraction
+        self.Bkg_events = int(results.N * self.Bkg_ratio)
+        self.Ref_ratio = self._config.train__batch_test_fraction
+        self.Ref_events = int(results.N * self.Ref_ratio)
+        self.Sig_events = self._config.train__number_of_signal_events
+        self.Bkg_sample = self._config.train__background_data_generation_function
+        self.resolution = self._config.train__histogram_resolution
+        self.WC = self._config.train__nn_weight_clipping
+
         self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)]
         self._csv_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{AGGREGATED_RESULTS_FILE_EXTENSION}", recursive=True)]
         self.Bkg_events = int(results.N * self._config.train__batch_train_fraction)
@@ -104,7 +117,46 @@ class results:  # todo: deprecate
         else:
             self.N_poiss = "False"
         self.NPLM = "True"
+        self.Sig_resonant = self._config.train__signal_is_gaussian
+        self.Sig_loc = self._config.train__signal_location
+        self.Sig_scale = self._config.train__signal_scale
+        self.resample = self._config.train__resample_is_resample
+        self.label_method = self._config.train__resample_label_method
+        self.N_method = self._config.train__resample_method_type
+        self.replacement = self._config.train__resample_is_replacement
+        self.original_seed = self._context.random_seed
+        self.tot_epochs = self._config.train__epochs
 
+    def get_similar_files(self,epochs='all',patience_tau='all',patience_delta='all'):
+        all_patience_str = self.file
+        sub_epochs = '*' if epochs=='all' else f'{epochs}epochs_tau'
+        sub_patience_tau = '*' if patience_tau=='all' else f'{patience_tau}patience_tau'
+        sub_patience_delta = '*' if patience_delta=='all' else f'{patience_delta}patience_delta' 
+        all_patience_str = re.sub(r'\d+epochs_delta','*',all_patience_str)
+        all_patience_str = re.sub(r'\d+epochs_tau',sub_epochs,all_patience_str)
+        all_patience_str = re.sub(r'\d+patience_delta',sub_patience_delta,all_patience_str)
+        all_patience_str = re.sub(r'\d+patience_tau',sub_patience_tau,all_patience_str)
+        #sample = "exp" if "exp" in file_name else re.search(r'em_?\S+', file_name)[0]
+        #all_patience_str = self.sample+all_patience_str.split(self.sample)[1]#"exp"+all_patience_str.split('exp')[1] if "exp" in self.file else "em"+all_patience_str.split('em')[1]
+        #all_patience_str = "exp"+all_patience_str.split('exp')[1] if "exp" in self.file else "em"+all_patience_str.split('em')[1]
+        all_patience_str = all_patience_str.split('/')[-1]
+        all_patience_str =re.sub('\*\*+', '*', all_patience_str)
+        #all_patience_str  = re.sub(r'\d+signals',f"[^0-9]?{self.Sig_events}signals",all_patience_str)
+        self.similar_search_name = all_patience_str
+        
+        
+        #Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
+        files_all_patience_str = glob(TRIANING_OUTCOMES_DIR_NAME + all_patience_str)
+        files = files_all_patience_str[:]
+        for file_name in files:
+            NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name and "Trueresample" not in file_name)) else "False"
+            sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
+            sample = "exp" if "exp" in file_name else "em_Mcoll" if "em_Mcoll" in file_name else "em"
+            if self.NPLM !=NPLM or (self.Sig_events!=sig_events or self.Bkg_sample!=sample):
+                files_all_patience_str.remove(file_name)
+        self.similar_files = files_all_patience_str
+        return files_all_patience_str   
+    
     def __len__(self):
         return len(self._history_files)
     
