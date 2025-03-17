@@ -1,49 +1,43 @@
-{
-    "train__data_dir": "temp/data",
-    "train__backgournd_distribution_path": "em_MLL_dist.npy",
-    "train__signal_distribution_path": "em_ggH_taue_signal_MLL_dist.npy",
+{    
+    "train__background_data_generation_function": "exp",
+    "train_exp__is_poisson_fluctuations": true,
 
-    "train__batch_test_fraction": 0.5,
-    "train__data_usage_fraction": 1,
+    "train__number_of_reference_events": 10000,
+    "train__number_of_background_events": 10000,
+    
+    "train__number_of_signal_events": 100,
+    "train__signal_location": 6.4,
+    "train_exp__signal_is_gaussian": false,
+    "train_exp__gaussian_signal_sigma": 0.16,
 
-    "train__data_aux_background_composition": ["Ref"],
-    "train__data_aux_signal_composition": ["Sig", "Bkg"],
-    "train__data_experimental_background_composition": ["Bkg"],
-    "train__data_experimental_signal_composition": ["Sig"],
+    "train__nuisance_correction": "SHAPE",
+
+    "train__nuisances_shape_sigma": 0.15,
+    "train__nuisances_shape_mean_sigmas": 0.0,
+    "train__nuisances_shape_reference_sigmas": 0.0,
+
+    "train__nuisances_norm_sigma": 0.15,
+    "train__nuisances_norm_mean_sigmas": 0,
+    "train__nuisances_norm_reference_sigmas": 0,
+
+    "train__data_aux_background_composition": ["Ref", "Bkg", "Sig"],
+    "train__data_aux_signal_composition": [],
+
+    "train__dataset_A_background_composition": ["Ref"],
+    "train__dataset_A_signal_composition": [],
+    "train__dataset_B_background_composition": ["Bkg"],
+    "train__dataset_B_signal_composition": ["Sig"],
 
     "train__resample_is_resample": false,
     "train__resample_label_method": "binomial",
     "train__resample_method_type": "fixed",
     "train__resample_is_replacement": true,
 
-    "train__signal_number_of_events": 1000,
-    "train__signal_resonant": true,
-    "train__signal_location": 10,
-    "train__signal_scale": 0.16,
+    "train__epochs": 500000,
+    "train__number_of_epochs_for_checkpoint": 1000,
 
-    "train__histogram_analytic_pdf": "em",
-    
-    "train__nuisance_correction": "NORM",
-
-    "train__histogram_is_binned": false,
-    "train__histogram_resolution": 10,
-    "train__histogram_is_use_analytic": 1,
-
-    "train__nuisances_shape_std": 0.16,
-    "train__nuisances_shape_mean": 1,
-    "train__nuisances_shape_reference": 1,
-
-    "train__nuisances_norm_std": 0.15,
-    "train__nuisances_norm_mean": 0.15,
-    "train__nuisances_norm_reference": 0,
-
-    "train__epochs_type": "delta",
-    "train__epochs": 10,
-    "train__number_of_epochs_for_checkpoint": 1,
-
-    "train__nn_weight_clipping": 0.14,
+    "train__nn_weight_clipping": 9,
     "train__nn_input_dimension": 1,
-    "train__nn_output_dimension": 1,
     "train__nn_inner_layer_nodes": 4,
-    "train__nn_loss_function": "delta"
+    "train__nn_output_dimension": 1
 }
