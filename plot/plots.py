@@ -1,6 +1,10 @@
+from glob import glob
 from pathlib import Path
 from typing import List
 from data_tools.data_utils import DataSet
+from data_tools.profile_likelihood import calc_t_test_statistic
+from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION
+from frame.file_system.training_history import load_training_history
 import numpy as np
 import matplotlib as mpl
 from matplotlib.figure import Figure
@@ -31,11 +35,7 @@ from train.train_config import TrainConfig
 
 def Plot_Percentiles_ref(
         context: ExecutionContext,
-        history_files_dir: List[Path],
-        xmin=0,
-        xmax=500000,
-        ymin=0,
-        ymax=300,
+        history_files_dir: Path,
     ):
     '''
     The funcion creates the plot of the evolution in the epochs of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
@@ -50,55 +50,68 @@ def Plot_Percentiles_ref(
     if not isinstance(config, TrainConfig):
         raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
     
-    results_file = results(history_files_dir, context)
-    tvalues_check = results_file.get_t_history_dict()
-    colors = ['violet', 'hotpink', 'mediumvioletred', 'mediumorchid', 'darkviolet']
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
+    all_history_files = glob(str(history_files_dir) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
+    if not all_history_files:
+        raise ValueError("No history files found")
+    all_loaded_histories = {history_file: load_training_history(Path(history_file)) for history_file in all_history_files}
     
+    # Epochs should be aligned in all files
+    all_epochs = np.array([history['epoch'] for history in all_loaded_histories.values()])
+    for col in range(all_epochs.shape[1]):
+        if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
+            raise ValueError("Epochs are not the same for all files")
+    epochs = all_epochs[0]
+
+    # We assume each run generates each type of test statistic, and that they all should be summed to get a single value
+    unique_history_file_names = np.unique([Path(history_file).name for history_file in all_history_files])
+    unique_runs_output_dirs = np.unique([str(Path(history_file).parent) for history_file in all_history_files])
+
+    # We assume that we need to sum two types of test statistics for every single value, each with different name
+    all_model_t_test_statistics = np.zeros(shape=(len(unique_runs_output_dirs), len(epochs)))
+    for run_index, run_output in enumerate(unique_runs_output_dirs):
+        for history_file_name in unique_history_file_names:
+            history = all_loaded_histories[run_output + '/' + history_file_name]
+            all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history['loss']))  # type: ignore
+
     # Framing
     c = Carpenter(context)
     fig  = c.figure()
     ax = fig.add_subplot(111)
 
-    quantiles   = [2.5, 25, 50, 75, 97.5]
-    percentiles = np.array([])
-    plt.xlabel('Training Epochs', fontsize=22, fontname="serif")
-    plt.ylabel('t', fontsize=22, fontname="serif")
-    plt.xlim(0, xmax)
-    plt.ylim(ymin, ymax)
-    
-    epochs_check = []
-    nr_check_points = round(xmax/config.train__number_of_epochs_for_checkpoint)
-    for i in range(nr_check_points):
-        epochs_check.append(config.train__number_of_epochs_for_checkpoint*(i+1))
-        percentiles_i = np.percentile(tvalues_check[config.train__number_of_epochs_for_checkpoint*(i+1)], quantiles)
-        percentiles_i = np.expand_dims(percentiles_i, axis=1)
-        if not i: percentiles = percentiles_i.T
-        else: percentiles = np.concatenate((percentiles, percentiles_i.T))
+    # Drawing
     legend = []
-    for j in range(percentiles.shape[1]):
-        plt.plot(epochs_check, percentiles[:, j], linewidth=3, color=colors[j])
+    quantiles   = [2.5, 25, 50, 75, 97.5]
+    percentiles = np.apply_along_axis(lambda x: np.nanpercentile(x, quantiles), 0, all_model_t_test_statistics)
+    colors = ['violet', 'hotpink', 'mediumvioletred', 'mediumorchid', 'darkviolet']
+    
+    # Training percentile progression
+    for j in range(percentiles.shape[0]):
+        plt.plot(epochs, percentiles[j, :], linewidth=3, color=colors[j])
         legend.append(str(quantiles[j])+'% quantile')
-    for j in range(percentiles.shape[1]):
-        plt.plot(epochs_check, chi2.ppf(quantiles[j]/100., df=context.train__nn_degrees_of_freedom, loc=0, scale=1)*np.ones_like(epochs_check),
+    
+    # chi2 reference
+    for j in range(percentiles.shape[0]):
+        plt.plot(epochs, chi2.ppf(quantiles[j] / 100., df=config.train__nn_degrees_of_freedom, loc=0, scale=1)*np.ones_like(epochs),
                 color=colors[j], ls='--', linewidth=1)
-        if j==0: legend.append("Target "+r"$\chi^2($"+str(context.train__nn_degrees_of_freedom)+")")
-    font = font_manager.FontProperties(family='serif', size=20)         
-    plt.legend(legend, prop=font, frameon = False, markerscale=0)
-    plt.yticks(fontsize=20, fontname="serif")
-    if xmax == 500000:
-        plt.xticks(np.arange(100000,xmax+1,100000),fontsize=20, fontname="serif")
-    elif xmax == 1500000:
-        plt.xticks(np.arange(500000,xmax+1,500000),fontsize=20, fontname="serif")
-    # use scientific notation for x axis ticks with 1e5 spacing    
+        if j==0: legend.append("Target "+r"$\chi^2($"+str(config.train__nn_degrees_of_freedom)+")")
+
+    # Labeling
+    plt.title(r"$\chi^2$ percentile progression", fontsize=24)
+
+    if np.any(np.isnan(all_model_t_test_statistics)):
+        legend.append(f"Nan percent: {np.count_nonzero(np.isnan(all_model_t_test_statistics))/all_model_t_test_statistics.size*100:.2f}")
+    plt.legend(legend, frameon=False, markerscale=0)
+    
+    plt.xlabel('Training Epochs', fontsize=22)
+    plt.ylabel('t', fontsize=22)
+    plt.xlim(0, np.max(epochs))
+    plt.ylim(0, np.nanmax(percentiles))
+    plt.yticks(fontsize=20)
+    plt.xticks(fontsize=20)
     plt.ticklabel_format(axis="x", style="scientific", scilimits=(0,0))
     ax.xaxis.get_offset_text().set_fontsize(18)
-    plt.title(title, fontsize=24, fontname="serif")
-    plt.figure()
     
-    plt.show()
-    plt.close(fig)
+    return fig
 
 
 def plot_old_t_distribution(
@@ -193,132 +206,6 @@ def plot_old_t_distribution(
     plt.xticks()
 
     return fig
-
-
-def plot_t_distribution(
-        context: ExecutionContext,
-        results_dir: Path,
-        df,
-        epoch = 500000,
-        xmin=0,
-        xmax=300,
-        ymax=0.1,
-        nbins=10,
-        samples_to_take='all',
-        colors = [],
-        vlines=[],
-        label='',
-        add_z='',
-        title='',
-        save=False,
-        save_path='',
-        file_name=''
-    ):
-    '''
-    Plot the histogram of the test scores for the toys in results_file, and the target chi2 distribution. 
-    
-    df: (int) expected chi2 degrees of freedom. If df=0 or df=False, the chi2 distribution is not shown.
-    epoch: (int) epoch for which the test scores are plotted
-    xmin: (float) minimum value of the x-axis (in terms of t score).
-    xmax: (float) maximum value of the x-axis (in terms of t score).
-    nbins: (int) number of bins in the histogram.
-    samples_to_take: (int) number of samples to take from the test scores sample. If 'all', all the samples are taken, otherwise the first samples_to_take samples are taken.
-    colors: (list) list of colors for the histogram. If empty, the default colors are used, else 2-element list of colors for the bins and edges respectively.
-    vlines: (list) list of values for which vertical lines will be plotted (used for permutation plots).
-    label: (str) text for the legend.
-    add_z: (str) text for a text box under the legend with the Z-score value (not calculated here. used for permutation plots).
-    title: (str) title of the plot.
-    save: (bool) if True, the plot is saved to the path specified in save_path, with the name specified in file_name.
-    save_path: (str) path to the directory where the plot will be saved.
-    file_name: (str) name of the file where the plot will be saved.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-
-    result = results(results_dir, context)
-    t_dict = result.get_t_history_dict()
-    max_epoch = max(t_dict.keys())
-    t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
-    if samples_to_take != 'all':
-        t = t[:samples_to_take]
-    Ref_events = result.Ref_events
-    Bkg_events = result.Bkg_events
-    Sig_events = result.Sig_events
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(111)
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
-    fig.patch.set_facecolor('white')
-    bins      = np.linspace(xmin, xmax, nbins+1)
-    Z_obs     = norm.ppf(chi2.cdf(np.median(t), df))
-    t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
-    Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
-    Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
-    t_median = np.median(t[np.where(np.logical_not(np.isnan(t)))])
-    t_std = np.std(t[np.where(np.logical_not(np.isnan(t)))])
-    t_num_of_nan = np.sum(np.isnan(t))
-    if label =='':
-        label  = 'med: %s \nstd: %s'%(str(np.around(t_median, 2)), str(np.around(t_std, 2)))
-    if title == '':
-        title = r'$N_A^0=$'+f"{scientific_number(Bkg_events)}"+r',   $N_B^0=$'+f"{scientific_number(Ref_events)}"
-        if Sig_events > 0:
-            title += r',   $N_{sig}^0=$'+f"{scientific_number(Sig_events)}"
-    binswidth = (xmax-xmin)*1./nbins
-    if (result.NPLM == 'False') and colors==[]:
-        color = 'plum'
-        ec = 'darkorchid'
-    elif (result.NPLM == 'True') and colors==[]:
-        color = 'lightcoral'
-        ec = 'red'
-    elif colors!=[]:
-        color = colors[0]
-        ec = colors[1]
-    chi2_color = 'grey'
-    h = ax.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color, ec=ec,
-                 bins=bins, label=label)
-    err = np.sqrt(h[0]/(t.shape[0]*binswidth))
-    x   = 0.5*(bins[1:]+bins[:-1])
-    ax.errorbar(x, h[0], yerr = err, color=ec, marker='o', ls='')
-    if df:
-        x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-        ax.plot(x, chi2.pdf(x, df), color=chi2_color, lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    if len(vlines)>0:
-        vlines_colors = ['red', 'green', 'blue']
-        for i,vline in enumerate(vlines):
-            if vline: ax.axvline(vline, color=vlines_colors[i], linestyle='--', linewidth=3)
-        z_color = [vlines_colors[i] for i in np.where(vlines)[0].tolist()][0]
-        ax.text(0.63, 0.57, f'Z: {add_z}', transform=ax.transAxes, fontsize=23, fontname="serif", color=z_color)
-    font = font_manager.FontProperties(family='serif', size=24) 
-    circ = patches.Circle((0,0), 1, facecolor=color, edgecolor=ec)
-    rect1 = patches.Rectangle((0,0), 1, 1, color=chi2_color, alpha=0.8)
-    handles, labels = ((circ, rect1), (label, f'$\chi^{2}_{{{df}}}$')) if df else ((circ,), (label,))
-    handler_map={patches.Rectangle: HandlerRect(),patches.Circle: HandlerCircle()} if df else {patches.Circle: HandlerCircle()}
-    legend = ax.legend(handles, labels,
-            handler_map=handler_map,
-            prop=font,frameon=False)
-    if t_num_of_nan > 0:
-        rect2 = patches.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
-        legend = ax.legend((circ, rect1, rect2), (label, f'$\chi^{2}_{{{df}}}$',f'NaN: {t_num_of_nan/t.shape[0]*100:.1f}%'),
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylim(0,ymax)
-    plt.yticks(np.arange(0,ymax+0.001,0.03)[1:], fontsize=24, fontname="serif")
-    plt.xticks(fontsize=24, fontname="serif")
-    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = '1distribution'
-            else: file_name += '_1distribution'
-            plt.savefig(save_path+file_name+'.pdf')
-    plt.show()
-    plt.close(fig)
 
 
 def plot_old_t_2distributions(t_values1, t_values2, ref_str, bkg_str, df, epoch = 500000,xmin=0, xmax=300, ymin=0, ymax=0.1, nbins=10, label='', title='', save=False, save_path='', file_name=''):

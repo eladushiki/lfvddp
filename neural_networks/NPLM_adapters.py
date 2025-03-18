@@ -2,6 +2,7 @@ from logging import debug, info
 from time import time
 from typing import Any, Dict
 from data_tools.data_utils import DataSet
+from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, WEIGHTS_OUTPUT_FILE_NAME
 from neural_networks.NPLM.src.NPLM.ANALYSISutils import h5py, np, os
@@ -77,7 +78,7 @@ def train_model_for_tau(
         tau_model: imperfect_model,
         sample_dataset: DataSet,
         reference_dataset: DataSet
-    ) -> np.ndarray:
+    ) -> float:
     if not isinstance(config := context.config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     
@@ -88,7 +89,7 @@ def train_model_for_tau(
     # Train
     debug("Starting training")
     t0 = time()
-    t_model_history = train_model(
+    tau_model_history = train_model(
         model=tau_model,
         feature=np.array(feature_dataset._data, dtype=np.float32),
         target=np.array(target_structure, dtype=np.float32),
@@ -99,16 +100,15 @@ def train_model_for_tau(
         clipping=config.train__nn_weight_clipping > 0,
         verbose=False,
     )
-    loss_t_model = np.array(t_model_history['loss'])                
+    tau_history = np.array(tau_model_history['loss'])                
     debug(f'Training time (seconds): {time() - t0}')
 
-    last_loss = loss_t_model[-1]
-    final_t = -2 * last_loss
+    final_t = calc_t_test_statistic(tau_history[-1])
     logging.info(f'Observed t test statistic: {final_t}')
     
     save_NPLM_training_outcomes(
         context,
-        tau_model_history=t_model_history,
+        tau_model_history=tau_model_history,
         tau_model=tau_model,
     )
 

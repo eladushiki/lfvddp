@@ -204,7 +204,7 @@ class results:  # todo: deprecate
                 patience = self._config.train__number_of_epochs_for_checkpoint
                 if self.NPLM=="False":
                     if (('_TAU_history' in filename) and (filename.replace('_TAU_history','_delta_history') in files)):
-                        tau_or_delta_history? = read_history_file(filename)
+                        tau_or_delta_history = read_history_file(filename)
                         t_history.append(-2*(TAU_history[0::1]+delta_history[0::1]))
                         epochs.append(patience*np.array(range(len(TAU_history[0::1]))))
                 elif self.NPLM=="True":
