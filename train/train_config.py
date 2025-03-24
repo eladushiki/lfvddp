@@ -1,29 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 from typing import Any, Callable, Dict, List
 
-from frame.config_handle import Config
 from neural_networks.NPLM.src.NPLM.PLOTutils import compute_df
+from data_tools.dataset_config import DatasetConfig
 
 @dataclass
-class ClusterConfig(Config, ABC):
-    runtag: str
-    cluster__project_root_at_cluster_abspath: PurePosixPath
-    cluster__environment_activation_script_at_cluster_abspath: PurePosixPath
-
-    # qsub command parameters
-    cluster__qsub_queue: str
-    cluster__qsub_n_jobs: int
-    cluster__qsub_job_name: str
-    cluster__qsub_walltime: str  # in the form of "12:00:00"
-    cluster__qsub_io: int
-    cluster__qsub_mem: int
-    cluster__qsub_ngpus_for_train: int
-    
-
-@dataclass
-class TrainConfig(ClusterConfig, ABC):
+class TrainConfig(DatasetConfig, ABC):
 
     ## Using real dataset parts implementation are left for the reader.
     # said reader would like to, firsly, implement

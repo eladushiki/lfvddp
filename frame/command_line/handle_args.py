@@ -6,10 +6,12 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable
 
+from data_tools.dataset_config import DatasetConfig
 from frame.context.execution_context import version_controlled_execution_context
 from frame.file_system.textual_data import load_dict_from_json
 from plot.plotting_config import PlottingConfig
-from train.train_config import ClusterConfig, TrainConfig
+from frame.cluster.cluster_config import ClusterConfig
+from train.train_config import TrainConfig
 
 
 def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
@@ -29,6 +31,10 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     parser.add_argument(
         "--cluster-config", type=Path, required=False,
         help="Path to cluster configuration file", dest="cluster_config_path"
+    )
+    parser.add_argument(
+        "--dataset-config", type=Path, required=False,
+        help="Path to dataset configuration file", dest="dataset_config_path"
     )
     parser.add_argument(
         "--train-config", type=Path, required=False,
@@ -59,9 +65,12 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     # Train bloodline
     if args.cluster_config_path:
         config_paths.append(args.cluster_config_path)
-        if args.train_config_path:
-            config_paths.append(args.train_config_path)
-            config_classes.append(TrainConfig.dynamic_class_resolve(load_dict_from_json(args.train_config_path)))
+        if args.dataset_config_path:
+            if args.train_config_path:
+                config_paths.append(args.train_config_path)
+                config_classes.append(TrainConfig.dynamic_class_resolve(load_dict_from_json(args.train_config_path)))
+            else:
+                config_classes.append(DatasetConfig)
         else:  # MRO problem if adding both
             config_classes.append(ClusterConfig)
     
