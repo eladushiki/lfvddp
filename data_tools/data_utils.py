@@ -107,7 +107,8 @@ class DetectorSimulation:
 
         efficiency_filter = self._get_detector_efficiency_filter(efficiency)
         data_inclusion = np.random.uniform(size=events.shape) < efficiency_filter(events)
-        filtered_events = events[data_inclusion]
+        _filtered_events = events[data_inclusion]
+        filtered_events = np.reshape(_filtered_events, newshape=(-1, 1))
 
         error_inducer = self._get_detector_error_inducer(error)
         errored_events = error_inducer(filtered_events)
