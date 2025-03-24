@@ -1,12 +1,12 @@
 from inspect import signature
-from json import load
 from sys import argv
 from argparse import ArgumentParser
 from functools import wraps
 from pathlib import Path
 from typing import Callable
 
-from data_tools.dataset_config import DatasetConfig
+from data_tools.event_generation.dataset_configs import DatasetConfigs
+from frame.config_handle import UserConfig
 from frame.context.execution_context import version_controlled_execution_context
 from frame.file_system.textual_data import load_dict_from_json
 from plot.plotting_config import PlottingConfig
@@ -29,15 +29,15 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     # Optional arguments
     ## Additional configurations
     parser.add_argument(
-        "--cluster-config", type=Path, required=False,
+        "--cluster-config", type=Path, required=True,
         help="Path to cluster configuration file", dest="cluster_config_path"
     )
     parser.add_argument(
-        "--dataset-config", type=Path, required=False,
+        "--dataset-config", type=Path, required=True,
         help="Path to dataset configuration file", dest="dataset_config_path"
     )
     parser.add_argument(
-        "--train-config", type=Path, required=False,
+        "--train-config", type=Path, required=True,
         help="Path to training configuration file", dest="train_config_path"
     )
     parser.add_argument(
@@ -57,39 +57,41 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     args = parser.parse_args()
 
     # Parse configuration files
-    config_paths = [args.user_config_path]
-
-    # Resolve config typing according to deepest hierarchy
-    config_classes = []
-    
-    # Train bloodline
-    if args.cluster_config_path:
-        config_paths.append(args.cluster_config_path)
-        if args.dataset_config_path:
-            if args.train_config_path:
-                config_paths.append(args.train_config_path)
-                config_classes.append(TrainConfig.dynamic_class_resolve(load_dict_from_json(args.train_config_path)))
-            else:
-                config_classes.append(DatasetConfig)
-        else:  # MRO problem if adding both
-            config_classes.append(ClusterConfig)
-    
-    # Plotting bloodline
+    config_paths = [
+        args.user_config_path,
+        args.cluster_config_path,
+        args.dataset_config_path,
+        args.train_config_path,
+    ]
     if args.plot_config_path:
         config_paths.append(args.plot_config_path)
+
+    config_params = {}
+    for config_path in config_paths:
+        config_params.update(load_dict_from_json(config_path))
+
+    # Resolve config typing according to deepest hierarchy:
+    config_classes = [
+        UserConfig,
+        ClusterConfig,
+        TrainConfig,
+    ]
+    config_classes.append(
+        DatasetConfigs[config_params["dataset__background_data_generation_function"]]
+    )
+    if args.plot_config_path:
         config_classes.append(PlottingConfig)
-    
+
     class DynamicConfig(*config_classes):
         def __init__(self, **kwargs):
             for config_class in config_classes:
                 filtered_args = {
                     k: v for k, v in kwargs.items()
                     if k in signature(config_class).parameters
-                    # if k in config_class.__dataclass_fields__
                 }
                 config_class.__init__(self, **filtered_args)
 
-    config = DynamicConfig.load_from_files(config_paths)
+    config = DynamicConfig(**config_params)
 
     # Configuration according to arguments
     is_debug_mode = args.debug

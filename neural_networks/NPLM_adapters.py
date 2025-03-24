@@ -1,7 +1,8 @@
 from logging import debug, info
 from time import time
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, WEIGHTS_OUTPUT_FILE_NAME
@@ -38,21 +39,27 @@ def build_shape_dictionary_list():
     return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model implementation
 
 
-def get_tau_predicting_model(config: TrainConfig, name: str = "tau_model") -> imperfect_model:
+def get_tau_predicting_model(config: Union[DatasetConfig, TrainConfig], name: str = "tau_model") -> imperfect_model:
     """
     Generate an NPLM imperfect model according to our configuration
     """
+    # Solely for type hinting to take place
+    if not isinstance(config, DatasetConfig):
+        raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
+    if not isinstance(config, TrainConfig):
+        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
+    
     ## Treating nuisance parameters
     # normalization of the nuisance parameters, $\nu_n$ in the text
-    SIGMA_N   = config.train__nuisances_norm_sigma
-    NU_N      = config.train__nuisances_norm_mean_sigmas * SIGMA_N
-    NUR_N     = config.train__nuisances_norm_reference_sigmas * SIGMA_N
+    SIGMA_N   = config.dataset__nuisances_norm_sigma
+    NU_N      = config.dataset__nuisances_norm_mean_sigmas * SIGMA_N
+    NUR_N     = config.dataset__nuisances_norm_reference_sigmas * SIGMA_N
     NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
 
     # shape of the nuisance parameters, $\nu_s$ in the text
-    SIGMA_S   = np.array([config.train__nuisances_shape_sigma])
-    NU_S      = np.array([config.train__nuisances_shape_mean_sigmas * SIGMA_S])
-    NUR_S     = np.array([config.train__nuisances_shape_reference_sigmas * SIGMA_S])
+    SIGMA_S   = np.array([config.dataset__nuisances_shape_sigma])
+    NU_S      = np.array([config.dataset__nuisances_shape_mean_sigmas * SIGMA_S])
+    NUR_S     = np.array([config.dataset__nuisances_shape_reference_sigmas * SIGMA_S])
     NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
 
     # Get Tau term model

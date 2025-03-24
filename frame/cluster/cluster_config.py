@@ -1,14 +1,9 @@
-from frame.config_handle import Config
-
-
-from abc import ABC
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 
 @dataclass
-class ClusterConfig(Config, ABC):
-    runtag: str
+class ClusterConfig:
     cluster__project_root_at_cluster_abspath: PurePosixPath
     cluster__environment_activation_script_at_cluster_abspath: PurePosixPath
 

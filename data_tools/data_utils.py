@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import Callable, List, Optional
 
+from data_tools.dataset_config import DatasetConfig
+from data_tools.detector_efficiency import shapes
 import numpy as np
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
@@ -43,16 +45,16 @@ class DataGeneration:
 
     _instance = None
 
-    def __new__(cls, config: TrainConfig):
+    def __new__(cls, config: DatasetConfig):
         if cls._instance is None:
             cls._instance = super(DataGeneration, cls).__new__(cls)
             cls._instance.__init__(config)
         return cls._instance
 
-    def __init__(self, config: TrainConfig):
+    def __init__(self, config: DatasetConfig):
         self._config = config
 
-        ref, bkg, sig = self._config.dataset__analytic_background_function(config)
+        ref, bkg, sig = (self._config.dataset__analytic_background_function)(config)
 
         self._reference_dataset, self._background_dataset, self._signal_dataset = \
             DataSet(ref), DataSet(bkg), DataSet(sig)
@@ -71,6 +73,46 @@ class DataGeneration:
 
     def generate_dataset(self, data_sets: List[str]):
         return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
+
+
+class DetectorSimulation:
+    def __init__(self, config: TrainConfig):
+        self._config = config
+
+    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        if not effect_name:
+            return lambda x: x
+        
+        try:
+            return getattr(shapes, effect_name)
+        except AttributeError:
+            raise ValueError(f"Invalid detector effect requested: {effect_name}")
+
+    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        if not error_name:
+            return lambda x: x
+        
+        try:
+            return getattr(shapes, error_name)
+        except AttributeError:
+            raise ValueError(f"Invalid detector error requested: {error_name}")
+
+    def simulate_detector_effect(
+            self,
+            dataset: DataSet,
+            efficiency: Optional[str],
+            error: Optional[str],
+        ) -> DataSet:
+        events = dataset._data
+
+        efficiency_filter = self._get_detector_efficiency_filter(efficiency)
+        data_inclusion = np.random.uniform(size=events.shape) < efficiency_filter(events)
+        filtered_events = events[data_inclusion]
+
+        error_inducer = self._get_detector_error_inducer(error)
+        errored_events = error_inducer(filtered_events)
+        
+        return DataSet(errored_events)
 
 
 def resample(
