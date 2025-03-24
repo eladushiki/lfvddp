@@ -14,7 +14,7 @@ class GaussConfig(TrainConfig, ABC):
         return "gauss"
 
     @property
-    def train__analytic_background_function(self) -> Callable:
+    def dataset__analytic_background_function(self) -> Callable:
         return gauss
 
     train_gauss__is_poisson_fluctuations: bool
@@ -42,10 +42,10 @@ def gauss(config: TrainConfig):
     normalization_factor = 1
     dim = 1
 
-    n_bkg_pois  = np.random.poisson(lam = config.train__number_of_background_events * np.exp(normalization_factor), size = 1)[0] if config.train_gauss__is_poisson_fluctuations else config.train__number_of_background_events
-    n_ref_pois  = np.random.poisson(lam = config.train__number_of_reference_events * np.exp(normalization_factor), size = 1)[0] if config.train_gauss__is_poisson_fluctuations else config.train__number_of_reference_events
-    n_Sig_Pois = np.random.poisson(lam = config.train__number_of_signal_events * np.exp(normalization_factor), size = 1)[0] if config.train_gauss__is_poisson_fluctuations else config.train__number_of_signal_events
+    n_bkg_pois  = np.random.poisson(lam = config.dataset__number_of_background_events * np.exp(normalization_factor), size = 1)[0] if config.train_gauss__is_poisson_fluctuations else config.dataset__number_of_background_events
+    n_ref_pois  = np.random.poisson(lam = config.dataset__number_of_reference_events * np.exp(normalization_factor), size = 1)[0] if config.train_gauss__is_poisson_fluctuations else config.dataset__number_of_reference_events
+    n_Sig_Pois = np.random.poisson(lam = config.dataset__number_of_signal_events * np.exp(normalization_factor), size = 1)[0] if config.train_gauss__is_poisson_fluctuations else config.dataset__number_of_signal_events
     background = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_bkg_pois)
     reference  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_ref_pois)
-    signal = np.random.multivariate_normal(mean = config.train__signal_location * np.ones(dim), cov = config.trian_gauss__signal_covariant_magnitude * np.ones((dim, dim)), size = n_Sig_Pois)
+    signal = np.random.multivariate_normal(mean = config.dataset__signal_location * np.ones(dim), cov = config.trian_gauss__signal_covariant_magnitude * np.ones((dim, dim)), size = n_Sig_Pois)
     return reference, background, signal

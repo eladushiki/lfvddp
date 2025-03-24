@@ -52,7 +52,7 @@ class DataGeneration:
     def __init__(self, config: TrainConfig):
         self._config = config
 
-        ref, bkg, sig = self._config.train__analytic_background_function(config)
+        ref, bkg, sig = self._config.dataset__analytic_background_function(config)
 
         self._reference_dataset, self._background_dataset, self._signal_dataset = \
             DataSet(ref), DataSet(bkg), DataSet(sig)

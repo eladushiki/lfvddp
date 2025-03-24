@@ -18,10 +18,10 @@ def main(context: ExecutionContext) -> None:
     gen = DataGeneration(config)
 
     # Generate data
-    A_dataset = gen.generate_dataset(config.train__dataset_A_composition)
-    B_dataset = gen.generate_dataset(config.train__dataset_B_composition)
+    A_dataset = gen.generate_dataset(config.dataset__dataset_A_composition)
+    B_dataset = gen.generate_dataset(config.dataset__dataset_B_composition)
     
-    if config.train__resample_is_resample:  # todo: this was never checked
+    if config.dataset__resample_is_resample:  # todo: this was never checked
         raise NotImplementedError("Resampling is not implemented")
         feature_dataset, target_structure = resample(
             feature = feature_dataset,

@@ -16,7 +16,7 @@ class PhysicsConfig(TrainConfig, ABC):
         return "physics"
 
     @property
-    def train__analytic_background_function(self) -> Callable:
+    def dataset__analytic_background_function(self) -> Callable:
         return physics
 
     train_physics__n_poisson_fluctuations: int
@@ -76,12 +76,12 @@ def physics(config: TrainConfig):
     # total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in sig_types]),axis=0)
     background[f"{channel}_background"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars]),axis=1)
     for s in signal_types:
-        signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if config.train__number_of_signal_events>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
+        signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if config.dataset__number_of_signal_events>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
     total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in signal_types]),axis=0)
 
-    N_A_Pois  = np.random.poisson(lam=float(Fraction(config.train__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.train__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
-    N_B_Pois  = np.random.poisson(lam=float(Fraction(config.train__number_of_background_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.train__number_of_background_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
-    N_Sig_Pois = np.random.poisson(lam=config.train__number_of_signal_events, size=1)[0] if config.train_physics__n_poisson_fluctuations else config.train__number_of_signal_events
+    N_A_Pois  = np.random.poisson(lam=float(Fraction(config.dataset__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.dataset__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
+    N_B_Pois  = np.random.poisson(lam=float(Fraction(config.dataset__number_of_background_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.dataset__number_of_background_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
+    N_Sig_Pois = np.random.poisson(lam=config.dataset__number_of_signal_events, size=1)[0] if config.train_physics__n_poisson_fluctuations else config.dataset__number_of_signal_events
     print(N_A_Pois,N_B_Pois,N_Sig_Pois)
 
     # bootstrapping
@@ -102,7 +102,7 @@ def physics(config: TrainConfig):
     A = normalize(A, normalization)
     B = normalize(B, normalization)
     Sig = normalize(Sig, normalization)
-    print(f'setting: {channel}, N_A = {float(Fraction(config.train__number_of_reference_events))*background["em_background"].shape[0]*config.train_physics__data_usage_fraction}, N_B = {float(Fraction(config.train__number_of_background_events))*background["em_background"].shape[0]*config.train_physics__data_usage_fraction}, N_Sig = {config.train__number_of_signal_events}, N_poiss = {config.train_physics__n_poisson_fluctuations}')
+    print(f'setting: {channel}, N_A = {float(Fraction(config.dataset__number_of_reference_events))*background["em_background"].shape[0]*config.train_physics__data_usage_fraction}, N_B = {float(Fraction(config.dataset__number_of_background_events))*background["em_background"].shape[0]*config.train_physics__data_usage_fraction}, N_Sig = {config.dataset__number_of_signal_events}, N_poiss = {config.train_physics__n_poisson_fluctuations}')
     print('A: ',A.shape,' B: ',B.shape, ' Sig: ',Sig.shape)
 
     return A,B,Sig

@@ -195,8 +195,8 @@ def plot_old_t_distribution(
     )
     
     # Texting
-    number_of_test_events = scientific_number(config.train__number_of_reference_events + config.train__number_of_signal_events)
-    number_of_background_events = scientific_number(config.train__number_of_background_events)
+    number_of_test_events = scientific_number(config.dataset__number_of_reference_events + config.dataset__number_of_signal_events)
+    number_of_background_events = scientific_number(config.dataset__number_of_background_events)
     histogram_title = r'$N_A^0=$'+f"{number_of_test_events}"+r',   $N_B^0=$'+f"{number_of_background_events}"
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel('t', labelpad=20)
