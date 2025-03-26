@@ -21,16 +21,19 @@ def build_feature_for_model_train(exp_dataset, aux_dataset):
 
 
 def build_target_for_model_loss(sample_dataset: DataSet, reference_dataset: DataSet):
-    ## target structure
+    # Is sample boolean mask
     ones_like_sample = np.ones_like(sample_dataset, shape=(sample_dataset.n_samples, 1))  # 1 for dim 1 because the NN's output is 1D.
     zeros_like_reference = np.zeros_like(reference_dataset, shape=(reference_dataset.n_samples, 1))
-    reference_weights = np.ones_like(reference_dataset, shape=(reference_dataset.n_samples, 1)) \
-        * sample_dataset.n_samples * 1. / reference_dataset.n_samples
-
     is_sample_mask = np.concatenate((ones_like_sample, zeros_like_reference), axis=0)
-    is_sample_with_reference_weights = np.concatenate((ones_like_sample, reference_weights), axis=0)
-    loss_mask = np.concatenate((is_sample_mask, is_sample_with_reference_weights), axis=1)
+
+    # Weight mask, multiplies loss
+    sample_weights = sample_dataset.weight_mask
+    reference_weights = reference_dataset.weight_mask * sample_dataset.n_samples * 1. / reference_dataset.n_samples
+    weight_mask = np.concatenate((sample_weights, reference_weights), axis=0)
     
+    # NPLM's format
+    loss_mask = np.concatenate((is_sample_mask, weight_mask), axis=1)
+
     return loss_mask
 
 

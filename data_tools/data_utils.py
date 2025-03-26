@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 from data_tools.dataset_config import DatasetConfig
 from data_tools.detector_efficiency import shapes
@@ -11,29 +11,84 @@ from sklearn.model_selection import train_test_split
 from fractions import Fraction
 from random import choices
 
-from train.train_config import TrainConfig
+
+class DetectorEffect:
+    def __init__(
+            self,
+            efficiency_function: str,
+            error_function: str,
+        ):
+        self._efficiency = self._get_detector_efficiency_filter(efficiency_function)
+        self._error = self._get_detector_error_inducer(error_function)
+
+    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        if not effect_name:
+            return lambda x: x
+        
+        try:
+            return getattr(shapes, effect_name)
+        except AttributeError:
+            raise ValueError(f"Invalid detector effect requested: {effect_name}")
+
+    def get_detector_efficiency_compensator(self) -> Callable[[np.ndarray], np.ndarray]:
+        return lambda x: np.ones_like(x) / self._efficiency(x)
+
+    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        if not error_name:
+            return lambda x: x
+        
+        try:
+            return getattr(shapes, error_name)
+        except AttributeError:
+            raise ValueError(f"Invalid detector error requested: {error_name}")
+
+    def simulate_detector_effect(self, events: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        data_inclusion = np.random.uniform(size=events.shape) < self._efficiency(events)
+        _filtered_events = events[data_inclusion]
+        filtered_events = np.reshape(_filtered_events, newshape=(-1, 1))
+
+        errored_events = self._error(filtered_events)
+        
+        return errored_events, data_inclusion
 
 
 class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
     def __init__(self, data: Optional[np.ndarray] = None):
         if data is None:
-            self._data = np.array([[]])
+            self._data = np.empty((0, 1))
         else:
             self._data = data
 
-    def __add__(self, other) -> DataSet:
-        if not any(self._data):
-            return DataSet(other._data)
-        if not any(other._data):
-            return DataSet(self._data)
-        return DataSet(np.concatenate((self._data, other._data), axis=0))
+        self._weight_mask = np.ones_like(self._data)
 
-    def __len__(self):
+    def __add__(self, other) -> DataSet:
+        _data = np.concatenate((self._data, other._data), axis=0)
+        _weight_mask = np.concatenate((self._weight_mask, other._weight_mask), axis=0)
+        
+        result = DataSet(_data)
+        result._weight_mask = _weight_mask
+        return result
+
+    def __len__(self):  # todo: remove
         return self._data.shape[0]
+
+    @property
+    def weight_mask(self) -> np.ndarray:
+        return self._weight_mask
 
     @property
     def n_samples(self):
         return len(self)
+    
+    def apply_detector_effect(self, detector_effect: DetectorEffect):
+        filtered_data, filter = detector_effect.simulate_detector_effect(self._data)
+
+        self._data = filtered_data
+        self._weight_mask = np.reshape(self._weight_mask[filter], newshape=(-1, 1))
+        
+        # Accumulate compensation in weight for later use
+        compensator = detector_effect.get_detector_efficiency_compensator()
+        self._weight_mask *= compensator(self._data)
 
 
 class DataGeneration:
@@ -54,7 +109,7 @@ class DataGeneration:
     def __init__(self, config: DatasetConfig):
         self._config = config
 
-        ref, bkg, sig = (self._config.dataset__analytic_background_function)(config)
+        ref, bkg, sig = self._config.dataset__analytic_background_function(config)
 
         self._reference_dataset, self._background_dataset, self._signal_dataset = \
             DataSet(ref), DataSet(bkg), DataSet(sig)
@@ -74,46 +129,6 @@ class DataGeneration:
     def generate_dataset(self, data_sets: List[str]):
         return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
 
-
-class DetectorSimulation:
-    def __init__(self, config: TrainConfig):
-        self._config = config
-
-    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
-        if not effect_name:
-            return lambda x: x
-        
-        try:
-            return getattr(shapes, effect_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector effect requested: {effect_name}")
-
-    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
-        if not error_name:
-            return lambda x: x
-        
-        try:
-            return getattr(shapes, error_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector error requested: {error_name}")
-
-    def simulate_detector_effect(
-            self,
-            dataset: DataSet,
-            efficiency: Optional[str],
-            error: Optional[str],
-        ) -> DataSet:
-        events = dataset._data
-
-        efficiency_filter = self._get_detector_efficiency_filter(efficiency)
-        data_inclusion = np.random.uniform(size=events.shape) < efficiency_filter(events)
-        _filtered_events = events[data_inclusion]
-        filtered_events = np.reshape(_filtered_events, newshape=(-1, 1))
-
-        error_inducer = self._get_detector_error_inducer(error)
-        errored_events = error_inducer(filtered_events)
-        
-        return DataSet(errored_events)
 
 
 def resample(
