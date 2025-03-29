@@ -117,8 +117,6 @@ def Plot_Percentiles_ref(
 def plot_old_t_distribution(
         context: ExecutionContext,
         t_values_csv: Path,
-        xmin: int,
-        xmax: int,
         number_of_bins: int,
     ) -> Figure:
     '''
@@ -132,10 +130,16 @@ def plot_old_t_distribution(
     style = config.plot__figure_styling["plot"]
 
     # Figure
-    t = np.loadtxt(t_values_csv, delimiter=',', usecols=0)
     c = Carpenter(context)
     fig  = c.figure()
     ax = fig.add_subplot(111)
+
+    # Limits
+    t = np.loadtxt(t_values_csv, delimiter=',', usecols=0)
+    chi2_begin = chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom)
+    chi2_end = chi2.ppf(0.9999, chi2_dof)
+    xmin = min([np.min(t), chi2_begin, 0])
+    xmax = max([np.percentile(t, 95), chi2_end])
 
     # plot distribution histogram
     bins      = np.linspace(xmin, xmax, number_of_bins + 1)
@@ -166,8 +170,8 @@ def plot_old_t_distribution(
 
     # plot reference chi2
     bin_centers  = np.linspace(
-        chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom),
-        chi2.ppf(0.9999, chi2_dof),
+        chi2_begin,
+        chi2_end,
         1000
     )
 
