@@ -1,10 +1,11 @@
 from glob import glob
 from pathlib import Path
-from typing import List
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION
 from frame.file_system.training_history import load_training_history
+from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
 import matplotlib as mpl
 from matplotlib.figure import Figure
@@ -14,6 +15,7 @@ from matplotlib import font_manager, patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2,norm
+from tensorflow.keras.models import Model
 from matplotlib.animation import FuncAnimation
 import scipy.special as spc
 from IPython.display import HTML
@@ -1105,3 +1107,49 @@ def animated_t_2distributions(results_file1:results, results_file2:results, df, 
             else: file_name += '_2distributions'
             anim.save(save_path+file_name+'.gif', writer='imagemagick', fps=30)
     return HTML(anim.to_jshtml())
+
+
+def plot_prediction_process(
+        context: ExecutionContext,
+        experiment_sample: DataSet,
+        reference_sample: DataSet,
+        trained_model: Model,
+    ):
+    """
+    params:
+    - context: ExecutionContext
+    - raw_data: DataSet
+    - detector_affected_data: DataSet
+    - trained_model: Model
+    - reference_dataset: DataSet, for the model to predict over
+
+    return:
+    - figure
+    """
+    if not isinstance((config := context.config), TrainConfig):
+        raise ValueError("The context config is not a TrainConfig.")
+    if not isinstance(config, DatasetConfig):
+        raise ValueError("The context config is not a DatasetConfig.")
+    
+    c = Carpenter(context)
+    fig = c.figure()
+    ax = fig.add_subplot(111)
+
+    nbins = 30
+    xmin = 0
+    xmax = max([experiment_sample._data.max(), reference_sample._data.max()])
+
+    bins = np.linspace(xmin, xmax, nbins+1)
+    bin_centers = 0.5*(bins[1:]+bins[:-1])
+    training_sample_histogram = ax.hist(experiment_sample._data, bins=bins, label="training sample", alpha=0.5, histtype="step")
+    training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample reconstructed for detector efficiency", alpha=0.5)
+    reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample reconstructed for detector efficiency", alpha=0.5, histtype="step")
+
+    hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+    predicted_ndf = ax.hist(reference_sample._data, weights=hypothesis_weights, bins=bins, label="model prediction", alpha=0.5)
+
+    ax.set_title("Datasets Along the Process")
+    ax.set_xlabel("mass")
+    ax.set_ylabel("number of events")
+    ax.legend()
+    return fig

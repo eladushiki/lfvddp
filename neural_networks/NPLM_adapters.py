@@ -11,6 +11,7 @@ from neural_networks.NPLM.src.NPLM.NNutils import h5py, imperfect_loss, imperfec
 from neural_networks.NPLM.src.NPLM.PLOTutils import h5py, np, os
 import numpy as np
 from tensorflow.keras import optimizers # type: ignore
+from tensorflow.keras.models import Model
 
 from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 from train.train_config import TrainConfig
@@ -131,6 +132,12 @@ def train_model_for_tau(
     )
 
     return final_t
+
+
+def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_size: int, reference_ndf_estimation: DataSet) -> np.ndarray:
+    model_prediction = trained_model.predict(reference_ndf_estimation._data)[:, 0].reshape((-1, 1))
+    hypothesis_weights = np.exp(model_prediction) * reference_ndf_estimation.weight_mask
+    return predicted_distribution_size / reference_ndf_estimation.n_samples * hypothesis_weights
 
 
 def save_NPLM_training_outcomes(
