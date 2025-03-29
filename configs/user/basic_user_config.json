@@ -1,11 +1,7 @@
 {
-    "user": "",
-    "out_dir": "",
-    "scripts_dir": "",
+    "config__user": "",
+    "config__out_dir": "",
 
-    "cluster__user": "",
-    "cluster__password": "",
-
-    "cluster__remote_repository_dir": "",
-    "cluster__working_dir": ""
+    "cluster__project_root_at_cluster_abspath": "",
+    "cluster__environment_activation_script_at_cluster_abspath": ""
 }

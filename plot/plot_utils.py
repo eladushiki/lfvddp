@@ -98,8 +98,8 @@ class results:  # todo: deprecate
         self.Bkg_events = int(results.N * self.Bkg_ratio)
         self.Ref_ratio = self._config.train__batch_test_fraction
         self.Ref_events = int(results.N * self.Ref_ratio)
-        self.Sig_events = self._config.train__number_of_signal_events
-        self.Bkg_sample = self._config.train__background_data_generation_function
+        self.Sig_events = self._config.dataset__number_of_signal_events
+        self.Bkg_sample = self._config.dataset__background_data_generation_function
         self.resolution = self._config.train__histogram_resolution
         self.WC = self._config.train__nn_weight_clipping
 
@@ -118,12 +118,12 @@ class results:  # todo: deprecate
             self.N_poiss = "False"
         self.NPLM = "True"
         self.Sig_resonant = self._config.train__signal_is_gaussian
-        self.Sig_loc = self._config.train__signal_location
+        self.Sig_loc = self._config.dataset__signal_location
         self.Sig_scale = self._config.train__signal_scale
-        self.resample = self._config.train__resample_is_resample
-        self.label_method = self._config.train__resample_label_method
-        self.N_method = self._config.train__resample_method_type
-        self.replacement = self._config.train__resample_is_replacement
+        self.resample = self._config.dataset__resample_is_resample
+        self.label_method = self._config.dataset__resample_label_method
+        self.N_method = self._config.dataset__resample_method_type
+        self.replacement = self._config.dataset__resample_is_replacement
         self.original_seed = self._context.random_seed
         self.tot_epochs = self._config.train__epochs
 
@@ -254,7 +254,7 @@ class results:  # todo: deprecate
                     flag = flag and (params_file._config.train__signal_number_of_events in N_sig)
                 if params_file._config.train__signal_number_of_events!=0:
                     if Sig_loc!="all":
-                        flag = flag and (params_file._config.train__signal_location in Sig_loc)
+                        flag = flag and (params_file._config.dataset__signal_location in Sig_loc)
                     if Sig_scale!="all":
                         flag = flag and (params_file._config.train__signal_scale in Sig_scale)
                     if resonant!="all":

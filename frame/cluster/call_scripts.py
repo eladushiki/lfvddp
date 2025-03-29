@@ -1,9 +1,9 @@
 from pathlib import Path, PurePath, PurePosixPath
-from typing import Dict, List, Optional
+from typing import Dict, List
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import JOB_OUTPUT_FILE_NAME
 from frame.submit import submit_cluster_job
-from train.train_config import ClusterConfig
+from frame.cluster.cluster_config import ClusterConfig
 
 RUN_PYTHON_JOB_SH_ABS_PATH = Path(__file__).parent.absolute() / "run_python_job.sh"
 
