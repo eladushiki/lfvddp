@@ -11,10 +11,8 @@ class TrainConfig:
     # - "SHAPE" - both normalization and shape uncertainties are considered
     # - "NORM" - only normalization uncertainties are considered
     # - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
-    train__nuisance_correction: str  # "SHAPE", "NORM" or "".
-    @property
-    def train__data_is_train_for_nuisances(self) -> bool:
-        return self.train__nuisance_correction != ""
+    train__nuisance_correction_types: str      # "SHAPE", "NORM" or "". Which compensations for uncertainties to use.
+    train__data_is_train_for_nuisances: bool  # Should the nuisance change or stick with initial values?
 
     ## Training parameters
     train__epochs: int
