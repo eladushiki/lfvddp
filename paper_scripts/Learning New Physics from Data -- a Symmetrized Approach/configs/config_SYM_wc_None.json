@@ -1,0 +1,43 @@
+{
+    "epochs_tau": 500000,
+    "patience_tau": 1000,
+    "epochs_delta": 500000,
+    "patience_delta": 2000,
+    "BSMarchitecture": [
+        1,
+        4,
+        1
+    ],
+    "NPLM": "False",
+    "BSMweight_clipping": null,
+    "correction": "",
+    "shape_nuisances_id": [
+        "scale"
+    ],
+    "shape_nuisances_data": [
+        0
+    ],
+    "shape_nuisances_reference": [
+        0
+    ],
+    "shape_nuisances_sigma": [
+        0.15
+    ],
+    "norm_nuisances_data": 0.15,
+    "norm_nuisances_reference": 0,
+    "norm_nuisances_sigma": 0.15,
+    "Sig_loc": 0,
+    "Sig_scale": 0.16,
+    "N_poiss": "True",
+    "Loss": "imperfect",
+    "validation": 0,
+    "resonant": "",
+    "combined_portion": 0.05,
+    "resample": "",
+    "label_method": "",
+    "N_method": "",
+    "replacement": "",
+    "original_seed": "",
+    "binned": "False",
+    "resolution": 0
+}

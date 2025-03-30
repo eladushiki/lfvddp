@@ -1,0 +1,94 @@
+import os
+from subprocess import PIPE, Popen
+
+def cmdline(command):
+    process = Popen(
+        args=command,
+        stdout=PIPE,
+        stderr=PIPE,
+    shell=True)
+    out,err=process.communicate()
+    returncode=process.returncode
+    return str(out),str(err),returncode
+
+def runlocaljob(cmd,debug=False):
+    print("> "+cmd)
+    out,err,returncode=cmdline(cmd)
+    if debug or returncode!=0:
+        print("RETURN CODE: %s"%returncode)
+        print("STDOUT:\n")
+        print(out.strip())
+        print("STDERR:\n")
+        print(err.strip())
+    return returncode
+
+def prepare_submit_files_save(fsubname,setupLines,cmdLines,setupATLAS=True,queue="N",shortname="",mail=False):
+    jobname=shortname if shortname else fsubname.rsplit('/',1)[1].split('.')[0]
+    flogname=fsubname.replace('.sh','.log')
+    fsub=open(fsubname,"w")
+    lines=[
+        "#!/bin/zsh",
+        "",
+        "#PBS -j oe",
+        f"#PBS -m {'e' if mail else 'n'}",
+        "#PBS -o %s"%flogname,
+        "#PBS -q %s"%queue,
+        "#PBS -N %s"%jobname,
+        "",
+        "echo \"Starting on `hostname`, `date`\"",
+        "echo \"jobs id: ${PBS_JOBID}\"",
+        ""]
+    if setupATLAS:
+        lines+=[
+            "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase",
+            "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh",""]
+    lines+=setupLines
+    lines+=["","#-------------------------------------------------------------------#"]
+    lines+=cmdLines
+    lines+=["#-------------------------------------------------------------------#",""]
+    lines+=["echo \"Done, `date`\""]
+    for l in lines:
+        fsub.write(l+"\n")
+    fsub.close()
+
+def submit_save_jobs(fsubname,N_jobs,walltime="06:00:00",io=5,mem=None,cores=None,waitjobids=[],mail=False):
+    ## Get submit command
+    user = cmdline('whoami')[0][2:-3]
+    host = cmdline('hostname')[0][2:-3]
+    # email = f'{user}@{host}'
+    subcmd="qsub -l walltime=%s,io=%s"%(walltime,io)
+    waitjobids = cmdline(f"qstat -u {user} | tail -n {N_jobs} | sed -e 's/\..*$//' | tr '\n' ' '")[0][2:-1].split()
+    if mem!=None:
+        subcmd+=",mem=%sg"%mem # Default in farm is 2g
+    if cores!=None:
+        subcmd+=",ppn=%s"%cores 
+    # if mail:
+    #     subcmd+=f" -M {email}"
+    if waitjobids!=[]:
+        subcmd+=" -W depend=afterok"
+        for wjid in waitjobids:
+            # subcmd+=":%s.wipp-pbs"%wjid  # todo: make sure I'm not missing anything by omitting the .wipp-pbs
+            subcmd+=":%s"%wjid  # This is an educated guess of how to use OpenPBS here.
+            # Note this also appears in utils.py
+    subcmd+=" %s"%fsubname
+    ## Submit
+    returncode=""
+    tries=[]
+    while returncode!=0 and len(tries)<50:
+        if returncode!="":
+            print(returncode,err)
+        out,err,returncode=cmdline(subcmd)
+        if returncode==228:
+            # warn("Too many jobs submitted")
+            return None
+        tries.append(returncode)
+    if returncode!=0:
+        # warn("Problem submitting job",fname)
+        print("Submit command:",subcmd)
+        print("Returncodes per try:")
+        print(tries)
+        return None
+    ## Return jobID
+    jobID=out.split('.')[0].rstrip()
+    print(jobID,fsubname)
+    return jobID
