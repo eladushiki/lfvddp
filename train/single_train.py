@@ -1,9 +1,10 @@
 from copy import deepcopy
 from os import makedirs
 from data_tools.data_generation import DataGeneration
+from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME
-from neural_networks.NPLM_adapters import get_tau_predicting_model, train_model_for_tau
+from neural_networks.NPLM_adapters import get_prediction_model, train_NPML_model
 
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
@@ -27,15 +28,9 @@ def main(context: ExecutionContext) -> None:
     B_dataset = gen["B"]
     reference_dataset = A_dataset + B_dataset
 
-    A_parameters = config.get_parameters("A")
-    B_parameters = config.get_parameters("B")
-
-    t_a_model = get_tau_predicting_model(config, A_parameters, name="a_model")
-    t_b_model = get_tau_predicting_model(config, B_parameters, name="b_model")
-
     # Train symmetrically to obtain the combined loss
-    t_a_loss = train_model_for_tau(context, t_a_model, A_dataset, reference_dataset)
-    t_b_loss = train_model_for_tau(context, t_b_model, B_dataset, reference_dataset)
+    t_a_loss = follow_instructions_for_t(context, A_dataset, reference_dataset, name="A_model")
+    t_b_loss = follow_instructions_for_t(context, B_dataset, reference_dataset, name="B_model")
     final_t = t_a_loss + t_b_loss
 
     ## Training log
@@ -45,14 +40,58 @@ def main(context: ExecutionContext) -> None:
         path=context.training_outcomes_dir / SINGLE_TRAINING_RESULT_FILE_NAME
     )
 
+
+def follow_instructions_for_t(
+        context: ExecutionContext,
+        sample_dataset: DataSet,
+        reference_dataset: DataSet,
+        name: str,
+):
+    if not isinstance((config := context.config), TrainConfig):
+        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
+
+    tau_model = get_prediction_model(
+        config,
+        name=name + "_tau",
+    )
+    tau = train_NPML_model(
+        context=context,
+        tau_model=tau_model,
+        sample_dataset=sample_dataset,
+        reference_dataset=reference_dataset,
+    )
+
+    if config.train__nuisance_correction_types != "":
+        delta_model = get_prediction_model(
+            config,
+            is_tau=False,
+            name=name + "_delta",
+        )
+        delta = train_NPML_model(
+            context=context,
+            tau_model=delta_model,
+            sample_dataset=sample_dataset,
+            reference_dataset=reference_dataset,
+        )
+    else:
+        delta_model = None
+        delta = 0
+
+    # Calculate t test statistic
+    t = tau - delta
+
     if context.is_debug_mode:
         data_process_plot = plot_prediction_process(
             context=context,
-            experiment_sample=A_dataset,
-            trained_model=t_a_model,
+            experiment_sample=sample_dataset,
             reference_sample=reference_dataset,
+            trained_tau_model=tau_model,
+            trained_delta_model=delta_model,
         )
         context.save_and_document_figure(data_process_plot, context.unique_out_dir / "data_process_plot.png")
+
+    return t
+
 
 if __name__ == "__main__":
     main()

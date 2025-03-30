@@ -52,13 +52,13 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     dataset__detector_error: str
 
     # Induced nuisance parameters
-    dataset__nuisances_shape_sigma: float             # shape nuisance sigma  # todo: convert to a list to enable any number of those
-    dataset__nuisances_shape_mean_sigmas: float       # shape nuisance reference, in terms of std
-    dataset__nuisances_shape_reference_sigmas: float  # norm nuisance reference, in terms of std
+    dataset__induced_nuisances_shape_sigma: float             # shape nuisance sigma  # todo: convert to a list to enable any number of those
+    dataset__induced_nuisances_shape_mean_sigmas: float       # shape nuisance reference, in terms of std
+    dataset__induced_nuisances_shape_reference_sigmas: float  # norm nuisance reference, in terms of std
     
-    dataset__nuisances_norm_sigma: float              # norm nuisance sigma
-    dataset__nuisances_norm_mean_sigmas: float        # in terms of std
-    dataset__nuisances_norm_reference_sigmas: float   # in terms of std
+    dataset__induced_nuisances_norm_sigma: float              # norm nuisance sigma
+    dataset__induced_nuisances_norm_mean_sigmas: float        # in terms of std
+    dataset__induced_nuisances_norm_reference_sigmas: float   # in terms of std
 
     # Resampling settings
     dataset__resample_is_resample: bool

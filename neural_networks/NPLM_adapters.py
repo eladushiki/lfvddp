@@ -2,7 +2,6 @@ from logging import debug, info
 from time import time
 from typing import Any, Dict
 from data_tools.data_utils import DataSet
-from data_tools.dataset_config import DatasetParameters, GeneratedDatasetParameters
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, WEIGHTS_OUTPUT_FILE_NAME
@@ -11,7 +10,7 @@ from neural_networks.NPLM.src.NPLM.NNutils import h5py, imperfect_loss, imperfec
 from neural_networks.NPLM.src.NPLM.PLOTutils import h5py, np, os
 import numpy as np
 from tensorflow.keras import optimizers # type: ignore
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model # type: ignore
 
 from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 from train.train_config import TrainConfig
@@ -43,29 +42,34 @@ def build_shape_dictionary_list():
     return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model implementation
 
 
-def get_tau_predicting_model(config: TrainConfig, dataset_parameters: DatasetParameters, name: str = "tau_model") -> imperfect_model:
+def get_prediction_model(
+        config: TrainConfig,
+        is_tau: bool = True,  # else, delta
+        name: str = "tau_model",
+    ) -> imperfect_model:
     """
     Generate an NPLM imperfect model according to our configuration
     """
     # Solely for type hinting to take place
-    if not isinstance(dataset_parameters, GeneratedDatasetParameters):
-        raise TypeError(f"Expected GeneratedDatasetParameters, got {dataset_parameters.__class__.__name__}")
     if not isinstance(config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     
+    if config.train__nuisance_correction_types == "" and not is_tau:
+        raise ValueError("No Delta term needed when training without nuisances")
+
     ## Treating nuisance parameters
     # normalization of the nuisance parameters, $\nu_n$ in the text.
     # Only intact if correction type is "NORM" or "SHAPE"
-    SIGMA_N   = dataset_parameters.dataset__nuisances_norm_sigma
-    NU_N      = dataset_parameters.dataset__nuisances_norm_mean_sigmas * SIGMA_N
-    NUR_N     = dataset_parameters.dataset__nuisances_norm_reference_sigmas * SIGMA_N
+    SIGMA_N   = config.train__nuisances_norm_sigma
+    NU_N      = config.train__nuisances_norm_mean_sigmas * SIGMA_N
+    NUR_N     = config.train__nuisances_norm_reference_sigmas * SIGMA_N
     NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
 
     # shape of the nuisance parameters, $\nu_s$ in the text
     # Only intact if correction type is "SHAPE"
-    SIGMA_S   = np.array([dataset_parameters.dataset__nuisances_shape_sigma])
-    NU_S      = np.array([dataset_parameters.dataset__nuisances_shape_mean_sigmas * SIGMA_S])
-    NUR_S     = np.array([dataset_parameters.dataset__nuisances_shape_reference_sigmas * SIGMA_S])
+    SIGMA_S   = np.array([config.train__nuisances_shape_sigma])
+    NU_S      = np.array([config.train__nuisances_shape_mean_sigmas * SIGMA_S])
+    NUR_S     = np.array([config.train__nuisances_shape_reference_sigmas * SIGMA_S])
     NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
 
     # Get Tau term model
@@ -78,7 +82,7 @@ def get_tau_predicting_model(config: TrainConfig, dataset_parameters: DatasetPar
         shape_dictionary_list = build_shape_dictionary_list(),  # This is used in "SHAPE" correction case
         BSMarchitecture = config.train__nn_architecture,
         BSMweight_clipping = config.train__nn_weight_clipping,
-        train_f = True,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta as in NPLM paper). We generally want to train for both.
+        train_f = is_tau,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta as in NPLM paper). We generally want to train for both.
         train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
     )
     info(tau_model.summary())
@@ -92,7 +96,7 @@ def get_tau_predicting_model(config: TrainConfig, dataset_parameters: DatasetPar
     return tau_model
 
 
-def train_model_for_tau(
+def train_NPML_model(
         context: ExecutionContext,
         tau_model: imperfect_model,
         sample_dataset: DataSet,

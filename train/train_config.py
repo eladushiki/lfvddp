@@ -14,6 +14,15 @@ class TrainConfig:
     train__nuisance_correction_types: str      # "SHAPE", "NORM" or "". Which compensations for uncertainties to use.
     train__data_is_train_for_nuisances: bool  # Should the nuisance change or stick with initial values?
 
+    # Recovery of nuisances parameters
+    train__nuisances_shape_sigma: float             # shape nuisance sigma  # todo: convert to a list to enable any number of those
+    train__nuisances_shape_mean_sigmas: float       # shape nuisance reference, in terms of std
+    train__nuisances_shape_reference_sigmas: float  # norm nuisance reference, in terms of std
+    
+    train__nuisances_norm_sigma: float              # norm nuisance sigma
+    train__nuisances_norm_mean_sigmas: float        # in terms of std
+    train__nuisances_norm_reference_sigmas: float   # in terms of std
+
     ## Training parameters
     train__epochs: int
     train__number_of_epochs_for_checkpoint: int

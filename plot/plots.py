@@ -1,5 +1,6 @@
 from glob import glob
 from pathlib import Path
+from typing import Optional
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
@@ -1113,14 +1114,16 @@ def plot_prediction_process(
         context: ExecutionContext,
         experiment_sample: DataSet,
         reference_sample: DataSet,
-        trained_model: Model,
+        trained_tau_model: Model,
+        trained_delta_model: Optional[Model],
     ):
     """
     params:
     - context: ExecutionContext
     - raw_data: DataSet
     - detector_affected_data: DataSet
-    - trained_model: Model
+    - trained_tau_model: Model
+    - trained_delta_model: Model
     - reference_dataset: DataSet, for the model to predict over
 
     return:
@@ -1145,8 +1148,12 @@ def plot_prediction_process(
     training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample reconstructed for detector efficiency", alpha=0.5)
     reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample reconstructed for detector efficiency", alpha=0.5, histtype="step")
 
-    hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
-    predicted_ndf = ax.hist(reference_sample._data, weights=hypothesis_weights, bins=bins, label="model prediction", alpha=0.5)
+    tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+    predicted_tau_ndf = ax.hist(reference_sample._data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
+
+    if trained_delta_model is not None:
+        delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+        predicted_delta_ndf = ax.hist(reference_sample._data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
 
     ax.set_title("Datasets Along the Process")
     ax.set_xlabel("mass")
