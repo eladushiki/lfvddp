@@ -5,7 +5,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable
 
-from data_tools.event_generation.dataset_configs import DatasetConfigs
+from data_tools.dataset_config import DatasetConfig
 from frame.config_handle import UserConfig
 from frame.context.execution_context import version_controlled_execution_context
 from frame.file_system.textual_data import load_dict_from_json
@@ -74,11 +74,10 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     config_classes = [
         UserConfig,
         ClusterConfig,
+        DatasetConfig,
         TrainConfig,
     ]
-    config_classes.append(
-        DatasetConfigs[config_params["dataset__background_data_generation_function"]]
-    )
+
     if args.plot_config_path:
         config_classes.append(PlottingConfig)
 

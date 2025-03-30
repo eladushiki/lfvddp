@@ -1,20 +1,7 @@
-from typing import Callable
-from data_tools.dataset_config import DatasetConfig
+from data_tools.data_utils import DataSet
+from data_tools.dataset_config import GeneratedDatasetParameters
 import numpy as np
 from fractions import Fraction
-
-from dataclasses import dataclass
-
-
-@dataclass
-class PhysicsConfig(DatasetConfig):
-    @property
-    def dataset__analytic_background_function(self) -> Callable:
-        return physics
-
-    train_physics__n_poisson_fluctuations: int
-    train_physics__data_usage_fraction: float  # As a fraction
-    train_physics__normalization: float
 
 
 def normalize(dataset, normalization=1e5):
@@ -37,23 +24,23 @@ def normalize(dataset, normalization=1e5):
     return dataset
 
 
-def physics(config: PhysicsConfig):
+def physics(
+        config: GeneratedDatasetParameters,
+        n_poisson_fluctuations: int,
+        data_usage_fraction: float,
+        normalization: float,
+    ) -> DataSet:
     '''
     Turns samples of the selected physical parameters into numpy arrays of samples A, B and Sig suitable for fitting.
 
     Parameters
     ----------
-    config: An instance of PhysicsConfig containinhg all the parameters
+    config: An instance of GeneratedDatasetParameters containinhg all the parameters
 
     Returns
     -------
-    A: numpy array
-    B: numpy array
-    Sig: numpy array
+    a numpy array
     '''
-    if not isinstance(config, PhysicsConfig):
-        raise TypeError(f"Expected PhysicsConfig, got {config.__class__.__name__}")
-
     # todo: move these to the config class
     channel = 'em'
     signal_types = ["ggH_taue","vbfH_taue"]
@@ -73,10 +60,8 @@ def physics(config: PhysicsConfig):
         signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if config.dataset__number_of_signal_events>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
     total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in signal_types]),axis=0)
 
-    N_A_Pois  = np.random.poisson(lam=float(Fraction(config.dataset__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.dataset__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
-    N_B_Pois  = np.random.poisson(lam=float(Fraction(config.dataset__number_of_background_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.dataset__number_of_background_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
-    N_Sig_Pois = np.random.poisson(lam=config.dataset__number_of_signal_events, size=1)[0] if config.train_physics__n_poisson_fluctuations else config.dataset__number_of_signal_events
-    print(N_A_Pois,N_B_Pois,N_Sig_Pois)
+    N_A_Pois  = np.random.poisson(lam=float(Fraction(config.dataset__number_of_background_events))*background[f"{channel}_background"].shape[0]*data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.dataset__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
+    N_Sig_Pois = np.random.poisson(lam=config.dataset__number_of_signal_events, size=1)[0] if n_poisson_fluctuations else config.dataset__number_of_signal_events
 
     # bootstrapping
     # A = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_A_Pois,replace=True).reshape(-1,1)
@@ -84,19 +69,14 @@ def physics(config: PhysicsConfig):
     # Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
     A_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_A_Pois,replace=True)
     A = background[f"{channel}_background"][A_events]
-    B_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_B_Pois,replace=True)
-    B = background[f"{channel}_background"][B_events]
     Sig_events = np.random.choice(np.arange(total_Sig.shape[0]),N_Sig_Pois,replace=True)
     Sig = total_Sig[Sig_events]
 
     if binned:
         A = np.floor(A/resolution)*resolution
-        B = np.floor(B/resolution)*resolution
         Sig = np.floor(Sig/resolution)*resolution
-    A = normalize(A, config.train_physics__normalization)
-    B = normalize(B, config.train_physics__normalization)
-    Sig = normalize(Sig, config.train_physics__normalization)
-    print(f'setting: {channel}, N_A = {float(Fraction(config.dataset__number_of_reference_events))*background["em_background"].shape[0]*config.train_physics__data_usage_fraction}, N_B = {float(Fraction(config.dataset__number_of_background_events))*background["em_background"].shape[0]*config.train_physics__data_usage_fraction}, N_Sig = {config.dataset__number_of_signal_events}, N_poiss = {config.train_physics__n_poisson_fluctuations}')
-    print('A: ',A.shape,' B: ',B.shape, ' Sig: ',Sig.shape)
+    A = normalize(A, normalization)
+    Sig = normalize(Sig, normalization)
 
-    return A,B,Sig
+    events = np.concatenate((A,Sig),axis=0)
+    return DataSet(events)
