@@ -1,4 +1,5 @@
 from pathlib import Path
+from data_tools.data_utils import DataSet
 import numpy as np
 import matplotlib as mpl
 from matplotlib.figure import Figure
@@ -36,6 +37,8 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
     tvalues_check: (numpy array shape (N_toys, N_check_points)) array of t=-2*loss
     df:            (int) chi2 degrees of freedom
     '''
+    raise NotImplementedError('This function is not implemented yet.')
+
     tvalues_check = results_file.get_t_history_dict()
     colors = ['violet', 'hotpink', 'mediumvioletred', 'mediumorchid', 'darkviolet']
     plt.rcParams["font.family"] = "serif"
@@ -105,8 +108,6 @@ def plot_old_t_distribution(
     '''
     Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
     The median and the error on the median are calculated in order to calculate the median Z-score and its error.
-    
-    df: (int) chi2 degrees of freedom
     '''
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
@@ -169,7 +170,7 @@ def plot_old_t_distribution(
     
     ax.legend(
         (circ, rect1),
-        (label, f'$\chi^{2}_{{{chi2_degrees_of_freedom}}}$'),
+        (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
         handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),
@@ -178,7 +179,7 @@ def plot_old_t_distribution(
     )
     
     # Texting
-    number_of_test_events = scientific_number(config.train__number_of_reference_events + config.train__signal_number_of_events)
+    number_of_test_events = scientific_number(config.train__number_of_reference_events + config.train__number_of_signal_events)
     number_of_background_events = scientific_number(config.train__number_of_background_events)
     histogram_title = r'$N_A^0=$'+f"{number_of_test_events}"+r',   $N_B^0=$'+f"{number_of_background_events}"
     ax.set_title(histogram_title, fontsize=30, pad=20)
@@ -228,6 +229,8 @@ def plot_t_distribution(
     save_path: (str) path to the directory where the plot will be saved.
     file_name: (str) name of the file where the plot will be saved.
     '''
+    raise NotImplementedError('This function is not implemented yet.')
+
     result = results(results_dir, context)
     t_dict = result.get_t_history_dict()
     max_epoch = max(t_dict.keys())
@@ -323,6 +326,7 @@ def plot_old_t_2distributions(t_values1, t_values2, ref_str, bkg_str, df, epoch 
     t:  (numpy array shape (None,))
     df: (int) chi2 degrees of freedom
     '''
+    raise NotImplementedError('This function is not implemented yet.')
     # t_dict = results_file.get_t_history_dict()
     # max_epoch = max(t_dict.keys())
     # t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
@@ -434,6 +438,7 @@ def plot_t_2distributions(results_file1:results, results_file2:results, df, epoc
     t:  (numpy array shape (None,))
     df: (int) chi2 degrees of freedom
     '''
+    raise NotImplementedError('This function is not implemented yet.')
     # t1 = results_file1.get_t_history()[0][:,-1]
     # t2 = results_file2.get_t_history()[0][:,-1]
 
@@ -508,6 +513,7 @@ def plot_t_multiple_distributions(results_files, df, epoch = 500000,xmin=0, xmax
     save_path:     (str) path to the directory where the plot will be saved.
     file_name:     (str) name of the file where the plot will be saved.
     '''
+    raise NotImplementedError('This function is not implemented yet.')
 
     bin_colors = bin_colors if any(isinstance(l, str) for l in bin_colors) else [0]*len(results_files)
     edge_colors = edge_colors if any(isinstance(l, str) for l in edge_colors) else [0]*len(results_files)
@@ -597,6 +603,7 @@ def exp_performance_plot(Bkg_only_files, sig_type:int, title="", title_fs=24, la
     saved_file_name:(str) name of the file where the plot will be saved.
     errors:         (bool) if True, the plot includes errorbars.
     '''
+    raise NotImplementedError('This function is not implemented yet.')
 
     fig, ax = plt.subplots(figsize=(9,6.75))
     fig.set_facecolor('white')
@@ -690,6 +697,7 @@ def exp_multiple_performance_plot(Bkg_only_files, sig_type, title="", title_fs=2
     saved_file_name:(str) name of the file where the plot will be saved.
     errors:         (bool) if True, the plot includes (symmetrical!!!) errorbars.
     '''
+    raise NotImplementedError('This function is not implemented yet.')
 
     fig = plt.figure(figsize=(8*(len(sig_type)+1), 14))
     fig.set_facecolor('white')
@@ -797,7 +805,7 @@ def em_performance_plot(Bkg_only_files, title="", title_fs=24, labels_fs=22, tic
     saved_file_name:(str) name of the file where the plot will be saved.
     errors:         (bool) if True, the plot includes (symmetrical!!!) errorbars.
     '''
-
+    raise NotImplementedError('This function is not implemented yet.')
     fig = plt.figure(figsize=(16, 12))
     ax = fig.add_subplot(223)
     fig.set_facecolor('white')
@@ -878,6 +886,7 @@ def em_performance_plot_BR(Bkg_only_files, title="", title_fs=24, labels_fs=22, 
     The function creates a plot of the measured significance as a function of the branching ratio for the em distribution.
     See em_performance_plot's docstring for more details. 
     '''
+    raise NotImplementedError('This function is not implemented yet.')
 
     fig = plt.figure(figsize=(16, 12))
     ax = fig.add_subplot(223)
@@ -966,7 +975,7 @@ def em_luminosity_plot(Bkg_only_files, S_in_20=1200,title="", title_fs=24, label
 
     For more details, see em_performance_plot's docstring.
     '''
-
+    raise NotImplementedError('This function is not implemented yet.')
     fig = plt.figure(figsize=(16, 12))
     ax = fig.add_subplot(223)
     fig.set_facecolor('white')
@@ -1041,7 +1050,7 @@ def animated_t_distribution(results_file:results, df, epoch = 500000,xmin=0, xma
                     If repeat=False is required, other file formats should be used (instead of gif).
     For more details, see t_distribution's docstring.
     '''
-
+    raise NotImplementedError('This function is not implemented yet.')
     t_dict = results_file.get_t_history_dict()
     max_epoch = max(t_dict.keys())
     t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
@@ -1138,6 +1147,8 @@ def animated_t_2distributions(results_file1:results, results_file2:results, df, 
     Creates an animated gif of the two t distributions for comaprison.
     For more details, see t_2distributions's and animated_t_distribution's docstrings.
     '''
+    raise NotImplementedError('This function is not implemented yet.')
+
     t1_dict = results_file1.get_t_history_dict()
     t2_dict = results_file2.get_t_history_dict()
     max_epoch = min(max(t1_dict.keys()),max(t2_dict.keys()))

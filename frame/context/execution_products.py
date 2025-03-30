@@ -53,6 +53,16 @@ class FigureFileProduct(FileProduct):
         return ["png", "jpg", "jpeg", "pdf", "fig"]
 
 
+@dataclass
+class ModelWeightsFileProduct(FileProduct):
+    """
+    A product that is saved as model weights
+    """
+    @classmethod
+    def associated_file_extensions(cls) -> List[str]:
+        return ["h5"]
+
+
 class ProductFactory:
     _instance = None
 

@@ -7,6 +7,7 @@
 
 # IDE
 .vscode/
+**.code-workspace
 
 # Configuration files
 configs/**/*.json

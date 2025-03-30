@@ -92,14 +92,12 @@ class results:  # todo: deprecate
         self.file = glob(containing_directory + "/**/*.csv", recursive=True)[0]
         self.csv_file_name = self.file
         self.tar_file_name = self.file.replace(".csv",".tar.gz") if self.file.endswith(".csv") else self.file
-        self.total_events = self._config.train__data_usage_fraction * results.N
         self.Bkg_ratio = self._config.train__batch_train_fraction
         self.Bkg_events = int(results.N * self.Bkg_ratio)
         self.Ref_ratio = self._config.train__batch_test_fraction
         self.Ref_events = int(results.N * self.Ref_ratio)
-        self.Sig_events = self._config.train__signal_number_of_events
-        self.Bkg_sample = self._config.train__histogram_analytic_pdf
-        self.binned = self._config.train__histogram_is_binned
+        self.Sig_events = self._config.train__number_of_signal_events
+        self.Bkg_sample = self._config.train__background_data_generation_function
         self.resolution = self._config.train__histogram_resolution
         self.WC = self._config.train__nn_weight_clipping
 
@@ -114,7 +112,7 @@ class results:  # todo: deprecate
 
         #self.NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name)) else "False" if ("FalseNPLM" in file_name) else "
         self.NPLM = "True"
-        self.Sig_resonant = self._config.train__signal_resonant
+        self.Sig_resonant = self._config.train__signal_is_gaussian
         self.Sig_loc = self._config.train__signal_location
         self.Sig_scale = self._config.train__signal_scale
         self.resample = self._config.train__resample_is_resample

@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from logging import info
 import random
 from numpy import random as npramdom
 from matplotlib.figure import Figure
@@ -6,7 +7,7 @@ from frame import context
 from frame.config_handle import Config
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import save_dict_to_json
-from frame.file_structure import CONTEXT_FILE_NAME
+from frame.file_structure import CONTEXT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
@@ -45,8 +46,13 @@ class ExecutionContext:
     def unique_out_dir(self) -> Path:
         return self.config.out_dir / self._unique_descriptor
 
+    @property
+    def training_outcomes_dir(self) -> Path:
+        return self.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
+
     def document_created_product(self, product_descriptor: Any):
         self.products.add_product(product_descriptor)
+        info(f"Documented product: {product_descriptor}")
 
     @staticmethod
     def serialize(object) -> dict:
