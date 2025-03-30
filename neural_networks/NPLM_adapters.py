@@ -1,7 +1,9 @@
 from logging import debug, info
 from time import time
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import DatasetConfig
+from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, WEIGHTS_OUTPUT_FILE_NAME
 from neural_networks.NPLM.src.NPLM.ANALYSISutils import h5py, np, os
@@ -19,16 +21,19 @@ def build_feature_for_model_train(exp_dataset, aux_dataset):
 
 
 def build_target_for_model_loss(sample_dataset: DataSet, reference_dataset: DataSet):
-    ## target structure
+    # Is sample boolean mask
     ones_like_sample = np.ones_like(sample_dataset, shape=(sample_dataset.n_samples, 1))  # 1 for dim 1 because the NN's output is 1D.
     zeros_like_reference = np.zeros_like(reference_dataset, shape=(reference_dataset.n_samples, 1))
-    reference_weights = np.ones_like(reference_dataset, shape=(reference_dataset.n_samples, 1)) \
-        * sample_dataset.n_samples * 1. / reference_dataset.n_samples
-
     is_sample_mask = np.concatenate((ones_like_sample, zeros_like_reference), axis=0)
-    is_sample_with_reference_weights = np.concatenate((ones_like_sample, reference_weights), axis=0)
-    loss_mask = np.concatenate((is_sample_mask, is_sample_with_reference_weights), axis=1)
+
+    # Weight mask, multiplies loss
+    sample_weights = sample_dataset.weight_mask
+    reference_weights = reference_dataset.weight_mask * sample_dataset.n_samples * 1. / reference_dataset.n_samples
+    weight_mask = np.concatenate((sample_weights, reference_weights), axis=0)
     
+    # NPLM's format
+    loss_mask = np.concatenate((is_sample_mask, weight_mask), axis=1)
+
     return loss_mask
 
 
@@ -37,21 +42,27 @@ def build_shape_dictionary_list():
     return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model implementation
 
 
-def get_tau_predicting_model(config: TrainConfig, name: str = "tau_model") -> imperfect_model:
+def get_tau_predicting_model(config: Union[DatasetConfig, TrainConfig], name: str = "tau_model") -> imperfect_model:
     """
     Generate an NPLM imperfect model according to our configuration
     """
+    # Solely for type hinting to take place
+    if not isinstance(config, DatasetConfig):
+        raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
+    if not isinstance(config, TrainConfig):
+        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
+    
     ## Treating nuisance parameters
     # normalization of the nuisance parameters, $\nu_n$ in the text
-    SIGMA_N   = config.train__nuisances_norm_sigma
-    NU_N      = config.train__nuisances_norm_mean_sigmas * SIGMA_N
-    NUR_N     = config.train__nuisances_norm_reference_sigmas * SIGMA_N
+    SIGMA_N   = config.dataset__nuisances_norm_sigma
+    NU_N      = config.dataset__nuisances_norm_mean_sigmas * SIGMA_N
+    NUR_N     = config.dataset__nuisances_norm_reference_sigmas * SIGMA_N
     NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
 
     # shape of the nuisance parameters, $\nu_s$ in the text
-    SIGMA_S   = np.array([config.train__nuisances_shape_sigma])
-    NU_S      = np.array([config.train__nuisances_shape_mean_sigmas * SIGMA_S])
-    NUR_S     = np.array([config.train__nuisances_shape_reference_sigmas * SIGMA_S])
+    SIGMA_S   = np.array([config.dataset__nuisances_shape_sigma])
+    NU_S      = np.array([config.dataset__nuisances_shape_mean_sigmas * SIGMA_S])
+    NUR_S     = np.array([config.dataset__nuisances_shape_reference_sigmas * SIGMA_S])
     NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
 
     # Get Tau term model
@@ -77,7 +88,7 @@ def train_model_for_tau(
         tau_model: imperfect_model,
         sample_dataset: DataSet,
         reference_dataset: DataSet
-    ) -> np.ndarray:
+    ) -> float:
     if not isinstance(config := context.config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     
@@ -88,7 +99,7 @@ def train_model_for_tau(
     # Train
     debug("Starting training")
     t0 = time()
-    t_model_history = train_model(
+    tau_model_history = train_model(
         model=tau_model,
         feature=np.array(feature_dataset._data, dtype=np.float32),
         target=np.array(target_structure, dtype=np.float32),
@@ -99,16 +110,15 @@ def train_model_for_tau(
         clipping=config.train__nn_weight_clipping > 0,
         verbose=False,
     )
-    loss_t_model = np.array(t_model_history['loss'])                
+    tau_history = np.array(tau_model_history['loss'])                
     debug(f'Training time (seconds): {time() - t0}')
 
-    last_loss = loss_t_model[-1]
-    final_t = -2 * last_loss
+    final_t = calc_t_test_statistic(tau_history[-1])
     logging.info(f'Observed t test statistic: {final_t}')
     
     save_NPLM_training_outcomes(
         context,
-        tau_model_history=t_model_history,
+        tau_model_history=tau_model_history,
         tau_model=tau_model,
     )
 

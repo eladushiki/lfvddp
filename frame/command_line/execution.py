@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from train.train_config import ClusterConfig
+from frame.cluster.cluster_config import ClusterConfig
 
 def build_qsub_command(
         config: ClusterConfig,

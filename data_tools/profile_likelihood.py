@@ -1,3 +1,4 @@
+from typing import Union
 import h5py,os,glob,numpy as np
 
 
@@ -41,6 +42,13 @@ def read_weights(filenames):
                 dense_kernels[i].append(np.array(dense_kernel)[0][i])
                 dense_1_kernels[i].append(np.array(dense_1_kernel)[i][0])
     return dense_kernels,dense_biases,dense_1_kernels,dense_1_biases
+
+
+def calc_t_test_statistic(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
+    """
+    Calculate the test statistic t from the tau value
+    """
+    return -2 * tau
 
 
 def read_loss(filenames):
