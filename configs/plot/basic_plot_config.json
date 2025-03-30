@@ -22,8 +22,6 @@
             "name": "plot_old_t_distribution",
             "instructions": {
                 "t_values_csv": "",
-                "xmin": 0,
-                "xmax": 60,
                 "number_of_bins": 30
             }
         }

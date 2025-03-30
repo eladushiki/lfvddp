@@ -50,7 +50,7 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         help="Run in debug mode. NOTE: Does not verify running on strict commits"
     )
     parser.add_argument(
-        "--out-dir", type=Path,
+        "--out-dir", type=str,
         help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
 
@@ -96,13 +96,13 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     # Configuration according to arguments
     is_debug_mode = args.debug
     if args.out_dir:
-        config.out_dir = Path(args.out_dir)
+        config.config__out_dir = args.out_dir
 
     @wraps(function)
     def context_controlled_function(*args, **kwargs):
         """
         Run any decorated function in this run with the documentation of the
-        confguration file parsed above.
+        configuration file parsed above.
         """
         with version_controlled_execution_context(config, argv, is_debug_mode) as context:
             function(*args, **kwargs, context=context)

@@ -11,6 +11,7 @@ from neural_networks.NPLM.src.NPLM.NNutils import h5py, imperfect_loss, imperfec
 from neural_networks.NPLM.src.NPLM.PLOTutils import h5py, np, os
 import numpy as np
 from tensorflow.keras import optimizers # type: ignore
+from tensorflow.keras.models import Model
 
 from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 from train.train_config import TrainConfig
@@ -53,13 +54,15 @@ def get_tau_predicting_model(config: Union[DatasetConfig, TrainConfig], name: st
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     
     ## Treating nuisance parameters
-    # normalization of the nuisance parameters, $\nu_n$ in the text
+    # normalization of the nuisance parameters, $\nu_n$ in the text.
+    # Only intact if correction type is "NORM" or "SHAPE"
     SIGMA_N   = config.dataset__nuisances_norm_sigma
     NU_N      = config.dataset__nuisances_norm_mean_sigmas * SIGMA_N
     NUR_N     = config.dataset__nuisances_norm_reference_sigmas * SIGMA_N
     NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
 
     # shape of the nuisance parameters, $\nu_s$ in the text
+    # Only intact if correction type is "SHAPE"
     SIGMA_S   = np.array([config.dataset__nuisances_shape_sigma])
     NU_S      = np.array([config.dataset__nuisances_shape_mean_sigmas * SIGMA_S])
     NUR_S     = np.array([config.dataset__nuisances_shape_reference_sigmas * SIGMA_S])
@@ -69,16 +72,22 @@ def get_tau_predicting_model(config: Union[DatasetConfig, TrainConfig], name: st
     tau_model = imperfect_model(
         name=name,
         input_shape=(None, config.train__nn_input_dimension),
-        NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters
-        NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,  # integers
-        correction = config.train__nuisance_correction,
+        NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,   # Lists of parameters for nuisance initial values
+        NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
+        correction = config.train__nuisance_correction_types,    # Which nuisance to compensate for
         shape_dictionary_list = build_shape_dictionary_list(),  # This is used in "SHAPE" correction case
         BSMarchitecture = config.train__nn_architecture,
         BSMweight_clipping = config.train__nn_weight_clipping,
-        train_f = True,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta). We generally want to train for both.
-        train_nu = config.train__data_is_train_for_nuisances,
+        train_f = True,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta as in NPLM paper). We generally want to train for both.
+        train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
     )
     info(tau_model.summary())
+
+    # Nuisance unused parameters set, later causes train to access unintialized members in these cases:
+    if config.train__nuisance_correction_types != "SHAPE":
+        tau_model.nu_s = 0
+    if config.train__nuisance_correction_types == "":
+        tau_model.nu_n = 0
 
     return tau_model
 
@@ -123,6 +132,12 @@ def train_model_for_tau(
     )
 
     return final_t
+
+
+def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_size: int, reference_ndf_estimation: DataSet) -> np.ndarray:
+    model_prediction = trained_model.predict(reference_ndf_estimation._data)[:, 0].reshape((-1, 1))
+    hypothesis_weights = np.exp(model_prediction) * reference_ndf_estimation.weight_mask
+    return predicted_distribution_size / reference_ndf_estimation.n_samples * hypothesis_weights
 
 
 def save_NPLM_training_outcomes(

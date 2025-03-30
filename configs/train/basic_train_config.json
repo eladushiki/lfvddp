@@ -1,5 +1,6 @@
 {    
-    "train__nuisance_correction": "SHAPE",
+    "train__nuisance_correction_types": "SHAPE",
+    "train__data_is_train_for_nuisances": false,
 
     "train__epochs": 500000,
     "train__number_of_epochs_for_checkpoint": 1000,
