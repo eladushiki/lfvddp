@@ -7,7 +7,7 @@ from frame.file_system.textual_data import load_dict_from_json
 
 
 @dataclass
-class Config(ABC):
+class Config(ABC):  # todo: convert all configs to pydantic's BaseModels
     """
     An extendable class for handling configuration informatino.
     The basic always-needed configuration parameters are those that are user dependent.

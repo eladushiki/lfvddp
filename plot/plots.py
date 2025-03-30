@@ -98,7 +98,6 @@ def Plot_Percentiles_ref(results_file:results, df, patience=1000, wc=None, xmax=
 def plot_old_t_distribution(
         context: ExecutionContext,
         t_values_csv: Path,
-        chi2_degrees_of_freedom: int,
         xmin: int,
         xmax: int,
         number_of_bins: int,
@@ -124,7 +123,8 @@ def plot_old_t_distribution(
     # plot distribution histogram
     bins      = np.linspace(xmin, xmax, number_of_bins + 1)
     bin_width = (xmax - xmin) * 1./number_of_bins
-    label     = f"median: {str(np.around(np.median(t), 2))} \nstd: {str(np.around(np.std(t), 2))}"
+    label     = f"median: {str(np.around(np.median(t), 2))} \n" \
+                f"std: {str(np.around(np.std(t), 2))}"
     
     h = ax.hist(
         t,
@@ -148,15 +148,19 @@ def plot_old_t_distribution(
     )
 
     # plot reference chi2
-    bin_centers  = np.linspace(chi2.ppf(0.0001, chi2_degrees_of_freedom), chi2.ppf(0.9999, chi2_degrees_of_freedom), 1000)
+    bin_centers  = np.linspace(
+        chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom),
+        chi2.ppf(0.9999, chi2_dof),
+        1000
+    )
 
     ax.plot(
         bin_centers,
-        chi2.pdf(bin_centers, chi2_degrees_of_freedom),
+        chi2.pdf(bin_centers, chi2_dof),
         style["chi2_color"],
         linewidth=style["linewidth"],
         alpha=style["alpha"],
-        label=f'$\chi^{2}_{{{chi2_degrees_of_freedom}}}$',
+        label=f'$\chi^{2}_{{{chi2_dof}}}$',
     )
 
     # Legend
@@ -174,8 +178,8 @@ def plot_old_t_distribution(
     )
     
     # Texting
-    number_of_test_events = scientific_number(config.train__batch_test_fraction * results.N)
-    number_of_background_events = scientific_number(config.train__number_of_background_events * results.N)
+    number_of_test_events = scientific_number(config.train__number_of_reference_events + config.train__signal_number_of_events)
+    number_of_background_events = scientific_number(config.train__number_of_background_events)
     histogram_title = r'$N_A^0=$'+f"{number_of_test_events}"+r',   $N_B^0=$'+f"{number_of_background_events}"
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel('t', labelpad=20)

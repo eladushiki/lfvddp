@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import random
 from numpy import random as npramdom
 from matplotlib.figure import Figure
+from frame import context
 from frame.config_handle import Config
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import save_dict_to_json
@@ -9,6 +10,7 @@ from frame.file_structure import CONTEXT_FILE_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
+from tensorflow.keras.models import Model
 
 
 from dataclasses import dataclass, field
@@ -24,7 +26,7 @@ class ExecutionContext:
     config: Config
     command_line_args: List[str]
     time: str = get_time_and_date_string()
-    random_seed: int = get_unix_timestamp()
+    random_seed: int = get_unix_timestamp() + getpid()
     is_debug_mode: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
@@ -59,12 +61,22 @@ class ExecutionContext:
 
         return series
 
+    # todo: export to decorator and add os.makedirs(out_dir, exist_ok=False)
     def save_and_document_dict(self, dict: dict, file_path: Path):
         save_dict_to_json(dict, file_path)
         self.document_created_product(file_path)
 
-    def save_and_documnt_figure(self, figure: Figure, path: Path):
+    def save_and_document_figure(self, figure: Figure, path: Path):
         save_figure(figure, path)
+        self.document_created_product(path)
+
+    def save_and_document_text(self, text: str, path: Path):
+        with open(path, 'w') as file:
+            file.write(text)
+        self.document_created_product(path)
+
+    def save_and_document_model_weights(self, model: Model, path: Path):
+        model.save_weights(path)
         self.document_created_product(path)
 
     def save_self_to_out_file(self) -> None:

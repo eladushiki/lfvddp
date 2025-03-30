@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from enum import Enum
+from typing import List, Optional, Tuple
+
 import numpy as np
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
@@ -7,47 +12,70 @@ from random import choices
 from train.train_config import TrainConfig
 
 
-def prepare_training(config: TrainConfig):
-    '''
-    Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
-    
-    Parameters
-    ----------
-    config : any instantiated subtime of TrainConfig.
-        Includes the parameters necessary for training with the specific function.
-    
-    returns feature and target
-    '''
-    datasets_dict = {'Ref':np.array([]),'Bkg':np.array([]),'Sig':np.array([]),'':np.array([[]])}
-    datasets_dict['Ref'],datasets_dict['Bkg'],datasets_dict['Sig'] = config.analytic_background_function(config)
-    Bkg_Aux = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_background_aux.split('+',config.train__data_background_aux.count('+'))]),axis=0)
-    Sig_Aux = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_signal_aux.split('+',config.train__data_signal_aux.count('+'))]),axis=0) if config.train__data_signal_aux!='' else np.zeros((0,Bkg_Aux.shape[1]))
-    Bkg_Data = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_background.split('+',config.train__data_background.count('+'))]),axis=0)
-    Sig_Data = np.concatenate(tuple([datasets_dict[key] for key in config.train__data_signal.split('+',config.train__data_signal.count('+'))]),axis=0) if config.train__data_signal!='' else np.zeros((0,Bkg_Data.shape[1]))
-   
-    N_Bkg = Bkg_Data.shape[0]
-    featureData = np.concatenate((Bkg_Data,Sig_Data),axis=0)
+class DataSet:
+    def __init__(self, data: Optional[np.ndarray] = None):
+        if data is None:
+            self._data = np.array([[]])
+        else:
+            self._data = data
 
-    featureRef = np.concatenate((Bkg_Aux,Sig_Aux),axis=0)
-    N_ref = featureRef.shape[0]
+    def __add__(self, other) -> DataSet:
+        if not any(self._data):
+            return DataSet(other._data)
+        if not any(other._data):
+            return DataSet(self._data)
+        return DataSet(np.concatenate((self._data, other._data), axis=0))
 
-    NR = "False"  # config.NR?
-    ND = "False"  # config.ND?
+    def __len__(self):
+        return self._data.shape[0]
 
-    feature     = np.concatenate((featureData, featureRef), axis=0)
-    N_R        = N_ref if not isinstance(NR,int) else NR
-    N_D        = featureData.shape[0] if not isinstance(ND,int) else ND#N_Bkg
+    @property
+    def n_samples(self):
+        return len(self)
 
-    ## target
-    targetData  = np.ones_like(featureData,shape=(featureData.shape[0],1))    # 1 for dim 1 because the NN's output is 1D.
-    targetRef   = np.zeros_like(featureRef,shape=(featureRef.shape[0],1))
-    weightsData = np.ones_like(featureData,shape=(featureData.shape[0],1))
-    weightsRef  = np.ones_like(featureRef,shape=(featureRef.shape[0],1))*N_D*1./N_R
-    target      = np.concatenate((targetData, targetRef), axis=0)
-    weights     = np.concatenate((weightsData, weightsRef), axis=0)
-    target      = np.concatenate((target, weights), axis=1)
-    
-    return feature,target
+
+class DataGeneration:
+
+    class DataSetType(Enum):
+        REF = "Ref"
+        BKG = "Bkg"
+        SIG = "Sig"
+
+    _instance = None
+
+    def __new__(cls, config: TrainConfig):
+        if cls._instance is None:
+            cls._instance = super(DataGeneration, cls).__new__(cls)
+            cls._instance.__init__(config)
+        return cls._instance
+
+    def __init__(self, config: TrainConfig):
+        self._config = config
+
+        ref, bkg, sig = self._config.train__analytic_background_function(config)
+
+        self._reference_dataset, self._background_dataset, self._signal_dataset = \
+            DataSet(ref), DataSet(bkg), DataSet(sig)
+        
+    def _generate_dataset(self, components: List[DataSetType]) -> DataSet:
+        included_data = DataSet()
+
+        if DataGeneration.DataSetType.REF in components:
+            included_data += self._reference_dataset
+        if DataGeneration.DataSetType.BKG in components:
+            included_data += self._background_dataset
+        if DataGeneration.DataSetType.SIG in components:
+            included_data += self._signal_dataset
+
+        return included_data
+
+    def generate_dataset(self, data_sets: List[str]):
+        return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
+
+
+def compose_dataset(config: TrainConfig, background_composition: List[str], signal_composition: List[str]) -> DataSet:
+    dg = DataGeneration(config)
+    return dg.generate_dataset(background_composition) + dg.generate_dataset(signal_composition)
 
 
 def resample(

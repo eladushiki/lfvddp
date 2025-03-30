@@ -16,7 +16,7 @@ class PhysicsConfig(TrainConfig, ABC):
         return "physics"
 
     @property
-    def analytic_background_function(self) -> Callable:
+    def train__analytic_background_function(self) -> Callable:
         return physics
     @property
     def train__number_of_reference_events(self) -> int:

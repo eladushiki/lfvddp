@@ -22,7 +22,6 @@
             "name": "plot_old_t_distribution",
             "instructions": {
                 "t_values_csv": "",
-                "chi2_degrees_of_freedom": 13,
                 "xmin": 0,
                 "xmax": 60,
                 "number_of_bins": 30
