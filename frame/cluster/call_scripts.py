@@ -1,6 +1,6 @@
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Dict, List, Optional
-from frame.config_handle import ExecutionContext
+from frame.context.execution_context import ExecutionContext
 from frame.file_structure import JOB_OUTPUT_FILE_NAME
 from frame.submit import submit_cluster_job
 from train.train_config import ClusterConfig

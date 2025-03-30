@@ -1,3 +1,4 @@
+from abc import ABC
 import numpy as np
 from train.train_config import TrainConfig
 
@@ -7,7 +8,7 @@ from typing import Callable
 
 
 @dataclass
-class GaussConfig(TrainConfig):
+class GaussConfig(TrainConfig, ABC):
     @classmethod
     def HISTOGRAM_NAME(cls) -> str:
         return "gauss"

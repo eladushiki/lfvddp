@@ -20,8 +20,13 @@ RESULTS_BRIEFING_FILE_NAME = "results_briefing.txt"
 # NN training
 TRIANING_OUTCOMES_DIR_NAME = "training_outcomes"
 TRAINING_HISTORY_FILE_NAME = "history.h5"
-TRAINING_LOG_FILE_NAME = "train.log"
+SINGLE_TRAINING_RESULT_FILE_EXTENSION = "txt"
+SINGLE_TRAINING_RESULT_FILE_NAME = "train." + SINGLE_TRAINING_RESULT_FILE_EXTENSION
+AGGREGATED_TRAINING_RESULTS_FILE_NAME = "aggregated_results.csv"
 WEIGHTS_OUTPUT_FILE_NAME = "training_result.weights.h5"
+
+# Plotting
+PLOT_FILE_EXTENSION = "png"
 
 def convert_win_path_to_wsl(path: PureWindowsPath) -> PurePosixPath:
         slashed_path = (str(path)).replace("\\", "/")

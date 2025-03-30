@@ -13,6 +13,7 @@ setup(
             'train=train.single_train:main',
             'submit_train=train.submit_train:main',
             'is_same_as_commit=frame.cluster.is_same_as_commit:main',
+            'aggregate_train_results=train.aggregate_train_results:main',
         ],
     },
     author='Elad Kliger',

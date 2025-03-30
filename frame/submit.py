@@ -2,7 +2,7 @@ from logging import error
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Dict, Optional
 from frame.command_line.execution import build_qsub_command
-from frame.config_handle import ExecutionContext
+from frame.context.execution_context import ExecutionContext
 from train.train_config import ClusterConfig
 
 

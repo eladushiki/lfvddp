@@ -1,3 +1,4 @@
+from abc import ABC
 import numpy as np
 from train.train_config import TrainConfig
 
@@ -6,7 +7,7 @@ from typing import Callable
 
 
 @dataclass
-class ExpConfig(TrainConfig):
+class ExpConfig(TrainConfig, ABC):
     @classmethod
     def HISTOGRAM_NAME(cls) -> str:
         return "exp"

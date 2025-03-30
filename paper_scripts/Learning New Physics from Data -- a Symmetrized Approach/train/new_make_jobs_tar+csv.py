@@ -28,7 +28,7 @@ if 'yuvalzu' in outdir:
 elif 'inbarsav' in outdir:
     initial_jsonfile = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/initial_config.json'
 else:
-    initial_jsonfile = "configs/initial_config.json"
+    initial_jsonfile = "paper_scripts/Learning New Physics from Data -- a Symmetrized Approach/configs/initial_config.json"
 
 with open(initial_jsonfile, 'r') as js:
     initial_config = json.load(js)
@@ -49,7 +49,7 @@ OUTPUT_FILE = sample+''.join(list((f"{config[key]}{key}" if config[key]!=initial
 if pdf:
     OUTPUT_FILE = "pdf_"+OUTPUT_FILE
 os.chdir(OUTPUT_PATH)
-os.system(f"python ../paper_scripts/train/copy_txt_to_csv.py {OUTPUT_FILE} {OUTPUT_FILE}")
+os.system(f"python `paper_scripts/Learning New Physics from Data -- a Symmetrized Approach/trian/copy_txt_to_csv.py` {OUTPUT_FILE} {OUTPUT_FILE}")
 os.system(f"cp {outdir}/{OUTPUT_FILE}.csv {scriptsdir}")
 os.system(f"tar -cz --force-local -f {OUTPUT_FILE}.tar.gz {OUTPUT_FILE}*.h5")
 ### next line removes the .h5 and .txt files!!!

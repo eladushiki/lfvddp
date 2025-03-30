@@ -1,10 +1,14 @@
+from inspect import signature
+from json import load
 from sys import argv
 from argparse import ArgumentParser
 from functools import wraps
 from pathlib import Path
 from typing import Callable
 
-from frame.config_handle import Config, version_controlled_execution_context
+from frame.context.execution_context import version_controlled_execution_context
+from frame.file_system.textual_data import load_dict_from_json
+from plot.plotting_config import PlottingConfig
 from train.train_config import ClusterConfig, TrainConfig
 
 
@@ -30,6 +34,10 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         "--train-config", type=Path, required=False,
         help="Path to training configuration file", dest="train_config_path"
     )
+    parser.add_argument(
+        "--plot-config", type=Path, required=False,
+        help="Path to plot configuration file", dest="plot_config_path"
+    )
     ## Running options
     parser.add_argument(
         "--debug", action="store_true",
@@ -44,14 +52,35 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
 
     # Parse configuration files
     config_paths = [args.user_config_path]
-    config_class = Config
+
+    # Resolve config typing according to deepest hierarchy
+    config_classes = []
+    
+    # Train bloodline
     if args.cluster_config_path:
         config_paths.append(args.cluster_config_path)
-        config_class = ClusterConfig
-    if args.train_config_path:
-        config_paths.append(args.train_config_path)
-        config_class = TrainConfig
-    config = config_class.load_from_files(config_paths)
+        if args.train_config_path:
+            config_paths.append(args.train_config_path)
+            config_classes.append(TrainConfig.dynamic_class_resolve(load_dict_from_json(args.train_config_path)))
+        else:  # MRO problem if adding both
+            config_classes.append(ClusterConfig)
+    
+    # Plotting bloodline
+    if args.plot_config_path:
+        config_paths.append(args.plot_config_path)
+        config_classes.append(PlottingConfig)
+    
+    class DynamicConfig(*config_classes):
+        def __init__(self, **kwargs):
+            for config_class in config_classes:
+                filtered_args = {
+                    k: v for k, v in kwargs.items()
+                    if k in signature(config_class).parameters
+                    # if k in config_class.__dataclass_fields__
+                }
+                config_class.__init__(self, **filtered_args)
+
+    config = DynamicConfig.load_from_files(config_paths)
 
     # Configuration according to arguments
     is_debug_mode = args.debug

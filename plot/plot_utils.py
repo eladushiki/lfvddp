@@ -1,48 +1,68 @@
+from glob import glob
+import os
+from os import system
+from os.path import exists
 from pathlib import Path
-import numpy as np, os, re, glob, h5py, sys, os, time, tarfile #, pandas as pd
-from scipy.stats import chi2
+from typing import Union
+
+from frame.context.execution_context import ExecutionContext
+from frame.file_structure import TRIANING_OUTCOMES_DIR_NAME
+import numpy as np
+import tarfile
+from matplotlib import patches
+from plot.plotting_config import PlottingConfig
 import scipy.special as spc
 from scipy.integrate import quad
+from matplotlib.legend_handler import HandlerPatch
+import re
 
-import paper_scripts.train.save_jobs_script as jobs
-import mattiasdata.utils as u
+from train.train_config import TrainConfig
 
-#------------------------------------------------------------------------------------------------------------------------#
 
-def user_dir():  # todo: move to config file
-    dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
-    dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
-    plots_dirYuval = '/srv01/agrp/yuvalzu/scripts/NPLM_package/plots/'
-    plots_dirInbar = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/plots/' 
-    user = jobs.cmdline('whoami')[0][2:-3]
-    if user=="yuvalzu":
-        dir = dirYuval
-        # plots_dir =  plots_dirYuval
-    elif user=="inbarsav":
-        dir = dirInbar
-        # plots_dir =  plots_dirInbar
-    else:
-        print("Unspecified user")
-        project_root = Path(__file__).parent.parent.parent
-        dir = str(project_root / 'results/training_outcomes')
-    return(dir)
+class HandlerRect(HandlerPatch):
 
-def user_plots_dir():  # todo: move to config file
-    plots_dirYuval = '/srv01/agrp/yuvalzu/scripts/NPLM_package/plots/'
-    plots_dirInbar = '/srv01/tgrp/inbarsav/LFV_git/LFV_nn/LFV_nn/plots/' 
-    user = jobs.cmdline('whoami')[0][2:-3]
-    if user=="yuvalzu":
-        #dir = dirYuval
-        plots_dir =  plots_dirYuval
-    elif user=="inbarsav":
-        #dir = dirInbar
-        plots_dir =  plots_dirInbar
-    else:
-        print("Unspecified user")
-        project_root = Path(__file__).parent.parent.parent
-        plots_dir = str(project_root / 'results/plots')
-    return(plots_dir)
+    def create_artists(self, legend, orig_handle,
+                       xdescent, ydescent, width, height,
+                       fontsize, trans):
 
+        x = width//3
+        y = 0
+        w = 25
+        h = 10
+
+        # create
+        p = patches.Rectangle(xy=(x, y), width=w, height=h)
+
+        # update with data from oryginal object
+        self.update_prop(p, orig_handle, legend)
+
+        # move xy to legend
+        p.set_transform(trans)
+
+        return [p]
+    
+    
+class HandlerCircle(HandlerPatch):
+
+    def create_artists(self, legend, orig_handle,
+                       xdescent, ydescent, width, height,
+                       fontsize, trans):
+
+        r = 5
+        x = r + width//2
+        y = height//2
+
+        # create 
+        p = patches.Circle(xy=(x, y), radius=r)
+
+        # update with data from oryginal object
+        self.update_prop(p, orig_handle, legend)
+
+        # move xy to legend
+        p.set_transform(trans)
+
+        return [p]
+    
 
 def t_hist_epoch(epochs_list,t_history,epoch_numbers):
     t_hist_dict ={}
@@ -53,82 +73,58 @@ def t_hist_epoch(epochs_list,t_history,epoch_numbers):
             t_hist_dict[epoch] = np.concatenate(tepoch).ravel()
     return t_hist_dict 
 
-def t_hist_epoch_seeds(epochs_list,t_history,seeds_list,epoch_numbers):
-    t_hist_dict ={}
-    seeds_dict = {}
-    for epoch in epoch_numbers:
-        t_hist_dict[epoch] = []
-        seeds_dict[epoch] = []
-        tepoch = [t_history[i][np.where(epochs_list[i]== epoch)[0]] for i in range(len(epochs_list))]
-        seeds_epoch = [seeds_list[i][np.where(epochs_list[i]== epoch)[0]] for i in range(len(epochs_list))]
-        if len(tepoch)>0:
-            t_hist_dict[epoch] = np.concatenate(tepoch).ravel()
-            seeds_dict[epoch] = np.concatenate(seeds_epoch).ravel()
-    return t_hist_dict, seeds_dict
 
-class results:
+class results:  # todo: deprecate
     N = 219087
-    dir = user_dir()  # todo: remove this crap
-    # dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
-    # dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
-    def __init__(self,file_name):  
-        self.file = file_name
-        self.tar_file_name = file_name.replace(".csv",".tar.gz") if file_name.endswith(".csv") else file_name
-        self.csv_file_name = file_name.replace(".tar.gz",".csv") if file_name.endswith(".tar.gz") else file_name
-        self.total_events = float(re.search(r'\d.\d+combined', file_name)[0][:-len('combined')])*results.N if 'combined' in file_name else results.N
-        total_factor =  float(re.search(r'\d.\d+combined', file_name)[0][:-len('combined')]) if 'combined' in file_name else 1.0
-        bkg_str = re.search(r'\d+:?\d*Bkg', file_name)[0][:-len('Bkg')].split(':')
-        self.Bkg_ratio = total_factor*float(bkg_str[0])/float(bkg_str[1]) if len(bkg_str)>1 else total_factor*float(bkg_str[0])
-        self.Bkg_events = int(results.N*self.Bkg_ratio)
-        ref_str = re.search(r'\d+:?\d*Ref', file_name)[0][:-len('Ref')].split(':')
-        self.Ref_ratio = total_factor*float(ref_str[0])/float(ref_str[1]) if len(ref_str)>1 else total_factor*float(ref_str[0])
-        self.Ref_events = int(results.N*self.Ref_ratio)
-        self.Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-        self.Bkg_sample = "exp" if "exp" in file_name else "em_Mcoll" if "em_Mcoll" in file_name else "em"
-        self.binned = "True" if "Truebinned" in file_name else "False"
-        self.resolution = float(re.search(r'\d.\d+resolution', file_name)[0][:-len('resolution')]) if 'resolution' in file_name else 0
-        wc = 9
-        if "BSMweight_clipping" in file_name:
-            if "NoneBSMweight_clipping" in file_name:
-                wc = "None"
-            else:
-                wc = float(re.search(r'\d+.?\d*BSMweight_clipping', file_name)[0][:-len('BSMweight_clipping')])
-        self.WC = wc 
-        self.N_poiss = "True" if "TrueN_poiss" in file_name else "False"
+
+    # members:
+    _context: ExecutionContext
+    _config: Union[PlottingConfig, TrainConfig]
+
+    def __init__(self, containing_directory, context: ExecutionContext):  
+        if not isinstance(config := context.config, TrainConfig):
+            raise ValueError(f"Expected TrainConfig, got {type(config)}")
+        if not isinstance(config, PlottingConfig):
+            raise ValueError(f"Expected PlottingConfig, got {type(config)}")
+        self._context = context
+        self._config = config
+        self._dir = containing_directory
+        self.file = glob(containing_directory + "/**/*.csv", recursive=True)[0]
+        self.csv_file_name = self.file
+        self.tar_file_name = self.file.replace(".csv",".tar.gz") if self.file.endswith(".csv") else self.file
+        self.total_events = self._config.train__data_usage_fraction * results.N
+        self.Bkg_ratio = self._config.train__batch_train_fraction
+        self.Bkg_events = int(results.N * self.Bkg_ratio)
+        self.Ref_ratio = self._config.train__batch_test_fraction
+        self.Ref_events = int(results.N * self.Ref_ratio)
+        self.Sig_events = self._config.train__signal_number_of_events
+        self.Bkg_sample = self._config.train__histogram_analytic_pdf
+        self.binned = self._config.train__histogram_is_binned
+        self.resolution = self._config.train__histogram_resolution
+        self.WC = self._config.train__nn_weight_clipping
+
+        if hasattr(self._config, "train_physics__n_poisson_fluctuations"):
+            self.N_poiss = self._config.train_physics__n_poisson_fluctuations
+        elif hasattr(self._config, "train_gauss__n_poisson_fluctuations"):
+            self.N_poiss = self._config.train_gauss__n_poisson_fluctuations
+        elif hasattr(self._config, "train_exp__n_poisson_fluctuations"):
+            self.N_poiss = self._config.train_exp__n_poisson_fluctuations
+        else:
+            self.N_poiss = "False"
 
         #self.NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name)) else "False" if ("FalseNPLM" in file_name) else "
-        self.NPLM = "False"
-        if "NPLM" in file_name:
-            self.NPLM = "True" if "TrueNPLM" in file_name else "False"
-            #self.NPLM = "False" if "FalseNPLM" in file_name
-        else:
-            self.NPLM = "True" if ("delta" not in file_name and "Trueresample" not in file_name) else "False"    # "Trueresample" not in file_name was for the permutations plots
-
-        self.Sig_resonant = "False" if "Falseresonan" in file_name else "True"
-        self.Sig_loc = float(re.search(r'\d+.?\d*Sig_loc', file_name)[0][:-len('Sig_loc')]) if 'Sig_loc' in file_name else 6.4
-        self.Sig_scale = float(re.search(r'\d+.?\d*Sig_scale', file_name)[0][:-len('Sig_scale')]) if 'Sig_scale' in file_name else 0.16
-
-        self.resample = "True" if "Trueresample" in file_name else "False"
-        if self.resample=="True":
-            self.label_method = re.search(r'sample\S+label', file_name)[0][len('sample'):-len('label')]
-            self.N_method = re.search(r'method\S+N', file_name)[0][len('method'):-len('N')]
-            self.replacement = "True" if "Truereplacement" in file_name else "False"
-            self.original_seed = int(re.search(r'\d+original_seed', file_name)[0][:-len('original_seed')])
-        else:
-            self.label_method = ""
-            self.N_method = ""
-            self.replacement = ""
-            self.original_seed = None
-
-        self.tot_epochs = float(re.search(r'\d+epochs_tau',file_name)[0][:-len('epochs_tau')]) if 'epochs_tau' in file_name else 300000
-
-        
-     
+        self.NPLM = "True"
+        self.Sig_resonant = self._config.train__signal_resonant
+        self.Sig_loc = self._config.train__signal_location
+        self.Sig_scale = self._config.train__signal_scale
+        self.resample = self._config.train__resample_is_resample
+        self.label_method = self._config.train__resample_label_method
+        self.N_method = self._config.train__resample_method_type
+        self.replacement = self._config.train__resample_is_replacement
+        self.original_seed = self._context.random_seed
+        self.tot_epochs = self._config.train__epochs
 
     def get_similar_files(self,epochs='all',patience_tau='all',patience_delta='all'):
-        # dirYuval = "/srv01/agrp/yuvalzu/storage_links/NPLM_package/training_outcomes/"
-        # dirInbar = "/srv01/tgrp/inbarsav/NPLM/NPLM_package/training_outcomes/"
-        dir = user_dir()  # todo: remove this crap
         all_patience_str = self.file
         sub_epochs = '*' if epochs=='all' else f'{epochs}epochs_tau'
         sub_patience_tau = '*' if patience_tau=='all' else f'{patience_tau}patience_tau'
@@ -147,7 +143,7 @@ class results:
         
         
         #Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-        files_all_patience_str = glob.glob(dir+all_patience_str)
+        files_all_patience_str = glob(TRIANING_OUTCOMES_DIR_NAME + all_patience_str)
         files = files_all_patience_str[:]
         for file_name in files:
             NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name and "Trueresample" not in file_name)) else "False"
@@ -156,8 +152,7 @@ class results:
             if self.NPLM !=NPLM or (self.Sig_events!=sig_events or self.Bkg_sample!=sample):
                 files_all_patience_str.remove(file_name)
         self.similar_files = files_all_patience_str
-        return files_all_patience_str
-    
+        return files_all_patience_str   
     
     def __len__(self):
         count = 0
@@ -167,7 +162,6 @@ class results:
                 count += len(tar.getnames())
         return count//4
     
-
     def read_final_t_csv(self):
         TAU_names = []
         TAUs = []
@@ -179,7 +173,7 @@ class results:
                 file = file.replace("tar.gz","csv") if ".tar.gz" in file else file+".csv"
             csv_file = file
             file = csv_file.split(".csv")[0].split("/")[-1]
-            if os.path.exists(csv_file):
+            if exists(csv_file):
                 with open(csv_file,'r') as f:
                     lines = f.readlines()
                     TAU_names += [tau.split(',')[1] for tau in lines if (tau.count('TAU.') and tau.count(file))]
@@ -198,23 +192,22 @@ class results:
             delta_names = [delta_names[delta_names.index(delta_name)] for delta_name in delta_names if TAU_names.count(delta_name.replace("delta.txt","TAU.txt"))>0]
 
         return TAU_plus_delta, delta_names
-            
-    
+             
     def get_t_history(self):
-        dir = results.dir
+        dir = self._dir
         similar_files= self.get_similar_files()
         #file_search_name = self.similar_search_name
         for file in similar_files:
             if "tar.gz" not in file:
                 file = file.replace("csv","tar.gz") if ".csv" in file else file+".tar.gz"
-            os.system(f'tar --force-local -xzf {file} -C {dir}extract_here')
+            system(f'tar --force-local -xzf {file} -C {dir}extract_here')
         tar_file = self.tar_file_name
         #csv_file = self.csv_file_name
         t_final,txt_names=self.read_final_t_csv()
         txt_names = [(name.split("/")[-1]).replace("\n","") for name in txt_names]
         #os.system(f'tar --force-local -xzf {dir+tar_file} -C {dir}extract_here')
         history_files = f'{dir}extract_here/*{tar_file.replace(".tar.gz","")}*_history*'
-        files = glob.glob(re.sub('\*\*+', '*',history_files))
+        files = glob(re.sub('\*\*+', '*',history_files))
         t_history = []
         epochs = []
         seeds = []
@@ -262,7 +255,6 @@ class results:
         os.system(f"mkdir {dir}extract_here")
         return t_history,epochs,seeds
     
-
     def get_t_history_dict(self):
         t_sig_hist, epochs_sig_list, seeds_list = self.get_t_history()#get_history_t_values(self.file)
         epochs_list = np.unique(np.concatenate(epochs_sig_list).ravel())
@@ -282,7 +274,7 @@ class results:
             sig_filename = '*'+bkg_search_filename.split('signals_')[1]
 
         #print(sig_filename)
-        sig_files = glob.glob(results.dir+sig_filename)
+        sig_files = glob(results.dir+sig_filename)
         #print(sig_files)
         for file in sig_files:
             file = file.split('/')[-1]
@@ -303,7 +295,6 @@ class results:
                 if flag and (file not in filenames):
                     filenames.append(file)
         return filenames
-
 
 
 class exp_results(results):
@@ -333,7 +324,6 @@ class exp_results(results):
         filenames2 =self.get_signal_files(resonant=["False"])
         filenames3 =self.get_signal_files(Sig_loc = [1.6],Sig_scale = [0.16],resonant=["True"])
         return filenames1, filenames2, filenames3
-
 
 
 class em_results(results):
@@ -418,12 +408,34 @@ class em_results(results):
     #     return filenames
     
 
+def scientific_number(num, digits=2):
+    if num==0:
+        return "0"
+    exp = int(np.floor(np.log10(np.abs(num))))
+    coeff = round(np.abs(num)/(10**exp),digits)
+    if num<0:
+        coeff = -coeff
+    if exp==0:
+        sn_string = f"{coeff}"
+    elif exp==-1:
+        sn_string = f"0.{str(10*coeff).split('.')[0]}"
+    else:
+        sn_string = f"${coeff}\\times{{10}}^{{{exp}}}$"
+    # print(sn_string)
+    return sn_string
 
-def get_z_score(results_file:results,bkg_results_file:results, epoch = 500000):
-    sig_results = results_file
-    bkg_results = bkg_results_file
+
+def get_z_score(
+        results_file: Path,
+        bkg_results_file: Path,
+        epoch = 500000
+    ):
+    res = results(results_file)
+    background_results = results(bkg_results_file)
+    sig_results = res
+    bkg_results = background_results
     sig_file_name = sig_results.csv_file_name
-    bkg_file_name = bkg_results_file.csv_file_name
+    bkg_file_name = background_results.csv_file_name
     sig_t = []
     bkg_t = []
     z_score = float("nan")
@@ -449,7 +461,7 @@ def get_z_score(results_file:results,bkg_results_file:results, epoch = 500000):
         bkg_t_dict = bkg_results.get_t_history_dict()
         bkg_t = bkg_t_dict[epoch] if epoch in bkg_t_dict.keys() else bkg_t_dict[sig_results.tot_epochs]
     if epoch > bkg_results.tot_epochs: 
-        print(f"maximal number of bkg epochs = { bkg_results_file.tot_epochs}")
+        print(f"maximal number of bkg epochs = { background_results.tot_epochs}")
         return z_score, sig_t, bkg_t
 
     # replace NaNs in bkg_t and sig_t with inf.
@@ -457,3 +469,4 @@ def get_z_score(results_file:results,bkg_results_file:results, epoch = 500000):
     sig_t[np.isnan(sig_t)] = np.inf
     z_score = np.sqrt(2)*spc.erfinv((len(bkg_t[bkg_t<=np.median(sig_t)])/len(bkg_t))*2-1)
     return z_score, sig_t, bkg_t
+

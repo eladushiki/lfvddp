@@ -1,6 +1,6 @@
 from pathlib import Path
 from frame.cluster.call_scripts import RUN_PYTHON_JOB_SH_ABS_PATH, run_remote_python
-from frame.config_handle import ExecutionContext
+from frame.context.execution_context import ExecutionContext
 from frame.git_tools import get_commit_hash
 from train.train_config import ClusterConfig
 

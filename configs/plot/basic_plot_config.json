@@ -1,0 +1,32 @@
+{
+    "plot__pyplot_styling": {
+        "rcParams": {
+            "font.family": "serif",
+            "font.size": 24
+        },
+        "style.use": "classic"
+    },
+    "plot__figure_styling": {
+        "patch_set_facecolor": "white",
+        "plot": {
+            "histogram_color": "plum",
+            "edge_color": "darkorchid",
+            "chi2_color": "grey",
+            "linewidth": 5,
+            "alpha": 0.8
+        }
+    },
+    "plot__figure_size": [10, 9],
+    "plot__plot_specifications": [
+        {
+            "name": "plot_old_t_distribution",
+            "instructions": {
+                "t_values_csv": "",
+                "chi2_degrees_of_freedom": 13,
+                "xmin": 0,
+                "xmax": 60,
+                "number_of_bins": 30
+            }
+        }
+    ]
+}
