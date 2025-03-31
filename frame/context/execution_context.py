@@ -3,7 +3,6 @@ from logging import info
 import random
 from numpy import random as npramdom
 from matplotlib.figure import Figure
-from frame import context
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import save_dict_to_json
@@ -15,7 +14,7 @@ from tensorflow.keras.models import Model
 
 
 from dataclasses import dataclass, field
-from os import getpid, makedirs
+from os import getpid, makedirs, sep
 from pathlib import Path
 from sys import argv
 from typing import Any, List
@@ -40,7 +39,7 @@ class ExecutionContext:
 
     @property
     def _unique_descriptor(self) -> str:
-        running_file = argv[0].split('/')[-1]
+        running_file = argv[0].split(sep)[-1]
         process_id = getpid()
         return f"run_at_{self.time}_of_{running_file}_on_commit_{self.commit_hash[:5]}_pid_{process_id}"
 
