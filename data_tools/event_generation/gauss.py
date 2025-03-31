@@ -1,42 +1,34 @@
-from data_tools.dataset_config import DatasetConfig
+from data_tools.data_utils import DataSet
+from data_tools.dataset_config import GeneratedDatasetParameters
 import numpy as np
 
-from dataclasses import dataclass
-from typing import Callable
 
-
-@dataclass
-class GaussConfig(DatasetConfig):
-    @property
-    def dataset__analytic_background_function(self) -> Callable:
-        return gauss
-
-    dataset_gauss__is_poisson_fluctuations: bool
-    dataset_gauss__signal_covariant_magnitude: float
-
-
-def gauss(config: GaussConfig):
+def gauss(
+        config: GeneratedDatasetParameters,
+        is_poisson_fluctuations: bool,
+        signal_covariant_magnitude: float,
+        normalization_factor: float,
+    ) -> DataSet:
     '''
     Returns gaussian samples A, B and Sig suitable for fitting.
 
     Parameters
     ----------
-    config: An instance of DatasetConfig containing all the parameters
+    config: An instance of GeneratedDatasetParameters containing all the parameters
 
     Returns
     -------
-    reference: numpy array
-    background: numpy array
-    signal: numpy array
+    a numpy array
     '''
-    # todo: move these to the config class
-    normalization_factor = 1
-    dim = 1
+    if is_poisson_fluctuations:
+        number_of_background_events = np.random.poisson(lam = config.dataset__number_of_background_events * np.exp(normalization_factor), size = 1)[0]
+        number_of_signal_events = np.random.poisson(lam = config.dataset__number_of_signal_events * np.exp(normalization_factor), size = 1)[0]
+    else:
+        number_of_background_events = config.dataset__number_of_background_events
+        number_of_signal_events = config.dataset__number_of_signal_events
 
-    n_bkg_pois  = np.random.poisson(lam = config.dataset__number_of_background_events * np.exp(normalization_factor), size = 1)[0] if config.dataset_gauss__is_poisson_fluctuations else config.dataset__number_of_background_events
-    n_ref_pois  = np.random.poisson(lam = config.dataset__number_of_reference_events * np.exp(normalization_factor), size = 1)[0] if config.dataset_gauss__is_poisson_fluctuations else config.dataset__number_of_reference_events
-    n_Sig_Pois = np.random.poisson(lam = config.dataset__number_of_signal_events * np.exp(normalization_factor), size = 1)[0] if config.dataset_gauss__is_poisson_fluctuations else config.dataset__number_of_signal_events
-    background = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_bkg_pois)
-    reference  = np.random.multivariate_normal(mean=np.zeros(dim), cov=np.ones((dim,dim)), size=n_ref_pois)
-    signal = np.random.multivariate_normal(mean = config.dataset__signal_location * np.ones(dim), cov = config.dataset_gauss__signal_covariant_magnitude * np.ones((dim, dim)), size = n_Sig_Pois)
-    return reference, background, signal
+    background = np.random.multivariate_normal(mean=np.zeros(1), cov=np.ones((1, 1)), size=number_of_background_events)
+    signal = np.random.multivariate_normal(mean = config.dataset__signal_location * np.ones(dim), cov = signal_covariant_magnitude * np.ones((dim, dim)), size=number_of_signal_events)
+
+    events = np.concatenate((background, signal), axis=0)
+    return DataSet(events)

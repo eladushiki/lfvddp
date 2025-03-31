@@ -21,7 +21,7 @@ class PlotInstructions:
 
 
 @dataclass
-class PlottingConfig(ABC):
+class PlottingConfig:
     """
     Class for structuring all the data needed for plotting instructions.
     """

@@ -3,7 +3,6 @@ from logging import info
 import random
 from numpy import random as npramdom
 from matplotlib.figure import Figure
-from frame import context
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import save_dict_to_json
@@ -15,7 +14,7 @@ from tensorflow.keras.models import Model
 
 
 from dataclasses import dataclass, field
-from os import getpid, makedirs
+from os import getpid, makedirs, sep
 from pathlib import Path
 from sys import argv
 from typing import Any, List
@@ -35,10 +34,12 @@ class ExecutionContext:
     def __post_init__(self):
         # Initialize once unique output directory
         makedirs(self.unique_out_dir, exist_ok=False)
+        random.seed(self.random_seed)
+        npramdom.seed(self.random_seed)
 
     @property
     def _unique_descriptor(self) -> str:
-        running_file = argv[0].split('/')[-1]
+        running_file = argv[0].split(sep)[-1]
         process_id = getpid()
         return f"run_at_{self.time}_of_{running_file}_on_commit_{self.commit_hash[:5]}_pid_{process_id}"
 
@@ -85,6 +86,10 @@ class ExecutionContext:
         model.save_weights(path)
         self.document_created_product(path)
 
+    def close(self):
+        self.run_successful = True
+        self.save_self_to_out_file()
+
     def save_self_to_out_file(self) -> None:
         save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
 
@@ -101,8 +106,6 @@ def version_controlled_execution_context(config: UserConfig, command_line_args: 
 
     # Initialize
     context = ExecutionContext(get_commit_hash(), config, command_line_args, is_debug_mode=is_debug_mode)
-    random.seed(context.random_seed)
-    npramdom.seed(context.random_seed)
 
     # Save in case run terminates prematurely
     context.save_self_to_out_file()
@@ -111,5 +114,4 @@ def version_controlled_execution_context(config: UserConfig, command_line_args: 
     yield context
 
     # Overwrite saved context at end of run
-    context.run_successful = True
-    context.save_self_to_out_file()
+    context.close()

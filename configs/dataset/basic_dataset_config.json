@@ -1,38 +1,67 @@
 {
-    "dataset__background_data_generation_function": "exp",
-    "dataset_exp__is_poisson_fluctuations": true,
-    "dataset_exp__signal_is_gaussian": false,
-    "dataset_exp__gaussian_signal_sigma": 0.16,
+    "dataset__definitions": [
+        {
+            "name": "A",
+            "type": "generated",
 
-    "dataset__number_of_reference_events": 10000,
-    "dataset__number_of_background_events": 10000,
-    
-    "dataset__number_of_signal_events": 100,
-    "dataset__signal_location": 6.4,
-    
-    "dataset__data_aux_background_composition": ["Ref", "Bkg", "Sig"],
-    "dataset__data_aux_signal_composition": [],
+            "dataset__background_data_generation_function": "exp",
+            "dataset__function_specific_additional_parameters": {
+                "is_poisson_fluctuations": true,
+                "is_signal_gaussian": false,
+                "gaussian_signal_sigma": 0.16
+            },
+        
+            "dataset__number_of_background_events": 10000,
+            
+            "dataset__number_of_signal_events": 100,
+            "dataset__signal_location": 6.4,
 
-    "dataset__dataset_A_background_composition": ["Ref"],
-    "dataset__dataset_A_signal_composition": [],
-    "dataset__dataset_A_detector_efficiency": "detector_efficiency_tanh",
-    "dataset__dataset_A_detector_error": "",
+            "dataset__detector_efficiency": "",
+            "dataset__detector_error": "",
+                    
+            "dataset__induced_nuisances_shape_sigma": 0.15,
+            "dataset__induced_nuisances_shape_mean_sigmas": 0.0,
+            "dataset__induced_nuisances_shape_reference_sigmas": 0.0,
 
-    "dataset__dataset_B_background_composition": ["Bkg"],
-    "dataset__dataset_B_signal_composition": ["Sig"],
-    "dataset__dataset_B_detector_efficiency": "detector_unaffected",
-    "dataset__dataset_B_detector_error": "",
+            "dataset__induced_nuisances_norm_sigma": 0.15,
+            "dataset__induced_nuisances_norm_mean_sigmas": 0,
+            "dataset__induced_nuisances_norm_reference_sigmas": 0,
+        
+            "dataset__resample_is_resample": false,
+            "dataset__resample_label_method": "binomial",
+            "dataset__resample_method_type": "fixed",
+            "dataset__resample_is_replacement": true
+        },
+        {
+            "name": "B",
+            "type": "generated",
 
-    "dataset__nuisances_shape_sigma": 0.15,
-    "dataset__nuisances_shape_mean_sigmas": 0.0,
-    "dataset__nuisances_shape_reference_sigmas": 0.0,
+            "dataset__background_data_generation_function": "exp",
+            "dataset__function_specific_additional_parameters": {
+                "is_poisson_fluctuations": true,
+                "is_signal_gaussian": false,
+                "gaussian_signal_sigma": 0.16
+            },
+            "dataset__number_of_background_events": 10000,
+            
+            "dataset__number_of_signal_events": 100,
+            "dataset__signal_location": 6.4,
 
-    "dataset__nuisances_norm_sigma": 0.15,
-    "dataset__nuisances_norm_mean_sigmas": 0,
-    "dataset__nuisances_norm_reference_sigmas": 0,
-
-    "dataset__resample_is_resample": false,
-    "dataset__resample_label_method": "binomial",
-    "dataset__resample_method_type": "fixed",
-    "dataset__resample_is_replacement": true
+            "dataset__detector_efficiency": "",
+            "dataset__detector_error": "",
+                    
+            "dataset__induced_nuisances_shape_sigma": 0.15,
+            "dataset__induced_nuisances_shape_mean_sigmas": 0.0,
+            "dataset__induced_nuisances_shape_reference_sigmas": 0.0,
+        
+            "dataset__induced_nuisances_norm_sigma": 0.15,
+            "dataset__induced_nuisances_norm_mean_sigmas": 0,
+            "dataset__induced_nuisances_norm_reference_sigmas": 0,
+        
+            "dataset__resample_is_resample": false,
+            "dataset__resample_label_method": "binomial",
+            "dataset__resample_method_type": "fixed",
+            "dataset__resample_is_replacement": true
+        }
+    ]
 }

@@ -1,5 +1,6 @@
 from glob import glob
 from pathlib import Path
+from typing import Optional
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
@@ -21,7 +22,7 @@ import scipy.special as spc
 from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, em_results, exp_results, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, draw_sample_over_background_histograms, em_results, exp_results, create_containing_bins, get_z_score, results, scientific_number
 from train.train_config import TrainConfig
 
 
@@ -201,9 +202,7 @@ def plot_old_t_distribution(
     )
     
     # Texting
-    number_of_test_events = scientific_number(config.dataset__number_of_reference_events + config.dataset__number_of_signal_events)
-    number_of_background_events = scientific_number(config.dataset__number_of_background_events)
-    histogram_title = r'$N_A^0=$'+f"{number_of_test_events}"+r',   $N_B^0=$'+f"{number_of_background_events}"
+    histogram_title = f"Distribution of t values over {len(t)} test runs"
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel('t', labelpad=20)
     ax.set_ylabel('PDF', labelpad=20)
@@ -1109,22 +1108,84 @@ def animated_t_2distributions(results_file1:results, results_file2:results, df, 
     return HTML(anim.to_jshtml())
 
 
+def plot_sample_over_background(
+        context: ExecutionContext,
+        sample: DataSet,
+        background_sample: DataSet,
+):
+    """
+    Generate a histogram of the sample over the background.
+    """
+    c = Carpenter(context)
+    fig = c.figure()
+    bins, _ = create_containing_bins(
+        context,
+        [sample, background_sample]
+    )
+
+    A_ax = fig.add_subplot(1, 1, index=1)
+    draw_sample_over_background_histograms(
+        ax=A_ax,
+        sample=sample,
+        background=background_sample,
+        bins=bins,
+        title="Sample over background",
+    )
+
+    return fig
+
+
+def plot_samples_over_background(
+        context: ExecutionContext,
+        first_sample: DataSet,
+        second_sample: DataSet,
+        background_sample: DataSet,
+):
+    """
+    Generate two plots, both featuring historams of either sample over the background.
+    Both are reconstructed to compensate for detector efficiency losses.
+    """
+    c = Carpenter(context)
+    fig = c.figure()
+    bins, _ = create_containing_bins(
+        context,
+        [first_sample, second_sample, background_sample],
+    )
+
+    A_ax = fig.add_subplot(1, 2, 1)
+    draw_sample_over_background_histograms(
+        ax=A_ax,
+        sample=first_sample,
+        background=background_sample,
+        bins=bins,
+        title="First sample over background",
+    )
+    B_ax = fig.add_subplot(1, 2, 2)
+    draw_sample_over_background_histograms(
+        ax=B_ax,
+        sample=second_sample,
+        background=background_sample,
+        bins=bins,
+        title="Second sample over background",
+    )
+
+    return fig
+
+
 def plot_prediction_process(
         context: ExecutionContext,
         experiment_sample: DataSet,
         reference_sample: DataSet,
-        trained_model: Model,
+        trained_tau_model: Model,
+        trained_delta_model: Optional[Model],
     ):
     """
-    params:
-    - context: ExecutionContext
-    - raw_data: DataSet
-    - detector_affected_data: DataSet
-    - trained_model: Model
-    - reference_dataset: DataSet, for the model to predict over
-
-    return:
-    - figure
+    Give a single histogram featuring:
+    - raw experimental data sample
+    - experimental data sample weighterd to compensate detector losses
+    - weighted reference sample
+    - tau model prediction for the reconstruction of the experimental data
+    - delta model prediction for the reconstruction of the experimental data (if provided)
     """
     if not isinstance((config := context.config), TrainConfig):
         raise ValueError("The context config is not a TrainConfig.")
@@ -1135,18 +1196,16 @@ def plot_prediction_process(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    nbins = 30
-    xmin = 0
-    xmax = max([experiment_sample._data.max(), reference_sample._data.max()])
+    bins, _ = create_containing_bins(context, [experiment_sample, reference_sample])
+    training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample (reconstructed)", alpha=0.5)
+    reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample (reconstructed)", alpha=0.5, histtype="step")
 
-    bins = np.linspace(xmin, xmax, nbins+1)
-    bin_centers = 0.5*(bins[1:]+bins[:-1])
-    training_sample_histogram = ax.hist(experiment_sample._data, bins=bins, label="training sample", alpha=0.5, histtype="step")
-    training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample reconstructed for detector efficiency", alpha=0.5)
-    reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample reconstructed for detector efficiency", alpha=0.5, histtype="step")
+    tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+    predicted_tau_ndf = ax.hist(reference_sample._data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
 
-    hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
-    predicted_ndf = ax.hist(reference_sample._data, weights=hypothesis_weights, bins=bins, label="model prediction", alpha=0.5)
+    if trained_delta_model is not None:
+        delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+        predicted_delta_ndf = ax.hist(reference_sample._data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
 
     ax.set_title("Datasets Along the Process")
     ax.set_xlabel("mass")

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
-from data_tools.dataset_config import DatasetConfig
 from data_tools.detector_efficiency import shapes
 import numpy as np
 import scipy.stats as sps
@@ -23,7 +21,7 @@ class DetectorEffect:
 
     def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
         if not effect_name:
-            return lambda x: x
+            return lambda x: np.ones_like(x)
         
         try:
             return getattr(shapes, effect_name)
@@ -89,46 +87,6 @@ class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.
         # Accumulate compensation in weight for later use
         compensator = detector_effect.get_detector_efficiency_compensator()
         self._weight_mask *= compensator(self._data)
-
-
-class DataGeneration:
-
-    class DataSetType(Enum):
-        REF = "Ref"
-        BKG = "Bkg"
-        SIG = "Sig"
-
-    _instance = None
-
-    def __new__(cls, config: DatasetConfig):
-        if cls._instance is None:
-            cls._instance = super(DataGeneration, cls).__new__(cls)
-            cls._instance.__init__(config)
-        return cls._instance
-
-    def __init__(self, config: DatasetConfig):
-        self._config = config
-
-        ref, bkg, sig = self._config.dataset__analytic_background_function(config)
-
-        self._reference_dataset, self._background_dataset, self._signal_dataset = \
-            DataSet(ref), DataSet(bkg), DataSet(sig)
-        
-    def _generate_dataset(self, components: List[DataSetType]) -> DataSet:
-        included_data = DataSet()
-
-        if DataGeneration.DataSetType.REF in components:
-            included_data += self._reference_dataset
-        if DataGeneration.DataSetType.BKG in components:
-            included_data += self._background_dataset
-        if DataGeneration.DataSetType.SIG in components:
-            included_data += self._signal_dataset
-
-        return included_data
-
-    def generate_dataset(self, data_sets: List[str]):
-        return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
-
 
 
 def resample(
