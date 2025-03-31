@@ -21,7 +21,7 @@ class DetectorEffect:
 
     def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
         if not effect_name:
-            return lambda x: x
+            return lambda x: np.ones_like(x)
         
         try:
             return getattr(shapes, effect_name)
