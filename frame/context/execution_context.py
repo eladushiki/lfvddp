@@ -35,6 +35,8 @@ class ExecutionContext:
     def __post_init__(self):
         # Initialize once unique output directory
         makedirs(self.unique_out_dir, exist_ok=False)
+        random.seed(self.random_seed)
+        npramdom.seed(self.random_seed)
 
     @property
     def _unique_descriptor(self) -> str:
@@ -85,6 +87,10 @@ class ExecutionContext:
         model.save_weights(path)
         self.document_created_product(path)
 
+    def close(self):
+        self.run_successful = True
+        self.save_self_to_out_file()
+
     def save_self_to_out_file(self) -> None:
         save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
 
@@ -101,8 +107,6 @@ def version_controlled_execution_context(config: UserConfig, command_line_args: 
 
     # Initialize
     context = ExecutionContext(get_commit_hash(), config, command_line_args, is_debug_mode=is_debug_mode)
-    random.seed(context.random_seed)
-    npramdom.seed(context.random_seed)
 
     # Save in case run terminates prematurely
     context.save_self_to_out_file()
@@ -111,5 +115,4 @@ def version_controlled_execution_context(config: UserConfig, command_line_args: 
     yield context
 
     # Overwrite saved context at end of run
-    context.run_successful = True
-    context.save_self_to_out_file()
+    context.close()
