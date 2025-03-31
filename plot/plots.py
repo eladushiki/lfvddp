@@ -1118,13 +1118,16 @@ def plot_sample_over_background(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = create_containing_bins(context, [sample, background_sample])
+    bins, _ = create_containing_bins(
+        context,
+        [sample, background_sample]
+    )
 
-    A_ax = fig.add_subplot(1, 2, index=1)
+    A_ax = fig.add_subplot(1, 1, index=1)
     draw_sample_over_background_histograms(
         ax=A_ax,
-        sample=sample._data,
-        background=background_sample._data,
+        sample=sample,
+        background=background_sample,
         bins=bins,
         title="Sample over background",
     )

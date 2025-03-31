@@ -1,4 +1,3 @@
-from copy import deepcopy
 from os import makedirs
 from data_tools.data_generation import DataGeneration
 from data_tools.data_utils import DataSet
