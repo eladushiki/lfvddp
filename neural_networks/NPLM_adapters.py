@@ -98,10 +98,14 @@ def get_prediction_model(
 
 def train_NPML_model(
         context: ExecutionContext,
-        tau_model: imperfect_model,
+        model: imperfect_model,
         sample_dataset: DataSet,
         reference_dataset: DataSet
     ) -> float:
+    """
+    returns:
+        The final loss according to the model
+    """
     if not isinstance(config := context.config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     
@@ -113,7 +117,7 @@ def train_NPML_model(
     debug("Starting training")
     t0 = time()
     tau_model_history = train_model(
-        model=tau_model,
+        model=model,
         feature=np.array(feature_dataset._data, dtype=np.float32),
         target=np.array(target_structure, dtype=np.float32),
         loss=imperfect_loss,  # This is (11) in "Learning New Physics from a Machine", D'Angolo et al.
@@ -126,16 +130,16 @@ def train_NPML_model(
     tau_history = np.array(tau_model_history['loss'])                
     debug(f'Training time (seconds): {time() - t0}')
 
-    final_t = calc_t_test_statistic(tau_history[-1])
-    logging.info(f'Observed t test statistic: {final_t}')
+    final_loss = calc_t_test_statistic(tau_history[-1])
+    logging.info(f'Observed t test statistic: {final_loss}')
     
     save_NPLM_training_outcomes(
         context,
         tau_model_history=tau_model_history,
-        tau_model=tau_model,
+        tau_model=model,
     )
 
-    return final_t
+    return final_loss
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_size: int, reference_ndf_estimation: DataSet) -> np.ndarray:

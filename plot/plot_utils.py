@@ -438,15 +438,15 @@ def create_containing_bins(
 
 def draw_sample_over_background_histograms(
         ax: plt.Axes,
-        sample: np.ndarray,
-        background: np.ndarray,
+        sample: DataSet,
+        background: DataSet,
         bins: np.ndarray,
         title: str,
         sample_legend: str = "sample",
         background_legend: str = "background",
 ):
-    ax.hist(sample, bins=bins, label=sample_legend)
-    ax.hist(background, bins=bins, label=background_legend)
+    ax.hist(background._data, weights=background.weight_mask, bins=bins, label=background_legend)
+    ax.hist(sample._data, weights=sample.weight_mask, bins=bins, label=sample_legend)
 
     ax.set_title(title)
     ax.legend()

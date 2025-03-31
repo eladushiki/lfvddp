@@ -1140,24 +1140,28 @@ def plot_samples_over_background(
 ):
     """
     Generate two plots, both featuring historams of either sample over the background.
+    Both are reconstructed to compensate for detector efficiency losses.
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = create_containing_bins(context, [first_sample, second_sample, background_sample])
+    bins, _ = create_containing_bins(
+        context,
+        [first_sample, second_sample, background_sample],
+    )
 
-    A_ax = fig.add_subplot(1, 2, index=1)
+    A_ax = fig.add_subplot(1, 2, 1)
     draw_sample_over_background_histograms(
         ax=A_ax,
-        sample=first_sample._data,
-        background=background_sample._data,
+        sample=first_sample,
+        background=background_sample,
         bins=bins,
         title="First sample over background",
     )
-    B_ax = fig.add_subplot(1, 2, index=2)
+    B_ax = fig.add_subplot(1, 2, 2)
     draw_sample_over_background_histograms(
         ax=B_ax,
-        sample=second_sample._data,
-        background=background_sample._data,
+        sample=second_sample,
+        background=background_sample,
         bins=bins,
         title="Second sample over background",
     )
@@ -1190,9 +1194,8 @@ def plot_prediction_process(
     ax = fig.add_subplot(111)
 
     bins, _ = create_containing_bins(context, [experiment_sample, reference_sample])
-    training_sample_histogram = ax.hist(experiment_sample._data, bins=bins, label="training sample", alpha=0.5, histtype="step")
-    training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample reconstructed for detector efficiency", alpha=0.5)
-    reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample reconstructed for detector efficiency", alpha=0.5, histtype="step")
+    training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample (reconstructed)", alpha=0.5)
+    reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample (reconstructed)", alpha=0.5, histtype="step")
 
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
     predicted_tau_ndf = ax.hist(reference_sample._data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)

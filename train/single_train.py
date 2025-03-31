@@ -56,7 +56,7 @@ def follow_instructions_for_t(
     )
     tau = train_NPML_model(
         context=context,
-        tau_model=tau_model,
+        model=tau_model,
         sample_dataset=sample_dataset,
         reference_dataset=reference_dataset,
     )
@@ -69,7 +69,7 @@ def follow_instructions_for_t(
         )
         delta = train_NPML_model(
             context=context,
-            tau_model=delta_model,
+            model=delta_model,
             sample_dataset=sample_dataset,
             reference_dataset=reference_dataset,
         )

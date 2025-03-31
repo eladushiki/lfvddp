@@ -1,4 +1,5 @@
 from inspect import signature
+from logging import warning
 from sys import argv
 from argparse import ArgumentParser
 from functools import wraps
@@ -54,7 +55,9 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()  # Using this instead of parse_args() to enable calling from jupyter
+    if unknown:
+        warning(f"Running with nknown arguments: {unknown}")
 
     # Parse configuration files
     config_paths = [
