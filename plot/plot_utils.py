@@ -6,11 +6,12 @@ from pathlib import Path
 from readline import read_history_file
 from typing import List, Union
 
+from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import AGGREGATED_RESULTS_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
 import numpy as np
 import tarfile
-from matplotlib import patches
+from matplotlib import patches, pyplot as plt
 from plot.plotting_config import PlottingConfig
 import scipy.special as spc
 from scipy.integrate import quad
@@ -417,3 +418,35 @@ def get_z_score(
     z_score = np.sqrt(2)*spc.erfinv((len(bkg_t[bkg_t<=np.median(sig_t)])/len(bkg_t))*2-1)
     return z_score, sig_t, bkg_t
 
+
+def create_containing_bins(
+        context: ExecutionContext,
+        datasets: List[DataSet],
+):
+    if not isinstance(config := context.config, PlottingConfig):
+        raise ValueError(f"Expected PlottingConfig, got {type(config)}")
+    
+    nbins = 30
+    xmin = 0
+    xmax = np.max([np.max(dataset._data) for dataset in datasets])
+
+    bins = np.linspace(xmin, xmax, nbins + 1)
+    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+
+    return bins, bin_centers
+
+
+def draw_sample_over_background_histograms(
+        ax: plt.Axes,
+        sample: np.ndarray,
+        background: np.ndarray,
+        bins: np.ndarray,
+        title: str,
+        sample_legend: str = "sample",
+        background_legend: str = "background",
+):
+    ax.hist(sample, bins=bins, label=sample_legend)
+    ax.hist(background, bins=bins, label=background_legend)
+
+    ax.set_title(title)
+    ax.legend()
