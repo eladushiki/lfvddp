@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Type
 
-from regex import F
-
 import numpy as np
 
 @dataclass
@@ -75,14 +73,19 @@ class DatasetConfig:
     dataset__definitions: List[Dict[str, Any]]
 
     _dataset__parameters: Dict[str, DatasetParameters] = field(default_factory=dict)
-    _dataset__types: Dict[str, Type[DatasetParameters]] = field(init=False)
-    _dataset__name_property: str = "name"
-    _dataset__type_property: str = "type"
+    
+    # Properties to avoid being documented in context
+    @property
+    def _dataset__types(self) -> Dict[str, Type[DatasetParameters]]:
+        return {cls.DATASET_PARAMTER_TYPE_NAME(): cls for cls in DatasetParameters.__subclasses__()}
+    @property
+    def _dataset__name_property(self) -> str:
+        return "name"
+    @property
+    def _dataset__type_property(self) -> str:
+        return "type"
 
     def __post_init__(self):
-        # Create types dict
-        self._dataset__types = {cls.DATASET_PARAMTER_TYPE_NAME(): cls for cls in DatasetParameters.__subclasses__()}
-
         # Create datasets definitions from the input arguments
         for user_dataset_definitions in self.dataset__definitions:
             try:
@@ -99,6 +102,9 @@ class DatasetConfig:
             del user_dataset_definitions[self._dataset__name_property]
             del user_dataset_definitions[self._dataset__type_property]
             self._dataset__parameters[dataset_name] = dataset_class(**user_dataset_definitions)
+
+        # Avoid duplicate documentation in context, this is included in _dataset__parameters
+        del self.dataset__definitions
 
     def get_parameters(self, item: str) -> DatasetParameters:
         try:
