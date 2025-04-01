@@ -32,6 +32,6 @@ which python
 python --version
 
 # run python script with arguments
-eval "python $SCRIPT_RELPATH $PYTHON_ARGS"
+eval "python $SCRIPT_RELPATH $PYTHON_ARGS --out-dir $OUTPUT_DIR" > "output.log"
 
 echo "Done, $(date)"
