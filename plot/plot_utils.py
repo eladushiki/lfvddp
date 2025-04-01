@@ -4,7 +4,7 @@ from os import system
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import List, Union
+from typing import Any, Dict, List, Union
 
 from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
@@ -422,11 +422,12 @@ def get_z_score(
 def create_containing_bins(
         context: ExecutionContext,
         datasets: List[DataSet],
+        nbins = 30,
 ):
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(f"Expected PlottingConfig, got {type(config)}")
-    
-    nbins = 30
+
+    # limits    
     xmin = 0
     xmax = np.max([np.max(dataset._data) for dataset in datasets])
 
@@ -444,9 +445,13 @@ def draw_sample_over_background_histograms(
         title: str,
         sample_legend: str = "sample",
         background_legend: str = "background",
+        xlabel: str = "mass",
+        ylabel: str = "number of events",
 ):
-    ax.hist(background._data, weights=background.weight_mask, bins=bins, label=background_legend)
-    ax.hist(sample._data, weights=sample.weight_mask, bins=bins, label=sample_legend)
+    ax.hist(background._data, weights=background.weight_mask, bins=bins, label=background_legend, log=True)
+    ax.hist(sample._data, weights=sample.weight_mask, bins=bins, label=sample_legend, log=True)
 
     ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     ax.legend()

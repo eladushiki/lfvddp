@@ -4,7 +4,7 @@ from typing import Optional
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
-from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION
+from frame.file_structure import AGGREGATED_TRAINING_RESULTS_FILE_NAME, TRAINING_HISTORY_FILE_EXTENSION
 from frame.file_system.training_history import load_training_history
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
@@ -38,7 +38,6 @@ from train.train_config import TrainConfig
 
 def Plot_Percentiles_ref(
         context: ExecutionContext,
-        history_files_dir: Path,
     ):
     '''
     The funcion creates the plot of the evolution in the epochs of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
@@ -53,12 +52,12 @@ def Plot_Percentiles_ref(
     if not isinstance(config, TrainConfig):
         raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
     
-    all_history_files = glob(str(history_files_dir) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
+    all_history_files = glob(str(config.plot__target_run_parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
     if not all_history_files:
         raise ValueError("No history files found")
     all_loaded_histories = {history_file: load_training_history(Path(history_file)) for history_file in all_history_files}
     
-    # Epochs should be aligned in all files
+    # Epochs should be aligned in all files. If you get a 1D array here, they're not of the same length.
     all_epochs = np.array([history['epoch'] for history in all_loaded_histories.values()])
     for col in range(all_epochs.shape[1]):
         if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
@@ -119,7 +118,6 @@ def Plot_Percentiles_ref(
 
 def plot_old_t_distribution(
         context: ExecutionContext,
-        t_values_csv: Path,
         number_of_bins: int,
     ) -> Figure:
     '''
@@ -138,10 +136,14 @@ def plot_old_t_distribution(
     ax = fig.add_subplot(111)
 
     # Limits
-    t = np.loadtxt(t_values_csv, delimiter=',', usecols=0)
+    t = np.loadtxt(
+        Path(config.plot__target_run_parent_directory) / AGGREGATED_TRAINING_RESULTS_FILE_NAME,
+        delimiter=',',
+        usecols=0,
+    )
     chi2_begin = chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom)
     chi2_end = chi2.ppf(0.9999, chi2_dof)
-    xmin = min([np.min(t), chi2_begin, 0])
+    xmin = max([min([np.min(t), chi2_begin]), 0])
     xmax = max([np.percentile(t, 95), chi2_end])
 
     # plot distribution histogram
@@ -191,7 +193,10 @@ def plot_old_t_distribution(
     circ = patches.Circle((0,0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"])
     rect1 = patches.Rectangle((0,0), 1, 1, color=style["chi2_color"], alpha=style["alpha"])
     
+    _, legend_labels = ax.get_legend_handles_labels()
+    legend_labels.append(f"Did not converge: {np.sum(t > 0) / t.size * 100:.2f}%")
     ax.legend(
+        
         (circ, rect1),
         (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
         handler_map={
@@ -1197,9 +1202,16 @@ def plot_prediction_process(
     ax = fig.add_subplot(111)
 
     bins, _ = create_containing_bins(context, [experiment_sample, reference_sample])
-    training_sample_reco_histogram = ax.hist(x=experiment_sample._data, weights=experiment_sample.weight_mask, bins=bins, label="training sample (reconstructed)", alpha=0.5)
-    reference_sample_reco_histogram = ax.hist(reference_sample._data, weights=reference_sample.weight_mask, bins=bins, label="reference sample (reconstructed)", alpha=0.5, histtype="step")
-
+    draw_sample_over_background_histograms(
+        ax=ax,
+        sample=experiment_sample,
+        background=reference_sample,
+        bins=bins,
+        title="Datasets Along the Process",
+        sample_legend="training sample (reconstructed)",
+        background_legend="reference sample (reconstructed)",
+    )
+    
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
     predicted_tau_ndf = ax.hist(reference_sample._data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
 
@@ -1207,8 +1219,5 @@ def plot_prediction_process(
         delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
         predicted_delta_ndf = ax.hist(reference_sample._data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
 
-    ax.set_title("Datasets Along the Process")
-    ax.set_xlabel("mass")
-    ax.set_ylabel("number of events")
     ax.legend()
     return fig
