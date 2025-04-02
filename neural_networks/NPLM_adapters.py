@@ -60,16 +60,16 @@ def get_prediction_model(
     ## Treating nuisance parameters
     # normalization of the nuisance parameters, $\nu_n$ in the text.
     # Only intact if correction type is "NORM" or "SHAPE"
-    SIGMA_N   = config.train__nuisances_norm_sigma
-    NU_N      = config.train__nuisances_norm_mean_sigmas * SIGMA_N
-    NUR_N     = config.train__nuisances_norm_reference_sigmas * SIGMA_N
+    SIGMA_N   = config.train__norm_nuisance_std
+    NU_N      = config.train__norm_nuisance_mean
+    NUR_N     = config.train__norm_nuisance_reference
     NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
 
     # shape of the nuisance parameters, $\nu_s$ in the text
     # Only intact if correction type is "SHAPE"
-    SIGMA_S   = np.array([config.train__nuisances_shape_sigma])
-    NU_S      = np.array([config.train__nuisances_shape_mean_sigmas * SIGMA_S])
-    NUR_S     = np.array([config.train__nuisances_shape_reference_sigmas * SIGMA_S])
+    SIGMA_S   = np.array([config.train__shape_nuisance_std])
+    NU_S      = np.array([config.train__shape_nuisance_mean])
+    NUR_S     = np.array([config.train__shape_nuisance_reference])
     NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
 
     # Get Tau term model
@@ -121,8 +121,8 @@ def train_NPML_model(
         # Just fit without any special training
         model.compile(loss=imperfect_loss,  optimizer='adam')
         tau_model_fit = model.fit(
-            feature_dataset._data,
-            target_structure.astype(np.float32),
+            np.array(feature_dataset._data, dtype=np.float32),
+            np.array(target_structure, dtype=np.float32),
             epochs=config.train__epochs,
             verbose=0,
         )
