@@ -10,9 +10,11 @@ import numpy as np
 
 ## Possible detector efficiency shapes
 def detector_efficiency_tanh(x: np.ndarray) -> np.ndarray:
-    return (np.tanh(x) + 1) / 2
+    efficiency = (np.tanh(x[:, 0]) + 1) / 2
+    return efficiency.flatten()
 
 
 ## Default for any type could be
 def detector_unaffected(x: np.ndarray) -> np.ndarray:
-    return x
+    efficiency = np.ones((x.shape[0], 1))
+    return efficiency.flatten()
