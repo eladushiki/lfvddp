@@ -1,4 +1,5 @@
 {
+    "dataset__number_of_dimensions": 2,
     "dataset__definitions": [
         {
             "name": "A",

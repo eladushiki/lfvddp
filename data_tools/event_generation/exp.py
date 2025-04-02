@@ -10,15 +10,7 @@ def exp(
         gaussian_signal_sigma: float,
     ) -> DataSet:
     '''
-    Returns exponential samples A, B and Sig suitable for fitting.
-
-    Parameters
-    ----------
-    config: An instance of GeneratedDatasetParameters containing all the parameters
-
-    Returns
-    -------
-    a numpy array
+    Returns exponentially distributed samples of any given dimension.
     '''
     if is_poisson_fluctuations:
         number_of_background_events  = np.random.poisson(lam=config.dataset__number_of_background_events*np.exp(config.dataset__induced_norm_nuisance_value), size=1)[0]
@@ -27,7 +19,13 @@ def exp(
         number_of_background_events = config.dataset__number_of_background_events
         number_of_signal_events = config.dataset__number_of_signal_events
     
-    background = np.random.exponential(scale=np.exp(config.dataset__induced_shape_nuisance_value), size=(number_of_background_events, 1))
+    # Background
+    background = np.random.exponential(
+        scale=np.exp(config.dataset__induced_shape_nuisance_value),
+        size=(number_of_background_events, config._dataset__number_of_dimensions),
+    )
+
+    # Signal
     if is_signal_gaussian:
         signal = np.random.normal(loc=config.dataset__signal_location, scale=gaussian_signal_sigma, size=(number_of_signal_events,1))*np.exp(config.dataset__induced_shape_nuisance_value)
     else:

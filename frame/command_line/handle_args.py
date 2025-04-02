@@ -10,6 +10,7 @@ from data_tools.dataset_config import DatasetConfig
 from frame.config_handle import UserConfig
 from frame.context.execution_context import version_controlled_execution_context
 from frame.file_system.textual_data import load_dict_from_json
+from frame.validation import validate_configuration
 from plot.plotting_config import PlottingConfig
 from frame.cluster.cluster_config import ClusterConfig
 from train.train_config import TrainConfig
@@ -106,7 +107,6 @@ def create_config_from_paths(
                 }
                 config_class.__init__(self, **filtered_args)
 
-    
     # Configuration according to arguments
     if out_dir:
         config_params["config__out_dir"] = out_dir
@@ -114,6 +114,8 @@ def create_config_from_paths(
         config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
 
     config = DynamicConfig(**config_params)
+
+    validate_configuration(config)
 
     return config
 

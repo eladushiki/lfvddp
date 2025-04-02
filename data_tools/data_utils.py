@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Iterable, Optional, Tuple
 
 from data_tools.detector_efficiency import shapes
 import numpy as np
+import numpy.typing as npt
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
 from fractions import Fraction
@@ -51,13 +52,24 @@ class DetectorEffect:
 
 
 class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
-    def __init__(self, data: Optional[np.ndarray] = None):
-        if data is None:
-            self._data = np.empty((0, 1))
-        else:
-            self._data = data
+    """
+    A class representing a dataset of events.
 
-        self._weight_mask = np.ones_like(self._data)
+    Each row in the stored _data is a single event. The whole 2D table represents the
+    collection of them.
+    """
+    
+    def __init__(self, data: npt.NDArray):
+        """
+        Data has to be a 2D array
+        """
+        if data.ndim == 1:
+            self._data = np.expand_dims(data, axis=1)
+        elif data.ndim == 2:
+            self._data = data
+        else:
+            raise ValueError(f"Data must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
+        self._weight_mask = np.ones((self._data.shape[0], 1))
 
     def __add__(self, other) -> DataSet:
         _data = np.concatenate((self._data, other._data), axis=0)
@@ -67,16 +79,21 @@ class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.
         result._weight_mask = _weight_mask
         return result
 
-    def __len__(self):  # todo: remove
+
+    @property
+    def dim(self) -> int:
+        if self._data.size == 0:
+            return 0
+        return self._data.shape[1]
+
+    @property
+    def n_samples(self):
         return self._data.shape[0]
 
     @property
     def weight_mask(self) -> np.ndarray:
         return self._weight_mask
 
-    @property
-    def n_samples(self):
-        return len(self)
     
     def apply_detector_effect(self, detector_effect: DetectorEffect):
         filtered_data, filter = detector_effect.simulate_detector_effect(self._data)
