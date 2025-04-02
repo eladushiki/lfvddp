@@ -419,17 +419,18 @@ def get_z_score(
     return z_score, sig_t, bkg_t
 
 
-def create_containing_bins(
+def create_1D_containing_bins(
         context: ExecutionContext,
         datasets: List[DataSet],
         nbins = 30,
+        along_dimension: int = 0,
 ):
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(f"Expected PlottingConfig, got {type(config)}")
 
     # limits    
     xmin = 0
-    xmax = np.max([np.max(dataset._data) for dataset in datasets])
+    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
 
     bins = np.linspace(xmin, xmax, nbins + 1)
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
@@ -437,19 +438,32 @@ def create_containing_bins(
     return bins, bin_centers
 
 
-def draw_sample_over_background_histograms(
+def draw_sample_over_background_1D_histograms(
         ax: plt.Axes,
         sample: DataSet,
         background: DataSet,
         bins: np.ndarray,
         title: str,
+        along_dimension: int = 0,
         sample_legend: str = "sample",
         background_legend: str = "background",
         xlabel: str = "mass",
         ylabel: str = "number of events",
 ):
-    ax.hist(background._data, weights=background.weight_mask, bins=bins, label=background_legend, log=True)
-    ax.hist(sample._data, weights=sample.weight_mask, bins=bins, label=sample_legend, log=True)
+    ax.hist(
+        background.slice_along_dimension(along_dimension),
+        weights=background.histogram_weight_mask,
+        bins=bins,
+        label=background_legend,
+        log=True,
+    )
+    ax.hist(
+        sample.slice_along_dimension(along_dimension),
+        weights=sample.histogram_weight_mask,
+        bins=bins,
+        label=sample_legend,
+        log=True,
+    )
 
     ax.set_title(title)
     ax.set_xlabel(xlabel)

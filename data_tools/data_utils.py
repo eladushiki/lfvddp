@@ -21,8 +21,11 @@ class DetectorEffect:
         self._error = self._get_detector_error_inducer(error_function)
 
     def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        """
+        Detector efficiency indicated the probability for each event (=row) to remain.
+        """
         if not effect_name:
-            return lambda x: np.ones_like(x)
+            return lambda x: np.ones((x.shape[0],))
         
         try:
             return getattr(shapes, effect_name)
@@ -30,9 +33,12 @@ class DetectorEffect:
             raise ValueError(f"Invalid detector effect requested: {effect_name}")
 
     def get_detector_efficiency_compensator(self) -> Callable[[np.ndarray], np.ndarray]:
-        return lambda x: np.ones_like(x) / self._efficiency(x)
+        return lambda x: np.ones((x.shape[0],)) / self._efficiency(x)
 
     def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        """
+        Detector error returns the same shape as the input.
+        """
         if not error_name:
             return lambda x: x
         
@@ -42,11 +48,10 @@ class DetectorEffect:
             raise ValueError(f"Invalid detector error requested: {error_name}")
 
     def simulate_detector_effect(self, events: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        data_inclusion = np.random.uniform(size=events.shape) < self._efficiency(events)
+        data_inclusion = np.random.uniform(size=(events.shape[0],)) < self._efficiency(events)
         _filtered_events = events[data_inclusion]
-        filtered_events = np.reshape(_filtered_events, newshape=(-1, 1))
 
-        errored_events = self._error(filtered_events)
+        errored_events = self._error(_filtered_events)
         
         return errored_events, data_inclusion
 
@@ -69,7 +74,7 @@ class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.
             self._data = data
         else:
             raise ValueError(f"Data must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
-        self._weight_mask = np.ones((self._data.shape[0], 1))
+        self._weight_mask = np.ones((self._data.shape[0],))
 
     def __add__(self, other) -> DataSet:
         _data = np.concatenate((self._data, other._data), axis=0)
@@ -78,7 +83,6 @@ class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.
         result = DataSet(_data)
         result._weight_mask = _weight_mask
         return result
-
 
     @property
     def dim(self) -> int:
@@ -91,15 +95,26 @@ class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.
         return self._data.shape[0]
 
     @property
-    def weight_mask(self) -> np.ndarray:
-        return self._weight_mask
+    def histogram_weight_mask(self) -> np.ndarray:
+        return np.expand_dims(self._weight_mask, axis=1)
+    
+    def __get__(self, item: int) -> np.ndarray:
+        """
+        Get a single event from the dataset.
+        """
+        return self._data[item, :] 
 
+    def slice_along_dimension(self, dim: int) -> np.ndarray:
+        """
+        Get a slice of all events along a single dimension.
+        """
+        return self._data[:, dim]
     
     def apply_detector_effect(self, detector_effect: DetectorEffect):
         filtered_data, filter = detector_effect.simulate_detector_effect(self._data)
 
         self._data = filtered_data
-        self._weight_mask = np.reshape(self._weight_mask[filter], newshape=(-1, 1))
+        self._weight_mask = self._weight_mask[filter]
         
         # Accumulate compensation in weight for later use
         compensator = detector_effect.get_detector_efficiency_compensator()
