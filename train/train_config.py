@@ -15,13 +15,13 @@ class TrainConfig:
     train__data_is_train_for_nuisances: bool  # Should the nuisance change or stick with initial values?
 
     # Recovery of nuisances parameters
-    train__nuisances_shape_sigma: float             # shape nuisance sigma  # todo: convert to a list to enable any number of those
-    train__nuisances_shape_mean_sigmas: float       # shape nuisance reference, in terms of std
-    train__nuisances_shape_reference_sigmas: float  # norm nuisance reference, in terms of std
+    train__shape_nuisance_std: float             # shape nuisance sigma
+    train__shape_nuisance_mean: float       # shape nuisance reference, in terms of std
+    train__shape_nuisance_reference: float  # norm nuisance reference, in terms of std
     
-    train__nuisances_norm_sigma: float              # norm nuisance sigma
-    train__nuisances_norm_mean_sigmas: float        # in terms of std
-    train__nuisances_norm_reference_sigmas: float   # in terms of std
+    train__norm_nuisance_std: float              # norm nuisance sigma
+    train__norm_nuisance_mean: float        # in terms of std
+    train__norm_nuisance_reference: float   # in terms of std
 
     ## Training parameters
     train__epochs: int

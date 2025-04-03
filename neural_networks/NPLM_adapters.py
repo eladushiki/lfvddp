@@ -60,16 +60,16 @@ def get_prediction_model(
     ## Treating nuisance parameters
     # normalization of the nuisance parameters, $\nu_n$ in the text.
     # Only intact if correction type is "NORM" or "SHAPE"
-    SIGMA_N   = config.train__nuisances_norm_sigma
-    NU_N      = config.train__nuisances_norm_mean_sigmas * SIGMA_N
-    NUR_N     = config.train__nuisances_norm_reference_sigmas * SIGMA_N
+    SIGMA_N   = config.train__norm_nuisance_std
+    NU_N      = config.train__norm_nuisance_mean
+    NUR_N     = config.train__norm_nuisance_reference
     NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
 
     # shape of the nuisance parameters, $\nu_s$ in the text
     # Only intact if correction type is "SHAPE"
-    SIGMA_S   = np.array([config.train__nuisances_shape_sigma])
-    NU_S      = np.array([config.train__nuisances_shape_mean_sigmas * SIGMA_S])
-    NUR_S     = np.array([config.train__nuisances_shape_reference_sigmas * SIGMA_S])
+    SIGMA_S   = np.array([config.train__shape_nuisance_std])
+    NU_S      = np.array([config.train__shape_nuisance_mean])
+    NUR_S     = np.array([config.train__shape_nuisance_reference])
     NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
 
     # Get Tau term model
@@ -116,18 +116,37 @@ def train_NPML_model(
     # Train
     debug("Starting training")
     t0 = time()
-    tau_model_history = train_model(
-        model=model,
-        feature=np.array(feature_dataset._data, dtype=np.float32),
-        target=np.array(target_structure, dtype=np.float32),
-        loss=imperfect_loss,  # This is (11) in "Learning New Physics from a Machine", D'Angolo et al.
-        optimizer=optimizers.legacy.Adam(),
-        total_epochs=config.train__epochs,
-        patience=config.train__number_of_epochs_for_checkpoint,
-        clipping=config.train__nn_weight_clipping > 0,
-        verbose=False,
-    )
-    tau_history = np.array(tau_model_history['loss'])                
+    
+    if config.train__nuisance_correction_types == "" and not config.train__data_is_train_for_nuisances:
+        # Just fit without any special training
+        model.compile(loss=imperfect_loss,  optimizer='adam')
+        tau_model_fit = model.fit(
+            np.array(feature_dataset._data, dtype=np.float32),
+            np.array(target_structure, dtype=np.float32),
+            epochs=config.train__epochs,
+            verbose=0,
+        )
+        tau_model_history = tau_model_fit.history
+        tau_model_history['epochs'] = np.concatenate([
+            np.arange(0, config.train__epochs, config.train__number_of_epochs_for_checkpoint),
+            np.array([config.train__epochs - 1]),
+        ])
+        tau_history = np.array(tau_model_history['loss'])[tau_model_history['epochs']]
+    else:
+        # Train either of the nuisance parameters, or
+        tau_model_history = train_model(
+            model=model,
+            feature=np.array(feature_dataset._data, dtype=np.float32),
+            target=np.array(target_structure, dtype=np.float32),
+            loss=imperfect_loss,  # This is (11) in "Learning New Physics from a Machine", D'Angolo et al.
+            optimizer=optimizers.legacy.Adam(),
+            total_epochs=config.train__epochs,
+            patience=config.train__number_of_epochs_for_checkpoint,
+            clipping=config.train__nn_weight_clipping > 0,
+            verbose=False,
+        )
+        tau_history = np.array(tau_model_history['loss'])                
+    
     debug(f'Training time (seconds): {time() - t0}')
 
     final_loss = calc_t_test_statistic(tau_history[-1])

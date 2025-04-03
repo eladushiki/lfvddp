@@ -54,6 +54,10 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         "--out-dir", type=str,
         help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
+    parser.add_argument(
+        "--plot-in-place", action="store_true",
+        help="Should create plots in the output directory? Else, in a dedicated one", dest="plot_in_place"
+    )
 
     args, unknown = parser.parse_known_args()  # Using this instead of parse_args() to enable calling from jupyter
     if unknown:
@@ -69,13 +73,15 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
     if args.plot_config_path:
         config_paths.append(args.plot_config_path)
 
-    return config_paths, True if args.plot_config_path else False, args.debug, args.out_dir
+    return config_paths, args.plot_config_path, args.debug, args.out_dir, args.plot_in_place
 
 
 def create_config_from_paths(
         config_paths: list[Path],
         is_plot: bool = True,
-        out_dir: Optional[str] = None):
+        out_dir: Optional[str] = None,
+        plot_in_place: bool = False,
+    ):
     config_params = {}
     for config_path in config_paths:
         config_params.update(load_dict_from_json(config_path))
@@ -100,11 +106,14 @@ def create_config_from_paths(
                 }
                 config_class.__init__(self, **filtered_args)
 
-    config = DynamicConfig(**config_params)
-
+    
     # Configuration according to arguments
     if out_dir:
-        config.config__out_dir = out_dir
+        config_params["config__out_dir"] = out_dir
+    if plot_in_place:
+        config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
+
+    config = DynamicConfig(**config_params)
 
     return config
 
@@ -113,8 +122,8 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     """
     A wrapper for any entry point in the project, to ensure context control.
     """
-    config_paths, is_plot, is_debug_mode, out_dir = parse_config_from_args()
-    config = create_config_from_paths(config_paths, is_plot, out_dir)
+    config_paths, is_plot, is_debug_mode, out_dir, plot_in_place = parse_config_from_args()
+    config = create_config_from_paths(config_paths, is_plot, out_dir, plot_in_place)
 
     @wraps(function)
     def context_controlled_function(*args, **kwargs):
