@@ -7,7 +7,7 @@ from neural_networks.NPLM_adapters import get_prediction_model, train_NPML_model
 
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from plot.plots import plot_prediction_process
+from plot.plots import plot_1D_sliced_prediction_process
 from train.train_config import TrainConfig
 
 
@@ -80,7 +80,7 @@ def follow_instructions_for_t(
     t = tau - delta
 
     if context.is_debug_mode:
-        data_process_plot = plot_prediction_process(
+        data_process_plot = plot_1D_sliced_prediction_process(
             context=context,
             experiment_sample=sample_dataset,
             reference_sample=reference_dataset,

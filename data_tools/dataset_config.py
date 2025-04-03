@@ -4,10 +4,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Type
 
-import numpy as np
-
 @dataclass
 class DatasetParameters(ABC):
+    
+    _dataset__number_of_dimensions: int = field(init=False)
     
     @classmethod
     @abstractmethod
@@ -65,6 +65,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
 @dataclass
 class DatasetConfig:
     
+    dataset__number_of_dimensions: int
     dataset__definitions: List[Dict[str, Any]]
 
     _dataset__parameters: Dict[str, DatasetParameters] = field(default_factory=dict)
@@ -97,6 +98,7 @@ class DatasetConfig:
             del user_dataset_definitions[self._dataset__name_property]
             del user_dataset_definitions[self._dataset__type_property]
             self._dataset__parameters[dataset_name] = dataset_class(**user_dataset_definitions)
+            self._dataset__parameters[dataset_name]._dataset__number_of_dimensions = self.dataset__number_of_dimensions
 
         # Avoid duplicate documentation in context, this is included in _dataset__parameters
         del self.dataset__definitions

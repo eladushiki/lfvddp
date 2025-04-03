@@ -22,7 +22,7 @@ import scipy.special as spc
 from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, draw_sample_over_background_histograms, em_results, exp_results, create_containing_bins, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, draw_sample_over_background_1D_histograms, em_results, exp_results, create_1D_containing_bins, get_z_score, results, scientific_number
 from train.train_config import TrainConfig
 
 
@@ -1123,13 +1123,13 @@ def plot_sample_over_background(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = create_containing_bins(
+    bins, _ = create_1D_containing_bins(
         context,
         [sample, background_sample]
     )
 
     A_ax = fig.add_subplot(1, 1, index=1)
-    draw_sample_over_background_histograms(
+    draw_sample_over_background_1D_histograms(
         ax=A_ax,
         sample=sample,
         background=background_sample,
@@ -1140,7 +1140,7 @@ def plot_sample_over_background(
     return fig
 
 
-def plot_samples_over_background(
+def plot_1D_sliced_samples_over_background(
         context: ExecutionContext,
         first_sample: DataSet,
         second_sample: DataSet,
@@ -1152,13 +1152,13 @@ def plot_samples_over_background(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = create_containing_bins(
+    bins, _ = create_1D_containing_bins(
         context,
         [first_sample, second_sample, background_sample],
     )
 
     A_ax = fig.add_subplot(1, 2, 1)
-    draw_sample_over_background_histograms(
+    draw_sample_over_background_1D_histograms(
         ax=A_ax,
         sample=first_sample,
         background=background_sample,
@@ -1166,7 +1166,7 @@ def plot_samples_over_background(
         title="First sample over background",
     )
     B_ax = fig.add_subplot(1, 2, 2)
-    draw_sample_over_background_histograms(
+    draw_sample_over_background_1D_histograms(
         ax=B_ax,
         sample=second_sample,
         background=background_sample,
@@ -1177,12 +1177,13 @@ def plot_samples_over_background(
     return fig
 
 
-def plot_prediction_process(
+def plot_1D_sliced_prediction_process(
         context: ExecutionContext,
         experiment_sample: DataSet,
         reference_sample: DataSet,
         trained_tau_model: Model,
         trained_delta_model: Optional[Model],
+        along_dimension: int = 0
     ):
     """
     Give a single histogram featuring:
@@ -1201,23 +1202,26 @@ def plot_prediction_process(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, _ = create_containing_bins(context, [experiment_sample, reference_sample])
-    draw_sample_over_background_histograms(
+    bins, _ = create_1D_containing_bins(context, [experiment_sample, reference_sample])
+
+    draw_sample_over_background_1D_histograms(
         ax=ax,
         sample=experiment_sample,
         background=reference_sample,
         bins=bins,
         title="Datasets Along the Process",
+        along_dimension=along_dimension,
         sample_legend="training sample (reconstructed)",
         background_legend="reference sample (reconstructed)",
     )
     
+    _reference_data = reference_sample.slice_along_dimension(along_dimension)
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
-    predicted_tau_ndf = ax.hist(reference_sample._data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
+    predicted_tau_ndf = ax.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
 
     if trained_delta_model is not None:
         delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
-        predicted_delta_ndf = ax.hist(reference_sample._data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
+        predicted_delta_ndf = ax.hist(_reference_data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
 
     ax.legend()
     return fig

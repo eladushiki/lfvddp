@@ -22,17 +22,19 @@ def build_feature_for_model_train(exp_dataset, aux_dataset):
 
 def build_target_for_model_loss(sample_dataset: DataSet, reference_dataset: DataSet):
     # Is sample boolean mask
-    ones_like_sample = np.ones_like(sample_dataset, shape=(sample_dataset.n_samples, 1))  # 1 for dim 1 because the NN's output is 1D.
-    zeros_like_reference = np.zeros_like(reference_dataset, shape=(reference_dataset.n_samples, 1))
-    is_sample_mask = np.concatenate((ones_like_sample, zeros_like_reference), axis=0)
+    _ones_like_sample = np.ones(shape=(sample_dataset.n_samples,))  # 1 for dim 1 because the NN's output is 1D.
+    _zeros_like_reference = np.zeros(shape=(reference_dataset.n_samples,))
+    _is_sample_mask = np.concatenate((_ones_like_sample, _zeros_like_reference), axis=0)
 
     # Weight mask, multiplies loss
-    sample_weights = sample_dataset.weight_mask
-    reference_weights = reference_dataset.weight_mask * sample_dataset.n_samples * 1. / reference_dataset.n_samples
-    weight_mask = np.concatenate((sample_weights, reference_weights), axis=0)
+    _sample_weights = sample_dataset._weight_mask
+    _reference_weights = reference_dataset._weight_mask * sample_dataset.n_samples * 1. / reference_dataset.n_samples
+    _weight_mask = np.concatenate((_sample_weights, _reference_weights), axis=0)
     
     # NPLM's format
-    loss_mask = np.concatenate((is_sample_mask, weight_mask), axis=1)
+    _is_sample_mask_expanded = np.expand_dims(_is_sample_mask, axis=1)
+    _weight_mask_expanded = np.expand_dims(_weight_mask, axis=1)
+    loss_mask = np.concatenate((_is_sample_mask_expanded, _weight_mask_expanded), axis=1)
 
     return loss_mask
 
@@ -162,8 +164,8 @@ def train_NPML_model(
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_size: int, reference_ndf_estimation: DataSet) -> np.ndarray:
-    model_prediction = trained_model.predict(reference_ndf_estimation._data)[:, 0].reshape((-1, 1))
-    hypothesis_weights = np.exp(model_prediction) * reference_ndf_estimation.weight_mask
+    model_prediction = trained_model.predict(reference_ndf_estimation._data)[:, 0]  # Corresponds the 1 dimension of array output
+    hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
     return predicted_distribution_size / reference_ndf_estimation.n_samples * hypothesis_weights
 
 
