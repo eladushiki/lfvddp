@@ -117,8 +117,8 @@ def train_NPML_model(
     debug("Starting training")
     t0 = time()
     
-    if config.train__nuisance_correction_types == "" and not config.train__data_is_train_for_nuisances:
-        # Just fit without any special training
+    if not config.train__like_NPLM:
+        # Just fit without any special training, like is done in LFVNN
         model.compile(loss=imperfect_loss,  optimizer='adam')
         tau_model_fit = model.fit(
             np.array(feature_dataset._data, dtype=np.float32),

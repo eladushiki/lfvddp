@@ -43,3 +43,5 @@ class TrainConfig:
             hidden_layers=self.train__nn_architecture[1:-1],
             output_size=self.train__nn_output_dimension,
         ) - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
+
+    train__like_NPLM: bool  # Should we trian with NPLM's train_model or tensorflow's model.fit like LFVNN
