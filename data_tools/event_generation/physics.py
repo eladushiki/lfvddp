@@ -1,0 +1,82 @@
+from data_tools.data_utils import DataSet
+from data_tools.dataset_config import GeneratedDatasetParameters
+import numpy as np
+from fractions import Fraction
+
+
+def normalize(dataset, normalization=1e5):
+    '''
+    Normalizes the dataset according to the normalization.
+
+    Parameters
+    ----------
+    normalization : float, str
+        if float - the normalization factor. if str ('min-max' or 'standard') - the type of the normalization (incomplete for now).
+    '''
+    if normalization == 'min-max':
+        dataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
+    elif normalization == 'standard':
+        dataset = (dataset - np.mean(dataset)) / np.std(dataset)
+    elif isinstance(normalization,float) or isinstance(normalization,int):
+        dataset = dataset/normalization
+    else:
+        raise ValueError("Invalid normalization, see docstring for options")
+    return dataset
+
+
+def physics(
+        config: GeneratedDatasetParameters,
+        n_poisson_fluctuations: int,
+        data_usage_fraction: float,
+        normalization: float,
+    ) -> DataSet:
+    '''
+    Turns samples of the selected physical parameters into numpy arrays of samples A, B and Sig suitable for fitting.
+
+    Parameters
+    ----------
+    config: An instance of GeneratedDatasetParameters containinhg all the parameters
+
+    Returns
+    -------
+    a numpy array
+    '''
+    # todo: move these to the config class
+    channel = 'em'
+    signal_types = ["ggH_taue","vbfH_taue"]
+    used_physical_variables = ['Mcoll']
+    binned = False
+    resolution = 0.1
+
+    background = {}
+    signal = {}
+    vars = used_physical_variables
+    # background[f"{channel}_background"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars),axis=1)
+    # for s in signal_types:
+    #     signal[f"{s}_{channel}_signal"] = np.concatenate((np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars),axis=1)
+    # total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in sig_types]),axis=0)
+    background[f"{channel}_background"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{var}_dist.npy") for var in vars]),axis=1)
+    for s in signal_types:
+        signal[f"{s}_{channel}_signal"] = np.concatenate(tuple([np.load(f"/storage/agrp/yuvalzu/NPLM/{channel}_{s}_signal_{var}_dist.npy") for var in vars]),axis=1) if config.dataset__number_of_signal_events>0 else np.empty((0,background[f"{channel}_background"].shape[1]))
+    total_Sig = np.concatenate(tuple([signal[f"{s}_{channel}_signal"] for s in signal_types]),axis=0)
+
+    N_A_Pois  = np.random.poisson(lam=float(Fraction(config.dataset__number_of_background_events))*background[f"{channel}_background"].shape[0]*data_usage_fraction, size=1)[0] if config.train_physics__n_poisson_fluctuations else float(Fraction(config.dataset__number_of_reference_events))*background[f"{channel}_background"].shape[0]*config.train_physics__data_usage_fraction
+    N_Sig_Pois = np.random.poisson(lam=config.dataset__number_of_signal_events, size=1)[0] if n_poisson_fluctuations else config.dataset__number_of_signal_events
+
+    # bootstrapping
+    # A = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_A_Pois,replace=True).reshape(-1,1)
+    # B = np.random.choice(background[f"{channel}_{var}_background"].reshape(-1,),N_B_Pois,replace=True).reshape(-1,1)
+    # Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
+    A_events = np.random.choice(np.arange(background[f"{channel}_background"].shape[0]),N_A_Pois,replace=True)
+    A = background[f"{channel}_background"][A_events]
+    Sig_events = np.random.choice(np.arange(total_Sig.shape[0]),N_Sig_Pois,replace=True)
+    Sig = total_Sig[Sig_events]
+
+    if binned:
+        A = np.floor(A/resolution)*resolution
+        Sig = np.floor(Sig/resolution)*resolution
+    A = normalize(A, normalization)
+    Sig = normalize(Sig, normalization)
+
+    events = np.concatenate((A,Sig),axis=0)
+    return DataSet(events)

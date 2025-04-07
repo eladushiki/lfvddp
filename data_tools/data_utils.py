@@ -1,76 +1,124 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import List, Optional
+from typing import Any, Callable, Iterable, Optional, Tuple
 
+from data_tools.detector_efficiency import shapes
 import numpy as np
+import numpy.typing as npt
 import scipy.stats as sps
 from sklearn.model_selection import train_test_split
 from fractions import Fraction
 from random import choices
 
-from train.train_config import TrainConfig
+
+class DetectorEffect:
+    def __init__(
+            self,
+            efficiency_function: str,
+            error_function: str,
+        ):
+        self._efficiency = self._get_detector_efficiency_filter(efficiency_function)
+        self._error = self._get_detector_error_inducer(error_function)
+
+    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        """
+        Detector efficiency indicated the probability for each event (=row) to remain.
+        """
+        if not effect_name:
+            return lambda x: np.ones((x.shape[0],))
+        
+        try:
+            return getattr(shapes, effect_name)
+        except AttributeError:
+            raise ValueError(f"Invalid detector effect requested: {effect_name}")
+
+    def get_detector_efficiency_compensator(self) -> Callable[[np.ndarray], np.ndarray]:
+        return lambda x: np.ones((x.shape[0],)) / self._efficiency(x)
+
+    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+        """
+        Detector error returns the same shape as the input.
+        """
+        if not error_name:
+            return lambda x: x
+        
+        try:
+            return getattr(shapes, error_name)
+        except AttributeError:
+            raise ValueError(f"Invalid detector error requested: {error_name}")
+
+    def simulate_detector_effect(self, events: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        data_inclusion = np.random.uniform(size=(events.shape[0],)) < self._efficiency(events)
+        _filtered_events = events[data_inclusion]
+
+        errored_events = self._error(_filtered_events)
+        
+        return errored_events, data_inclusion
 
 
 class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
-    def __init__(self, data: Optional[np.ndarray] = None):
-        if data is None:
-            self._data = np.array([[]])
-        else:
+    """
+    A class representing a dataset of events.
+
+    Each row in the stored _data is a single event. The whole 2D table represents the
+    collection of them.
+    """
+    
+    def __init__(self, data: npt.NDArray):
+        """
+        Data has to be a 2D array
+        """
+        if data.ndim == 1:
+            self._data = np.expand_dims(data, axis=1)
+        elif data.ndim == 2:
             self._data = data
+        else:
+            raise ValueError(f"Data must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
+        self._weight_mask = np.ones((self._data.shape[0],))
 
     def __add__(self, other) -> DataSet:
-        if not any(self._data):
-            return DataSet(other._data)
-        if not any(other._data):
-            return DataSet(self._data)
-        return DataSet(np.concatenate((self._data, other._data), axis=0))
+        _data = np.concatenate((self._data, other._data), axis=0)
+        _weight_mask = np.concatenate((self._weight_mask, other._weight_mask), axis=0)
+        
+        result = DataSet(_data)
+        result._weight_mask = _weight_mask
+        return result
 
-    def __len__(self):
-        return self._data.shape[0]
+    @property
+    def dim(self) -> int:
+        if self._data.size == 0:
+            return 0
+        return self._data.shape[1]
 
     @property
     def n_samples(self):
-        return len(self)
+        return self._data.shape[0]
 
+    @property
+    def histogram_weight_mask(self) -> np.ndarray:
+        return np.expand_dims(self._weight_mask, axis=1)
+    
+    def __get__(self, item: int) -> np.ndarray:
+        """
+        Get a single event from the dataset.
+        """
+        return self._data[item, :] 
 
-class DataGeneration:
+    def slice_along_dimension(self, dim: int) -> np.ndarray:
+        """
+        Get a slice of all events along a single dimension.
+        """
+        return self._data[:, dim]
+    
+    def apply_detector_effect(self, detector_effect: DetectorEffect):
+        filtered_data, filter = detector_effect.simulate_detector_effect(self._data)
 
-    class DataSetType(Enum):
-        REF = "Ref"
-        BKG = "Bkg"
-        SIG = "Sig"
-
-    _instance = None
-
-    def __new__(cls, config: TrainConfig):
-        if cls._instance is None:
-            cls._instance = super(DataGeneration, cls).__new__(cls)
-            cls._instance.__init__(config)
-        return cls._instance
-
-    def __init__(self, config: TrainConfig):
-        self._config = config
-
-        ref, bkg, sig = self._config.train__analytic_background_function(config)
-
-        self._reference_dataset, self._background_dataset, self._signal_dataset = \
-            DataSet(ref), DataSet(bkg), DataSet(sig)
+        self._data = filtered_data
+        self._weight_mask = self._weight_mask[filter]
         
-    def _generate_dataset(self, components: List[DataSetType]) -> DataSet:
-        included_data = DataSet()
-
-        if DataGeneration.DataSetType.REF in components:
-            included_data += self._reference_dataset
-        if DataGeneration.DataSetType.BKG in components:
-            included_data += self._background_dataset
-        if DataGeneration.DataSetType.SIG in components:
-            included_data += self._signal_dataset
-
-        return included_data
-
-    def generate_dataset(self, data_sets: List[str]):
-        return self._generate_dataset([DataGeneration.DataSetType(ds) for ds in data_sets])
+        # Accumulate compensation in weight for later use
+        compensator = detector_effect.get_detector_efficiency_compensator()
+        self._weight_mask *= compensator(self._data)
 
 
 def resample(

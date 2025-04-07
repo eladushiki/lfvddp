@@ -21,10 +21,11 @@ class PlotInstructions:
 
 
 @dataclass
-class PlottingConfig(TrainConfig, ABC):
+class PlottingConfig:
     """
     Class for structuring all the data needed for plotting instructions.
     """
+    plot__target_run_parent_directory: str
 
     # General plot settings
     ## Styling

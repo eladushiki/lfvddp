@@ -4,13 +4,14 @@ from os import system
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import List, Union
+from typing import Any, Dict, List, Union
 
+from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import AGGREGATED_RESULTS_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
 import numpy as np
 import tarfile
-from matplotlib import patches
+from matplotlib import patches, pyplot as plt
 from plot.plotting_config import PlottingConfig
 import scipy.special as spc
 from scipy.integrate import quad
@@ -98,8 +99,8 @@ class results:  # todo: deprecate
         self.Bkg_events = int(results.N * self.Bkg_ratio)
         self.Ref_ratio = self._config.train__batch_test_fraction
         self.Ref_events = int(results.N * self.Ref_ratio)
-        self.Sig_events = self._config.train__number_of_signal_events
-        self.Bkg_sample = self._config.train__background_data_generation_function
+        self.Sig_events = self._config.dataset__number_of_signal_events
+        self.Bkg_sample = self._config.dataset__background_data_generation_function
         self.resolution = self._config.train__histogram_resolution
         self.WC = self._config.train__nn_weight_clipping
 
@@ -118,12 +119,12 @@ class results:  # todo: deprecate
             self.N_poiss = "False"
         self.NPLM = "True"
         self.Sig_resonant = self._config.train__signal_is_gaussian
-        self.Sig_loc = self._config.train__signal_location
+        self.Sig_loc = self._config.dataset__signal_location
         self.Sig_scale = self._config.train__signal_scale
-        self.resample = self._config.train__resample_is_resample
-        self.label_method = self._config.train__resample_label_method
-        self.N_method = self._config.train__resample_method_type
-        self.replacement = self._config.train__resample_is_replacement
+        self.resample = self._config.dataset__resample_is_resample
+        self.label_method = self._config.dataset__resample_label_method
+        self.N_method = self._config.dataset__resample_method_type
+        self.replacement = self._config.dataset__resample_is_replacement
         self.original_seed = self._context.random_seed
         self.tot_epochs = self._config.train__epochs
 
@@ -254,7 +255,7 @@ class results:  # todo: deprecate
                     flag = flag and (params_file._config.train__signal_number_of_events in N_sig)
                 if params_file._config.train__signal_number_of_events!=0:
                     if Sig_loc!="all":
-                        flag = flag and (params_file._config.train__signal_location in Sig_loc)
+                        flag = flag and (params_file._config.dataset__signal_location in Sig_loc)
                     if Sig_scale!="all":
                         flag = flag and (params_file._config.train__signal_scale in Sig_scale)
                     if resonant!="all":
@@ -417,3 +418,54 @@ def get_z_score(
     z_score = np.sqrt(2)*spc.erfinv((len(bkg_t[bkg_t<=np.median(sig_t)])/len(bkg_t))*2-1)
     return z_score, sig_t, bkg_t
 
+
+def create_1D_containing_bins(
+        context: ExecutionContext,
+        datasets: List[DataSet],
+        nbins = 30,
+        along_dimension: int = 0,
+):
+    if not isinstance(config := context.config, PlottingConfig):
+        raise ValueError(f"Expected PlottingConfig, got {type(config)}")
+
+    # limits    
+    xmin = 0
+    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
+
+    bins = np.linspace(xmin, xmax, nbins + 1)
+    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+
+    return bins, bin_centers
+
+
+def draw_sample_over_background_1D_histograms(
+        ax: plt.Axes,
+        sample: DataSet,
+        background: DataSet,
+        bins: np.ndarray,
+        title: str,
+        along_dimension: int = 0,
+        sample_legend: str = "sample",
+        background_legend: str = "background",
+        xlabel: str = "mass",
+        ylabel: str = "number of events",
+):
+    ax.hist(
+        background.slice_along_dimension(along_dimension),
+        weights=background.histogram_weight_mask,
+        bins=bins,
+        label=background_legend,
+        log=True,
+    )
+    ax.hist(
+        sample.slice_along_dimension(along_dimension),
+        weights=sample.histogram_weight_mask,
+        bins=bins,
+        label=sample_legend,
+        log=True,
+    )
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.legend()

@@ -21,6 +21,7 @@ configs/**/*.json
 !configs/user/basic_user_config.json
 !configs/cluster/basic_cluster_config.json
 !configs/plot/basic_plot_config.json
+!configs/dataset/basic_dataset_config.json
 
 # Mid process files and results
 ## Untracked directories

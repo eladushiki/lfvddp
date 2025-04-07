@@ -1,10 +1,12 @@
 from glob import glob
 from pathlib import Path
-from typing import List
+from typing import Optional
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
-from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION
+from frame.file_structure import AGGREGATED_TRAINING_RESULTS_FILE_NAME, TRAINING_HISTORY_FILE_EXTENSION
 from frame.file_system.training_history import load_training_history
+from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
 import matplotlib as mpl
 from matplotlib.figure import Figure
@@ -14,12 +16,13 @@ from matplotlib import font_manager, patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2,norm
+from tensorflow.keras.models import Model
 from matplotlib.animation import FuncAnimation
 import scipy.special as spc
 from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, em_results, exp_results, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, draw_sample_over_background_1D_histograms, em_results, exp_results, create_1D_containing_bins, get_z_score, results, scientific_number
 from train.train_config import TrainConfig
 
 
@@ -35,7 +38,6 @@ from train.train_config import TrainConfig
 
 def Plot_Percentiles_ref(
         context: ExecutionContext,
-        history_files_dir: Path,
     ):
     '''
     The funcion creates the plot of the evolution in the epochs of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
@@ -50,12 +52,12 @@ def Plot_Percentiles_ref(
     if not isinstance(config, TrainConfig):
         raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
     
-    all_history_files = glob(str(history_files_dir) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
+    all_history_files = glob(str(config.plot__target_run_parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
     if not all_history_files:
         raise ValueError("No history files found")
     all_loaded_histories = {history_file: load_training_history(Path(history_file)) for history_file in all_history_files}
     
-    # Epochs should be aligned in all files
+    # Epochs should be aligned in all files. If you get a 1D array here, they're not of the same length.
     all_epochs = np.array([history['epoch'] for history in all_loaded_histories.values()])
     for col in range(all_epochs.shape[1]):
         if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
@@ -116,9 +118,6 @@ def Plot_Percentiles_ref(
 
 def plot_old_t_distribution(
         context: ExecutionContext,
-        t_values_csv: Path,
-        xmin: int,
-        xmax: int,
         number_of_bins: int,
     ) -> Figure:
     '''
@@ -132,10 +131,20 @@ def plot_old_t_distribution(
     style = config.plot__figure_styling["plot"]
 
     # Figure
-    t = np.loadtxt(t_values_csv, delimiter=',', usecols=0)
     c = Carpenter(context)
     fig  = c.figure()
     ax = fig.add_subplot(111)
+
+    # Limits
+    t = np.loadtxt(
+        Path(config.plot__target_run_parent_directory) / AGGREGATED_TRAINING_RESULTS_FILE_NAME,
+        delimiter=',',
+        usecols=0,
+    )
+    chi2_begin = chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom)
+    chi2_end = chi2.ppf(0.9999, chi2_dof)
+    xmin = max([min([np.min(t), chi2_begin]), 0])
+    xmax = max([np.percentile(t, 95), chi2_end])
 
     # plot distribution histogram
     bins      = np.linspace(xmin, xmax, number_of_bins + 1)
@@ -166,8 +175,8 @@ def plot_old_t_distribution(
 
     # plot reference chi2
     bin_centers  = np.linspace(
-        chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom),
-        chi2.ppf(0.9999, chi2_dof),
+        chi2_begin,
+        chi2_end,
         1000
     )
 
@@ -184,7 +193,10 @@ def plot_old_t_distribution(
     circ = patches.Circle((0,0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"])
     rect1 = patches.Rectangle((0,0), 1, 1, color=style["chi2_color"], alpha=style["alpha"])
     
+    _, legend_labels = ax.get_legend_handles_labels()
+    legend_labels.append(f"Did not converge: {np.sum(t > 0) / t.size * 100:.2f}%")
     ax.legend(
+        
         (circ, rect1),
         (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
         handler_map={
@@ -195,9 +207,7 @@ def plot_old_t_distribution(
     )
     
     # Texting
-    number_of_test_events = scientific_number(config.train__number_of_reference_events + config.train__number_of_signal_events)
-    number_of_background_events = scientific_number(config.train__number_of_background_events)
-    histogram_title = r'$N_A^0=$'+f"{number_of_test_events}"+r',   $N_B^0=$'+f"{number_of_background_events}"
+    histogram_title = f"Distribution of t values over {len(t)} test runs"
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel('t', labelpad=20)
     ax.set_ylabel('PDF', labelpad=20)
@@ -1101,3 +1111,117 @@ def animated_t_2distributions(results_file1:results, results_file2:results, df, 
             else: file_name += '_2distributions'
             anim.save(save_path+file_name+'.gif', writer='imagemagick', fps=30)
     return HTML(anim.to_jshtml())
+
+
+def plot_sample_over_background(
+        context: ExecutionContext,
+        sample: DataSet,
+        background_sample: DataSet,
+):
+    """
+    Generate a histogram of the sample over the background.
+    """
+    c = Carpenter(context)
+    fig = c.figure()
+    bins, _ = create_1D_containing_bins(
+        context,
+        [sample, background_sample]
+    )
+
+    A_ax = fig.add_subplot(1, 1, index=1)
+    draw_sample_over_background_1D_histograms(
+        ax=A_ax,
+        sample=sample,
+        background=background_sample,
+        bins=bins,
+        title="Sample over background",
+    )
+
+    return fig
+
+
+def plot_1D_sliced_samples_over_background(
+        context: ExecutionContext,
+        first_sample: DataSet,
+        second_sample: DataSet,
+        background_sample: DataSet,
+):
+    """
+    Generate two plots, both featuring historams of either sample over the background.
+    Both are reconstructed to compensate for detector efficiency losses.
+    """
+    c = Carpenter(context)
+    fig = c.figure()
+    bins, _ = create_1D_containing_bins(
+        context,
+        [first_sample, second_sample, background_sample],
+    )
+
+    A_ax = fig.add_subplot(1, 2, 1)
+    draw_sample_over_background_1D_histograms(
+        ax=A_ax,
+        sample=first_sample,
+        background=background_sample,
+        bins=bins,
+        title="First sample over background",
+    )
+    B_ax = fig.add_subplot(1, 2, 2)
+    draw_sample_over_background_1D_histograms(
+        ax=B_ax,
+        sample=second_sample,
+        background=background_sample,
+        bins=bins,
+        title="Second sample over background",
+    )
+
+    return fig
+
+
+def plot_1D_sliced_prediction_process(
+        context: ExecutionContext,
+        experiment_sample: DataSet,
+        reference_sample: DataSet,
+        trained_tau_model: Model,
+        trained_delta_model: Optional[Model],
+        along_dimension: int = 0
+    ):
+    """
+    Give a single histogram featuring:
+    - raw experimental data sample
+    - experimental data sample weighterd to compensate detector losses
+    - weighted reference sample
+    - tau model prediction for the reconstruction of the experimental data
+    - delta model prediction for the reconstruction of the experimental data (if provided)
+    """
+    if not isinstance((config := context.config), TrainConfig):
+        raise ValueError("The context config is not a TrainConfig.")
+    if not isinstance(config, DatasetConfig):
+        raise ValueError("The context config is not a DatasetConfig.")
+    
+    c = Carpenter(context)
+    fig = c.figure()
+    ax = fig.add_subplot(111)
+
+    bins, _ = create_1D_containing_bins(context, [experiment_sample, reference_sample])
+
+    draw_sample_over_background_1D_histograms(
+        ax=ax,
+        sample=experiment_sample,
+        background=reference_sample,
+        bins=bins,
+        title="Datasets Along the Process",
+        along_dimension=along_dimension,
+        sample_legend="training sample (reconstructed)",
+        background_legend="reference sample (reconstructed)",
+    )
+    
+    _reference_data = reference_sample.slice_along_dimension(along_dimension)
+    tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+    predicted_tau_ndf = ax.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
+
+    if trained_delta_model is not None:
+        delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+        predicted_delta_ndf = ax.hist(_reference_data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
+
+    ax.legend()
+    return fig

@@ -2,7 +2,7 @@ from pathlib import Path
 from frame.cluster.call_scripts import RUN_PYTHON_JOB_SH_ABS_PATH, run_remote_python
 from frame.context.execution_context import ExecutionContext
 from frame.git_tools import get_commit_hash
-from train.train_config import ClusterConfig
+from frame.cluster.cluster_config import ClusterConfig
 
 IS_SAME_AS_COMMIT_PY_ABS_PATH = Path(__file__).parent.absolute() / "is_same_as_commit.py"
 IS_SAME_AS_COMMIT_DEFAULT_OUTPUT_FILENAME = "is_same_as_commit_output.txt"
