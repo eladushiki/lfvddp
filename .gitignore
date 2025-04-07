@@ -5,6 +5,12 @@
 **.egg-info/
 **/__pycache__/
 
+# TeX Processing artifacts
+*.aux
+*.pdf
+*.out
+*.gz
+
 # IDE
 .vscode/
 **.code-workspace

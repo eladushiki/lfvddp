@@ -1,0 +1,53 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+
+\title{Research Proposal}
+\author{Elad Kliger}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Topic}
+
+Methods for Detecting Lepton Flavor Violating Processes in HEP Data
+
+\section{Scientific Background}
+
+There are reasons to believe that the Standard Model (SM) is not complete, and does not fully describe the behavior of nature. Neutrino masses and the absence of dark matter in experimental investigations so far are but two of them.
+
+At current times, there are no theoretical motivation to prefer the search for evidence for any specific theory over another. Some theoreticians are waiting for experimental hint for which new physics to look for.
+
+At the meantime, the ATLAS collaboration withing the CERN association is gathering obscene amounts of experimental data, little of which have been thoroughly investigated. The labor heavy process of physical analysis of data sets is not approaching a foreseeable better utilization of it.
+
+Recent papers suggest a new method, called the Data Directed Paradigm (DDP)\cite{LastDDPpaper}, suggest investing in detecting "suspicious signal" within the vast data using a machine, before investing many scientist-years in the model, to speed the process.
+
+Lepton universality (LFU) is an approximate symmetry of the SM as far as we know, broken only be the Yukawa interactions in it. These break the universal symmtery to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. This means, that looking at any two datasets that differ only in the resulting flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics.
+
+We suggest utilizing this supposed symmetry of nature to scan through all available data, looking for deviations.
+
+\section{Goal}
+Our goal is to train a machine to be able to identify deviations from the known SM's property of lepton universality. We would use such a machine to filter the experimental data and find spots that are worthy of further investigation.
+
+\section{Existing Tools}
+Previous research suggests tools and methods for doing so. We would like to improve said tools to take into account more real world phenomena and estimate their predictive power.
+
+\section{Proposal}
+--- TBD ---
+
+\subsection{Preliminary Studies}
+We were able to reproduce the results of the previous study in \cite{LastDDPpaper} and train a NN with comparative results.
+
+\section{References}
+
+\begin{thebibliography}{99}
+    \bibitem{LastDDPpaper}
+    Bressler, Shikma, Inbar Savoray, and Yuval Zurgil.
+    \textit{‘Learning New Physics from Data -- a Symmetrized Approach’}. arXiv, 2024. \url{https://doi.org/10.48550/ARXIV.2401.09530}.
+
+\end{thebibliography}
+
+\end{document}
