@@ -1183,7 +1183,14 @@ def plot_1D_sliced_prediction_process(
         reference_sample: DataSet,
         trained_tau_model: Model,
         trained_delta_model: Optional[Model],
-        along_dimension: int = 0
+        title="Datasets Along the Process",
+        along_dimension: int = 0,
+        sample_legend="training sample (det. reconstructed)",
+        background_legend="reference sample (det. reconstructed)",
+        tau_prediction_legend="tau model prediction",
+        delta_prediction_legend="delta model prediction",
+        tau_prediction_color="cyan",
+        delta_prediction_color="blue",
     ):
     """
     Give a single histogram featuring:
@@ -1202,26 +1209,38 @@ def plot_1D_sliced_prediction_process(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, _ = create_1D_containing_bins(context, [experiment_sample, reference_sample])
+    bins, bin_centers = create_1D_containing_bins(context, [experiment_sample, reference_sample])
 
     draw_sample_over_background_1D_histograms(
         ax=ax,
         sample=experiment_sample,
         background=reference_sample,
         bins=bins,
-        title="Datasets Along the Process",
+        title=title,
         along_dimension=along_dimension,
-        sample_legend="training sample (reconstructed)",
-        background_legend="reference sample (reconstructed)",
+        sample_legend=sample_legend,
+        background_legend=background_legend,
     )
-    
+
+    prediction_hist_kwargs = {
+        "histtype": "step",
+        "log": True,
+        "lw": 0,
+    }
+    prediction_scatter_kwargs = {
+        "s": 30,
+        "edgecolor": "black",
+    }
+
     _reference_data = reference_sample.slice_along_dimension(along_dimension)
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
-    predicted_tau_ndf = ax.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, label="tau model prediction", alpha=0.5)
+    predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
+    ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
 
     if trained_delta_model is not None:
         delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
-        predicted_delta_ndf = ax.hist(_reference_data, weights=delta_hypothesis_weights, bins=bins, label="delta model prediction", alpha=0.5)
+        predicted_delta_ndf = plt.hist(_reference_data, weights=delta_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
+        ax.scatter(bin_centers, predicted_delta_ndf[0], label=delta_prediction_legend, color=delta_prediction_color, **prediction_scatter_kwargs)
 
     ax.legend()
     return fig
