@@ -2,6 +2,7 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage{hyperref}
+\usepackage{amsmath}
 
 \title{Research Proposal}
 \author{Elad Kliger}
@@ -25,7 +26,7 @@ At the meantime, the ATLAS collaboration withing the CERN association is gatheri
 
 Recent papers suggest a new method, called the Data Directed Paradigm (DDP)\cite{LastDDPpaper}, suggest investing in detecting "suspicious signal" within the vast data using a machine, before investing many scientist-years in the model, to speed the process.
 
-Lepton universality (LFU) is an approximate symmetry of the SM as far as we know, broken only be the Yukawa interactions in it. These break the universal symmtery to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. This means, that looking at any two datasets that differ only in the resulting flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics.
+Lepton universality (LFU) is an approximate symmetry of the SM as far as we know, broken only be the Yukawa interactions in it. These break the universal symmtery to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. This means, that looking at any two datasets that differ only in the resulting flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics\cite{LetonFlavorViolatioinHiggsDecays}.
 
 We suggest utilizing this supposed symmetry of nature to scan through all available data, looking for deviations.
 
@@ -36,17 +37,33 @@ Our goal is to train a machine to be able to identify deviations from the known 
 Previous research suggests tools and methods for doing so. We would like to improve said tools to take into account more real world phenomena and estimate their predictive power.
 
 \section{Proposal}
---- TBD ---
+Our study would take existing computational tools and improve them in the following ways:
+
+\begin{enumerate}
+    \item Setting the process to take into account and process events of any dimension.
+    \item Applying simulated detector effects on the datasets while still trying to recreate the results.
+\end{enumerate}
+
+In each case, we would
+\begin{enumerate}
+    \item Develop software tools to handle the data
+    \item Evaluate the performance over simulated data
+    \item Gather statistics of the operation
+    \item Evaluate the expected error and predictive power
+\end{enumerate} 
 
 \subsection{Preliminary Studies}
 We were able to reproduce the results of the previous study in \cite{LastDDPpaper} and train a NN with comparative results.
-
+We could use work done in \cite{LetonFlavorViolatioinHiggsDecays} with different, more robust comparison of $\mu \to \tau_{\text{leptonic}}$ and $e \to \tau_{\text{leptonic}}$ decays.
 \section{References}
 
 \begin{thebibliography}{99}
     \bibitem{LastDDPpaper}
     Bressler, Shikma, Inbar Savoray, and Yuval Zurgil.
     \textit{‘Learning New Physics from Data -- a Symmetrized Approach’}. arXiv, 2024. \url{https://doi.org/10.48550/ARXIV.2401.09530}.
+
+    \bibitem{LetonFlavorViolatioinHiggsDecays}
+    Bressler, Shikma, Avital Dery, and Aielet Efrati. ‘Asymmetric Lepton-Flavor Violating Higgs Boson Decays’. Physical Review D 90, no. 1 (22 July 2014): 015025. https://doi.org/10.1103/PhysRevD.90.015025.
 
 \end{thebibliography}
 
