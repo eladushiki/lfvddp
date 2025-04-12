@@ -1,11 +1,7 @@
-from glob import glob
-from pathlib import Path
 from typing import Optional
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
-from data_tools.profile_likelihood import calc_t_test_statistic
-from frame.file_structure import AGGREGATED_TRAINING_RESULTS_FILE_NAME, TRAINING_HISTORY_FILE_EXTENSION
-from frame.file_system.training_history import load_training_history
+from frame.aggregate import ResultAggregator
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
 import matplotlib as mpl
@@ -47,33 +43,12 @@ def Plot_Percentiles_ref(
     tvalues_check: (numpy array shape (N_toys, N_check_points)) array of t=-2*loss
     df:            (int) chi2 degrees of freedom
     '''
-    if not isinstance(config := context.config, PlottingConfig):
-        raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
-    if not isinstance(config, TrainConfig):
-        raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
-    
-    all_history_files = glob(str(config.plot__target_run_parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
-    if not all_history_files:
-        raise ValueError("No history files found")
-    all_loaded_histories = {history_file: load_training_history(Path(history_file)) for history_file in all_history_files}
-    
-    # Epochs should be aligned in all files. If you get a 1D array here, they're not of the same length.
-    all_epochs = np.array([history['epoch'] for history in all_loaded_histories.values()])
-    for col in range(all_epochs.shape[1]):
-        if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
-            raise ValueError("Epochs are not the same for all files")
-    epochs = all_epochs[0]
+    config = context.config
 
-    # We assume each run generates each type of test statistic, and that they all should be summed to get a single value
-    unique_history_file_names = np.unique([Path(history_file).name for history_file in all_history_files])
-    unique_runs_output_dirs = np.unique([str(Path(history_file).parent) for history_file in all_history_files])
-
-    # We assume that we need to sum two types of test statistics for every single value, each with different name
-    all_model_t_test_statistics = np.zeros(shape=(len(unique_runs_output_dirs), len(epochs)))
-    for run_index, run_output in enumerate(unique_runs_output_dirs):
-        for history_file_name in unique_history_file_names:
-            history = all_loaded_histories[run_output + '/' + history_file_name]
-            all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history['loss']))  # type: ignore
+    # Training results aggregation
+    agg = ResultAggregator(context)
+    all_model_t_test_statistics = agg.all_test_statistics
+    epochs = agg.all_epochs
 
     # Framing
     c = Carpenter(context)
@@ -135,12 +110,10 @@ def plot_old_t_distribution(
     fig  = c.figure()
     ax = fig.add_subplot(111)
 
+    agg = ResultAggregator(context)
+    t = agg.all_t_values
+
     # Limits
-    t = np.loadtxt(
-        Path(config.plot__target_run_parent_directory) / AGGREGATED_TRAINING_RESULTS_FILE_NAME,
-        delimiter=',',
-        usecols=0,
-    )
     chi2_begin = chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom)
     chi2_end = chi2.ppf(0.9999, chi2_dof)
     xmin = max([min([np.min(t), chi2_begin]), 0])

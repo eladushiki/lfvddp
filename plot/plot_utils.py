@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Union
 
 from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import AGGREGATED_RESULTS_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
+from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
 import numpy as np
 import tarfile
 from matplotlib import patches, pyplot as plt
@@ -105,7 +105,6 @@ class results:  # todo: deprecate
         self.WC = self._config.train__nn_weight_clipping
 
         self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)]
-        self._csv_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{AGGREGATED_RESULTS_FILE_EXTENSION}", recursive=True)]
         self.Bkg_events = int(results.N * self._config.train__batch_train_fraction)
         self.Ref_events = int(results.N * self._config.train__batch_test_fraction)
         
