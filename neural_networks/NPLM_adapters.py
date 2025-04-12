@@ -1,13 +1,13 @@
-from logging import debug, info
+from logging import info
+import os
 from time import time
 from typing import Any, Dict
 from data_tools.data_utils import DataSet
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, WEIGHTS_OUTPUT_FILE_NAME
-from neural_networks.NPLM.src.NPLM.ANALYSISutils import h5py, np, os
-from neural_networks.NPLM.src.NPLM.NNutils import h5py, imperfect_loss, imperfect_model, logging, np, train_model
-from neural_networks.NPLM.src.NPLM.PLOTutils import h5py, np, os
+from frame.file_system.training_history import HistoryKeys
+from neural_networks.NPLM.src.NPLM.NNutils import imperfect_loss, imperfect_model, logging, np, train_model
 import numpy as np
 from tensorflow.keras import optimizers # type: ignore
 from tensorflow.keras.models import Model # type: ignore
@@ -116,7 +116,7 @@ def train_NPML_model(
     target_structure = build_target_for_model_loss(sample_dataset, reference_dataset)
 
     # Train
-    debug("Starting training")
+    info("Starting training")
     t0 = time()
     
     if not config.train__like_NPLM:
@@ -126,14 +126,16 @@ def train_NPML_model(
             np.array(feature_dataset._data, dtype=np.float32),
             np.array(target_structure, dtype=np.float32),
             epochs=config.train__epochs,
+            batch_size=feature_dataset.n_samples,
             verbose=0,
         )
         tau_model_history = tau_model_fit.history
-        tau_model_history['epochs'] = np.concatenate([
+        tau_model_history[HistoryKeys.EPOCH.value] = np.concatenate([
             np.arange(0, config.train__epochs, config.train__number_of_epochs_for_checkpoint),
             np.array([config.train__epochs - 1]),
         ])
-        tau_history = np.array(tau_model_history['loss'])[tau_model_history['epochs']]
+        tau_history = np.array(tau_model_history[HistoryKeys.LOSS.value])[tau_model_history[HistoryKeys.EPOCH.value]]
+        tau_model_history[HistoryKeys.LOSS.value] = tau_history
     else:
         # Train either of the nuisance parameters, or
         tau_model_history = train_model(
@@ -147,16 +149,16 @@ def train_NPML_model(
             clipping=config.train__nn_weight_clipping > 0,
             verbose=False,
         )
-        tau_history = np.array(tau_model_history['loss'])                
+        tau_history = np.array(tau_model_history[HistoryKeys.LOSS.value])                
     
-    debug(f'Training time (seconds): {time() - t0}')
+    info(f'Training time (seconds): {time() - t0}')
 
     final_loss = calc_t_test_statistic(tau_history[-1])
     logging.info(f'Observed t test statistic: {final_loss}')
     
     save_NPLM_training_outcomes(
         context,
-        tau_model_history=tau_model_history,
+        model_history=tau_model_history,
         tau_model=model,
     )
 
@@ -171,7 +173,7 @@ def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distri
 
 def save_NPLM_training_outcomes(
         context: ExecutionContext,
-        tau_model_history: Dict[str, Any],
+        model_history: Dict[str, Any],
         tau_model: imperfect_model,
     ) -> None:
     if not isinstance(config := context.config, TrainConfig):
@@ -180,14 +182,6 @@ def save_NPLM_training_outcomes(
     ## Training log
     os.makedirs(context.training_outcomes_dir, exist_ok=True)
 
-    ## Training history
-    history_path = context.training_outcomes_dir / f"{tau_model.name}.{TRAINING_HISTORY_FILE_EXTENSION}"
-    with h5py.File(history_path,"w") as history_file:
-        for key in list(tau_model_history.keys()):
-            monitored = np.array(tau_model_history[key])
-            logging.debug(f'{key}: {monitored[-1]}')
-            history_file.create_dataset(key, data=monitored, compression='gzip')
-    context.document_created_product(history_path)
-
-    # save the model weights
+    # Save training
+    context.save_and_document_model_history(model_history, context.training_outcomes_dir / f"{tau_model.name}.{TRAINING_HISTORY_FILE_EXTENSION}")
     context.save_and_document_model_weights(tau_model, context.training_outcomes_dir / f"{tau_model.name}_{WEIGHTS_OUTPUT_FILE_NAME}")

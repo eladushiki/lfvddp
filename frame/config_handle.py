@@ -9,3 +9,4 @@ class UserConfig:  # todo: convert all configs to pydantic's BaseModels
     """
     config__user: str
     config__out_dir: Path
+    config__log_level: str
