@@ -1,10 +1,10 @@
 from glob import glob
 from logging import warning
 from pathlib import Path
-from typing import List
+from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION
-from frame.file_system.training_history import load_training_history
+from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
 from numpy._typing._generic_alias import NDArray
 from plot.plotting_config import PlottingConfig
@@ -50,10 +50,10 @@ class ResultAggregator:
         self._t_values = aggregated_results
 
     @property
-    def all_t_values(self) -> List[float]:
-        if not self._t_values:
+    def all_t_values(self) -> NDArray[np.float64]:
+        if self._t_values is None:
             self._load_t_values()
-        return [t[0] for t in self._t_values]
+        return np.array([t[0] for t in self._t_values])
     
     def _load_test_statistics(self):
         # Gather history files
@@ -65,7 +65,7 @@ class ResultAggregator:
         all_loaded_histories = {history_file: load_training_history(Path(history_file)) for history_file in all_history_files}
         
         # Epochs should be aligned in all files. If you get a 1D array here, they're not of the same length.
-        all_epochs = np.array([history['epoch'] for history in all_loaded_histories.values()])
+        all_epochs = np.array([history[HistoryKeys.EPOCH.value] for history in all_loaded_histories.values()])
         for col in range(all_epochs.shape[1]):
             if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
                 raise ValueError("Epochs are not the same for all files")
@@ -80,19 +80,19 @@ class ResultAggregator:
         for run_index, run_output in enumerate(unique_runs_output_dirs):
             for history_file_name in unique_history_file_names:
                 history = all_loaded_histories[run_output + '/' + history_file_name]
-                all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history['loss']))  # type: ignore
+                all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history[HistoryKeys.LOSS.value]))  # type: ignore
 
         self._test_statistics = all_model_t_test_statistics
         self._epochs = epochs
 
     @property
     def all_test_statistics(self) -> NDArray[np.float64]:
-        if not self._test_statistics:
+        if self._test_statistics is None:
             self._load_test_statistics()
         return self._test_statistics
 
     @property
     def all_epochs(self) -> NDArray[np.int64]:
-        if not self._epochs:
+        if self._epochs is None:
             self._load_test_statistics()
         return self._epochs
