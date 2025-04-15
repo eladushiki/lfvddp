@@ -419,7 +419,7 @@ def get_z_score(
 def create_1D_containing_bins(
         context: ExecutionContext,
         datasets: List[DataSet],
-        nbins = 30,
+        nbins = 100,
         along_dimension: int = 0,
 ):
     if not isinstance(config := context.config, PlottingConfig):
@@ -440,12 +440,9 @@ def draw_sample_over_background_1D_histograms(
         sample: DataSet,
         background: DataSet,
         bins: np.ndarray,
-        title: str,
         along_dimension: int = 0,
         sample_legend: str = "sample",
         background_legend: str = "background",
-        xlabel: str = "mass",
-        ylabel: str = "number of events",
 ):
     ax.hist(
         background.slice_along_dimension(along_dimension),
@@ -461,8 +458,3 @@ def draw_sample_over_background_1D_histograms(
         label=sample_legend,
         log=True,
     )
-
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.legend()

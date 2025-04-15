@@ -17,3 +17,7 @@ def validate_configuration(config: Union[UserConfig, ClusterConfig, DatasetConfi
     if config.train__epochs < 1e5 and config.train__like_NPLM or \
             config.train__epochs < 5e5 and not config.train__like_NPLM:
         warning("Training epochs not sufficient, train may not converge")
+
+    if not config.train__like_NPLM and \
+            (config.train__nuisance_correction_types != "" or config.train__data_is_train_for_nuisances):
+        warning("You probably meant to mimic LFVNN, but it does not deal with nuisances.")
