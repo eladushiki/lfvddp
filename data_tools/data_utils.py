@@ -126,14 +126,14 @@ class DataSet:  # todo: convert _data to tf.data.Dataset as in https://www.tenso
     @property
     def n_samples(self):
         return self._data.shape[0]
+    
+    @property
+    def corrected_n_samples(self) -> float:
+        return float(np.sum(self._weight_mask))
 
     @property
     def histogram_weight_mask(self) -> np.ndarray:
         return np.expand_dims(self._weight_mask, axis=1)
-    
-    @property
-    def corrected_total_weight(self) -> float:
-        return float(np.sum(self._weight_mask))
 
     def __get__(self, item: int) -> np.ndarray:
         """
