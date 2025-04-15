@@ -89,7 +89,7 @@ class DetectorEffect:
         return lambda x: np.ones((x.shape[0],)) / self._theoretic_efficiency(x)
 
 
-class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
+class DataSet:  # todo: convert _data to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
     """
     A class representing a dataset of events.
 
@@ -131,6 +131,10 @@ class DataSet:  # todo: convert to tf.data.Dataset as in https://www.tensorflow.
     def histogram_weight_mask(self) -> np.ndarray:
         return np.expand_dims(self._weight_mask, axis=1)
     
+    @property
+    def corrected_total_weight(self) -> float:
+        return float(np.sum(self._weight_mask))
+
     def __get__(self, item: int) -> np.ndarray:
         """
         Get a single event from the dataset.

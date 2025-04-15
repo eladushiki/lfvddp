@@ -28,7 +28,7 @@ def build_target_for_model_loss(sample_dataset: DataSet, reference_dataset: Data
 
     # Weight mask, multiplies loss
     _sample_weights = sample_dataset._weight_mask
-    _reference_weights = reference_dataset._weight_mask * sample_dataset.n_samples * 1. / reference_dataset.n_samples
+    _reference_weights = reference_dataset._weight_mask * sample_dataset.corrected_total_weight * 1. / reference_dataset.n_samples
     _weight_mask = np.concatenate((_sample_weights, _reference_weights), axis=0)
     
     # NPLM's format
@@ -87,7 +87,7 @@ def get_prediction_model(
         train_f = is_tau,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta as in NPLM paper). We generally want to train for both.
         train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
     )
-    info(tau_model.summary())
+    tau_model.summary(print_fn=lambda x: info(x))  # Otherwise, model.summary() just uses print()
 
     # Nuisance unused parameters set, later causes train to access unintialized members in these cases:
     if config.train__nuisance_correction_types != "SHAPE":

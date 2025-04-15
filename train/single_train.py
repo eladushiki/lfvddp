@@ -86,6 +86,7 @@ def follow_instructions_for_t(
             reference_sample=reference_dataset,
             trained_tau_model=tau_model,
             trained_delta_model=delta_model,
+            title=name + " prediction process",
         )
         context.save_and_document_figure(data_process_plot, context.unique_out_dir / f"{name}_data_process_plot.png")
 

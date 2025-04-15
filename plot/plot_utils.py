@@ -418,7 +418,7 @@ def get_z_score(
 
 def utils__create_slice_containing_bins(
         datasets: List[DataSet],
-        nbins = 30,
+        nbins = 100,
         along_dimension: int = 0,
 ):
     # limits    
