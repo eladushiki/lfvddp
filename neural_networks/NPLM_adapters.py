@@ -28,7 +28,7 @@ def build_target_for_model_loss(sample_dataset: DataSet, reference_dataset: Data
 
     # Weight mask, multiplies loss
     _sample_weights = sample_dataset._weight_mask
-    _reference_weights = reference_dataset._weight_mask * sample_dataset.corrected_total_weight * 1. / reference_dataset.n_samples
+    _reference_weights = reference_dataset._weight_mask * sample_dataset.corrected_n_samples * 1. / reference_dataset.corrected_n_samples
     _weight_mask = np.concatenate((_sample_weights, _reference_weights), axis=0)
     
     # NPLM's format
@@ -165,10 +165,10 @@ def train_NPML_model(
     return final_loss
 
 
-def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_size: int, reference_ndf_estimation: DataSet) -> np.ndarray:
+def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:
     model_prediction = trained_model.predict(reference_ndf_estimation._data)[:, 0]  # Corresponds the 1 dimension of array output
     hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
-    return predicted_distribution_size / reference_ndf_estimation.n_samples * hypothesis_weights
+    return predicted_distribution_corrected_size / reference_ndf_estimation.corrected_n_samples * hypothesis_weights
 
 
 def save_NPLM_training_outcomes(
