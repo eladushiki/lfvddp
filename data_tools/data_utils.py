@@ -206,7 +206,6 @@ def em(
         train_size,
         test_size,
         sig_events,
-        seed,
         N_poiss=True,
         combined_portion=1,
         resolution=1,
@@ -227,13 +226,12 @@ def em(
     return Ref,Bkg,Sig
 
 
-def generate_pdf(x,seed,size=3e6):
+def generate_pdf(x, size=3e6):
     '''
     Not used (as of 9/23).
     Creates the pdf of the array x.
     Returns new array of length 'size' generated from the pdf of x. 
     '''
-    np.random.seed(seed)
     full_dist = x
     print('creating histogram')
     full_dist_hist = np.histogram(x,len(full_dist))

@@ -1,16 +1,14 @@
 from glob import glob
-import os
-from os import system
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Any, Dict, List, Union
+from typing import List, Union
 
 from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import AGGREGATED_RESULTS_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
+from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
+from frame.file_system.training_history import HistoryKeys
 import numpy as np
-import tarfile
 from matplotlib import patches, pyplot as plt
 from plot.plotting_config import PlottingConfig
 import scipy.special as spc
@@ -105,7 +103,6 @@ class results:  # todo: deprecate
         self.WC = self._config.train__nn_weight_clipping
 
         self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)]
-        self._csv_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{AGGREGATED_RESULTS_FILE_EXTENSION}", recursive=True)]
         self.Bkg_events = int(results.N * self._config.train__batch_train_fraction)
         self.Ref_events = int(results.N * self._config.train__batch_test_fraction)
         
@@ -212,7 +209,7 @@ class results:  # todo: deprecate
                     if '_TAU_history' in filename:
                         with h5py.File(filename, "r") as f1:
                             keys_list  = [(key) for key in list(f1.keys())]
-                            TAU_history = f1.get(str(keys_list[2]))#'loss'
+                            TAU_history = f1.get(str(HistoryKeys.LOSS.value))
                             TAU_history = np.array(TAU_history)
                         t_history.append(-2*(TAU_history[0::1]))
                         epochs.append(patience*np.array(range(len(TAU_history[0::1]))))

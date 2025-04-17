@@ -1,6 +1,8 @@
 from contextlib import contextmanager
-from logging import info
+from logging import INFO, basicConfig, info
+import logging
 import random
+from frame.file_system.training_history import save_training_history
 from numpy import random as npramdom
 from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
@@ -10,14 +12,15 @@ from frame.file_structure import CONTEXT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
-from tensorflow.keras.models import Model
+import tensorflow as tf
+from tensorflow.keras.models import Model # type: ignore
 
 
 from dataclasses import dataclass, field
 from os import getpid, makedirs, sep
 from pathlib import Path
 from sys import argv
-from typing import Any, List
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -86,6 +89,19 @@ class ExecutionContext:
         model.save_weights(path)
         self.document_created_product(path)
 
+    def save_and_document_model_history(
+            self,
+            model_history: Dict[str, Any],
+            path: Path,
+        ):
+        save_training_history(
+            model_history,
+            path,
+            self.config.train__epochs,
+            epochs_checkpoint=self.config.train__number_of_epochs_for_checkpoint,
+        )
+        self.document_created_product(path)
+
     def close(self):
         self.run_successful = True
         self.save_self_to_out_file()
@@ -109,8 +125,9 @@ def version_controlled_execution_context(config: UserConfig, command_line_args: 
 
     # Save in case run terminates prematurely
     context.save_self_to_out_file()
+    basicConfig(level=getattr(logging, config.config__log_level))
 
-    # Do everyting, add imoprttant stufff as parameters to context object
+    # Do everything, add important stuff as parameters to context object
     yield context
 
     # Overwrite saved context at end of run
