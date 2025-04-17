@@ -1,0 +1,108 @@
+\documentclass{article}
+
+\input{common_packages.tex}
+
+\begin{document}
+
+\section{Detector Efficiency}
+
+Let us assume that each sample's true events are filtered due to a nonperfect detector efficincy, and let that efficiency be a function of the events parameters. That is,
+
+$$
+\begin{aligned}
+e_i = \{\bar{x}\} \in n \quad \text{w.p.} \quad \eta(e_i)
+\end{aligned}
+$$
+
+which is bound between 0 and 1, and describes the probability for detection. We introduce this mechanism to later show that we are able to differentiate form effects that stem from different efficiencies between dataset to actual signals.
+
+Let us further define $\mathcal{D}(\eta, n)$ as the function that accepts a dataset of events, and returns another with events filtered with probability $\eta(e_i)$ for $e_i \in n$.
+
+This renders each dataset we look at to become
+
+$$
+\begin{aligned}
+    \tilde{n} = \text{Det}(\eta, n)
+\end{aligned}
+$$
+
+and the tilde denoting a filtered dataset, that is, the observed dataset.
+
+Let us now introduce weight for the remaining event, that would aim to compensate for lost event while recontructing the datset. We'll give each event a weight, $e_i = \{\bar{x}, w_i\}$, with $w_i$'s defaulting to 1.
+
+Given a filtered dataset, $\tilde{n}$, we now define the reconstructed dataset $\dot{n}$ as
+
+$$
+\begin{aligned}
+    \dot{n} = \{ e_i, w_i / \eta(e_i) | e_i \in \tilde{n} \}
+\end{aligned}
+$$
+
+That is, assuming that for each existing event $e_i$ there were, in average, $1/\eta(e_i)$ events in the true dataset. We formulated the process to allow for multiple manipulations, each assuming previous weights. While not actually recreating any missed events, we are trying to recreate the statistics of a binned dataset such that, with large enough statistics, we would get very similar histograms.
+
+This leads us to redefine the estimated number of events in each set, as
+
+$$
+\begin{aligned}
+\dot{N} = \sum\limits_{e_i \in \dot{n}} w_i
+\end{aligned}
+$$
+
+Our hypothesys now become, based on what's seen in \cite{LastDDPpaper},
+
+$$
+\begin{aligned}
+    \mathcal{H}_{0} &: \quad
+    \begin{aligned}
+        n_{\mathbf{A}}(x) &= \dfrac{\dot{N}_{\mathbf{A}}}{\int n_{\mathcal{R}}(x)\, dx} e^{h(x)} n_{\mathcal{R}}(x) \\
+        n_{\mathbf{B}}(x) &= \dfrac{\dot{N}_{\mathbf{B}}}{\int n_{\mathcal{R}}(x)\, dx} e^{h(x) + r} n_{\mathcal{R}}(x)        
+    \end{aligned}
+    \\\vspace{1em}\\
+    \mathcal{H}_{1} &: \quad
+    \begin{aligned}
+        n_{\mathbf{A}}(x) &= \dfrac{\dot{N}_{\mathbf{A}}}{\int n_{\mathcal{R}}(x)\, dx} e^{f(x)} n_{\mathcal{R}}(x) \\
+        n_{\mathbf{B}}(x) &= \dfrac{\dot{N}_{\mathbf{B}}}{\int n_{\mathcal{R}}(x)\, dx} e^{g(x)} n_{\mathcal{R}}(x)
+    \end{aligned}
+\end{aligned}
+$$
+
+describing our best estimates of the true distributions of both datasets.
+
+Following a similar development as in \cite{LastDDPpaper}, we end up with the t value formulations
+
+$$
+\begin{aligned}
+    t_{\mathbf{A}+\mathbf{B}}(\mathbf{A}) &= -2 \cdot \min_{f(x)}
+    \left[
+        - \frac{1}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}}
+        \sum_{x \in \mathbf{A}, \mathbf{B}} \dot{N}_{\mathbf{A}} \left( e^{f(x)} - 1 \right)
+        + \sum_{x \in \mathbf{A}} f(x)
+    \right]
+    \\
+    t_{\mathbf{A}+\mathbf{B}}(\mathbf{B}) &= -2 \cdot \min_{g(x)}
+    \left[
+        - \frac{1}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}}
+        \sum_{x \in \mathbf{A}, \mathbf{B}} \dot{N}_{\mathbf{B}} \left( e^{g(x)} - 1 \right)
+        + \sum_{x \in \mathbf{B}} g(x)
+    \right]
+\end{aligned}
+$$
+
+and the needed loss function to train the NN by
+
+$$
+\begin{aligned}
+    L[j, \mathcal{D}, \mathcal{R}] = \sum\limits_{x_i\in S + R}
+    \left[
+        (1 - y) \frac
+            {\dot{N}_A w_i}
+            {\dot{n}_{\mathcal{R}}} \left( e^{f(x)} - 1 \right) - y w_i f(x)
+    \right]
+\end{aligned}
+$$
+
+$j$ being a function, $D$ the sample dataset, $R$ the reference dataset and $y$ an indicator for which dataset the sample event is taken from (1 for $D$ and 0 for $R$), following \cite{Italian no 1 - Learning New Physics from a Machine}.
+
+\input{bibliography.tex}
+
+\end{document}
