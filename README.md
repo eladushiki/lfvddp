@@ -203,8 +203,8 @@ and you should be able to use it right away through `create_plots.py`.
 ## Training
 
 Training entry points:
-- `submit_train.py` for remote submission
 - `single_train.py` for the server to run each time (and local tests)
+- `submit_train.py` for remote submission of multiple copies of `single_train.py` [Currently only in-place, when running at the ATLAS cluster]
 
 ## Plotting
 - `create_plots.py` would follow the instruction in the configuration files to gather the necessary data from completed trainings and producte the plots
