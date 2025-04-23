@@ -31,7 +31,7 @@ You need an operative Python interpreter to run this project. You can choose any
 
 > source  /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh
 
-installation instructions for the filesystem can be found in [this link](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html). This being said, access to the WIS's (or equivalent) net (say, via VPN) is required.
+installation instructions for the filesystem can be found in [this link](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html).
 
 ### Local Venv:
 
@@ -125,6 +125,19 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
     }
 }
 ```
+
+The custom file paths here refer to a different file, `settings.json`, of the form:
+```json
+{
+    "myConfig.userConfig": "configs/user/<name>.json",
+    "myConfig.clusterConfig": "configs/cluster/<your config>.json",
+    "myConfig.datasetConfig": "configs/dataset/<your config>.json",
+    "myConfig.trainConfig": "configs/train/<your config>.json",
+    "myConfig.plotConfig": "configs/plot/<your config>.json",
+}
+```
+Which you create and direct to.
+
 To confifure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it.
 
 To have it run automatically when running stuff, have the "integrated terminal" (seen in above `launch.json`) configured by having:
@@ -171,7 +184,7 @@ To use this functionality in any new entry point, run the main function inside t
 ## Configuration files
 The configuration files and then the Config* dataclasses are the structures that should contain all the parameters that are run-individual.
 
-While Config* classes' contents are divided logically to different classes, the program can be called with any number of `.json` configuration file types, as long as they contain togehter all the necessary parameters. This is implemented so to enable single-file-for-run usage, as well as separation for personal privacy and context-dependent needs.
+While Config* classes' contents are divided logically to different classes, the program needs to be called with each of the `.json` configuration file types, as long as they contain togehter all the necessary parameters. This is implemented so to enable single-file-for-run usage, as well as separation for personal privacy and context-dependent needs [Under construction].
 
 Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `basic_user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
 
