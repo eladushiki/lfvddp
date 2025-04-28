@@ -33,6 +33,15 @@ You need an operative Python interpreter to run this project. You can choose any
 
 installation instructions for the filesystem can be found in [this link](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html).
 
+WSL: I found it also necessary to use
+
+> sudo apt-get install libicu-dev
+
+upon installation, and
+
+> echo <your password> | sudo -S cvmfs_config wsl2_start
+
+Each time the systems is up (may be configured to happen automatically in vairous ways)
 ### Local Venv:
 
 Use your local python installation, creating a virtual environment for the installation of the specific dependency version needed. Any newer Python interpreters should work, but run up untill now are done with Python 3.9 to 3.10.
@@ -141,7 +150,6 @@ Which you create and direct to.
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 
 ```bash
-echo <password> | sudo -S cvmfs_config wsl2_start
 source  /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh
 set TF_USE_LEGACY_KERAS=True  # Set legacy Keras usage, needed for NPLM
 ```
