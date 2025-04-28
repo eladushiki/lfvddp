@@ -35,13 +35,15 @@ installation instructions for the filesystem can be found in [this link](https:/
 
 WSL: I found it also necessary to use
 
+> sudo apt-get update
 > sudo apt-get install libicu-dev
+> sudo apt-get install libscrypt-dev
 
-upon installation, and
+upon installation (restart afterwards), and
 
 > echo <your password> | sudo -S cvmfs_config wsl2_start
 
-Each time the systems is up (may be configured to happen automatically in vairous ways)
+Each time the systems is up (may be configured to happen automatically in vairous ways).
 ### Local Venv:
 
 Use your local python installation, creating a virtual environment for the installation of the specific dependency version needed. Any newer Python interpreters should work, but run up untill now are done with Python 3.9 to 3.10.
