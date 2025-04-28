@@ -138,7 +138,13 @@ The custom file paths here refer to a different file, `settings.json`, of the fo
 ```
 Which you create and direct to.
 
-To confifure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it.
+To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
+
+```bash
+echo <password> | sudo -S cvmfs_config wsl2_start
+source  /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh
+set TF_USE_LEGACY_KERAS=True  # Set legacy Keras usage, needed for NPLM
+```
 
 To have it run automatically when running stuff, have the "integrated terminal" (seen in above `launch.json`) configured by having:
 ```json
