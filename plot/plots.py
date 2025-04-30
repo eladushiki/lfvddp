@@ -12,7 +12,7 @@ from matplotlib import font_manager, patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2,norm
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model  # type: ignore
 from matplotlib.animation import FuncAnimation
 import scipy.special as spc
 from IPython.display import HTML
@@ -1163,7 +1163,9 @@ def plot_1D_sliced_prediction_process(
         tau_prediction_legend="tau model prediction",
         delta_prediction_legend="delta model prediction",
         tau_prediction_color="cyan",
-        delta_prediction_color="blue",
+        delta_prediction_color="magenta",
+        xlabel: str = "mass",
+        ylabel: str = "number of events",
     ):
     """
     Give a single histogram featuring:
@@ -1189,7 +1191,6 @@ def plot_1D_sliced_prediction_process(
         sample=experiment_sample,
         background=reference_sample,
         bins=bins,
-        title=title,
         along_dimension=along_dimension,
         sample_legend=sample_legend,
         background_legend=background_legend,
@@ -1206,14 +1207,18 @@ def plot_1D_sliced_prediction_process(
     }
 
     _reference_data = reference_sample.slice_along_dimension(along_dimension)
-    tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+    tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
     predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
     ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
 
     if trained_delta_model is not None:
-        delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_size=experiment_sample.n_samples, reference_ndf_estimation=reference_sample)
+        delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
         predicted_delta_ndf = plt.hist(_reference_data, weights=delta_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
         ax.scatter(bin_centers, predicted_delta_ndf[0], label=delta_prediction_legend, color=delta_prediction_color, **prediction_scatter_kwargs)
 
+    ax.set_title(title, fontsize=30, pad=20)
+    ax.set_xlim(bins[0], bins[-1])
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     ax.legend()
     return fig
