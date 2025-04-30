@@ -475,23 +475,3 @@ def utils__datset_histogram_sliced(
     ax.hist(
         **hist_kwargs,
     )
-
-
-def utils__datset_histogram_sliced(
-        ax: plt.Axes,
-        bins: np.ndarray,
-        dataset: DataSet,
-        along_dimension: int = 0,
-        **kwargs,
-):
-    hist_kwargs = {
-        "x": dataset.slice_along_dimension(along_dimension),
-        "bins": bins,
-        "weights": dataset.histogram_weight_mask,
-        "label": "dataset",
-        "log": True,
-    }
-    hist_kwargs.update(kwargs)
-    ax.hist(
-        **hist_kwargs,
-    )
