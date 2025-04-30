@@ -89,7 +89,7 @@ class DetectorEffect:
         return lambda x: np.ones((x.shape[0],)) / self._theoretic_efficiency(x)
 
 
-class DataSet:  # todo: convert _data to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
+class DataSet:
     """
     A class representing a dataset of events.
 
