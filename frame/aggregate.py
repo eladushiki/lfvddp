@@ -2,29 +2,17 @@ from glob import glob
 from logging import warning
 from pathlib import Path
 from data_tools.profile_likelihood import calc_t_test_statistic
-from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION
 from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
 from numpy._typing._generic_alias import NDArray
-from plot.plotting_config import PlottingConfig
-from train.train_config import TrainConfig
 
 
 class ResultAggregator:
-    def __init__(self, context: ExecutionContext):
-        self._context = context
-
-        if not isinstance((config := context.config), PlottingConfig):
-            raise TypeError(f"Expected PlottingConfig, got {type(config).__name__}")
-        if not isinstance(config, TrainConfig):
-            raise ValueError(f"Expected TrainConfig, got {type(config).__name__}")
-    
-        self._config = config
-
-        self._train_output_directory = Path(self._config.plot__target_run_parent_directory)
-        if not self._train_output_directory.is_dir():
-            raise NotADirectoryError(f"Parent directory {self._train_output_directory} does not exist")
+    def __init__(self, parent_directory: Path):
+        self._parent_directory = parent_directory
+        if not self._parent_directory.is_dir():
+            raise NotADirectoryError(f"Parent directory {self._parent_directory} does not exist")
 
         # Exhibits retrieved
         self._t_values = None
@@ -33,7 +21,7 @@ class ResultAggregator:
 
     def _load_t_values(self):
         # Find all files
-        _files_in_output_dir = glob(str(self._train_output_directory) + f"/**/*.{SINGLE_TRAINING_RESULT_FILE_EXTENSION}", recursive=True)
+        _files_in_output_dir = glob(str(self._parent_directory) + f"/**/*.{SINGLE_TRAINING_RESULT_FILE_EXTENSION}", recursive=True)
 
         # Read and validate content
         aggregated_results = []
@@ -57,7 +45,7 @@ class ResultAggregator:
     
     def _load_test_statistics(self):
         # Gather history files
-        all_history_files = glob(str(self._config.plot__target_run_parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
+        all_history_files = glob(str(self._parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
         if not all_history_files:
             raise ValueError("No history files found")
         

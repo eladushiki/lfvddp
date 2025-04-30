@@ -2,9 +2,10 @@ from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import List, Union
+from typing import Callable, List, Union
 
 from data_tools.data_utils import DataSet
+from data_tools.profile_likelihood import calc_median_t_significance_relative_to_background
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
@@ -12,7 +13,6 @@ import numpy as np
 from matplotlib import patches, pyplot as plt
 from plot.plotting_config import PlottingConfig
 import scipy.special as spc
-from scipy.integrate import quad
 from matplotlib.legend_handler import HandlerPatch
 import re
 
@@ -98,7 +98,7 @@ class results:  # todo: deprecate
         self.Ref_ratio = self._config.train__batch_test_fraction
         self.Ref_events = int(results.N * self.Ref_ratio)
         self.Sig_events = self._config.dataset__number_of_signal_events
-        self.Bkg_sample = self._config.dataset__background_data_generation_function
+        self.Bkg_sample = self._config.dataset__background_generation_function
         self.resolution = self._config.train__histogram_resolution
         self.WC = self._config.train__nn_weight_clipping
 
@@ -262,35 +262,6 @@ class results:  # todo: deprecate
         return filenames
 
 
-class exp_results(results):
-    def __init__(self, file_name):
-        super().__init__(file_name)
-        self.Sig_resonant = "False" if "Falseresonan" in file_name else "True"
-        self.Sig_loc = float(re.search(r'\d+.?\d*Sig_loc', file_name)[0][:-len('Sig_loc')]) if 'Sig_loc' in file_name else 6.4
-        self.Sig_scale = float(re.search(r'\d+.?\d*Sig_scale', file_name)[0][:-len('Sig_scale')]) if 'Sig_scale' in file_name else 0.16
-
-    def get_sqrt_q0(self):
-        Bkg_pdf = lambda x: np.exp(-x)
-        if not self.N_poiss:
-            Sig_pdf = lambda x: x**2*np.exp(-x)/2
-            integrand = lambda x: (self._config.train__signal_number_of_events*Sig_pdf(x)+self.Bkg_events*Bkg_pdf(x))*np.log(1+self._config.train__signal_number_of_events*Sig_pdf(x)/(self.Bkg_events*Bkg_pdf(x)))
-            sqrt_q0 = -2*(self._config.train__signal_number_of_events-(quad(integrand, 0, 200)[0]))#+quad(integrand, 200, np.inf)[0])))
-        else:
-            Sig_loc = self.Sig_loc
-            sigma = self.Sig_scale
-            Sig_pdf = lambda x: (1/(np.sqrt(2*np.pi)*sigma))*np.exp(-(x-Sig_loc)**2/(2*sigma**2))
-            integrand = lambda x: (self._config.train__signal_number_of_events*Sig_pdf(x)+self.Bkg_events*Bkg_pdf(x))*np.log(1+self._config.train__signal_number_of_events*Sig_pdf(x)/(self.Bkg_events*Bkg_pdf(x)))
-            sqrt_q0 = -2*(self._config.train__signal_number_of_events-(quad(integrand, 0, Sig_loc)[0]+quad(integrand, Sig_loc, np.inf)[0]))
-        return np.sqrt(sqrt_q0)
-    
-
-    def get_signals_files(self):
-        filenames1 =self.get_signal_files(Sig_loc = [6.4],Sig_scale = [0.16],resonant=["True"])
-        filenames2 =self.get_signal_files(resonant=["False"])
-        filenames3 =self.get_signal_files(Sig_loc = [1.6],Sig_scale = [0.16],resonant=["True"])
-        return filenames1, filenames2, filenames3
-
-
 class em_results(results):
     # channel='em'
     # signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
@@ -379,15 +350,9 @@ def get_z_score(
     background_results = results(bkg_results_file)
     sig_results = res
     bkg_results = background_results
-    sig_file_name = sig_results.csv_file_name
-    bkg_file_name = background_results.csv_file_name
     sig_t = []
     bkg_t = []
     z_score = float("nan")
-    # if sig_results.Bkg_sample=="exp":
-    #     bkg_file = exp_results(bkg_file_name)
-    # elif sig_results.Bkg_sample=="em":
-    #     bkg_file = em_results(bkg_file_name)
     if epoch == sig_results._config.train__epochs:
         sig_t = sig_results.read_final_t_csv()[0]
     if (len(sig_t)<1) or (epoch < sig_results._config.train__epochs):
@@ -396,9 +361,6 @@ def get_z_score(
     if epoch > sig_results._config.train__epochs: 
         print(f"maximal number of signal epochs = {sig_results._config.train__epochs}")
         return z_score, sig_t, bkg_t
-
-    
-    #bkg_t = bkg_file.read_final_t_csv()[0]
 
     if epoch == bkg_results._config.train__epochs:
         bkg_t = bkg_results.read_final_t_csv()[0]
@@ -412,7 +374,7 @@ def get_z_score(
     # replace NaNs in bkg_t and sig_t with inf.
     bkg_t[np.isnan(bkg_t)] = np.inf
     sig_t[np.isnan(sig_t)] = np.inf
-    z_score = np.sqrt(2)*spc.erfinv((len(bkg_t[bkg_t<=np.median(sig_t)])/len(bkg_t))*2-1)
+    z_score = calc_median_t_significance_relative_to_background(sig_t, bkg_t)
     return z_score, sig_t, bkg_t
 
 

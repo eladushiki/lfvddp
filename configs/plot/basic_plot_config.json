@@ -21,8 +21,12 @@
         {
             "name": "plot_old_t_distribution",
             "instructions": {
-                "t_values_csv": "",
                 "number_of_bins": 30
+            }
+        },
+        {
+            "name": "Plot_Percentiles_ref",
+            "instructions": {
             }
         }
     ]

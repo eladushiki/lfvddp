@@ -1,18 +1,22 @@
 from contextlib import contextmanager
-from logging import INFO, basicConfig, info
+from inspect import signature
+from logging import basicConfig, info
 import logging
 import random
+from data_tools.dataset_config import DatasetConfig
+from frame.cluster.cluster_config import ClusterConfig
 from frame.file_system.training_history import save_training_history
+from frame.validation import validate_configuration
 from numpy import random as npramdom
 from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
-from frame.file_system.textual_data import save_dict_to_json
+from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
 from frame.file_structure import CONTEXT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
-import tensorflow as tf
+from plot.plotting_config import PlottingConfig
 from tensorflow.keras.models import Model # type: ignore
 
 
@@ -20,7 +24,49 @@ from dataclasses import dataclass, field
 from os import getpid, makedirs, sep
 from pathlib import Path
 from sys import argv
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from train.train_config import TrainConfig
+
+
+def create_config_from_paramters(
+        config_params: dict,
+        is_plot: bool = True,
+        out_dir: Optional[str] = None,
+        plot_in_place: bool = False,
+):
+
+    # Resolve config typing according to deepest hierarchy:
+    config_classes = [
+        UserConfig,
+        ClusterConfig,
+        DatasetConfig,
+        TrainConfig,
+    ]
+
+    if is_plot:
+        config_classes.append(PlottingConfig)
+
+    class DynamicConfig(*config_classes):
+        def __init__(self, **kwargs):
+            for config_class in config_classes:
+                filtered_args = {
+                    k: v for k, v in kwargs.items()
+                    if k in signature(config_class).parameters
+                }
+                config_class.__init__(self, **filtered_args)
+
+    # Configuration according to arguments
+    if out_dir:
+        config_params["config__out_dir"] = out_dir
+    if plot_in_place:
+        config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
+
+    config = DynamicConfig(**config_params)
+
+    validate_configuration(config)
+
+    return config
 
 
 @dataclass
@@ -33,10 +79,12 @@ class ExecutionContext:
     is_debug_mode: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
+    is_reloaded: bool = False
 
     def __post_init__(self):
         # Initialize once unique output directory
-        makedirs(self.unique_out_dir, exist_ok=False)
+        if not self.is_reloaded:
+            makedirs(self.unique_out_dir, exist_ok=False)
         random.seed(self.random_seed)
         npramdom.seed(self.random_seed)
 
@@ -109,12 +157,26 @@ class ExecutionContext:
     def save_self_to_out_file(self) -> None:
         save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
 
+    @classmethod
+    def naive_load_from_file(cls, file_path: Path) -> 'ExecutionContext':
+        """
+        Load the context from a file. Does not create classes
+        from data, and currently only allows probing saved
+        parameters.
+        """
+        data = load_dict_from_json(file_path)
+        data["config"] = create_config_from_paramters(data["config"])
+        data["is_reloaded"] = True
+        context = cls(**data)
+
+        return context
+
 
 @contextmanager
 def version_controlled_execution_context(config: UserConfig, command_line_args: List[str], is_debug_mode: bool = False):
     """
     Create a context which should contain any run dependent information.
-    The data is later stored in the output_path for documentatino.
+    The data is later stored in the output_path for documentation.
     """
     # Force run on strict commit
     if not is_debug_mode and not is_git_head_clean():

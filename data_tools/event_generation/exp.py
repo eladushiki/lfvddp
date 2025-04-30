@@ -1,38 +1,32 @@
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import GeneratedDatasetParameters
-import numpy as np
+from data_tools.event_generation.background import background_exp
+from data_tools.event_generation.signal import signal_gaussian, signal_nonlocal
 
 
 def exp(
-        config: GeneratedDatasetParameters,
-        is_poisson_fluctuations: int,
-        is_signal_gaussian: bool,
+        dataset_params: GeneratedDatasetParameters,
         gaussian_signal_sigma: float,
     ) -> DataSet:
     '''
     Returns exponentially distributed samples of any given dimension.
-    '''
-    if is_poisson_fluctuations:
-        number_of_background_events  = np.random.poisson(lam=config.dataset__number_of_background_events*np.exp(config.dataset__induced_norm_nuisance_value), size=1)[0]
-        number_of_signal_events = np.random.poisson(lam=config.dataset__number_of_signal_events*np.exp(config.dataset__induced_norm_nuisance_value), size=1)[0]
-    else:
-        number_of_background_events = config.dataset__number_of_background_events
-        number_of_signal_events = config.dataset__number_of_signal_events
     
+    This actually needs to be a general function but is a proxy for
+    I don't want to overhaul this code right now.
+    '''
     # Background
-    background = np.random.exponential(
-        scale=np.exp(config.dataset__induced_shape_nuisance_value),
-        size=(number_of_background_events, config._dataset__number_of_dimensions),
+    background = background_exp(
+        number_of_dimensions=dataset_params._dataset__number_of_dimensions,
+        number_of_background_events=dataset_params.dataset__number_of_background_events,
+        shape_nuisance_value=dataset_params.dataset__induced_shape_nuisance_value,
     )
 
     # Signal
-    if is_signal_gaussian:
-        signal = np.random.normal(loc=config.dataset__signal_location, scale=gaussian_signal_sigma, size=(number_of_signal_events,1))*np.exp(config.dataset__induced_shape_nuisance_value)
+    if dataset_params.dataset__signal_data_generation_function == "gaussian":
+        signal = signal_gaussian(dataset_params, gaussian_signal_sigma)
+    elif dataset_params.dataset__signal_data_generation_function == "nonlocal":
+        signal = signal_nonlocal((dataset_params))
     else:
-        def Sig_dist(x):
-            dist = x**2*np.exp(-x)
-            return dist/np.sum(dist)
-        signal = np.random.choice(np.linspace(0,100,100000),size=(number_of_signal_events,1),replace=True,p=Sig_dist(np.linspace(0,100,100000)))*np.exp(config.dataset__induced_shape_nuisance_value)
-    
-    events = np.concatenate((background, signal), axis=0)
-    return DataSet(events)
+        raise ValueError(f"Unknown signal generation function: {dataset_params.dataset__signal_data_generation_function}")
+  
+    return background + signal

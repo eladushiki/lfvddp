@@ -47,7 +47,7 @@ class DataGeneration:
 
     def __create_dataset(self, dataset_parameters: DatasetParameters, name: str) -> DataSet:
         if isinstance(dataset_parameters, GeneratedDatasetParameters):
-            generating_function = self.GeneratedDatasetTypes[dataset_parameters.dataset__background_data_generation_function]
+            generating_function = self.GeneratedDatasetTypes[dataset_parameters.dataset__background_generation_function]
             data = generating_function(dataset_parameters, **dataset_parameters.dataset__function_specific_additional_parameters)
             original_data = deepcopy(data)
 

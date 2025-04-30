@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -263,19 +263,17 @@ def em(
     return Ref,Bkg,Sig
 
 
-def generate_pdf(x, size=3e6):
-    '''
-    Not used (as of 9/23).
-    Creates the pdf of the array x.
-    Returns new array of length 'size' generated from the pdf of x. 
-    '''
-    full_dist = x
-    print('creating histogram')
-    full_dist_hist = np.histogram(x,len(full_dist))
-    print('creating pdf')
-    full_dist_pdf = sps.rv_histogram(full_dist_hist)
-    print('creating new data')
-    new_data = full_dist_pdf.rvs(size=size).reshape(-1,1)
-    print('we have new data!')
-    
-    return new_data
+def create_slice_containing_bins(
+        datasets: List[DataSet],
+        nbins = 30,
+        along_dimension: int = 0,
+):
+
+    # limits    
+    xmin = 0
+    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
+
+    bins = np.linspace(xmin, xmax, nbins + 1)
+    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+
+    return bins, bin_centers
