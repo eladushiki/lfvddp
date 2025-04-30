@@ -416,26 +416,23 @@ def get_z_score(
     return z_score, sig_t, bkg_t
 
 
-def create_1D_containing_bins(
-        context: ExecutionContext,
+def utils__create_slice_containing_bins(
         datasets: List[DataSet],
         nbins = 100,
         along_dimension: int = 0,
 ):
-    if not isinstance(config := context.config, PlottingConfig):
-        raise ValueError(f"Expected PlottingConfig, got {type(config)}")
-
     # limits    
     xmin = 0
     xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
 
+    # bins
     bins = np.linspace(xmin, xmax, nbins + 1)
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
 
     return bins, bin_centers
 
 
-def draw_sample_over_background_1D_histograms(
+def utils__sample_over_background_histograms_sliced(
         ax: plt.Axes,
         sample: DataSet,
         background: DataSet,
@@ -444,17 +441,37 @@ def draw_sample_over_background_1D_histograms(
         sample_legend: str = "sample",
         background_legend: str = "background",
 ):
-    ax.hist(
-        background.slice_along_dimension(along_dimension),
-        weights=background.histogram_weight_mask,
+    utils__datset_histogram_sliced(
+        ax=ax,
         bins=bins,
+        dataset=background,
+        along_dimension=along_dimension,
         label=background_legend,
-        log=True,
     )
-    ax.hist(
-        sample.slice_along_dimension(along_dimension),
-        weights=sample.histogram_weight_mask,
+    utils__datset_histogram_sliced(
+        ax=ax,
         bins=bins,
+        dataset=sample,
+        along_dimension=along_dimension,
         label=sample_legend,
-        log=True,
+    )
+
+
+def utils__datset_histogram_sliced(
+        ax: plt.Axes,
+        bins: np.ndarray,
+        dataset: DataSet,
+        along_dimension: int = 0,
+        **kwargs,
+):
+    hist_kwargs = {
+        "x": dataset.slice_along_dimension(along_dimension),
+        "bins": bins,
+        "weights": dataset.histogram_weight_mask,
+        "label": "dataset",
+        "log": True,
+    }
+    hist_kwargs.update(kwargs)
+    ax.hist(
+        **hist_kwargs,
     )

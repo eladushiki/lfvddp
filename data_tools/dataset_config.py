@@ -47,6 +47,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     
     # Detector simulation
     dataset__detector_efficiency: str
+    dataset__detector_efficiency_uncertainty: str
     dataset__detector_error: str
 
     # Induced nuisance parameters

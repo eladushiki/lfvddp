@@ -1,7 +1,9 @@
-from typing import Optional
+from email import utils
+from typing import List, Optional
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from frame.aggregate import ResultAggregator
+from matplotlib import legend
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
 import matplotlib as mpl
@@ -9,6 +11,7 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import font_manager, patches
+import plot
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2,norm
@@ -18,7 +21,7 @@ import scipy.special as spc
 from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, draw_sample_over_background_1D_histograms, em_results, exp_results, create_1D_containing_bins, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__sample_over_background_histograms_sliced, em_results, exp_results, utils__create_slice_containing_bins, get_z_score, results, scientific_number
 from train.train_config import TrainConfig
 
 
@@ -182,8 +185,8 @@ def plot_old_t_distribution(
     # Texting
     histogram_title = f"Distribution of t values over {len(t)} test runs"
     ax.set_title(histogram_title, fontsize=30, pad=20)
-    ax.set_xlabel('t', labelpad=20)
-    ax.set_ylabel('PDF', labelpad=20)
+    ax.set_xlabel('t', fontsize=22, labelpad=20)
+    ax.set_ylabel('Bin Probability', fontsize=22, labelpad=20)
     ax.set_ylim(0, 0.1)
     plt.yticks([0.03, 0.06, 0.09])
     plt.xticks()
@@ -1086,38 +1089,13 @@ def animated_t_2distributions(results_file1:results, results_file2:results, df, 
     return HTML(anim.to_jshtml())
 
 
-def plot_sample_over_background(
+def plot_samples_over_background_sliced(
         context: ExecutionContext,
-        sample: DataSet,
-        background_sample: DataSet,
-):
-    """
-    Generate a histogram of the sample over the background.
-    """
-    c = Carpenter(context)
-    fig = c.figure()
-    bins, _ = create_1D_containing_bins(
-        context,
-        [sample, background_sample]
-    )
-
-    A_ax = fig.add_subplot(1, 1, index=1)
-    draw_sample_over_background_1D_histograms(
-        ax=A_ax,
-        sample=sample,
-        background=background_sample,
-        bins=bins,
-        title="Sample over background",
-    )
-
-    return fig
-
-
-def plot_1D_sliced_samples_over_background(
-        context: ExecutionContext,
-        first_sample: DataSet,
-        second_sample: DataSet,
-        background_sample: DataSet,
+        background_solid_datasets: List[DataSet] = [],
+        sample_hollow_datasets: List[DataSet] = [],
+        title: str = "Sample over background",
+        background_legends: List[str] = [],
+        sample_legends: List[str] = [],
 ):
     """
     Generate two plots, both featuring historams of either sample over the background.
@@ -1125,32 +1103,68 @@ def plot_1D_sliced_samples_over_background(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = create_1D_containing_bins(
-        context,
-        [first_sample, second_sample, background_sample],
+    bins, _ = utils__create_slice_containing_bins(
+        background_solid_datasets + sample_hollow_datasets,
     )
 
-    A_ax = fig.add_subplot(1, 2, 1)
-    draw_sample_over_background_1D_histograms(
-        ax=A_ax,
-        sample=first_sample,
-        background=background_sample,
-        bins=bins,
-        title="First sample over background",
-    )
-    B_ax = fig.add_subplot(1, 2, 2)
-    draw_sample_over_background_1D_histograms(
-        ax=B_ax,
-        sample=second_sample,
-        background=background_sample,
-        bins=bins,
-        title="Second sample over background",
-    )
+    datasets = sample_hollow_datasets + background_solid_datasets
+    legends = sample_legends + background_legends
+    ax = fig.add_subplot(111)
+    for i, background in enumerate(datasets):
+        utils__datset_histogram_sliced(
+            ax=ax,
+            bins=bins,
+            dataset=background,
+            legend=legends[i],
+            histtype="stepfilled" if i < len(sample_hollow_datasets) else "step",
+        )
+    ax.set_title(title)
 
     return fig
 
 
-def plot_1D_sliced_prediction_process(
+def plot_data_generation_sliced(
+        context: ExecutionContext,
+        original_sample: DataSet,
+        processed_sample: DataSet,
+):
+    c = Carpenter(context)
+    fig = c.figure()
+    ax = fig.add_subplot(111)
+
+    bins, _ = utils__create_slice_containing_bins([processed_sample])
+
+    utils__datset_histogram_sliced(
+        ax=ax,
+        bins=bins,
+        dataset=original_sample,
+        # the usual weights
+        histtype="stepfilled",
+        label="original sample",
+    )
+    utils__datset_histogram_sliced(
+        ax=ax,
+        bins=bins,
+        dataset=processed_sample,
+        weights=np.ones_like(processed_sample._data),
+        histtype="stepfilled",
+        label="detector affected sample",
+    )
+    utils__datset_histogram_sliced(
+        ax=ax,
+        bins=bins,
+        dataset=processed_sample,
+        # the usual weights
+        histtype="step",
+        label="detector affected sample (weighted)",
+    )
+
+    ax.set_title("Data generation process")
+    ax.legend()
+    return fig
+
+
+def plot_prediction_process_sliced(
         context: ExecutionContext,
         experiment_sample: DataSet,
         reference_sample: DataSet,
@@ -1184,9 +1198,9 @@ def plot_1D_sliced_prediction_process(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, bin_centers = create_1D_containing_bins(context, [experiment_sample, reference_sample])
+    bins, bin_centers = utils__create_slice_containing_bins([experiment_sample, reference_sample])
 
-    draw_sample_over_background_1D_histograms(
+    utils__sample_over_background_histograms_sliced(
         ax=ax,
         sample=experiment_sample,
         background=reference_sample,

@@ -17,7 +17,8 @@
             "dataset__number_of_signal_events": 100,
             "dataset__signal_location": 6.4,
 
-            "dataset__detector_efficiency": "",
+            "dataset__detector_efficiency": "detector_efficiency_tanh",
+            "dataset__detector_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
             "dataset__detector_error": "",
          
             "dataset__induced_shape_nuisance_value": 0.0,
@@ -44,6 +45,7 @@
             "dataset__signal_location": 6.4,
 
             "dataset__detector_efficiency": "",
+            "dataset__detector_efficiency_uncertainty": "",
             "dataset__detector_error": "",
              
             "dataset__induced_shape_nuisance_value": 0.0,
