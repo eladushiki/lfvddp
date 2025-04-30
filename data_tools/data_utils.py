@@ -56,7 +56,7 @@ class DetectorEffect:
         return errored_events, data_inclusion
 
 
-class DataSet:  # todo: convert _data to tf.data.Dataset as in https://www.tensorflow.org/api_docs/python/tf/data/Dataset
+class DataSet:
     """
     A class representing a dataset of events.
 
