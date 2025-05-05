@@ -4,60 +4,27 @@
         {
             "name": "A",
             "type": "generated",
-
-            "dataset__function_specific_additional_parameters": {
-                "gaussian_signal_sigma": 0.16
-            },
             
-            "dataset__background_generation_function": "exp",
+            "dataset__background_generation_function": "exponential_background",
             "dataset__mean_number_of_background_events": 10000,
             
-            "dataset__signal_data_generation_function": "nonlocal",
+            "dataset__signal_data_generation_function": "gaussian_signal",
             "dataset__mean_number_of_signal_events": 100,
             "dataset__signal_parameters": {
-                "location": 6.4
+                "location": 6.4,
+                "gaussian_signal_sigma": 0.16
             },
 
             "dataset__detector_efficiency": "detector_efficiency_tanh",
             "dataset__detector_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
-            "dataset__detector_error": "",
-         
-            "dataset__induced_shape_nuisance_value": 0.0,
-            "dataset__induced_norm_nuisance_value": 0.0,
-
-            "dataset__resample_is_resample": false,
-            "dataset__resample_label_method": "binomial",
-            "dataset__resample_method_type": "fixed",
-            "dataset__resample_is_replacement": true
+            "dataset__detector_error": ""
         },
         {
             "name": "B",
             "type": "generated",
-
-            "dataset__function_specific_additional_parameters": {
-                "gaussian_signal_sigma": 0.16
-            },
             
-            "dataset__background_generation_function": "exp",
-            "dataset__mean_number_of_background_events": 10000,
-            
-            "dataset__signal_data_generation_function": "gaussian",
-            "dataset__mean_number_of_signal_events": 0,
-            "dataset__signal_parameters": {
-                "location": 6.4
-            },
-
-            "dataset__detector_efficiency": "",
-            "dataset__detector_efficiency_uncertainty": "",
-            "dataset__detector_error": "",
-             
-            "dataset__induced_shape_nuisance_value": 0.0,
-            "dataset__induced_norm_nuisance_value": 0.0,
-
-            "dataset__resample_is_resample": false,
-            "dataset__resample_label_method": "binomial",
-            "dataset__resample_method_type": "fixed",
-            "dataset__resample_is_replacement": true
+            "dataset__background_generation_function": "exponential_background",
+            "dataset__mean_number_of_background_events": 10000
         }
     ]
 }

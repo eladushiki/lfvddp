@@ -1,10 +1,14 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Type
+from typing import Any, Callable, Dict, List, Type
 
+from camel_converter import to_pascal
+
+from data_tools.data_utils import DataSet
+from data_tools.event_generation.distribution import DataDistribution
+from data_tools.event_generation.types import FLOAT_OR_ARRAY
 import numpy as np
+
 
 @dataclass
 class DatasetParameters(ABC):
@@ -33,6 +37,12 @@ class LoadedDatasetParameters(DatasetParameters):
 
     def __post_init__(self):
         raise NotImplementedError("LoadedDatasetDefinitions is not implemented yet.")
+    
+    # Resampling settings - not checked
+    dataset__resample_is_resample: bool
+    dataset__resample_label_method: str
+    dataset__resample_method_type: str
+    dataset__resample_is_replacement: bool
 
 
 @dataclass
@@ -46,28 +56,23 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     # This is the defining attribute for the subclass
     dataset__background_generation_function: str
     dataset__mean_number_of_background_events: int
+    dataset__background_parameters: Dict[str, Any] = field(default_factory=dict)
 
     # Signal parameters
-    dataset__signal_data_generation_function: str
-    dataset__mean_number_of_signal_events: int
-    dataset__signal_parameters: Dict[str, Any]
+    dataset__signal_data_generation_function: str = field(default="")
+    dataset__mean_number_of_signal_events: int = field(default=0)
+    dataset__signal_parameters: Dict[str, Any] = field(default_factory=dict)
     
     # Detector simulation
-    dataset__detector_efficiency: str
-    dataset__detector_efficiency_uncertainty: str
-    dataset__detector_error: str
+    dataset__detector_efficiency: str = field(default="")
+    dataset__detector_efficiency_uncertainty: str = field(default="")
+    dataset__detector_error: str = field(default="")
 
     # Induced nuisance parameters
-    dataset__induced_shape_nuisance_value: float
-    dataset__induced_norm_nuisance_value: float
+    dataset__induced_shape_nuisance_value: float = field(default=0.0)
+    dataset__induced_norm_nuisance_value: float = field(default=0.0)
 
-    # Resampling settings
-    dataset__resample_is_resample: bool
-    dataset__resample_label_method: str
-    dataset__resample_method_type: str
-    dataset__resample_is_replacement: bool
-
-    dataset__function_specific_additional_parameters: Dict[str, Any] = field(default_factory=dict)
+    # Picked poissonically based on mean numbers
     dataset__number_of_signal_events: int = field(default=None)
     dataset__number_of_background_events: int = field(default=None)
 
@@ -83,6 +88,65 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
                 lam=self.dataset__mean_number_of_signal_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
+
+    @property
+    def __dataset__background_distribution(self) -> DataDistribution:
+        """
+        Get the background PDF function based on the configuration.
+        Note that it may accept additional parameters as kwargs.
+        """
+        from data_tools.event_generation import background
+        class_name = to_pascal(self.dataset__background_generation_function)
+
+        try:
+            distribution_class = getattr(background, class_name)
+        except AttributeError:
+            raise ValueError(f"Background PDF '{class_name}' not found in background module.")
+
+        return distribution_class(self._dataset__number_of_dimensions, **self.dataset__background_parameters)
+
+    @property
+    def dataset__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
+        return lambda x: self.__dataset__background_distribution.pdf(
+            x / np.exp(self.dataset__induced_shape_nuisance_value),
+        )
+
+    @property
+    def __dataset__signal_distribution(self) -> DataDistribution:
+        """
+        Get the signal PDF function based on the configuration.
+        Note that it may accept additional parameters as kwargs.
+        """
+        from data_tools.event_generation import signal
+
+        if not self.dataset__signal_data_generation_function:
+            return signal.NoSignal(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
+
+        class_name = to_pascal(self.dataset__signal_data_generation_function)
+
+        try:
+            distribution_class = getattr(signal, class_name)
+        except AttributeError:
+            raise ValueError(f"Background PDF '{class_name}' not found in background module.")
+
+        return distribution_class(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
+
+    @property
+    def dataset__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
+        return lambda x: self.__dataset__signal_distribution.pdf(
+            x / np.exp(self.dataset__induced_shape_nuisance_value),
+        )
+
+    @property
+    def dataset__data(self) -> DataSet:
+        background = self.__dataset__background_distribution.generate_amount(
+            amount=self.dataset__number_of_background_events,
+        )
+        signal = self.__dataset__signal_distribution.generate_amount(
+            amount=self.dataset__number_of_signal_events,
+        )
+        return background + signal
+    
 
 @dataclass
 class DatasetConfig:

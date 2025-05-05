@@ -1,9 +1,7 @@
 from pathlib import Path
 from typing import List, Optional, Union
 from data_tools.data_utils import DataSet, create_slice_containing_bins
-from data_tools.dataset_config import DatasetConfig, GeneratedDatasetParameters
-from data_tools.event_generation.background import background_exp, decaying_exp
-from data_tools.event_generation.signal import gaussian as gaussian_signal, normalized_nonlocal, signal_nonlocal
+from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
@@ -198,7 +196,7 @@ def plot_old_t_distribution(
     return fig
 
 
-def exp_performance_plot(
+def performance_plot(
         context: ExecutionContext,
         background_only_t_values_parent_directory: str,
         signal_t_values_parent_directories: List[str],
@@ -229,47 +227,44 @@ def exp_performance_plot(
     mean_number_of_background_events = 0
     background_config: DatasetConfig = background_context.config
     for background_dataset_name in background_config._dataset__names:
-        background_dataset_properties: GeneratedDatasetParameters = background_config._dataset__parameters(background_dataset_name)
-        assert background_dataset_properties.type == 'generated'
-        assert background_dataset_properties.dataset__background_generation_function == 'exp'
-        assert background_dataset_properties.dataset__number_of_signal_events == 0
+        background_dataset_properties: DatasetParameters = background_config._dataset__parameters(background_dataset_name)
+        assert isinstance(background_dataset_properties, GeneratedDatasetParameters), \
+            f"performance plot possible only for generated datasets, got {background_dataset_properties.type}"
+        assert background_dataset_properties.dataset__number_of_signal_events == 0, \
+            f"background dataset expected to have only background events, {background_dataset_name} has {background_dataset_properties.dataset__number_of_signal_events} signal events"
         mean_number_of_background_events = background_dataset_properties.dataset__mean_number_of_background_events  # Assuming all datasets have the same mean number of events
 
     # Gather background data
     background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
     background_t_dist = background_agg.all_t_values
 
-    c = Carpenter(context)
-    fig  = c.figure()
-    ax = fig.add_subplot(111)
-    
     # Result lists
     observed_significances = []
     chi2_significances = []
     injected_significances = []
     observed_significance_upper_confidence_bounds = []
     observed_significances_lower_confidence_bounds = []
-    signal_location, signal_sigma = 0, 0
 
-    for i, signal_t_values_dir in enumerate(signal_t_values_parent_directories):
+    for signal_t_values_dir in signal_t_values_parent_directories:
         signal_context = ExecutionContext.naive_load_from_file(Path(signal_t_values_dir) / CONTEXT_FILE_NAME)
 
         # Validate signal configuration
         mean_number_of_signal_events = 0
         signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
-        for signal_dataset_name in signal_config._dataset__names:
-            signal_dataset_properties: GeneratedDatasetParameters = signal_config._dataset__parameters(signal_dataset_name)
-            assert signal_dataset_properties.type == 'generated'
-            assert signal_dataset_properties.dataset__background_generation_function == 'exp'
-            assert signal_dataset_properties.dataset__signal_data_generation_function == 'gaussian'
-            # assert signal_dataset_properties.dataset__signal_data_generation_function == 'nonlocal'
-            mean_number_of_signal_events += (current_signal_events := signal_dataset_properties.dataset__mean_number_of_signal_events)
+        for dataset_name in signal_config._dataset__names:
+            dataset_properties: DatasetParameters = signal_config._dataset__parameters(dataset_name)
+            assert isinstance(dataset_properties, GeneratedDatasetParameters), \
+                f"performance plot possible only for generated datasets, got {dataset_properties.type}"
 
-            if current_signal_events != 0:  # We do assume there is a singal in only one datset
-                signal_location = signal_dataset_properties.dataset__signal_parameters["location"]
-                signal_sigma = signal_dataset_properties.dataset__function_specific_additional_parameters["gaussian_signal_sigma"]
+            # We do assume there is a signal in only one dataset
+            if (current_mean_number_of_signal_events := dataset_properties.dataset__mean_number_of_signal_events) != 0:
+                assert mean_number_of_signal_events == 0, \
+                    f"multiple signal datasets found, {dataset_name} being the second"
+                mean_number_of_signal_events = current_mean_number_of_signal_events
+                signal_dataset_properties = dataset_properties
 
-        assert signal_location != 0
+        assert mean_number_of_signal_events != 0, \
+            f"No dataset with signal events found among {signal_config._dataset__names}"
 
         # Gather data
         signal_agg = ResultAggregator(Path(signal_t_values_dir))
@@ -280,11 +275,9 @@ def exp_performance_plot(
             degrees_of_freedom=signal_config.train__nn_degrees_of_freedom,
         ))
         
-        # TODO: generalize for other backgrounds
         injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
-            background_pdf=decaying_exp,
-            signal_pdf=lambda x: gaussian_signal(x, mean=signal_location, sigma=signal_sigma),
-            # signal_pdf=lambda x: normalized_nonlocal(x),
+            background_pdf=signal_dataset_properties.dataset__background_pdf,
+            signal_pdf=signal_dataset_properties.dataset__signal_pdf,
             n_background_events=mean_number_of_background_events,  # The mean numbers are the theoretic ones, before injecting poisson error
             n_signal_events=mean_number_of_signal_events,
             upper_limit=max(signal_agg.all_t_values.max(), background_agg.all_t_values.max()),
@@ -315,6 +308,27 @@ def exp_performance_plot(
     observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
     observed_significance_upper_confidence_bounds = np.array(observed_significance_upper_confidence_bounds)[sort]
     
+    # Framing
+    c = Carpenter(context)
+    fig  = c.figure()
+    ax = fig.add_subplot(111)
+
+    # Borders
+    graph_border = 1
+    clean_y_significances = np.concatenate([
+        chi2_significances[np.isfinite(chi2_significances)],
+        observed_significances[np.isfinite(observed_significances)],
+        observed_significances_lower_confidence_bounds[np.isfinite(observed_significances_lower_confidence_bounds)],
+        observed_significance_upper_confidence_bounds[np.isfinite(observed_significance_upper_confidence_bounds)],
+    ])
+    min_x = max(min(injected_significances) - graph_border, 0)
+    max_x = max(injected_significances) + graph_border
+    min_y = max(min(clean_y_significances) - graph_border, 0)
+    max_y = max(clean_y_significances) + graph_border
+    ax.set_xlim(min_x,max_x)
+    ax.set_ylim(min_y,max_y)
+
+    # Plots
     colors = plt.get_cmap('cool')
     
     ax.plot(injected_significances, chi2_significances, color=colors(0), linewidth=2, linestyle='--')
@@ -322,7 +336,7 @@ def exp_performance_plot(
     ax.fill_between(
         injected_significances,
         observed_significances_lower_confidence_bounds,
-        observed_significance_upper_confidence_bounds,
+        np.clip(observed_significance_upper_confidence_bounds, a_max=max_y),
         color=colors(1),
         linewidth=2,
         alpha=0.1
@@ -344,21 +358,6 @@ def exp_performance_plot(
         fancybox=True,
         frameon=False
     )
-
-    # Borders
-    graph_border = 1
-    clean_y_significances = np.concatenate([
-        chi2_significances[np.isfinite(chi2_significances)],
-        observed_significances[np.isfinite(observed_significances)],
-        observed_significances_lower_confidence_bounds[np.isfinite(observed_significances_lower_confidence_bounds)],
-        observed_significance_upper_confidence_bounds[np.isfinite(observed_significance_upper_confidence_bounds)],
-    ])
-    min_x = max(min(injected_significances) - graph_border, 0)
-    max_x = max(injected_significances) + graph_border
-    min_y = max(min(clean_y_significances) - graph_border, 0)
-    max_y = max(clean_y_significances) + graph_border
-    ax.set_xlim(min_x,max_x)
-    ax.set_ylim(min_y,max_y)
 
     # Styling
     ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
