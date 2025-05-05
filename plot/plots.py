@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 from data_tools.data_utils import DataSet, create_slice_containing_bins
 from data_tools.dataset_config import DatasetConfig, GeneratedDatasetParameters
 from data_tools.event_generation.background import background_exp, decaying_exp
-from data_tools.event_generation.signal import gaussian as gaussian_signal, signal_nonlocal
+from data_tools.event_generation.signal import gaussian as gaussian_signal, normalized_nonlocal, signal_nonlocal
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
@@ -226,17 +226,17 @@ def exp_performance_plot(
     # Validate background configuration
     ## this has to be a generated type, else the distribution is not well known
     background_context = ExecutionContext.naive_load_from_file(Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME)
-    number_of_background_events = 0
+    mean_number_of_background_events = 0
     background_config: DatasetConfig = background_context.config
     for background_dataset_name in background_config._dataset__names:
         background_dataset_properties: GeneratedDatasetParameters = background_config._dataset__parameters(background_dataset_name)
         assert background_dataset_properties.type == 'generated'
         assert background_dataset_properties.dataset__background_generation_function == 'exp'
         assert background_dataset_properties.dataset__number_of_signal_events == 0
-        number_of_background_events += background_dataset_properties.dataset__number_of_background_events
+        mean_number_of_background_events = background_dataset_properties.dataset__mean_number_of_background_events  # Assuming all datasets have the same mean number of events
 
     # Gather background data
-    background_agg = ResultAggregator(Path(plot_config.plot__target_run_parent_directory))
+    background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
     background_t_dist = background_agg.all_t_values
 
     c = Carpenter(context)
@@ -248,19 +248,28 @@ def exp_performance_plot(
     chi2_significances = []
     injected_significances = []
     observed_significance_upper_confidence_bounds = []
-    observed_significances_lower_confidence_bounds =[]
+    observed_significances_lower_confidence_bounds = []
+    signal_location, signal_sigma = 0, 0
 
     for i, signal_t_values_dir in enumerate(signal_t_values_parent_directories):
         signal_context = ExecutionContext.naive_load_from_file(Path(signal_t_values_dir) / CONTEXT_FILE_NAME)
 
         # Validate signal configuration
-        number_of_signal_events = 0
+        mean_number_of_signal_events = 0
         signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
         for signal_dataset_name in signal_config._dataset__names:
             signal_dataset_properties: GeneratedDatasetParameters = signal_config._dataset__parameters(signal_dataset_name)
             assert signal_dataset_properties.type == 'generated'
             assert signal_dataset_properties.dataset__background_generation_function == 'exp'
-            number_of_signal_events += signal_dataset_properties.dataset__number_of_signal_events
+            assert signal_dataset_properties.dataset__signal_data_generation_function == 'gaussian'
+            # assert signal_dataset_properties.dataset__signal_data_generation_function == 'nonlocal'
+            mean_number_of_signal_events += (current_signal_events := signal_dataset_properties.dataset__mean_number_of_signal_events)
+
+            if current_signal_events != 0:  # We do assume there is a singal in only one datset
+                signal_location = signal_dataset_properties.dataset__signal_parameters["location"]
+                signal_sigma = signal_dataset_properties.dataset__function_specific_additional_parameters["gaussian_signal_sigma"]
+
+        assert signal_location != 0
 
         # Gather data
         signal_agg = ResultAggregator(Path(signal_t_values_dir))
@@ -271,12 +280,13 @@ def exp_performance_plot(
             degrees_of_freedom=signal_config.train__nn_degrees_of_freedom,
         ))
         
-        # TODO: REALLY BAD
+        # TODO: generalize for other backgrounds
         injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
             background_pdf=decaying_exp,
-            signal_pdf=lambda x: gaussian_signal(x, mean=6.4, sigma=1.0),
-            n_background_events=number_of_background_events,
-            n_signal_events=number_of_signal_events,
+            signal_pdf=lambda x: gaussian_signal(x, mean=signal_location, sigma=signal_sigma),
+            # signal_pdf=lambda x: normalized_nonlocal(x),
+            n_background_events=mean_number_of_background_events,  # The mean numbers are the theoretic ones, before injecting poisson error
+            n_signal_events=mean_number_of_signal_events,
             upper_limit=max(signal_agg.all_t_values.max(), background_agg.all_t_values.max()),
         ))
 
@@ -288,17 +298,20 @@ def exp_performance_plot(
         signal_t_dist_std = np.std(signal_t_dist)
         observed_significances_lower_confidence_bounds.append(
             calc_t_significance_relative_to_background(
-                np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
+                np.mean(signal_t_dist) - signal_t_dist_std, background_t_dist
         ))
         observed_significance_upper_confidence_bounds.append(
             calc_t_significance_relative_to_background(
-                np.mean(signal_t_dist) - signal_t_dist_std, background_t_dist
+                np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
         ))
     
     sort = np.argsort(np.array(injected_significances))
-    injected_significances = np.array(injected_significances)[sort]
-    observed_significances = np.array(observed_significances)[sort]
+    # Formerly approx_z_score, the chi2 percentile the median is at:
     chi2_significances = np.array(chi2_significances)[sort]
+    # Formerly Sig_q0, analytic integral of generating functions:
+    injected_significances = np.array(injected_significances)[sort]
+    # Formerly Sig_z_score, percentile of mean signal t in background t distribution:
+    observed_significances = np.array(observed_significances)[sort]
     observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
     observed_significance_upper_confidence_bounds = np.array(observed_significance_upper_confidence_bounds)[sort]
     
@@ -314,27 +327,41 @@ def exp_performance_plot(
         linewidth=2,
         alpha=0.1
     )
-    dashed_line = mpl.lines.Line2D([], [], color='black', linestyle='--', label=r"$\chi^2_" + str(background_config.train__nn_degrees_of_freedom) + r"$")
+    chi2_label = r"$\chi^2_" + str(background_config.train__nn_degrees_of_freedom) + r"$"
+    chi2_curve = mpl.lines.Line2D([], [], color='black', linestyle='--', label=chi2_label)
     
     # Texting
     ax.set_xlabel(r'injected $\sqrt{q_0}$', fontsize=21)
     ax.set_ylabel('measured significance', fontsize=21)
     ax.set_title("measured vs injected signal significance", fontsize=24)
     handles, labels = ax.get_legend_handles_labels()
-    handles.append(dashed_line)
+    handles.append(chi2_curve)
     legend = ax.legend(
         handles=handles,
-        labels=labels,
+        labels=labels + [chi2_label],
         loc='lower right',
         fontsize=20,
         fancybox=True,
         frameon=False
     )
 
+    # Borders
+    graph_border = 1
+    clean_y_significances = np.concatenate([
+        chi2_significances[np.isfinite(chi2_significances)],
+        observed_significances[np.isfinite(observed_significances)],
+        observed_significances_lower_confidence_bounds[np.isfinite(observed_significances_lower_confidence_bounds)],
+        observed_significance_upper_confidence_bounds[np.isfinite(observed_significance_upper_confidence_bounds)],
+    ])
+    min_x = max(min(injected_significances) - graph_border, 0)
+    max_x = max(injected_significances) + graph_border
+    min_y = max(min(clean_y_significances) - graph_border, 0)
+    max_y = max(clean_y_significances) + graph_border
+    ax.set_xlim(min_x,max_x)
+    ax.set_ylim(min_y,max_y)
+
     # Styling
     ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
-    ax.set_xlim(0,13.5)
-    ax.set_ylim(-2,4)
     legend.get_frame().set_facecolor('white')
     legend.get_frame().set_alpha(1)
     legend.get_frame().set_linewidth(0.0)

@@ -54,4 +54,5 @@ def signal_nonlocal(
 FLOAT_OR_ARRAY = TypeVar('FLOAT_OR_ARRAY', bound=Union[float, np.ndarray])
 def normalized_nonlocal(x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
     dist = x**2 * np.exp(-x)
-    return dist / np.sum(dist)
+    normalization = 2  # Definite integral in [0, inf) is 2``
+    return dist / normalization
