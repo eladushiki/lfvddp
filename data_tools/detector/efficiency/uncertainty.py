@@ -13,8 +13,13 @@ import numpy as np
 #
 # Should be implemented as a wrapper of the original efficiency
 
+def detector_uncertainty_no_uncertainty(
+        detector_efficiency: Callable[[np.ndarray], np.ndarray],
+):
+    return detector_efficiency
 
-def detector_efficiency_10_percent_constant_diminish(
+
+def detector_uncertainty_10_percent_constant_diminish(
         detector_efficiency: Callable[[np.ndarray], np.ndarray],
 ):
     def uncertainty_wrapper(x: np.ndarray) -> np.ndarray:
@@ -25,7 +30,7 @@ def detector_efficiency_10_percent_constant_diminish(
     return uncertainty_wrapper
 
 
-def detector_efficiency_gaussian_noise(
+def detector_uncertainty_gaussian_noise(
         detector_efficiency: Callable[[np.ndarray], np.ndarray],
 ):
     def uncertainty_wrapper(x: np.ndarray) -> np.ndarray:

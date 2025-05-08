@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
+from data_tools.detector.efficiency import shapes, uncertainty
+from frame.module_retriever import retrieve_from_module
 import numpy as np
 import numpy.typing as npt
-import scipy.stats as sps
 from sklearn.model_selection import train_test_split
 from fractions import Fraction
 from random import choices
@@ -28,49 +29,30 @@ class DetectorEffect:
         self._efficiency_uncertainty = self._get_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
         self._error = self._get_detector_error_inducer(error_function)
 
-    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+    @retrieve_from_module(shapes, lambda x: np.ones((x.shape[0],)))
+    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[Callable[[np.ndarray], np.ndarray], str, None]:
         """
         Detector efficiency indicated the probability for each event (=row) to remain.
         """
-        if not effect_name:
-            return lambda x: np.ones((x.shape[0],))
+        return effect_name
         
-        try:
-            from data_tools.detector.efficiency import shapes
-            return getattr(shapes, effect_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector effect requested: {effect_name}")
-
-    def _get_detector_efficiency_uncertainty_modifier(self, uncertainty_name: Optional[str]):
-        if not uncertainty_name:
-            
-            def no_uncertainty(detector_efficiency: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
-                return detector_efficiency
-            
-            return no_uncertainty
-        
-        try:
-            from data_tools.detector.efficiency import uncertainty
-            return getattr(uncertainty, uncertainty_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector efficiency uncertainty requested: {uncertainty_name}")
+    @retrieve_from_module(uncertainty, lambda efficiency: efficiency)
+    def _get_detector_efficiency_uncertainty_modifier(self, uncertainty: Optional[str]):
+        """
+        Detector efficiency uncertainty.
+        """
+        return uncertainty
 
     @property
     def _uncertain_efficiency(self) -> Callable[[np.ndarray], np.ndarray]:
         return self._efficiency_uncertainty(self._theoretic_efficiency)
 
-    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+    @retrieve_from_module(uncertainty, lambda x: x)
+    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Union[Callable[[np.ndarray], np.ndarray], str, None]:
         """
         Detector error returns the same shape as the input.
         """
-        if not error_name:
-            return lambda x: x
-        
-        try:
-            from data_tools.detector import error 
-            return getattr(error, error_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector error requested: {error_name}")
+        return error_name
 
     # Exported functions
     ## Data generation - dirty real world aspiring simulation
