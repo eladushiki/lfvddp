@@ -643,7 +643,7 @@ def plot_samples_over_background_sliced(
             ax=ax,
             bins=bins,
             dataset=background,
-            legend=legends[i],
+            label=legends[i],
             histtype="stepfilled" if i < len(sample_hollow_datasets) else "step",
         )
     ax.set_title(title)
@@ -674,7 +674,7 @@ def plot_data_generation_sliced(
         ax=ax,
         bins=bins,
         dataset=processed_sample,
-        weights=np.ones_like(processed_sample._data),
+        alternative_weights=np.ones_like(processed_sample._data),
         histtype="stepfilled",
         label="detector affected sample",
     )
