@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterable, List, Optional, Tuple
 
+from regex import F
+
+from data_tools.event_generation.types import FLOAT_OR_ARRAY
 import numpy as np
 import numpy.typing as npt
 import scipy.stats as sps
@@ -56,7 +59,7 @@ class DetectorEffect:
             raise ValueError(f"Invalid detector efficiency uncertainty requested: {uncertainty_name}")
 
     @property
-    def _uncertain_efficiency(self) -> Callable[[np.ndarray], np.ndarray]:
+    def _uncertain_efficiency(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
         return self._efficiency_uncertainty(self._theoretic_efficiency)
 
     def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
@@ -85,7 +88,7 @@ class DetectorEffect:
 
     ## Data correction - uses theoretical knowledge only
     
-    def get_detector_theoretic_efficiency_compensator(self) -> Callable[[np.ndarray], np.ndarray]:
+    def get_detector_theoretic_efficiency_compensator(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
         return lambda x: np.ones((x.shape[0],)) / self._theoretic_efficiency(x)
 
 
