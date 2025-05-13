@@ -8,7 +8,7 @@ from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
-from frame.module_retriever import __retrieve_from_module
+from frame.module_retriever import _retrieve_from_module
 import numpy as np
 
 
@@ -99,7 +99,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         """
         class_name = to_pascal(self.dataset__background_generation_function)
 
-        distribution_class = __retrieve_from_module(background, class_name)
+        distribution_class = _retrieve_from_module(background, class_name)
         
         return distribution_class(self._dataset__number_of_dimensions, **self.dataset__background_parameters)
 
@@ -117,7 +117,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         """
         class_name = to_pascal(self.dataset__signal_data_generation_function)
 
-        distribution_class = __retrieve_from_module(signal, class_name, signal.NoSignal)
+        distribution_class = _retrieve_from_module(signal, class_name, signal.NoSignal)
 
         return distribution_class(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
 

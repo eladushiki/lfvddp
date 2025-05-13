@@ -45,7 +45,7 @@ class DataGeneration:
                 efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
                 error_function=dataset_parameters.dataset__detector_error
             )
-            data.apply_detector_effect(detector)
+            data = detector.affect_and_compensate(data)
 
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")

@@ -1,17 +1,18 @@
 from typing import Callable
-
 import numpy as np
 
 # Uncertainty variations for detector effect efficiencies
 # Each function implemented here would be recognized and recalled by name
 # Have the function signature as:
 #
+DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE = Callable[[Callable[[np.ndarray], np.ndarray]], Callable[[np.ndarray], np.ndarray]]
 # def detector_efficiency_...(
 #   detector_efficiency: Callable[[np.ndarray], np.ndarray]
 # ) -> Callable[[np.ndarray], np.ndarray]:
 #   ...
 #
 # Should be implemented as a wrapper of the original efficiency
+
 
 def detector_uncertainty_no_uncertainty(
         detector_efficiency: Callable[[np.ndarray], np.ndarray],
