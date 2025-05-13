@@ -5,7 +5,7 @@ from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION
 from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
-from numpy._typing._generic_alias import NDArray
+from numpy.typing import NDArray
 
 
 class ResultAggregator:

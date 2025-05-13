@@ -2,7 +2,7 @@ from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 from data_tools.data_utils import DataSet
 from data_tools.profile_likelihood import calc_median_t_significance_relative_to_background
@@ -423,17 +423,16 @@ def utils__datset_histogram_sliced(
         ax: plt.Axes,
         bins: np.ndarray,
         dataset: DataSet,
+        alternative_weights: Optional[np.ndarray] = None,
         along_dimension: int = 0,
-        **kwargs,
+        label: Optional[str] = None,
+        histtype: str = "bar",
 ):
-    hist_kwargs = {
-        "x": dataset.slice_along_dimension(along_dimension),
-        "bins": bins,
-        "weights": dataset.histogram_weight_mask,
-        "label": "dataset",
-        "log": True,
-    }
-    hist_kwargs.update(kwargs)
     ax.hist(
-        **hist_kwargs,
+        x=dataset.slice_along_dimension(along_dimension),
+        bins=bins,
+        weights=dataset.histogram_weight_mask if alternative_weights is None else alternative_weights,
+        log=True,
+        histtype=histtype,
+        label=label,
     )

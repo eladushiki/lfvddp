@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Optional, Union
-from data_tools.data_utils import DataSet, create_slice_containing_bins
+from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
@@ -335,8 +335,8 @@ def performance_plot(
     ax.plot(injected_significances, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
     ax.fill_between(
         injected_significances,
-        observed_significances_lower_confidence_bounds,
-        np.clip(observed_significance_upper_confidence_bounds, a_max=max_y),
+        np.clip(observed_significances_lower_confidence_bounds, a_min=0, a_max=max_y),
+        np.clip(observed_significance_upper_confidence_bounds, a_min=0, a_max=max_y),
         color=colors(1),
         linewidth=2,
         alpha=0.1
@@ -643,7 +643,7 @@ def plot_samples_over_background_sliced(
             ax=ax,
             bins=bins,
             dataset=background,
-            legend=legends[i],
+            label=legends[i],
             histtype="stepfilled" if i < len(sample_hollow_datasets) else "step",
         )
     ax.set_title(title)
@@ -674,7 +674,7 @@ def plot_data_generation_sliced(
         ax=ax,
         bins=bins,
         dataset=processed_sample,
-        weights=np.ones_like(processed_sample._data),
+        alternative_weights=np.ones_like(processed_sample._data),
         histtype="stepfilled",
         label="detector affected sample",
     )
