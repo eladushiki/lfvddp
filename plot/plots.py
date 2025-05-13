@@ -1,9 +1,10 @@
-from email import utils
-from typing import List, Optional
-from data_tools.data_utils import DataSet
-from data_tools.dataset_config import DatasetConfig
+from pathlib import Path
+from typing import List, Optional, Union
+from data_tools.data_utils import DataSet, create_slice_containing_bins
+from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
+from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
-from matplotlib import legend
+from frame.file_structure import CONTEXT_FILE_NAME
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
 import matplotlib as mpl
@@ -21,7 +22,7 @@ import scipy.special as spc
 from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__sample_over_background_histograms_sliced, em_results, exp_results, utils__create_slice_containing_bins, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__sample_over_background_histograms_sliced, em_results, utils__create_slice_containing_bins, get_z_score, results, scientific_number
 from train.train_config import TrainConfig
 
 
@@ -46,10 +47,11 @@ def Plot_Percentiles_ref(
     tvalues_check: (numpy array shape (N_toys, N_check_points)) array of t=-2*loss
     df:            (int) chi2 degrees of freedom
     '''
-    config = context.config
+    if not isinstance(config := context.config, PlottingConfig):
+        raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
 
     # Training results aggregation
-    agg = ResultAggregator(context)
+    agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
     all_model_t_test_statistics = agg.all_test_statistics
     epochs = agg.all_epochs
 
@@ -113,7 +115,7 @@ def plot_old_t_distribution(
     fig  = c.figure()
     ax = fig.add_subplot(111)
 
-    agg = ResultAggregator(context)
+    agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
     t = agg.all_t_values
 
     # Limits
@@ -194,653 +196,179 @@ def plot_old_t_distribution(
     return fig
 
 
-def plot_old_t_2distributions(t_values1, t_values2, ref_str, bkg_str, df, epoch = 500000,xmin=0, xmax=300, ymin=0, ymax=0.1, nbins=10, label='', title='', save=False, save_path='', file_name=''):
+def performance_plot(
+        context: ExecutionContext,
+        background_only_t_values_parent_directory: str,
+        signal_t_values_parent_directories: List[str],
+    ):
     '''
-    Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
-    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
+    Create a plot of the measured significance as a function of
+    the injected z = sqrt(q0) for the exponential distribution
+    with a given signal type.
+
+    Data needed to generate the plot:
+    - t values distribution for a run with background only.
+        contained in a single directory and is used as a
+        reference for all signal distributions.
+    - A set of t values distributions, each with a different
+        injected signal strength. Parameters of each are picked
+        from the context file, from the data specification under
+        the corresponding signal dataset name BY ORDER.
+
+    The plot__target_run_parent_directory has no significance to
+    not cause ambiguity.
+    '''
+    if not isinstance(plot_config := context.config, PlottingConfig):
+        raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(plot_config)}")
+
+    # Validate background configuration
+    ## this has to be a generated type, else the distribution is not well known
+    background_context = ExecutionContext.naive_load_from_file(Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME)
+    mean_number_of_background_events = 0
+    background_config: DatasetConfig = background_context.config
+    for background_dataset_name in background_config._dataset__names:
+        background_dataset_properties: DatasetParameters = background_config._dataset__parameters(background_dataset_name)
+        assert isinstance(background_dataset_properties, GeneratedDatasetParameters), \
+            f"performance plot possible only for generated datasets, got {background_dataset_properties.type}"
+        assert background_dataset_properties.dataset__number_of_signal_events == 0, \
+            f"background dataset expected to have only background events, {background_dataset_name} has {background_dataset_properties.dataset__number_of_signal_events} signal events"
+        mean_number_of_background_events = background_dataset_properties.dataset__mean_number_of_background_events  # Assuming all datasets have the same mean number of events
+
+    # Gather background data
+    background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
+    background_t_dist = background_agg.all_t_values
+
+    # Result lists
+    observed_significances = []
+    chi2_significances = []
+    injected_significances = []
+    observed_significance_upper_confidence_bounds = []
+    observed_significances_lower_confidence_bounds = []
+
+    for signal_t_values_dir in signal_t_values_parent_directories:
+        signal_context = ExecutionContext.naive_load_from_file(Path(signal_t_values_dir) / CONTEXT_FILE_NAME)
+
+        # Validate signal configuration
+        mean_number_of_signal_events = 0
+        signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
+        for dataset_name in signal_config._dataset__names:
+            dataset_properties: DatasetParameters = signal_config._dataset__parameters(dataset_name)
+            assert isinstance(dataset_properties, GeneratedDatasetParameters), \
+                f"performance plot possible only for generated datasets, got {dataset_properties.type}"
+
+            # We do assume there is a signal in only one dataset
+            if (current_mean_number_of_signal_events := dataset_properties.dataset__mean_number_of_signal_events) != 0:
+                assert mean_number_of_signal_events == 0, \
+                    f"multiple signal datasets found, {dataset_name} being the second"
+                mean_number_of_signal_events = current_mean_number_of_signal_events
+                signal_dataset_properties = dataset_properties
+
+        assert mean_number_of_signal_events != 0, \
+            f"No dataset with signal events found among {signal_config._dataset__names}"
+
+        # Gather data
+        signal_agg = ResultAggregator(Path(signal_t_values_dir))
+        signal_t_dist = signal_agg.all_t_values
+
+        chi2_significances.append(calc_t_significance_by_chi2_percentile(
+            t_distribution=signal_t_dist,
+            degrees_of_freedom=signal_config.train__nn_degrees_of_freedom,
+        ))
+        
+        injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
+            background_pdf=signal_dataset_properties.dataset__background_pdf,
+            signal_pdf=signal_dataset_properties.dataset__signal_pdf,
+            n_background_events=mean_number_of_background_events,  # The mean numbers are the theoretic ones, before injecting poisson error
+            n_signal_events=mean_number_of_signal_events,
+            upper_limit=max(signal_agg.all_t_values.max(), background_agg.all_t_values.max()),
+        ))
+
+        observed_significances.append(
+            calc_median_t_significance_relative_to_background(
+                background_t_dist,
+                signal_t_dist,
+        ))
+        signal_t_dist_std = np.std(signal_t_dist)
+        observed_significances_lower_confidence_bounds.append(
+            calc_t_significance_relative_to_background(
+                np.mean(signal_t_dist) - signal_t_dist_std, background_t_dist
+        ))
+        observed_significance_upper_confidence_bounds.append(
+            calc_t_significance_relative_to_background(
+                np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
+        ))
     
-    t:  (numpy array shape (None,))
-    df: (int) chi2 degrees of freedom
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-    # t_dict = results_file.get_t_history_dict()
-    # max_epoch = max(t_dict.keys())
-    # t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
-    t1 = t_values1
-    t2 = t_values2
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(16, 12))
-    fig.patch.set_facecolor('white')
+    sort = np.argsort(np.array(injected_significances))
+    # Formerly approx_z_score, the chi2 percentile the median is at:
+    chi2_significances = np.array(chi2_significances)[sort]
+    # Formerly Sig_q0, analytic integral of generating functions:
+    injected_significances = np.array(injected_significances)[sort]
+    # Formerly Sig_z_score, percentile of mean signal t in background t distribution:
+    observed_significances = np.array(observed_significances)[sort]
+    observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
+    observed_significance_upper_confidence_bounds = np.array(observed_significance_upper_confidence_bounds)[sort]
+    
+    # Framing
+    c = Carpenter(context)
+    fig  = c.figure()
     ax = fig.add_subplot(111)
-    #set ax size
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
-    # plot distribution histogram
-    bins      = np.linspace(xmin, xmax, nbins+1)
-    Z_obs1     = norm.ppf(chi2.cdf(np.median(t1), df))
-    Z_obs2     = norm.ppf(chi2.cdf(np.median(t2), df))
-    t_obs_err1 = 1.2533*np.std(t1)*1./np.sqrt(t1.shape[0])
-    t_obs_err2 = 1.2533*np.std(t2)*1./np.sqrt(t2.shape[0])
-    Z_obs_p1   = norm.ppf(chi2.cdf(np.median(t1)+t_obs_err1, df))
-    Z_obs_p2   = norm.ppf(chi2.cdf(np.median(t2)+t_obs_err2, df))
-    Z_obs_m1   = norm.ppf(chi2.cdf(np.median(t1)-t_obs_err1, df))
-    Z_obs_m2   = norm.ppf(chi2.cdf(np.median(t2)-t_obs_err2, df))
-    Ref_ratio = float(ref_str[0])/float(ref_str[1]) if len(ref_str)>1 else float(ref_str[0])
-    Ref_events = int(219087*Ref_ratio)
-    Bkg_ratio = float(bkg_str[0])/float(bkg_str[1]) if len(bkg_str)>1 else float(bkg_str[0])
-    Bkg_events = int(219087*Bkg_ratio)
-    # if label == "":
-    #     events = r', $N_A^0=$'+f"{scientific_number(Ref_events)}"+r', $N_B^0=$'+f"{scientific_number(Bkg_events)}"
-    #     label = 'exp'+events        
-    # label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
-    label1  = 'med: %s \nstd: %s'%(str(np.around(np.median(t1), 2)), str(np.around(np.std(t1), 2)))
-    t2_median = np.median(t2[np.where(np.logical_not(np.isnan(t2)))])
-    t2_std = np.std(t2[np.where(np.logical_not(np.isnan(t2)))])
-    t1_num_of_nan = np.sum(np.isnan(t1))
-    t2_num_of_nan = np.sum(np.isnan(t2))
-    print('NumOfNans1: ', t1_num_of_nan, 'NumOfNans2: ', t2_num_of_nan)
-    label2  = 'med: %s \nstd: %s'%(str(np.around(t2_median, 2)), str(np.around(t2_std, 2)))
-    title = r'$N_A^0=$'+f"{scientific_number(Ref_events)}"+r',   $N_B^0=$'+f"{scientific_number(Bkg_events)}" if not title else title
-    # label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
-    binswidth = (xmax-xmin)*1./nbins
-    # if t1_num_of_nan > 0:
-    #     t1[np.where(np.isnan(t1))[0]] = xmax - binswidth/2
-    # if t2_num_of_nan > 0:
-    #     t2[np.where(np.isnan(t2))[0]] = xmax - binswidth/2
-    h1 = ax.hist(t1, weights=np.ones_like(t1)*1./(t1.shape[0]*binswidth), color='plum', ec='darkorchid',
-                 bins=bins, label=label, alpha=0.8)
-    h2 = ax.hist(t2, weights=np.ones_like(t2)*1./(t2.shape[0]*binswidth), color='lightcoral', ec='red',
-                 bins=bins, label=label, alpha=0.5)
-    err1 = np.sqrt(h1[0]/(t1.shape[0]*binswidth))
-    err2 = np.sqrt(h2[0]/(t2.shape[0]*binswidth))
-    x   = 0.5*(bins[1:]+bins[:-1])
-    ax.errorbar(x, h1[0], yerr = err1, color='darkorchid', marker='o', ls='')
-    ax.errorbar(x, h2[0], yerr = err2, color='red', marker='o', ls='')
-    # plot reference chi2
-    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-    ax.plot(x, chi2.pdf(x, df),'grey', lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    font = font_manager.FontProperties(family='serif', size=24) 
-    # plt.legend(prop=font,frameon=False)
-    circ1 = patches.Circle((0,0), 1, facecolor='plum', edgecolor='darkorchid')
-    circ2 = patches.Circle((0,0), 1, facecolor='lightcoral', edgecolor='red')
-    rect = patches.Rectangle((0,0), 1, 1, color='grey', alpha=0.8)
-    ax.legend((circ1, circ2, rect), (label1, label2, f'$\chi^{2}_{{{df}}}$'),
-            handler_map={
-               patches.Rectangle: HandlerRect(),
-               patches.Rectangle: HandlerRect(),
-               patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    if (t1_num_of_nan > 0) or (t2_num_of_nan > 0):
-        NaN_ratio = t1_num_of_nan/t1.shape[0] if t1_num_of_nan > 0 else t2_num_of_nan/t2.shape[0]
-        rect2 = patches.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
-        legend = ax.legend((circ1, circ2, rect, rect2), (label1, label2, f'$\chi^{2}_{{{df}}}$',f'NaN: {NaN_ratio*100:.1f}%'),
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    ax.set_ylim(ymin,ymax)
-    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
-    ticks_list = [0.03,0.06,0.09]
-    if ymax>=0.12: 
-        ticks_list += [0.12]
-    plt.yticks(ticks_list, fontsize=24, fontname="serif")
-    plt.xticks(fontsize=24, fontname="serif")
-    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = '2distributions'
-            else: 
-                if (t1_num_of_nan > 0):
-                    file_name += f'_{t1_num_of_nan}NaN'
-                if (t2_num_of_nan > 0):
-                    file_name += f'_{t2_num_of_nan}NaN'
-                file_name += '_2distributions'
-            plt.savefig(save_path+file_name+'.pdf')
-    plt.show()
-    plt.close(fig)
 
+    # Borders
+    graph_border = 1
+    clean_y_significances = np.concatenate([
+        chi2_significances[np.isfinite(chi2_significances)],
+        observed_significances[np.isfinite(observed_significances)],
+        observed_significances_lower_confidence_bounds[np.isfinite(observed_significances_lower_confidence_bounds)],
+        observed_significance_upper_confidence_bounds[np.isfinite(observed_significance_upper_confidence_bounds)],
+    ])
+    min_x = max(min(injected_significances) - graph_border, 0)
+    max_x = max(injected_significances) + graph_border
+    min_y = max(min(clean_y_significances) - graph_border, 0)
+    max_y = max(clean_y_significances) + graph_border
+    ax.set_xlim(min_x,max_x)
+    ax.set_ylim(min_y,max_y)
 
-def plot_t_2distributions(results_file1:results, results_file2:results, df, epoch = 500000,xmin=0, xmax=300, nbins=10, label='', title='', save=False, save_path='', file_name=''):
-    '''
-    Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
-    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
-    
-    t:  (numpy array shape (None,))
-    df: (int) chi2 degrees of freedom
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-    # t1 = results_file1.get_t_history()[0][:,-1]
-    # t2 = results_file2.get_t_history()[0][:,-1]
-
-    t1_dict = results_file1.get_t_history_dict()
-    t2_dict = results_file2.get_t_history_dict()
-    max_epoch = min(max(t1_dict.keys()),max(t2_dict.keys()))
-    t1 = t1_dict[epoch] if ((epoch in t1_dict.keys()) and (epoch in t2_dict.keys())) else t1_dict[max_epoch]
-    t2 = t2_dict[epoch] if ((epoch in t1_dict.keys()) and (epoch in t2_dict.keys())) else t1_dict[max_epoch]
-
-    color1 = ['plum', 'darkorchid']
-    color2 = ['lightcoral', 'crimson']
-    alpha = [0.8, 0.5]
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(12, 9))
-    fig.patch.set_facecolor('white')
-    # plot distribution histogram
-    for i in [1,2]:
-        t = t1 if i==1 else t2
-        color = color1 if i==1 else color2
-        bins      = np.linspace(xmin, xmax, nbins+1)
-        Z_obs     = norm.ppf(chi2.cdf(np.median(t), df))
-        t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
-        Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
-        Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
-        label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
-        label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
-        binswidth = (xmax-xmin)*1./nbins
-        h = plt.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color[0], ec=color[1],
-                    bins=bins, label=label, alpha=alpha[i-1])
-        err = np.sqrt(h[0]/(t.shape[0]*binswidth))
-        x   = 0.5*(bins[1:]+bins[:-1])
-        plt.errorbar(x, h[0], yerr = err, color=color[1], marker='o', ls='')
-    # plot reference chi2
-    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-    plt.plot(x, chi2.pdf(x, df),'rebeccapurple', lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    font = font_manager.FontProperties(family='serif', size=14) 
-    plt.legend(prop=font,frameon=False)
-    plt.xlabel('t', fontsize=18, fontname="serif")
-    plt.ylabel('PDF', fontsize=18, fontname="serif")
-    plt.yticks(fontsize=16, fontname="serif")
-    plt.xticks(fontsize=16, fontname="serif")
-    plt.title(title, fontsize=18, fontname="serif")
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = '1distribution'
-            else: file_name += '_1distribution'
-            plt.savefig(save_path+file_name+'.pdf')
-    plt.show()
-    plt.close(fig)
-
-
-def plot_t_multiple_distributions(results_files, df, epoch = 500000,xmin=0, xmax=300, ymax=0.1, nbins=10, bin_colors=[], edge_colors=[], alphas=[], labels=[], order=[], title='', save=False, save_path='', file_name=''):
-    '''
-    Plot histogram-distributions of the test scores for files in results_files, and the target chi2 distribution.
-
-    results_files: (list) list of results files
-    df:            (int) expected chi2 degrees of freedom. If df=0 or df=False, the chi2 distribution is not shown.
-    epoch:         (int) epoch for which the test scores are plotted
-    xmin:          (float) minimum value of the x-axis (in terms of t score).
-    xmax:          (float) maximum value of the x-axis (in terms of t score).
-    ymax:          (float) maximum value of the y-axis (probability).
-    nbins:         (int) number of bins in the histogram.
-    bin_colors:    (list) list of colors for the histograms. Empty list or 0-entries will use default colors, else list of colors for the bins.
-    edge_colors:   (list) list of colors for the histograms. Empty list or 0-entries will use default colors, else list of colors for the edges.
-    alphas:        (list) list of alpha values for the histograms. Empty list or empty-stirng-entries will use default values, else list of alpha values.
-    labels:        (str) text for the legend of the histograms. Use 0 for default text.
-    order:         (list) list of integers to set the order of the histograms' plotting in the plot. If empty, the results_files order is used, else list of integers.
-    title:         (str) title of the plot.
-    save:          (bool) if True, the plot is saved to the path specified in save_path, with the name specified in file_name.
-    save_path:     (str) path to the directory where the plot will be saved.
-    file_name:     (str) name of the file where the plot will be saved.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-
-    bin_colors = bin_colors if any(isinstance(l, str) for l in bin_colors) else [0]*len(results_files)
-    edge_colors = edge_colors if any(isinstance(l, str) for l in edge_colors) else [0]*len(results_files)
-    alphas = alphas if any(isinstance(l, (float,int)) for l in alphas) else ['']*len(results_files)
-    labels = labels if any(isinstance(l, str) for l in labels) else [0]*len(results_files)
-    t_dict = {}
-    for i in range(len(results_files)):
-        t_dict[i] = results_files[i].get_t_history_dict()
-    max_epoch = min(max(t_dict[i].keys()) for i in range(len(results_files)))
-    t = [t_dict[i][epoch] if epoch in t_dict[i].keys() else t_dict[i][max_epoch] for i in range(len(results_files))]
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(111)
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.5, box.height*0.5])
-    fig.patch.set_facecolor('white')
-    for i in range(len(results_files)):
-        color = bin_colors[i] if bin_colors[i]!=0 else 'plum' if results_files[i].NPLM=='False' else 'lightcoral'
-        ec = edge_colors[i] if edge_colors[i]!=0 else 'darkorchid' if results_files[i].NPLM=='False' else 'red'
-        alpha = alphas[i] if alphas[i]!='' else 0.8 if results_files[i].NPLM=='False' else 0.5
-        bins      = np.linspace(xmin, xmax, nbins+1)
-        Z_obs     = norm.ppf(chi2.cdf(np.median(t[i]), df))
-        t_obs_err = 1.2533*np.std(t[i])*1./np.sqrt(t[i].shape[0])
-        Z_obs_p   = norm.ppf(chi2.cdf(np.median(t[i])+t_obs_err, df))
-        Z_obs_m   = norm.ppf(chi2.cdf(np.median(t[i])-t_obs_err, df))
-        label  = 'med: %s \nstd: %s'%(str(np.around(np.median(t[i]), 2)), str(np.around(np.std(t[i]), 2))) if labels[i]==0 else labels[i]
-        binswidth = (xmax-xmin)*1./nbins
-        zorder = 2*i if order==[] else 2*order[i]
-        h = ax.hist(t[i], weights=np.ones_like(t[i])*1./(t[i].shape[0]*binswidth), color=color, ec=ec,
-                    bins=bins, label=label, alpha=alpha, zorder=zorder)
-        err = np.sqrt(h[0]/(t[i].shape[0]*binswidth))
-        x   = 0.5*(bins[1:]+bins[:-1])
-        ax.errorbar(x, h[0], yerr = err, color=ec, marker='o', ls='', zorder=zorder+1)
-    chi2_color = 'grey'
-    if df:
-        x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-        ax.plot(x, chi2.pdf(x, df),chi2_color, lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    font = font_manager.FontProperties(family='serif', size=24)
-    handles = []
-    for i in range(len(results_files)):
-        color = bin_colors[i] if bin_colors[i]!=0 else 'plum' if results_files[i].NPLM=='False' else 'lightcoral'
-        ec = edge_colors[i] if edge_colors[i]!=0 else 'darkorchid' if results_files[i].NPLM=='False' else 'red'
-        alpha = alphas[i] if alphas[i]!='' else 0.8 if results_files[i].NPLM=='False' else 0.5
-        circ = patches.Circle((0,0), 1, facecolor=color, edgecolor=ec) if alpha else patches.Circle((0,0), 1, facecolor=ec, edgecolor='black')
-        handles.append(circ)
-    labels = ax.get_legend_handles_labels()[1]
-    if df:
-        rect = patches.Rectangle((0,0), 1, 1, color=chi2_color, alpha=0.8)
-        handles.append(rect)
-        labels.append(f'$\chi^{2}_{{{df}}}$')
-    legend = ax.legend(handles, labels,
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylim(0,ymax)
-    plt.yticks(np.arange(0,ymax+0.001,0.03)[1:], fontsize=24, fontname="serif")
-    plt.xticks(fontsize=24, fontname="serif")
-    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = 'multiple_distributions'
-            else: file_name += '_multiple_distributions'
-            plt.savefig(save_path+file_name+'.pdf')
-    
-
-def exp_performance_plot(Bkg_only_files, sig_type:int, title="", title_fs=24, labels_fs=21, ticks_fs=20, legend_fs=20, save=False, save_path='', saved_file_name='', errors = False):
-    '''
-    The function creates a plot of the measured significance as a function of the injected sqrt(q0) for the exponential distributions with a given signal type.
-
-    Bkg_only_files: (list) list of Background files to be plotted.
-                    For each background file, all available signal files are taken, and their significance is calculated and plotted (in a continuous line).
-    sig_type:       (int) signal type (1,2,3) for which the significance is calculated.
-                    1 - S1, 2 - S2, 3 - S3 (see paper for the mathematical definition of the signal types).
-    title:          (str) title of the plot.
-    title_fs:       (int) fontsize of the title.
-    labels_fs:      (int) fontsize of the axis labels.
-    ticks_fs:       (int) fontsize of the axis ticks.
-    legend_fs:      (int) fontsize of the legend.
-    save:           (bool) if True, the plot is saved to the path specified in save_path, with the name specified in saved_file_name.
-    save_path:      (str) path to the directory where the plot will be saved.
-    saved_file_name:(str) name of the file where the plot will be saved.
-    errors:         (bool) if True, the plot includes errorbars.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-
-    fig, ax = plt.subplots(figsize=(9,6.75))
-    fig.set_facecolor('white')
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
+    # Plots
     colors = plt.get_cmap('cool')
-    for i,Bkg_only_file in enumerate(Bkg_only_files):
-        if (Bkg_only_file.Bkg_sample == 'em') or (Bkg_only_file.Bkg_sample == 'em_Mcoll'):
-            print('Used exp plot function for em sample.')
-            return
-        Bkg_only_file_name = Bkg_only_file.file
-        Sig_file_names = Bkg_only_file.get_signals_files()[sig_type-1]
-        #print( Sig_file_names)
-        Sig_z_score = []
-        approx_z_score = []
-        Sig_q0 = []
-        Z_score_p = []
-        Z_score_m =[]
-        for sig in Sig_file_names:
-            Sig_file = exp_results(sig)
-            if Sig_file.resample!="True":
-                print(sig)
-                z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
-                if len(Sig_t)>0 and len(Bkg_t)>0:
-                    Sig_z_score.append(z_score)
-                    approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
-                    Sig_q0.append(Sig_file.get_sqrt_q0())
-                    if errors:
-                        z_score_p = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)+np.std(Sig_t))])/len(Bkg_t))*2-1)
-                        z_score_m = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)-np.std(Sig_t))])/len(Bkg_t))*2-1)
-                        Z_score_m.append(z_score_m)
-                        Z_score_p.append(z_score_p)
-        Sig_z_score = np.array(Sig_z_score)
-        approx_z_score = np.array(approx_z_score)
-        Sig_q0 = np.array(Sig_q0)
-        sort = np.argsort(Sig_q0)
-        Sig_z_score = Sig_z_score[sort]
-        approx_z_score = approx_z_score[sort]
-        
-        Sig_q0 = Sig_q0[sort]
-        label = r'$N_A^0=$'+f"{scientific_number(Bkg_only_file.Bkg_events)}"+r', $N_B^0=$'+f"{scientific_number(Bkg_only_file.Ref_events)}"
-        ax.plot(Sig_q0, Sig_z_score, color=colors(1.0-i/len(Bkg_only_files)), label=label, linewidth=2)
-        
-        ax.plot(Sig_q0, approx_z_score, color=colors(1.0-i/len(Bkg_only_files)), linewidth=2, linestyle='--')
-        if errors:
-            Z_score_m = np.array(Z_score_m)
-            Z_score_p = np.array(Z_score_p)
-            Z_score_m = Z_score_m[sort]
-            Z_score_p = Z_score_p[sort]
-            ax.fill_between(Sig_q0, Z_score_m, Z_score_p,color=colors(1.0-i/len(Bkg_only_files)), label=label, linewidth=2,alpha = 0.1)
-    ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
-    ax.set_xlim(0,13.5)
-    ax.set_ylim(-2,4)
-    ax.set_xlabel(r'injected $\sqrt{q_0}$', fontsize=labels_fs)
-    ax.set_ylabel('measured significance', fontsize=labels_fs)
-    ax.set_title(title, fontsize=title_fs)
-    dashed_line = mpl.lines.Line2D([], [], color='black', linestyle='--', label=r"$\chi^2_{12}$")
-    handles, labels = ax.get_legend_handles_labels()
-    handles.append(dashed_line)
-    legend = ax.legend(handles=handles, labels=labels + [r"$\chi^2_{12}$"],loc='lower right', fontsize=legend_fs, fancybox=True, frameon=False)
-    legend.get_frame().set_facecolor('white')
-    legend.get_frame().set_alpha(1)
-    legend.get_frame().set_linewidth(0.0)
-    ax.tick_params(labelsize=ticks_fs)
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            plt.savefig(save_path+saved_file_name+'.pdf')
-    plt.show()
-
-
-def exp_multiple_performance_plot(Bkg_only_files, sig_type, title="", title_fs=24, labels_fs=21, ticks_fs=20, legend_fs=20, ignore_files=[], save=False, save_path='', saved_file_name='', errors = False):
-    '''
-    The function creates a plot of the measured significance as a function of the injected sqrt(q0) for the exponential distributions with a given signal type.
-    Multiple plots are created, each for a different signal type.
-
-    Bkg_only_files: (list) list of Background files to be plotted.
-                    For each background file, all available signal files are taken, and their significance is calculated and plotted (in a continuous line).
-    sig_type:       (list) list of signal types (1,2,3) for which the significance is calculated.
-                    1 - S1, 2 - S2, 3 - S3 (see paper for the mathematical definition of the signal types).
-    title:          (str) title of the plot.
-    title_fs:       (int) fontsize of the title.
-    labels_fs:      (int) fontsize of the axis labels.
-    ticks_fs:       (int) fontsize of the axis ticks.
-    legend_fs:      (int) fontsize of the legend.
-    ignore_files:   (list) list of files to be ignored.
-    save:           (bool) if True, the plot is saved to the path specified in save_path, with the name specified in saved_file_name.
-    save_path:      (str) path to the directory where the plot will be saved.
-    saved_file_name:(str) name of the file where the plot will be saved.
-    errors:         (bool) if True, the plot includes (symmetrical!!!) errorbars.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-
-    fig = plt.figure(figsize=(8*(len(sig_type)+1), 14))
-    fig.set_facecolor('white')
-    gs = fig.add_gridspec(8, len(sig_type)+1, hspace=2)
-    axs = ([fig.add_subplot(gs[1:5, i]) for i in range(len(sig_type))])
-    # title_ax = fig.add_subplot(gs[0, :])
-    # title_ax.set_title('Exp background', fontsize=title_fs)
-    # title_ax.axis('off')
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    colors = plt.get_cmap('cool') #['violet', 'hotpink', 'mediumvioletred', 'mediumorchid', 'darkviolet']
-    for j in range(len(sig_type)):
-        for i,Bkg_only_file in enumerate(Bkg_only_files):
-            # if i<3: colors = plt.get_cmap('Reds')
-            # else: colors = plt.get_cmap('BuPu')
-            if (Bkg_only_file.Bkg_sample == 'em') or (Bkg_only_file.Bkg_sample == 'em_Mcoll'):
-                print('Used exp plot function for em sample.')
-                return
-            Bkg_only_file_name = Bkg_only_file.file
-            Sig_file_names = Bkg_only_file.get_signals_files()[sig_type[j]-1]
-            Sig_z_score = []
-            approx_z_score = []
-            Sig_q0 = []
-            Z_score_p = []
-            Z_score_m =[]
-            for sig in Sig_file_names:
-                Sig_file = exp_results(sig)
-                if Sig_file.csv_file_name in ignore_files: continue
-                if Sig_file.resample!="True":
-                    print(sig)
-                    z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
-                    if len(Sig_t)>0 and len(Bkg_t)>0:
-                        Sig_z_score.append(z_score)
-                        approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
-                        Sig_q0.append(Sig_file.get_sqrt_q0())
-                        if errors:
-                            z_score_m = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)-np.std(Sig_t)/np.sqrt(len(Sig_t)))])/len(Bkg_t))*2-1)
-                            if z_score_m==np.inf: z_score_m = norm.isf(chi2.sf(np.median(Sig_t)-np.std(Sig_t)/np.sqrt(len(Sig_t)), df=12))
-                            z_score_p = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)+np.std(Sig_t)/np.sqrt(len(Sig_t)))])/len(Bkg_t))*2-1)
-                            if z_score_p==np.inf: z_score_p = norm.isf(chi2.sf(np.median(Sig_t)+np.std(Sig_t)/np.sqrt(len(Sig_t)), df=12))
-                            Z_score_m.append(z_score_m)
-                            Z_score_p.append(z_score_p)
-            Sig_z_score = np.array(Sig_z_score)
-            approx_z_score = np.array(approx_z_score)
-            Sig_q0 = np.array(Sig_q0)
-            sort = np.argsort(Sig_q0)
-            Sig_z_score = Sig_z_score[sort]
-            approx_z_score = approx_z_score[sort]
-            Sig_q0 = Sig_q0[sort]
-            label = r'$N_A^0=$'+f"{scientific_number(Bkg_only_file.Bkg_events)}"+r', $N_B^0=$'+f"{scientific_number(Bkg_only_file.Ref_events)}"
-            if (Bkg_only_file.NPLM == 'True') and ('NPLM' not in title[j]): label += ', NPLM'
-            if not errors: axs[j].plot(Sig_q0, Sig_z_score, color=colors(1.0-i/len(Bkg_only_files)), label=label, linewidth=2, marker='o', markersize=4)
-            if i<3: axs[j].plot(Sig_q0, approx_z_score, color=colors(0.75-i/len(Bkg_only_files)), linewidth=2, linestyle='--', zorder=-1)
-            else: axs[j].plot(Sig_q0, approx_z_score, color=colors(0.75-(i-3)/len(Bkg_only_files)), linewidth=2, linestyle='--', zorder=-1)
-            if errors:
-                Z_score_m = np.array(Z_score_m)
-                Z_score_p = np.array(Z_score_p)
-                Z_score_m = Sig_z_score-Z_score_m[sort]
-                # Z_score_p = Z_score_p[sort]-Sig_z_score   # for asymmetrical errorbars   
-                Z_score_p = Z_score_m.copy()                # for symmetrical errorbars
-                errors_array = np.concatenate((Z_score_m.reshape(1,-1),Z_score_p.reshape(1,-1)),axis=0)
-                if i<3: axs[j].plot(Sig_q0, Sig_z_score, color=colors(0.75-i/len(Bkg_only_files)), label=label, linewidth=2, zorder=-1)
-                else: axs[j].plot(Sig_q0, Sig_z_score, color=colors(0.75-(i-3)/len(Bkg_only_files)), label=label, linewidth=2, zorder=-1)
-                axs[j].errorbar(Sig_q0, Sig_z_score, errors_array, linestyle='none', capsize=2, capthick=0.5, marker='o', mfc='black', ecolor='black', elinewidth=0.5, ms=2, zorder=3)
-        axs[j].grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
-        axs[j].set_xlim(0,10)
-        axs[j].set_ylim(-1,4)
-        axs[j].set_xlabel(r'injected $\sqrt{q_0}$', fontsize=labels_fs)
-        axs[j].set_ylabel('measured significance', fontsize=labels_fs)
-        axs[j].set_title(title[j], fontsize=title_fs, pad=25)
-        axs[j].tick_params(labelsize=ticks_fs)
-        axs[j].xaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-        axs[j].yaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-        axs[j].set_xticks(ticks=[2,4,6,8,10])
-    legend_ax = fig.add_subplot(gs[5,1]) 
-    handles, labels = axs[0].get_legend_handles_labels()
-    # if errors: handles = [h[0] for h in handles]
-    dashed_line = mpl.lines.Line2D([], [], color='black', linestyle='--', label=r"$\chi^2_{12}$")
-    handles.append(dashed_line)
-    legend_ax.legend(handles, labels + [r"$\chi^2_{12}$"], loc='upper center', ncol=len(Bkg_only_files)//2+1, fontsize=legend_fs, fancybox=True, frameon=False, numpoints=1)
-    # legend_ax.legend(handles, labels , loc='upper center', ncol=1, fontsize=legend_fs, fancybox=True, frameon=False, numpoints=1)
-    legend_ax.axis('off')
-    legend_ax.set_xticks([])
-    legend_ax.set_yticks([])
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            plt.savefig(save_path+saved_file_name+'.pdf')
-    plt.show()
-
-
-def em_performance_plot(Bkg_only_files, title="", title_fs=24, labels_fs=22, ticks_fs=20, legend_fs=20, save=False, save_path='', saved_file_name='', errors = False):
-    '''
-    The function creates a plot of the measured significance as a function of the injected sqrt(q0) for the em distribution.
     
-    Bkg_only_files: (list) list of Background files to be plotted.
-                    For each background file, all available signal files are taken, and their significance is calculated and plotted (in a continuous line).
-    title:          (str) title of the plot.    
-    title_fs:       (int) fontsize of the title.
-    labels_fs:      (int) fontsize of the axis labels.
-    ticks_fs:       (int) fontsize of the axis ticks.
-    legend_fs:      (int) fontsize of the legend.
-    save:           (bool) if True, the plot is saved to the path specified in save_path, with the name specified in saved_file_name.
-    save_path:      (str) path to the directory where the plot will be saved.
-    saved_file_name:(str) name of the file where the plot will be saved.
-    errors:         (bool) if True, the plot includes (symmetrical!!!) errorbars.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-    fig = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(223)
-    fig.set_facecolor('white')
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    colors = plt.get_cmap('spring')
-    for i,Bkg_only_file in enumerate(Bkg_only_files):
-        if Bkg_only_file.Bkg_sample == 'exp':
-            print('Used em plot function for exp sample.')
-            return
-        Bkg_only_file_name = Bkg_only_file.file
-        Sig_file_names = Bkg_only_file.get_signal_files()
-        Sig_z_score = []
-        approx_z_score = []
-        Sig_q0 = []
-        Z_score_p = []
-        Z_score_m =[]
-        for sig in Sig_file_names:
-            Sig_file = em_results(sig)
-            z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
-            Sig_z_score.append(z_score)
-            approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
-            Sig_q0.append(Sig_file.get_binned_sqrt_q0())
-            if errors:
-                z_score_m = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)-np.std(Sig_t)/np.sqrt(len(Sig_t)))])/len(Bkg_t))*2-1)    #dividing by sqrt(N_Sig)
-                if z_score_m==np.inf: z_score_m = norm.isf(chi2.sf(np.median(Sig_t)-np.std(Sig_t)/np.sqrt(len(Sig_t)), df=12))
-                z_score_p = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)+np.std(Sig_t)/np.sqrt(len(Sig_t)))])/len(Bkg_t))*2-1)    #dividing by sqrt(N_Sig)
-                if z_score_p==np.inf: z_score_p = norm.isf(chi2.sf(np.median(Sig_t)+np.std(Sig_t)/np.sqrt(len(Sig_t)), df=12))
-                Z_score_m.append(z_score_m)
-                Z_score_p.append(z_score_p)
-        Sig_z_score = np.array(Sig_z_score)
-        approx_z_score = np.array(approx_z_score)
-        Sig_q0 = np.array(Sig_q0)
-        sort = np.argsort(Sig_q0)
-        Sig_z_score = Sig_z_score[sort]
-        approx_z_score = approx_z_score[sort]
-        Sig_q0 = Sig_q0[sort]
-        lumi = 20*Bkg_only_file.Bkg_ratio
-        label = f'$\\mathcal{{L}}={int(lumi)}{{fb}}^{{-1}}$' if lumi.is_integer() else f'$\\mathcal{{L}}={lumi:.1f}{{fb}}^{{-1}}$'
-        if errors:
-            Z_score_m = np.array(Z_score_m)
-            Z_score_p = np.array(Z_score_p)
-            Z_score_m = Sig_z_score-Z_score_m[sort]
-            # Z_score_p = Z_score_p[sort]-Sig_z_score   # for asymmetrical errorbars   
-            Z_score_p = Z_score_m.copy()                # for symmetrical errorbars
-            errors_array = np.concatenate((Z_score_m.reshape(1,-1),Z_score_p.reshape(1,-1)),axis=0)
-            ax.plot(Sig_q0, Sig_z_score, color=colors(4/5*i/len(Bkg_only_files)), label=label, linewidth=2, zorder=-1)
-            ax.errorbar(Sig_q0, Sig_z_score, errors_array, linestyle='none', capsize=2, capthick=0.5, marker='o', mfc='black', ecolor='black', elinewidth=0.5, ms=2, zorder=3)
-        else:
-            ax.plot(Sig_q0, Sig_z_score, color=colors(4/5*i/len(Bkg_only_files)), label=label, linewidth=2, marker='o', ms=4)
-        ax.plot(Sig_q0, approx_z_score, color=colors(4/5*i/len(Bkg_only_files)), linewidth=2, linestyle='--', zorder=-1)
-    ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
-    ax.set_xlim(0,10)
-    ax.set_ylim(-1,4)
-    ax.set_xlabel(r'injected $\sqrt{q_0}$', fontsize=labels_fs)
-    ax.set_ylabel('measured significance', fontsize=labels_fs)
-    ax.set_title(title, fontsize=title_fs, pad=25)
+    ax.plot(injected_significances, chi2_significances, color=colors(0), linewidth=2, linestyle='--')
+    ax.plot(injected_significances, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
+    ax.fill_between(
+        injected_significances,
+        observed_significances_lower_confidence_bounds,
+        np.clip(observed_significance_upper_confidence_bounds, a_max=max_y),
+        color=colors(1),
+        linewidth=2,
+        alpha=0.1
+    )
+    chi2_label = r"$\chi^2_" + str(background_config.train__nn_degrees_of_freedom) + r"$"
+    chi2_curve = mpl.lines.Line2D([], [], color='black', linestyle='--', label=chi2_label)
+    
+    # Texting
+    ax.set_xlabel(r'injected $\sqrt{q_0}$', fontsize=21)
+    ax.set_ylabel('measured significance', fontsize=21)
+    ax.set_title("measured vs injected signal significance", fontsize=24)
     handles, labels = ax.get_legend_handles_labels()
-    # if errors: handles = [h[0] for h in handles]
-    dashed_line = mpl.lines.Line2D([], [], color='black', linestyle='--', label=r"$\chi^2_{12}$")
-    handles.append(dashed_line)
-    legend = ax.legend(handles=handles, labels=labels + [r"$\chi^2_{12}$"], loc='lower right', fontsize=legend_fs, fancybox=True, frameon=False, numpoints=1)
+    handles.append(chi2_curve)
+    legend = ax.legend(
+        handles=handles,
+        labels=labels + [chi2_label],
+        loc='lower right',
+        fontsize=20,
+        fancybox=True,
+        frameon=False
+    )
+
+    # Styling
+    ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
     legend.get_frame().set_facecolor('white')
     legend.get_frame().set_alpha(1)
     legend.get_frame().set_linewidth(0.0)
-    ax.tick_params(labelsize=ticks_fs)
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            plt.savefig(save_path+saved_file_name+'.pdf')
-    plt.show()
+    ax.tick_params(labelsize=20)
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune='lower'))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune='lower'))
 
-
-def em_performance_plot_BR(Bkg_only_files, title="", title_fs=24, labels_fs=22, ticks_fs=20, legend_fs=20, save=False, save_path='', saved_file_name='', errors = False):
-    '''
-    The function creates a plot of the measured significance as a function of the branching ratio for the em distribution.
-    See em_performance_plot's docstring for more details. 
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-
-    fig = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(223)
-    fig.set_facecolor('white')
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    colors = plt.get_cmap('spring')
-    BR_list = []
-    Z_list = []
-    for i,Bkg_only_file in enumerate(Bkg_only_files):
-        if Bkg_only_file.Bkg_sample == 'exp':
-            print('Used em plot function for exp sample.')
-            return
-        Bkg_only_file_name = Bkg_only_file.file
-        Sig_file_names = Bkg_only_file.get_signal_files()
-        Sig_z_score = []
-        approx_z_score = []
-        BR = []
-        Z_score_p = []
-        Z_score_m =[]
-        lumi = 20*Bkg_only_file.Bkg_ratio
-        for sig in Sig_file_names:
-            Sig_file = em_results(sig)
-            z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
-            Sig_z_score.append(z_score)
-            approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
-            BR.append((20*1/456)*Sig_file.Sig_events/lumi)
-            if errors:
-                z_score_m = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)-np.std(Sig_t)/np.sqrt(len(Sig_t)))])/len(Bkg_t))*2-1)    #dividing by sqrt(N_Sig)
-                if z_score_m==np.inf: z_score_m = norm.isf(chi2.sf(np.median(Sig_t)-np.std(Sig_t)/np.sqrt(len(Sig_t)), df=12))
-                z_score_p = np.sqrt(2)*spc.erfinv((len(Bkg_t[Bkg_t<=(np.median(Sig_t)+np.std(Sig_t)/np.sqrt(len(Sig_t)))])/len(Bkg_t))*2-1)    #dividing by sqrt(N_Sig)
-                if z_score_p==np.inf: z_score_p = norm.isf(chi2.sf(np.median(Sig_t)+np.std(Sig_t)/np.sqrt(len(Sig_t)), df=12))
-                Z_score_m.append(z_score_m)
-                Z_score_p.append(z_score_p)
-        Sig_z_score = np.array(Sig_z_score)
-        approx_z_score = np.array(approx_z_score)
-        BR = np.array(BR)
-        sort = np.argsort(BR)
-        Sig_z_score = Sig_z_score[sort]
-        approx_z_score = approx_z_score[sort]
-        BR = BR[sort]
-        label = f'$\\mathcal{{L}}={int(lumi)}{{fb}}^{{-1}}$' if lumi.is_integer() else f'$\\mathcal{{L}}={lumi:.1f}{{fb}}^{{-1}}$'
-        if errors:
-            Z_score_m = np.array(Z_score_m)
-            Z_score_p = np.array(Z_score_p)
-            Z_score_m = Sig_z_score-Z_score_m[sort]
-            # Z_score_p = Z_score_p[sort]-Sig_z_score   # for asymmetrical errorbars   
-            Z_score_p = Z_score_m.copy()                # for symmetrical errorbars
-            errors_array = np.concatenate((Z_score_m.reshape(1,-1),Z_score_p.reshape(1,-1)),axis=0)
-            ax.plot(BR, Sig_z_score, color=colors(4/5*i/len(Bkg_only_files)), label=label, linewidth=2, zorder=-1)
-            ax.errorbar(BR, Sig_z_score, errors_array, linestyle='none', capsize=2, capthick=0.5, marker='o', mfc='black', ecolor='black', elinewidth=0.5, ms=2, zorder=3)
-        else:
-            ax.plot(BR, Sig_z_score, color=colors(4/5*i/len(Bkg_only_files)), label=label, linewidth=2, marker='o', ms=4)
-        ax.plot(BR, approx_z_score, color=colors(4/5*i/len(Bkg_only_files)), linewidth=2, linestyle='--', zorder=-1)
-        BR_list.append(BR)
-        Z_list.append(Sig_z_score)
-    ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
-    ax.set_ylim(-1,4)
-    ax.set_xlabel(r'BR %', fontsize=labels_fs)
-    ax.set_ylabel('measured significance', fontsize=labels_fs)
-    ax.set_title(title, fontsize=title_fs, pad=25)
-    handles, labels = ax.get_legend_handles_labels()
-    # if errors: handles = [h[0] for h in handles]
-    dashed_line = mpl.lines.Line2D([], [], color='black', linestyle='--', label=r"$\chi^2_{12}$")
-    handles.append(dashed_line)
-    legend = ax.legend(handles=handles, labels=labels + [r"$\chi^2_{12}$"], loc='lower right', fontsize=legend_fs, fancybox=True, frameon=False, numpoints=1)
-    legend.get_frame().set_facecolor('white')
-    legend.get_frame().set_alpha(1)
-    legend.get_frame().set_linewidth(0.0)
-    ax.tick_params(labelsize=ticks_fs)
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            plt.savefig(save_path+saved_file_name+'.pdf')
-    plt.show()
-    return BR_list, Z_list
+    return fig
 
 
 def em_luminosity_plot(Bkg_only_files, S_in_20=1200,title="", title_fs=24, labels_fs=21, ticks_fs=20, legend_fs=20, save=False, save_path='', saved_file_name=''):

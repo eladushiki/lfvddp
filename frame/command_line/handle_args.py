@@ -1,4 +1,3 @@
-from inspect import signature
 from logging import warning
 from sys import argv
 from argparse import ArgumentParser
@@ -6,14 +5,9 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional
 
-from data_tools.dataset_config import DatasetConfig
-from frame.config_handle import UserConfig
 from frame.context.execution_context import version_controlled_execution_context
+from frame.context.execution_context import create_config_from_paramters
 from frame.file_system.textual_data import load_dict_from_json
-from frame.validation import validate_configuration
-from plot.plotting_config import PlottingConfig
-from frame.cluster.cluster_config import ClusterConfig
-from train.train_config import TrainConfig
 
 
 def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
@@ -87,38 +81,12 @@ def create_config_from_paths(
     for config_path in config_paths:
         config_params.update(load_dict_from_json(config_path))
 
-    # Resolve config typing according to deepest hierarchy:
-    config_classes = [
-        UserConfig,
-        ClusterConfig,
-        DatasetConfig,
-        TrainConfig,
-    ]
-
-    if is_plot:
-        config_classes.append(PlottingConfig)
-
-    class DynamicConfig(*config_classes):
-        def __init__(self, **kwargs):
-            for config_class in config_classes:
-                filtered_args = {
-                    k: v for k, v in kwargs.items()
-                    if k in signature(config_class).parameters
-                }
-                config_class.__init__(self, **filtered_args)
-
-    # Configuration according to arguments
-    if out_dir:
-        config_params["config__out_dir"] = out_dir
-    if plot_in_place:
-        config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
-
-    config = DynamicConfig(**config_params)
-
-    validate_configuration(config)
-
-    return config
-
+    return create_config_from_paramters(
+        config_params,
+        is_plot=is_plot,
+        out_dir=out_dir,
+        plot_in_place=plot_in_place,
+    )
 
 def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
     """

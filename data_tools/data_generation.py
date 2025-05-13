@@ -2,23 +2,13 @@ from copy import deepcopy
 from typing import Dict
 from data_tools.data_utils import DataSet, DetectorEffect
 from data_tools.dataset_config import DatasetParameters, GeneratedDatasetParameters
-from data_tools.event_generation.exp import exp
-from data_tools.event_generation.gauss import gauss
-from data_tools.event_generation.physics import physics
 from frame.context.execution_context import ExecutionContext
-from openai import debug
 from plot.plots import plot_data_generation_sliced
 
 
 class DataGeneration:
 
     _instance = None
-
-    GeneratedDatasetTypes = {
-        'exp': exp,
-        'gauss': gauss,
-        'physics': physics,
-    }
 
     def __new__(cls, context: ExecutionContext):
         if cls._instance is None:
@@ -47,8 +37,7 @@ class DataGeneration:
 
     def __create_dataset(self, dataset_parameters: DatasetParameters, name: str) -> DataSet:
         if isinstance(dataset_parameters, GeneratedDatasetParameters):
-            generating_function = self.GeneratedDatasetTypes[dataset_parameters.dataset__background_data_generation_function]
-            data = generating_function(dataset_parameters, **dataset_parameters.dataset__function_specific_additional_parameters)
+            data = dataset_parameters.dataset__data
             original_data = deepcopy(data)
 
             detector = DetectorEffect(
@@ -58,8 +47,6 @@ class DataGeneration:
             )
             data.apply_detector_effect(detector)
 
-            if dataset_parameters.dataset__resample_is_resample:
-                raise NotImplementedError("Resampling is not implemented")
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
         
