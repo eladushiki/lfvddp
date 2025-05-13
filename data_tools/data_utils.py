@@ -44,7 +44,7 @@ class DetectorEffect:
         return uncertainty
 
     @property
-    def _uncertain_efficiency(self) -> Callable[[np.ndarray], np.ndarray]:
+    def _uncertain_efficiency(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
         return self._efficiency_uncertainty(self._theoretic_efficiency)
 
     @retrieve_from_module(uncertainty, lambda x: x)
@@ -67,7 +67,7 @@ class DetectorEffect:
 
     ## Data correction - uses theoretical knowledge only
     
-    def get_detector_theoretic_efficiency_compensator(self) -> Callable[[np.ndarray], np.ndarray]:
+    def get_detector_theoretic_efficiency_compensator(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
         return lambda x: np.ones((x.shape[0],)) / self._theoretic_efficiency(x)
 
 
