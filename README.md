@@ -25,6 +25,12 @@ Start by cloning this repository to your desired location, using
 
 You need an operative Python interpreter to run this project. You can choose any of the following options
 
+Optional: when finished, you need a weights file to use the `"SHAPE"` training mechanism of NPLM. You can train a weights file yourself, or you can copy the existing one from them to us (works for 1 physical observable = 1D data):
+
+> cp neural_networks/NPLM/example_1D/LINEAR_Parametric_EXPO1D_batches_ref40000_bkg40000_sigmaS0.1_-1.0_-0.5_0.5_1.0_patience300_epochs30000_layers1_4_1_actrelu_model_weights9300.h5 neural_networks/weights/taylor_expansion_net/LINEAR_Parametric_EXPO1D_batches_ref40000_bkg40000_sigmaS0.1_-1.0_-0.5_0.5_1.0_patience300_epochs30000_layers1_4_1_actrelu_model_weights9300.h5
+
+todo: this name is hardcoded in `parameters.py`, to be improved in the future.
+
 ### CERN VM FS (Recommended):
 
 `source` the a Python interpreter each time you open a shell (may be configured to happen automatically in an IDE) from CERN's CVMFS, using:
