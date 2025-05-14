@@ -29,7 +29,7 @@ class DetectorEffect:
             efficiency_uncertainty_function: str,
             error_function: str,
         ):
-        self._theoretic_efficiency = self.__retrieve_detector_efficiency_filter(efficiency_function)
+        self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency_function)
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
         self._error = self.__get_detector_error_inducer(error_function)
 
@@ -56,23 +56,23 @@ class DetectorEffect:
 
     @property
     def _uncertain_efficiency(self) -> DETECTOR_EFFICIENCY_TYPE:
-        return self._efficiency_uncertainty(self._theoretic_efficiency)
+        return self._efficiency_uncertainty(self._true_efficiency)
     
     ## Data correction - uses theoretical knowledge only
     @property
-    def __theoretic_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
+    def _uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
         
         def __compensator(x: DataSet) -> np.ndarray:
-            return np.ones_like(x._data) / self._theoretic_efficiency(x._data)
+            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(x._data)
         
         return __compensator
 
     # Exported functions - uses DataSet
-    def generate_uncertain_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
+    def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
         """
-        Generate a filter for the dataset based on the uncertain efficiency.
+        Generate a filter for the dataset based on the true efficiency.
         """
-        dataset_efficiency = self._uncertain_efficiency(dataset._data)
+        dataset_efficiency = self._true_efficiency(dataset._data)
         return np.random.uniform(size=(dataset.n_samples,)) < dataset_efficiency
 
     def generate_errors(self, dataset: DataSet) -> np.ndarray:
@@ -82,13 +82,13 @@ class DetectorEffect:
         return self._error(dataset._data)
 
     def affect_and_compensate(self, dataset: DataSet) -> DataSet:
-        filter = self.generate_uncertain_efficiency_filter(dataset)
+        filter = self.generate_true_efficiency_filter(dataset)
         affected_dataset = dataset.filter(filter)
 
         errors = self.generate_errors(affected_dataset)
         affected_dataset._data += errors
 
-        compensating_weights = self.__theoretic_efficiency_compensator(affected_dataset)
+        compensating_weights = self._uncertain_efficiency_compensator(affected_dataset)
         affected_dataset._weight_mask *= compensating_weights
 
         return affected_dataset

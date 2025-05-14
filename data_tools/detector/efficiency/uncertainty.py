@@ -36,7 +36,7 @@ def detector_uncertainty_gaussian_noise(
 ):
     def uncertainty_wrapper(x: np.ndarray) -> np.ndarray:
         clean_efficiency = detector_efficiency(x)
-        defected_efficiency = clean_efficiency + np.random.normal(0, 0.1, size=clean_efficiency.shape)
+        defected_efficiency = clean_efficiency + np.random.normal(0, 0.2, size=clean_efficiency.shape)
         return defected_efficiency
     
     return uncertainty_wrapper
