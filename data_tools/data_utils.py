@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable, List, Optional, Tuple
+from typing import Callable, List, Optional, Union
 
-from regex import F
-
-from data_tools.event_generation.types import FLOAT_OR_ARRAY
+from data_tools.detector import error
+from data_tools.detector.efficiency import shapes, uncertainty
+from data_tools.detector.efficiency.shapes import DETECTOR_EFFICIENCY_TYPE
+from data_tools.detector.efficiency.uncertainty import DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE
+from data_tools.detector.error import DETECTOR_ERROR_TYPE
+from frame.module_retriever import retrieve_from_module
 import numpy as np
 import numpy.typing as npt
-import scipy.stats as sps
 from sklearn.model_selection import train_test_split
 from fractions import Fraction
 from random import choices
@@ -27,69 +29,69 @@ class DetectorEffect:
             efficiency_uncertainty_function: str,
             error_function: str,
         ):
-        self._theoretic_efficiency = self._get_detector_efficiency_filter(efficiency_function)
-        self._efficiency_uncertainty = self._get_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
-        self._error = self._get_detector_error_inducer(error_function)
+        self._theoretic_efficiency = self.__retrieve_detector_efficiency_filter(efficiency_function)
+        self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
+        self._error = self.__get_detector_error_inducer(error_function)
 
-    def _get_detector_efficiency_filter(self, effect_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+    @retrieve_from_module(shapes, shapes.detector_unaffected)
+    def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
         """
         Detector efficiency indicated the probability for each event (=row) to remain.
         """
-        if not effect_name:
-            return lambda x: np.ones((x.shape[0],))
+        return effect_name
         
-        try:
-            from data_tools.detector.efficiency import shapes
-            return getattr(shapes, effect_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector effect requested: {effect_name}")
+    @retrieve_from_module(uncertainty, uncertainty.detector_uncertainty_no_uncertainty)
+    def __retrieve_detector_efficiency_uncertainty_modifier(self, uncertainty: Optional[str]) -> Union[DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE, str, None]:
+        """
+        Detector efficiency uncertainty.
+        """
+        return uncertainty
 
-    def _get_detector_efficiency_uncertainty_modifier(self, uncertainty_name: Optional[str]):
-        if not uncertainty_name:
-            
-            def no_uncertainty(detector_efficiency: Callable[[np.ndarray], np.ndarray]) -> Callable[[np.ndarray], np.ndarray]:
-                return detector_efficiency
-            
-            return no_uncertainty
-        
-        try:
-            from data_tools.detector.efficiency import uncertainty
-            return getattr(uncertainty, uncertainty_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector efficiency uncertainty requested: {uncertainty_name}")
-
-    @property
-    def _uncertain_efficiency(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return self._efficiency_uncertainty(self._theoretic_efficiency)
-
-    def _get_detector_error_inducer(self, error_name: Optional[str]) -> Callable[[np.ndarray], np.ndarray]:
+    @retrieve_from_module(error, error.detector_no_error)
+    def __get_detector_error_inducer(self, error_name: Optional[str]) -> Union[DETECTOR_ERROR_TYPE, str, None]:
         """
         Detector error returns the same shape as the input.
         """
-        if not error_name:
-            return lambda x: x
-        
-        try:
-            from data_tools.detector import error 
-            return getattr(error, error_name)
-        except AttributeError:
-            raise ValueError(f"Invalid detector error requested: {error_name}")
+        return error_name
 
-    # Exported functions
-    ## Data generation - dirty real world aspiring simulation
-
-    def simulate_detector_uncertain_effect(self, events: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        data_inclusion = np.random.uniform(size=(events.shape[0],)) < self._uncertain_efficiency(events)
-        _filtered_events = events[data_inclusion]
-
-        errored_events = self._error(_filtered_events)
-        
-        return errored_events, data_inclusion
-
-    ## Data correction - uses theoretical knowledge only
+    @property
+    def _uncertain_efficiency(self) -> DETECTOR_EFFICIENCY_TYPE:
+        return self._efficiency_uncertainty(self._theoretic_efficiency)
     
-    def get_detector_theoretic_efficiency_compensator(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return lambda x: np.ones((x.shape[0],)) / self._theoretic_efficiency(x)
+    ## Data correction - uses theoretical knowledge only
+    @property
+    def __theoretic_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
+        
+        def __compensator(x: DataSet) -> np.ndarray:
+            return np.ones_like(x._data) / self._theoretic_efficiency(x._data)
+        
+        return __compensator
+
+    # Exported functions - uses DataSet
+    def generate_uncertain_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
+        """
+        Generate a filter for the dataset based on the uncertain efficiency.
+        """
+        dataset_efficiency = self._uncertain_efficiency(dataset._data)
+        return np.random.uniform(size=(dataset.n_samples,)) < dataset_efficiency
+
+    def generate_errors(self, dataset: DataSet) -> np.ndarray:
+        """
+        Generate errors for the dataset based on the error function.
+        """
+        return self._error(dataset._data)
+
+    def affect_and_compensate(self, dataset: DataSet) -> DataSet:
+        filter = self.generate_uncertain_efficiency_filter(dataset)
+        affected_dataset = dataset.filter(filter)
+
+        errors = self.generate_errors(affected_dataset)
+        affected_dataset._data += errors
+
+        compensating_weights = self.__theoretic_efficiency_compensator(affected_dataset)
+        affected_dataset._weight_mask *= compensating_weights
+
+        return affected_dataset
 
 
 class DataSet:
@@ -150,15 +152,16 @@ class DataSet:
         """
         return self._data[:, dim]
     
-    def apply_detector_effect(self, detector_effect: DetectorEffect):
-        filtered_data, filter = detector_effect.simulate_detector_uncertain_effect(self._data)
-
-        self._data = filtered_data
-        self._weight_mask = self._weight_mask[filter]
+    def filter(self, filter: np.ndarray) -> DataSet:
+        """
+        Filter the dataset according to a boolean mask.
+        """
+        filtered_data = self._data[filter]
+        filtered_weight_mask = self._weight_mask[filter]
         
-        # Accumulate compensation in weight for later use
-        compensator = detector_effect.get_detector_theoretic_efficiency_compensator()
-        self._weight_mask *= compensator(self._data)
+        result = DataSet(filtered_data)
+        result._weight_mask = filtered_weight_mask
+        return result
 
 
 def resample(

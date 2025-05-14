@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Type
+from typing import Any, Callable, Dict, List, Type, Union
 
 from camel_converter import to_pascal
 
 from data_tools.data_utils import DataSet
+from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
+from frame.module_retriever import _retrieve_from_module
 import numpy as np
 
 
@@ -90,19 +92,15 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
 
     @property
-    def __dataset__background_distribution(self) -> DataDistribution:
+    def __dataset__background_distribution(self) -> Union[str, DataDistribution]:
         """
         Get the background PDF function based on the configuration.
         Note that it may accept additional parameters as kwargs.
         """
-        from data_tools.event_generation import background
         class_name = to_pascal(self.dataset__background_generation_function)
 
-        try:
-            distribution_class = getattr(background, class_name)
-        except AttributeError:
-            raise ValueError(f"Background PDF '{class_name}' not found in background module.")
-
+        distribution_class = _retrieve_from_module(background, class_name)
+        
         return distribution_class(self._dataset__number_of_dimensions, **self.dataset__background_parameters)
 
     @property
@@ -117,17 +115,9 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         Get the signal PDF function based on the configuration.
         Note that it may accept additional parameters as kwargs.
         """
-        from data_tools.event_generation import signal
-
-        if not self.dataset__signal_data_generation_function:
-            return signal.NoSignal(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
-
         class_name = to_pascal(self.dataset__signal_data_generation_function)
 
-        try:
-            distribution_class = getattr(signal, class_name)
-        except AttributeError:
-            raise ValueError(f"Background PDF '{class_name}' not found in background module.")
+        distribution_class = _retrieve_from_module(signal, class_name, signal.NoSignal)
 
         return distribution_class(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
 
