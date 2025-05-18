@@ -15,9 +15,11 @@ class ResultAggregator:
             raise NotADirectoryError(f"Parent directory {self._parent_directory} does not exist")
 
         # Exhibits retrieved
-        self._t_values = None
         self._test_statistics = None
         self._epochs = None
+
+        # Load t-values
+        self._load_t_values()
 
     def _load_t_values(self):
         # Find all files
@@ -39,10 +41,12 @@ class ResultAggregator:
 
     @property
     def all_t_values(self) -> NDArray[np.float64]:
-        if self._t_values is None:
-            self._load_t_values()
-        return np.array([t[0] for t in self._t_values])
+        return np.array([t[0] for t in self._t_values if not np.isnan(t[0])]) # type: ignore
     
+    @property
+    def nan_t_values(self) -> int:
+        return len([t[0] for t in self._t_values if np.isnan(t[0])])
+
     def _load_test_statistics(self):
         # Gather history files
         all_history_files = glob(str(self._parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
