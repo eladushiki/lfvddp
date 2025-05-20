@@ -238,9 +238,16 @@ def performance_plot(
     background_t_dist = background_agg.all_t_values
 
     # Result lists
-    observed_significances = []
-    chi2_significances = []
+    ## The analytic calculation of significance based on input parameters, by eq. (33) in the last paper
     injected_significances = []
+    
+    ## The significance by the chance to generate an equal or larger t value had the background only dataset
+    ## been exactly a chi2 distribution
+    chi2_significances = []
+
+    ## The significance by the observed chance to generate an equal or larger t value had this been a 
+    ## background only dataset, and confidence bounds
+    observed_significances = []
     observed_significance_upper_confidence_bounds = []
     observed_significances_lower_confidence_bounds = []
 
@@ -255,33 +262,38 @@ def performance_plot(
             assert isinstance(dataset_properties, GeneratedDatasetParameters), \
                 f"performance plot possible only for generated datasets, got {dataset_properties.type}"
 
-            # We do assume there is a signal in only one dataset
+            # We do assume there is a signal in at most one dataset
             if (current_mean_number_of_signal_events := dataset_properties.dataset__mean_number_of_signal_events) != 0:
                 assert mean_number_of_signal_events == 0, \
                     f"multiple signal datasets found, {dataset_name} being the second"
                 mean_number_of_signal_events = current_mean_number_of_signal_events
                 signal_dataset_properties = dataset_properties
 
-        assert mean_number_of_signal_events != 0, \
-            f"No dataset with signal events found among {signal_config._dataset__names}"
-
         # Gather data
         signal_agg = ResultAggregator(Path(signal_t_values_dir))
         signal_t_dist = signal_agg.all_t_values
+
+        # If no signal events were found, the significance is 0
+        if mean_number_of_signal_events == 0:
+            injected_significances.append(0)
+        
+        # Else, calculate the injected significance using the mean number of events.
+        # Those are before introducting poisson fluctuations.
+        else:
+            injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
+                background_pdf=signal_dataset_properties.dataset__background_pdf,
+                signal_pdf=signal_dataset_properties.dataset__signal_pdf,
+                n_background_events=mean_number_of_background_events,
+                n_signal_events=mean_number_of_signal_events,
+                upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
+            ))
 
         chi2_significances.append(calc_t_significance_by_chi2_percentile(
             t_distribution=signal_t_dist,
             degrees_of_freedom=signal_config.train__nn_degrees_of_freedom,
         ))
         
-        injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
-            background_pdf=signal_dataset_properties.dataset__background_pdf,
-            signal_pdf=signal_dataset_properties.dataset__signal_pdf,
-            n_background_events=mean_number_of_background_events,  # The mean numbers are the theoretic ones, before injecting poisson error
-            n_signal_events=mean_number_of_signal_events,
-            upper_limit=max(signal_agg.all_t_values.max(), background_agg.all_t_values.max()),
-        ))
-
+        # Calculate observed significance and +-1 sigma confidence interval
         observed_significances.append(
             calc_median_t_significance_relative_to_background(
                 background_t_dist,
@@ -296,13 +308,11 @@ def performance_plot(
             calc_t_significance_relative_to_background(
                 np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
         ))
-    
+
+    # Sort all results by injected significance    
     sort = np.argsort(np.array(injected_significances))
-    # Formerly approx_z_score, the chi2 percentile the median is at:
     chi2_significances = np.array(chi2_significances)[sort]
-    # Formerly Sig_q0, analytic integral of generating functions:
     injected_significances = np.array(injected_significances)[sort]
-    # Formerly Sig_z_score, percentile of mean signal t in background t distribution:
     observed_significances = np.array(observed_significances)[sort]
     observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
     observed_significance_upper_confidence_bounds = np.array(observed_significance_upper_confidence_bounds)[sort]
@@ -340,7 +350,7 @@ def performance_plot(
         linewidth=2,
         alpha=0.1
     )
-    chi2_label = r"$\chi^2_" + str(background_config.train__nn_degrees_of_freedom) + r"$"
+    chi2_label = r"$\chi^2_{" + str(background_config.train__nn_degrees_of_freedom) + r"}$"
     chi2_curve = mpl.lines.Line2D([], [], color='black', linestyle='--', label=chi2_label)
     
     # Texting
