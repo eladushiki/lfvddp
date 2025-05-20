@@ -36,7 +36,7 @@ from train.train_config import TrainConfig
 # Should not save the figure by itself!!! It is done in a well documented way in the calling function.
 
 
-def Plot_Percentiles_ref(
+def t_train_percentile_progression_plot(
         context: ExecutionContext,
     ):
     '''
@@ -96,7 +96,7 @@ def Plot_Percentiles_ref(
     return fig
 
 
-def plot_old_t_distribution(
+def t_distribution_plot(
         context: ExecutionContext,
         number_of_bins: int,
     ) -> Figure:
@@ -129,7 +129,9 @@ def plot_old_t_distribution(
     bin_width = (xmax - xmin) * 1./number_of_bins
     label     = f"median: {str(np.around(np.median(t), 2))} \n" \
                 f"std: {str(np.around(np.std(t), 2))}"
-    
+    if (n_nans := agg.nan_t_values) > 0:
+        label += f"\nDid not converge: {n_nans / t.size * 100:.2f}%"
+        
     h = ax.hist(
         t,
         weights=np.ones_like(t)*1./(t.shape[0]*bin_width),
@@ -171,10 +173,7 @@ def plot_old_t_distribution(
     circ = patches.Circle((0,0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"])
     rect1 = patches.Rectangle((0,0), 1, 1, color=style["chi2_color"], alpha=style["alpha"])
     
-    _, legend_labels = ax.get_legend_handles_labels()
-    legend_labels.append(f"Did not converge: {np.sum(t > 0) / t.size * 100:.2f}%")
     ax.legend(
-        
         (circ, rect1),
         (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
         handler_map={

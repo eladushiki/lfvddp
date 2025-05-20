@@ -1,4 +1,5 @@
 from typing import Callable
+from scipy.stats import truncnorm
 import numpy as np
 
 # Uncertainty variations for detector effect efficiencies
@@ -34,9 +35,24 @@ def detector_uncertainty_10_percent_constant_diminish(
 def detector_uncertainty_gaussian_noise(
         detector_efficiency: Callable[[np.ndarray], np.ndarray],
 ):
+    """
+    Using truncated normal distribution to prevent weird edge effects
+    """
     def uncertainty_wrapper(x: np.ndarray) -> np.ndarray:
         clean_efficiency = detector_efficiency(x)
-        defected_efficiency = clean_efficiency + np.random.normal(0, 0.1, size=clean_efficiency.shape)
+        
+        relative_error_magnitude_max = 0.5
+        relative_error_std = 0.2
+        relative_errors = truncnorm.rvs(
+            -relative_error_magnitude_max,
+            relative_error_magnitude_max,
+            loc=0,
+            scale=relative_error_std,
+            size=clean_efficiency.shape
+        )
+        errors = clean_efficiency * relative_errors
+
+        defected_efficiency = clean_efficiency + errors
         return defected_efficiency
     
     return uncertainty_wrapper

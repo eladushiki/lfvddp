@@ -19,13 +19,13 @@
     "plot__figure_size": [10, 9],
     "plot__plot_specifications": [
         {
-            "name": "plot_old_t_distribution",
+            "name": "t_distribution_plot",
             "instructions": {
                 "number_of_bins": 30
             }
         },
         {
-            "name": "Plot_Percentiles_ref",
+            "name": "t_train_percentile_progression_plot",
             "instructions": {
             }
         }
