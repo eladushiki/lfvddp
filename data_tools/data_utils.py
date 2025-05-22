@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
+
+from sklearn.model_selection import train_test_split
 
 from data_tools.detector import error
 from data_tools.detector.efficiency import shapes, uncertainty
@@ -10,9 +12,7 @@ from data_tools.detector.error import DETECTOR_ERROR_TYPE
 from frame.module_retriever import retrieve_from_module
 import numpy as np
 import numpy.typing as npt
-from sklearn.model_selection import train_test_split
-from fractions import Fraction
-from random import choices
+from random import choices as random_choices
 
 
 class DetectorEffect:
@@ -122,6 +122,11 @@ class DataSet:
         result._weight_mask = _weight_mask
         return result
 
+    def __getitem__(self, item: Union[int, slice]) -> DataSet:
+        result = DataSet(self._data[item, :])
+        result._weight_mask = self._weight_mask[item]
+        return result
+
     @property
     def dim(self) -> int:
         if self._data.size == 0:
@@ -165,108 +170,35 @@ class DataSet:
 
 
 def resample(
-        feature: np.ndarray,
-        target: np.ndarray,
-        background_data_str: str = "Bkg",
-        label_method: str = "permute",
-        method_type: str = "fixed",
+        reference_dataset: DataSet,
+        n_samples_A: int,
+        n_samples_B: int,
         replacement: bool = True
-    ):
-    '''
-    Creates sets of featureData and featureRef according to featureData_str and featureRef_str respectively.
+    ) -> Tuple[DataSet, DataSet]:
+    """
+    Composes two dataset from samples from the reference dataset.
+    The combined number of samples should be less than or equal to the 
+    number of samples in the reference dataset, if replacement is False.
+    """
+    assert n_samples_A + n_samples_B <= reference_dataset.n_samples or replacement, \
+        f"Cannot sample {n_samples_A + n_samples_B} samples from {reference_dataset.n_samples} samples without replacement."
     
-    Parameters
-    ----------
-    feature: ??
-    target: ??
-    background_data_str: = "Ref"|"Bkg"
-    label_method: = "permute"|"binomial"|"bootstrap" 
-        "permute": train_test_split according to current ratio (number of events in each sample remains unchanged)
-        "binomial": determine label according to binomial distribution with p_A = N_A/(N_A+N_B) - only total number of events is fixed
-        "bootstrap": resample uniformly (with/wo replacement) with sizes N_A and N_B 
-    method_type: = "fixed"|"binomial"|"poiss"
-    replacement : for bootstrap only - whether events can be repeated. True = repeat events, False - do not repeat events.
-
-    Returns
-    ----------
-    feature, target
-    '''
-    combined_data = feature[target[:, 0]==0]
-    N_combined = combined_data.shape[0]
-    if "Ref" in background_data_str:
-        N_B = feature[target[:, 0]==1].shape[0]
-        N_A = N_combined-N_B
+    if replacement:
+        split = random_choices(
+            population=["A","B"],
+            weights=[n_samples_B/(n_samples_B+n_samples_A),n_samples_A/(n_samples_B+n_samples_A)],
+            k=reference_dataset.n_samples
+        )
+        sample_A = reference_dataset[split=="A"]
+        sample_B = reference_dataset[split=="B"]
     else:
-        N_A = feature[target[:, 0]==1].shape[0]
-        N_B = N_combined-N_A
+        sample_A, sample_B = train_test_split(
+            reference_dataset,
+            train_size=n_samples_A,
+            test_size=n_samples_B,
+        )
     
-    if method_type=="poiss":
-        N_A = np.random.poisson(lam=N_A, size=1)[0]
-        N_B = np.random.poisson(lam=N_B, size=1)[0]
-    
-    if label_method=="permute":
-        data_A, data_B = train_test_split(combined_data,train_size=N_A,test_size = N_B,random_state=resample_seed)
-    elif label_method =="binomial":
-        label = choices(["A","B"],weights = [N_A/(N_A+N_B),N_B/(N_A+N_B)],k = N_combined)
-        data_A = combined_data[label=="A"]
-        data_B = combined_data[label=="B"]
-    elif label_method=="bootstrap":
-        # Note: to have no replacement random.choice should actually be replaced by random.sample
-        data_A = choices(combined_data, replace = replacement, k=N_A)
-        data_B = choices(combined_data, replace = replacement, k=N_B)
-    else:
-        raise ValueError(f"Invalid label_method for resample: {label_method}")
-
-    if "Ref" in background_data_str:
-        featureData = data_B.copy()
-        print("Ref")
-    else:
-        featureData = data_A.copy()
-        print("Bkg")
-
-    featureRef = np.concatenate((data_A,data_B),axis=0)
-    N_ref = featureRef.shape[0]
-    print(N_ref)
-    feature     = np.concatenate((featureData, featureRef), axis=0)
-    N_R        = N_ref
-    N_D        = featureData.shape[0]#N_Bkg
-
-    ## target
-    targetData  = np.ones_like(featureData)
-    targetRef   = np.zeros_like(featureRef)
-    weightsData = np.ones_like(featureData)
-    weightsRef  = np.ones_like(featureRef)*N_D*1./N_R
-    target      = np.concatenate((targetData, targetRef), axis=0)
-    weights     = np.concatenate((weightsData, weightsRef), axis=0)
-    target      = np.concatenate((target, weights), axis=1)
-
-    return feature,target
-
-
-def em(
-        background_distribution: np.ndarray,
-        signal_distribution: np.ndarray,
-        train_size,
-        test_size,
-        sig_events,
-        N_poiss=True,
-        combined_portion=1,
-        resolution=1,
-        *args, **kwargs
-    ):
-    
-    N_Bkg_Pois  = np.random.poisson(lam=float(Fraction(test_size))*background_distribution.shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(test_size))*background_distribution.shape[0]*combined_portion
-    N_Ref_Pois  = np.random.poisson(lam=float(Fraction(train_size))*background_distribution.shape[0]*combined_portion, size=1)[0] if N_poiss else float(Fraction(train_size))*background_distribution.shape[0]*combined_portion
-    N_Sig_Pois = np.random.poisson(lam=sig_events, size=1)[0] if N_poiss else sig_events
-    
-    Ref = np.random.choice(background_distribution.reshape(-1,),N_Ref_Pois,replace=True).reshape(-1,1)
-    Bkg = np.random.choice(background_distribution.reshape(-1,),N_Bkg_Pois,replace=True).reshape(-1,1)
-    total_Sig = np.concatenate(tuple(signal_distribution),axis=0).reshape(-1,)
-    Sig = np.random.choice(total_Sig,N_Sig_Pois,replace=True).reshape(-1,1)
-
-    # todo: I deleted here some 1e5 factors that divide all of these in the case of em and others for em_Mcoll
-    # Need to go over it when I'll understand where the data comes from know the meaning of it
-    return Ref,Bkg,Sig
+    return sample_A, sample_B
 
 
 def create_slice_containing_bins(

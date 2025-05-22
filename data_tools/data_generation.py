@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Dict
 from data_tools.data_utils import DataSet, DetectorEffect
-from data_tools.dataset_config import DatasetParameters, GeneratedDatasetParameters
+from data_tools.dataset_config import DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
 from frame.context.execution_context import ExecutionContext
 from plot.plots import plot_data_generation_sliced
 
@@ -47,6 +47,11 @@ class DataGeneration:
             )
             data = detector.affect_and_compensate(data)
 
+        elif isinstance(dataset_parameters, LoadedDatasetParameters):
+            data = dataset_parameters.dataset__data
+            sample_A, sample_B = 
+
+        
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
         

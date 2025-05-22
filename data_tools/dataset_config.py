@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Type, Union
 
 from camel_converter import to_pascal
+from regex import F
 
 from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
@@ -10,55 +11,19 @@ from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 from frame.module_retriever import _retrieve_from_module
 import numpy as np
+from os.path import isfile
 
 
 @dataclass
 class DatasetParameters(ABC):
     
     _dataset__number_of_dimensions: int = field(init=False)
-    
     # For documentation purposes
     name: str
     type: str
 
-    @classmethod
-    @abstractmethod
-    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
-        pass
-
-
-@dataclass
-class LoadedDatasetParameters(DatasetParameters):
-    @classmethod
-    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
-        return "loaded"
-    
-    ## Using real dataset parts implementation are left for the reader.
-    # said reader would like to, firsly, implement
-    # train__histogram_is_use_analytic: int  # if 1: generate data from pdf
-
-    def __post_init__(self):
-        raise NotImplementedError("LoadedDatasetDefinitions is not implemented yet.")
-    
-    # Resampling settings - not checked
-    dataset__resample_is_resample: bool
-    dataset__resample_label_method: str
-    dataset__resample_method_type: str
-    dataset__resample_is_replacement: bool
-
-
-@dataclass
-class GeneratedDatasetParameters(DatasetParameters, ABC):
-
-    @classmethod
-    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
-        return "generated"
-    
     # Background parameters
-    # This is the defining attribute for the subclass
-    dataset__background_generation_function: str
     dataset__mean_number_of_background_events: int
-    dataset__background_parameters: Dict[str, Any] = field(default_factory=dict)
 
     # Signal parameters
     dataset__signal_data_generation_function: str = field(default="")
@@ -74,9 +39,21 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     dataset__induced_shape_nuisance_value: float = field(default=0.0)
     dataset__induced_norm_nuisance_value: float = field(default=0.0)
 
-    # Picked poissonically based on mean numbers
+    # Created automatically
+    ## Picked poissonically based on mean numbers
     dataset__number_of_signal_events: int = field(default=None)
     dataset__number_of_background_events: int = field(default=None)
+
+
+    @classmethod
+    @abstractmethod
+    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def dataset__data(self) -> DataSet:
+        pass
 
     def __post_init__(self):
         if not self.dataset__number_of_background_events:
@@ -91,26 +68,85 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
 
+    
+@dataclass
+class LoadedDatasetParameters(DatasetParameters):
+    
+    __loaded_data: Dict[str, np.ndarray] = field(init=False, default_factory=dict)
+    
+    @classmethod
+    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
+        return "loaded"
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Make sure the file exists
+        if not isfile(self.dataset__loaded_file_name):
+            raise FileNotFoundError(f"Loaded file '{self.dataset__loaded_file_name}' does not exist.")
+
+    # Data source
+    dataset__loaded_file_name: str = field(default="")
+
+    # Resampling settings
+    dataset__resample_is_resample: bool = field(default=False)
+    dataset__resample_is_replacement: bool = field(default=False)
+
     @property
-    def __dataset__background_distribution(self) -> Union[str, DataDistribution]:
+    def dataset__data(self) -> DataSet:
+        """
+        Load the data from the specified file, and update the internal
+        state of loaded data to match resampling settings.
+        """
+        try:
+            data = self.__loaded_data[self.dataset__loaded_file_name]
+        except KeyError:
+            data = np.load(self.dataset__loaded_file_name)
+
+        if self.dataset__resample_is_resample:
+            if self.dataset__resample_is_replacement:
+                idx = np.random.choice(data, size=self.dataset__number_of_background_events, replace=True)
+            else:
+                idx = np.random.choice(data, size=self.dataset__number_of_background_events, replace=False)
+                self.__loaded_data[self.dataset__loaded_file_name] = data[~idx]
+        
+            return DataSet(data[idx])
+    
+        else:
+            return DataSet(data)
+
+@dataclass
+class GeneratedDatasetParameters(DatasetParameters, ABC):
+
+    @classmethod
+    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
+        return "generated"
+    
+    # Additional background parameters
+    # This is the defining attribute for the subclass
+    dataset_generated__background_function: str = field(default="")
+    dataset_generated__background_parameters: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def __dataset_generated__background_distribution(self) -> Union[str, DataDistribution]:
         """
         Get the background PDF function based on the configuration.
         Note that it may accept additional parameters as kwargs.
         """
-        class_name = to_pascal(self.dataset__background_generation_function)
+        class_name = to_pascal(self.dataset_generated__background_function)
 
         distribution_class = _retrieve_from_module(background, class_name)
         
-        return distribution_class(self._dataset__number_of_dimensions, **self.dataset__background_parameters)
+        return distribution_class(self._dataset__number_of_dimensions, **self.dataset_generated__background_parameters)
 
     @property
-    def dataset__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return lambda x: self.__dataset__background_distribution.pdf(
+    def dataset_generated__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
+        return lambda x: self.__dataset_generated__background_distribution.pdf(
             x / np.exp(self.dataset__induced_shape_nuisance_value),
         )
 
     @property
-    def __dataset__signal_distribution(self) -> DataDistribution:
+    def __dataset_generated__signal_distribution(self) -> DataDistribution:
         """
         Get the signal PDF function based on the configuration.
         Note that it may accept additional parameters as kwargs.
@@ -122,21 +158,28 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         return distribution_class(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
 
     @property
-    def dataset__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return lambda x: self.__dataset__signal_distribution.pdf(
+    def dataset_generated__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
+        return lambda x: self.__dataset_generated__signal_distribution.pdf(
             x / np.exp(self.dataset__induced_shape_nuisance_value),
         )
 
     @property
     def dataset__data(self) -> DataSet:
-        background = self.__dataset__background_distribution.generate_amount(
+        background = self.__dataset_generated__background_distribution.generate_amount(
             amount=self.dataset__number_of_background_events,
         )
-        signal = self.__dataset__signal_distribution.generate_amount(
+        signal = self.__dataset_generated__signal_distribution.generate_amount(
             amount=self.dataset__number_of_signal_events,
         )
         return background + signal
     
+    def __post_init__(self):
+        super().__post_init__()
+
+        # dataset_generated__background_function has to be defined by config,
+        # but class hierarchy forces to set a default. Hence, we check it here
+        assert self.dataset_generated__background_function, \
+            "dataset_generated__background_function must be defined in the configuration"
 
 @dataclass
 class DatasetConfig:

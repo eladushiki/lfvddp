@@ -282,8 +282,8 @@ def performance_plot(
         # Those are before introducting poisson fluctuations.
         else:
             injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
-                background_pdf=signal_dataset_properties.dataset__background_pdf,
-                signal_pdf=signal_dataset_properties.dataset__signal_pdf,
+                background_pdf=signal_dataset_properties.dataset_generated__background_pdf,
+                signal_pdf=signal_dataset_properties.dataset_generated__signal_pdf,
                 n_background_events=mean_number_of_background_events,
                 n_signal_events=mean_number_of_signal_events,
                 upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
