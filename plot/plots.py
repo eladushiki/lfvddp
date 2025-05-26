@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
-from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
+from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
@@ -250,6 +250,7 @@ def performance_plot(
     observed_significances = []
     observed_significance_upper_confidence_bounds = []
     observed_significances_lower_confidence_bounds = []
+    observed_significances_by_gaussian_fit = []
 
     for signal_t_values_dir in signal_t_values_parent_directories:
         signal_context = ExecutionContext.naive_load_from_file(Path(signal_t_values_dir) / CONTEXT_FILE_NAME)
@@ -308,6 +309,11 @@ def performance_plot(
             calc_t_significance_relative_to_background(
                 np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
         ))
+        observed_significances_by_gaussian_fit.append(
+            calc_t_significance_by_gaussian_fit_percentile(
+                background_only_distribution=background_t_dist,
+                t_value=np.median(signal_t_dist),
+        ))
 
     # Sort all results by injected significance    
     sort = np.argsort(np.array(injected_significances))
@@ -316,7 +322,8 @@ def performance_plot(
     observed_significances = np.array(observed_significances)[sort]
     observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
     observed_significance_upper_confidence_bounds = np.array(observed_significance_upper_confidence_bounds)[sort]
-    
+    observed_significances_by_gaussian_fit = np.array(observed_significances_by_gaussian_fit)[sort]
+
     # Framing
     c = Carpenter(context)
     fig  = c.figure()
@@ -329,6 +336,7 @@ def performance_plot(
         observed_significances[np.isfinite(observed_significances)],
         observed_significances_lower_confidence_bounds[np.isfinite(observed_significances_lower_confidence_bounds)],
         observed_significance_upper_confidence_bounds[np.isfinite(observed_significance_upper_confidence_bounds)],
+        observed_significances_by_gaussian_fit[np.isfinite(observed_significances_by_gaussian_fit)],
     ])
     min_x = max(min(injected_significances) - graph_border, 0)
     max_x = max(injected_significances) + graph_border
@@ -340,7 +348,9 @@ def performance_plot(
     # Plots
     colors = plt.get_cmap('cool')
     
-    ax.plot(injected_significances, chi2_significances, color=colors(0), linewidth=2, linestyle='--')
+    chi2_label = r"$\chi^2_{" + str(background_config.train__nn_degrees_of_freedom) + r"}$ significance"
+    ax.plot(injected_significances, chi2_significances, color=colors(0), linewidth=2, linestyle='--', label=chi2_label)
+    ax.plot(injected_significances, observed_significances_by_gaussian_fit, color=colors(0.75), linewidth=2, linestyle='--', label="gaussian fit significance")
     ax.plot(injected_significances, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
     ax.fill_between(
         injected_significances,
@@ -350,23 +360,12 @@ def performance_plot(
         linewidth=2,
         alpha=0.1
     )
-    chi2_label = r"$\chi^2_{" + str(background_config.train__nn_degrees_of_freedom) + r"}$"
-    chi2_curve = mpl.lines.Line2D([], [], color='black', linestyle='--', label=chi2_label)
     
     # Texting
     ax.set_xlabel(r'injected $\sqrt{q_0}$', fontsize=21)
     ax.set_ylabel('measured significance', fontsize=21)
     ax.set_title("measured vs injected signal significance", fontsize=24)
-    handles, labels = ax.get_legend_handles_labels()
-    handles.append(chi2_curve)
-    legend = ax.legend(
-        handles=handles,
-        labels=labels + [chi2_label],
-        loc='lower right',
-        fontsize=20,
-        fancybox=True,
-        frameon=False
-    )
+    legend = ax.legend(loc='lower right', fontsize=20, fancybox=True, frameon=False)
 
     # Styling
     ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)

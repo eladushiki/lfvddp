@@ -22,6 +22,18 @@ def calc_t_significance_by_chi2_percentile(
     )
 
 
+def calc_t_significance_by_gaussian_fit_percentile(
+          background_only_distribution: np.ndarray,
+          t_value: np.float64,
+          n_bins: int = 100,
+) -> float:
+    # Fit a gaussian to the background-only t distribution
+    mu, std = norm.fit(background_only_distribution)
+
+    # Estimate significance of the t value
+    return (t_value - mu) / std
+
+
 def calc_t_significance_relative_to_background(
         t_value: np.float64,
         background_only_t_values: np.ndarray,
