@@ -1,8 +1,7 @@
 from __future__ import annotations
 
+import re
 from typing import Callable, List, Optional, Tuple, Union
-
-from sklearn.model_selection import train_test_split
 
 from data_tools.detector import error
 from data_tools.detector.efficiency import shapes, uncertainty
@@ -11,8 +10,8 @@ from data_tools.detector.efficiency.uncertainty import DETECTOR_EFFICIENCY_UNCER
 from data_tools.detector.error import DETECTOR_ERROR_TYPE
 from frame.module_retriever import retrieve_from_module
 import numpy as np
+from numpy.random import default_rng
 import numpy.typing as npt
-from random import choices as random_choices
 
 
 class DetectorEffect:
@@ -122,7 +121,7 @@ class DataSet:
         result._weight_mask = _weight_mask
         return result
 
-    def __getitem__(self, item: Union[int, slice]) -> DataSet:
+    def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
         result = DataSet(self._data[item, :])
         result._weight_mask = self._weight_mask[item]
         return result
@@ -170,35 +169,31 @@ class DataSet:
 
 
 def resample(
-        reference_dataset: DataSet,
-        n_samples_A: int,
-        n_samples_B: int,
+        source_dataset: DataSet,
+        n_samples: int,
         replacement: bool = True
     ) -> Tuple[DataSet, DataSet]:
     """
-    Composes two dataset from samples from the reference dataset.
-    The combined number of samples should be less than or equal to the 
-    number of samples in the reference dataset, if replacement is False.
+    Chooses a dataset randomly from the source distribution.
+    
+    Returns: the sampled dataset and the remaining data, by resampling
+    specification.
+    
+    If no replacement, the number of samples can't be larger than the
+    source distribution itself.
     """
-    assert n_samples_A + n_samples_B <= reference_dataset.n_samples or replacement, \
-        f"Cannot sample {n_samples_A + n_samples_B} samples from {reference_dataset.n_samples} samples without replacement."
-    
-    if replacement:
-        split = random_choices(
-            population=["A","B"],
-            weights=[n_samples_B/(n_samples_B+n_samples_A),n_samples_A/(n_samples_B+n_samples_A)],
-            k=reference_dataset.n_samples
-        )
-        sample_A = reference_dataset[split=="A"]
-        sample_B = reference_dataset[split=="B"]
-    else:
-        sample_A, sample_B = train_test_split(
-            reference_dataset,
-            train_size=n_samples_A,
-            test_size=n_samples_B,
-        )
-    
-    return sample_A, sample_B
+
+    rng = default_rng()
+    idx = rng.choice(
+        source_dataset.n_samples,
+        size=n_samples,
+        replace=replacement,
+    )
+
+    sample = source_dataset[idx]
+    remainder = source_dataset if replacement else source_dataset[~idx]
+
+    return sample, remainder
 
 
 def create_slice_containing_bins(

@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Type, Union
 
 from camel_converter import to_pascal
-from regex import F
 
 from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
@@ -71,9 +70,7 @@ class DatasetParameters(ABC):
     
 @dataclass
 class LoadedDatasetParameters(DatasetParameters):
-    
-    __loaded_data: Dict[str, np.ndarray] = field(init=False, default_factory=dict)
-    
+        
     @classmethod
     def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
         return "loaded"
@@ -98,22 +95,9 @@ class LoadedDatasetParameters(DatasetParameters):
         Load the data from the specified file, and update the internal
         state of loaded data to match resampling settings.
         """
-        try:
-            data = self.__loaded_data[self.dataset__loaded_file_name]
-        except KeyError:
-            data = np.load(self.dataset__loaded_file_name)
+        data = np.load(self.dataset__loaded_file_name)
+        return DataSet(data)
 
-        if self.dataset__resample_is_resample:
-            if self.dataset__resample_is_replacement:
-                idx = np.random.choice(data, size=self.dataset__number_of_background_events, replace=True)
-            else:
-                idx = np.random.choice(data, size=self.dataset__number_of_background_events, replace=False)
-                self.__loaded_data[self.dataset__loaded_file_name] = data[~idx]
-        
-            return DataSet(data[idx])
-    
-        else:
-            return DataSet(data)
 
 @dataclass
 class GeneratedDatasetParameters(DatasetParameters, ABC):

@@ -1,6 +1,6 @@
 from copy import deepcopy
 from typing import Dict
-from data_tools.data_utils import DataSet, DetectorEffect
+from data_tools.data_utils import DataSet, DetectorEffect, resample as ddp_resample
 from data_tools.dataset_config import DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
 from frame.context.execution_context import ExecutionContext
 from plot.plots import plot_data_generation_sliced
@@ -9,6 +9,7 @@ from plot.plots import plot_data_generation_sliced
 class DataGeneration:
 
     _instance = None
+    _loaded_datasets: Dict[str, DataSet] = {}
 
     def __new__(cls, context: ExecutionContext):
         if cls._instance is None:
@@ -36,31 +37,47 @@ class DataGeneration:
             raise KeyError(f"Dataset '{item}' not found in the configuration.")
 
     def __create_dataset(self, dataset_parameters: DatasetParameters, name: str) -> DataSet:
+        """
+        Implements mechanisms of different datasets while holding global state for them.
+        """
+        # In case of a generated dataset, just generate the data
         if isinstance(dataset_parameters, GeneratedDatasetParameters):
-            data = dataset_parameters.dataset__data
-            original_data = deepcopy(data)
-
-            detector = DetectorEffect(
-                efficiency_function=dataset_parameters.dataset__detector_efficiency,
-                efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
-                error_function=dataset_parameters.dataset__detector_error
-            )
-            data = detector.affect_and_compensate(data)
-
+            loaded_data = dataset_parameters.dataset__data
+            
+        # In case of a loaded dataset, we keep track of the remaining data to enable resampling mechanism
         elif isinstance(dataset_parameters, LoadedDatasetParameters):
-            data = dataset_parameters.dataset__data
-            sample_A, sample_B = 
-
-        
+            try:
+                loaded_data = self._loaded_datasets[dataset_parameters.dataset__loaded_file_name]
+            except KeyError:
+                loaded_data = dataset_parameters.dataset__data
+            
+            if dataset_parameters.dataset__resample_is_resample:
+                loaded_data, self._loaded_datasets[dataset_parameters.dataset__loaded_file_name] = ddp_resample(
+                    loaded_data,
+                    dataset_parameters.dataset__number_of_background_events,
+                    replacement=dataset_parameters.dataset__resample_is_replacement,
+                )
+            else:
+                self._loaded_datasets[dataset_parameters.dataset__loaded_file_name] = loaded_data
+            
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
-        
+
+        original_data = deepcopy(loaded_data)
+
+        detector = DetectorEffect(
+            efficiency_function=dataset_parameters.dataset__detector_efficiency,
+            efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
+            error_function=dataset_parameters.dataset__detector_error
+        )
+        loaded_data = detector.affect_and_compensate(loaded_data)
+
         if self._context.is_debug_mode:
             figure = plot_data_generation_sliced(
                 context=self._context,
                 original_sample=original_data,
-                processed_sample=data,
+                processed_sample=loaded_data,
             )
             self._context.save_and_document_figure(figure, self._context.unique_out_dir / f"{name}_data_process_plot.png")
 
-        return data
+        return loaded_data
