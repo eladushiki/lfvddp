@@ -652,7 +652,7 @@ def plot_samples_over_background_sliced(
             bins=bins,
             dataset=background,
             label=legends[i],
-            histtype="stepfilled" if i < len(sample_hollow_datasets) else "step",
+            histtype="stepfilled" if i >= len(sample_hollow_datasets) else "step",
         )
     ax.set_title(title)
 
