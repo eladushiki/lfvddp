@@ -191,7 +191,11 @@ def resample(
     )
 
     sample = source_dataset[idx]
-    remainder = source_dataset if replacement else source_dataset[~idx]
+    if replacement:
+        remainder = source_dataset
+    else:
+        rest_idx = np.array(list(set(range(source_dataset.n_samples)) - set(idx)))
+        remainder = source_dataset[rest_idx]
 
     return sample, remainder
 
