@@ -42,7 +42,7 @@ class DataDistribution(ABC):
             rng,
             size=(amount, self._number_of_dimensions),
             replace=True,
-            p=np.array([self.pdf(x) for x in probabilities]),
+            p=probabilities,
         ))
 
     @abstractmethod
