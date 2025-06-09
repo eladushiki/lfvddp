@@ -5,7 +5,7 @@
             "name": "A",
             "type": "generated",
             
-            "dataset__background_generation_function": "exponential_background",
+            "dataset_generated__background_function": "exponential_background",
             "dataset__mean_number_of_background_events": 10000,
             
             "dataset__signal_data_generation_function": "gaussian_signal",
@@ -23,7 +23,7 @@
             "name": "B",
             "type": "generated",
             
-            "dataset__background_generation_function": "exponential_background",
+            "dataset_generated__background_parameters": "exponential_background",
             "dataset__mean_number_of_background_events": 10000
         }
     ]
