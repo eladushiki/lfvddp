@@ -10,50 +10,50 @@
 
 \maketitle
 
-\section{Topic}
-
-Methods for Detecting Lepton Flavor Violating Processes in HEP Data
-
 \section{Scientific Background}
 
-There are reasons to believe that the Standard Model (SM) is not complete, and does not fully describe the behavior of nature. Neutrino masses and the absence of dark matter in experimental investigations so far are but two of them.
+The Standard Model (SM) of particle physics is a well established theory that describes the very basic building blocks of matter and their interactions. It account for all observed matter and antimatter, and all known forces except for gravity. The theory has been thoroughly tested in many experiments.
 
-At current times, there are no theoretical motivation to prefer the search for evidence for any specific theory over another. Some theoreticians are waiting for experimental hint for which new physics to look for.
+This being said, there are reasons to believe that the Standard Model is not complete, and does not fully describe the behavior of nature. Neutrino masses and the absence of dark matter in experimental investigations so far are but two of them. In order to achieve a more accurate description, Beyond Standard Model (BSM) theories are required.
 
-At the meantime, the ATLAS collaboration withing the CERN association is gathering obscene amounts of experimental data, little of which have been thoroughly investigated. The labor heavy process of physical analysis of data sets is not approaching a foreseeable better utilization of it.
+At current times, there are no theoretical motivation to prefer the search for evidence for any specific BSM theory over another. All previously motivated extensions of the SM were ruled out in the current collider energy limits to a good confidence level. Some theoreticians are waiting for experimental hint for which new physics to look for.
+
+In the past decades the ATLAS collaboration withing the CERN association is gathering obscene amounts of experimental data from the Large Hadron Collider (LHC), little of which have been thoroughly investigated. The labor heavy process of physical analysis of data sets is not approaching a foreseeable better utilization of it.
 
 Recent papers suggest a new method, called the Data Directed Paradigm (DDP)\cite{LastDDPpaper}, suggest investing in detecting "suspicious signal" within the vast data using a machine, before investing many scientist-years in the model, to speed the process.
 
-Lepton universality (LFU) is an approximate symmetry of the SM as far as we know, broken only be the Yukawa interactions in it. These break the universal symmtery to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. This means, that looking at any two datasets that differ only in the resulting flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics\cite{LetonFlavorViolatioinHiggsDecays}.
+Lepton universality (LFU) is an approximate symmetry of the SM as far as we know, broken only be the Yukawa interactions in it. These break the universal symmtery to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. This means, that looking at any two datasets that differ only in the resulting flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics\cite{LeptonFlavorViolationHiggsDecays}.
 
 We suggest utilizing this supposed symmetry of nature to scan through all available data, looking for deviations.
 
 \section{Goal}
-Our goal is to train a machine to be able to identify deviations from the known SM's property of lepton universality. We would use such a machine to filter the experimental data and find spots that are worthy of further investigation.
+Our goal is to model experimental datasets and estimate to what sensitivity we could detect a LU breaking signal, had those been real datasets.
+
+To this end, we would model detector effects and datasets that contain multiple physical observables, as we would get from a non simulated experiment. We would modify our machine to handle the new task and run it with generated as well as physically simulated datasets.
 
 \section{Existing Tools}
-Previous research suggests tools and methods for doing so. We would like to improve said tools to take into account more real world phenomena and estimate their predictive power.
+Previous research suggests tools and methods for performing such analysis. Previous studies\cite{Italian no 1 - Learning New Physics from a Machine}\cite{Italian no 2 - Learning New Physics from an Imperfect Machine} lay the foundations of phrasing the problem of determining whether two data sets stem from the same undderlying statistics, as well as using a neural network (NN) for the process.
+
+Further studies\cite{LastDDPpaper} suggest applying the mechanism to look for broken LU in pairs of datasets.
+
+We would like to improve said tools to take into account more real world phenomena and estimate their predictive power.
 
 \section{Proposal}
 Our study would take existing computational tools and improve them in the following ways:
 
 \begin{enumerate}
-    \item Setting the process to take into account and process events of any dimension.
-    \item Applying simulated detector effects on the datasets while still trying to recreate the results.
+    \item Setting the machinery to handle datasets with multiple physical observables that describe each event.
+    \item Applying simulated detector effects that may create asymmetry, and cope for them.
 \end{enumerate}
 
-In each case, we would
-\begin{enumerate}
-    \item Develop software tools to handle the data
-    \item Evaluate the performance over simulated data
-    \item Gather statistics of the operation
-    \item Evaluate the expected error and predictive power
-\end{enumerate} 
+The performance of our prediction would be compared to an "ideal" profile likelihood test\cite{Cowan and Eilam PL formulation}, having known the exact number of signal and background events in each simulation.
 
 \subsection{Preliminary Studies}
-We were able to reproduce the results of the previous study in \cite{LastDDPpaper} and train a NN with comparative results.
-We could use work done in \cite{LetonFlavorViolatioinHiggsDecays} with different, more robust comparison of $\mu \to \tau_{\text{leptonic}}$ and $e \to \tau_{\text{leptonic}}$ decays.
-\section{References}
+We were able to reproduce the results of the previous study in ref \cite{LastDDPpaper} and train a NN with comparative results.
+
+Our first new results include modeling a detector effect, which affects two datasets that are otherwise summetric. We estimate the effect with some induced errors, correct for it and create an approximation for the true datasets.
+
+<<figure>>
 
 \input{bibliography.tex}
 
