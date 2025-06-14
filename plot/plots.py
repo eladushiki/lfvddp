@@ -682,7 +682,7 @@ def plot_data_generation_sliced(
         ax=ax,
         bins=bins,
         dataset=processed_sample,
-        alternative_weights=np.ones_like(processed_sample._data),
+        alternative_weights=np.ones(shape=(processed_sample.n_samples, 1)),
         histtype="stepfilled",
         label="detector affected sample",
     )

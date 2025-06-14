@@ -1,13 +1,17 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Type, Union
+from urllib.parse import urlparse
 
+import awkward as ak
 from camel_converter import to_pascal
 
 from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
+from frame.file_system.root_reader import load_root_events
 from frame.module_retriever import _retrieve_from_module
 import numpy as np
 from os.path import isfile
@@ -70,7 +74,7 @@ class DatasetParameters(ABC):
     
 @dataclass
 class LoadedDatasetParameters(DatasetParameters):
-        
+    
     @classmethod
     def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
         return "loaded"
@@ -79,15 +83,19 @@ class LoadedDatasetParameters(DatasetParameters):
         super().__post_init__()
 
         # Make sure the file exists
-        if not isfile(self.dataset__loaded_file_name):
-            raise FileNotFoundError(f"Loaded file '{self.dataset__loaded_file_name}' does not exist.")
+        if not isfile(self.dataset_loaded__file_name):
+            try:
+                urlparse(self.dataset_loaded__file_name)
+            except ValueError:
+                raise FileNotFoundError(f"Loaded file '{self.dataset_loaded__file_name}' does not exist, nor it's a valid URL.")
 
     # Data source
-    dataset__loaded_file_name: str = field(default="")
+    dataset_loaded__file_name: str = field(default="")
+    dataset_loaded__file_parameters: Dict[str, Any] = field(default_factory=dict)
 
     # Resampling settings
-    dataset__resample_is_resample: bool = field(default=False)
-    dataset__resample_is_replacement: bool = field(default=False)
+    dataset_loaded__resample_is_resample: bool = field(default=False)
+    dataset_loaded__resample_is_replacement: bool = field(default=False)
 
     @property
     def dataset__data(self) -> DataSet:
@@ -95,9 +103,24 @@ class LoadedDatasetParameters(DatasetParameters):
         Load the data from the specified file, and update the internal
         state of loaded data to match resampling settings.
         """
-        data = np.load(self.dataset__loaded_file_name)
-        return DataSet(data)
+        file_extension = Path(self.dataset_loaded__file_name).suffix
 
+        if file_extension == ".npy":
+            event_data = np.load(self.dataset_loaded__file_name)
+            loaded_dataset = DataSet(event_data)
+        elif file_extension == ".root":
+            observable_names, event_data = load_root_events(
+                XRootD_url=self.dataset_loaded__file_name,
+                **self.dataset_loaded__file_parameters,
+            )
+            loaded_dataset = DataSet(event_data, observable_names)
+        else:
+            raise ValueError(f"Unsupported file format: {file_extension} for data source file, got {file_extension}.")
+
+        if loaded_dataset.dim != self._dataset__number_of_dimensions:
+            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.dim} do not match expected dimensions {self._dataset__number_of_dimensions}.")
+        
+        return loaded_dataset
 
 @dataclass
 class GeneratedDatasetParameters(DatasetParameters, ABC):
