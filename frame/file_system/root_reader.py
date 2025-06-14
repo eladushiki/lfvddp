@@ -1,8 +1,9 @@
 from logging import error, info
+from data_tools.data_utils import DataSet
 import numpy as np
 from numpy.typing import NDArray
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 import awkward as ak
 from numpy.typing import NDArray
 import uproot
@@ -13,8 +14,8 @@ def load_root_events(
     tree_key: str = "Events",
     branch_names: List[str] = [],
     start: int = 0,
-    stop: int = 1000,
-) -> Tuple[List[str], NDArray[np.float64]]:
+    stop: Optional[int] = None,
+) -> DataSet:
     
     # Load events from a ROOT file
     with uproot.open(XRootD_url) as file:
@@ -29,6 +30,9 @@ def load_root_events(
             # If no branch names are provided, read all branches
             branch_names = tree.keys()
 
+        if stop is None or stop > tree.num_entries:
+            stop = tree.num_entries
+        
         try:
             arrays = tree.arrays( # type: ignore
                 branch_names,
@@ -48,7 +52,7 @@ def load_root_events(
 def __branches_to_events(
         arrays: ak.Array,
         branch_names: List[str],
-) -> Tuple[List[str], NDArray[np.float64]]:
+) -> DataSet:
     
     # Convert to padded numpy arrays and name columns accordingly
     numpy_arrays = []
@@ -71,7 +75,7 @@ def __branches_to_events(
 
     info(f"Loaded DataSet with observables: {observable_names}")
 
-    return observable_names, events
+    return DataSet(events, observable_names=observable_names)
 
 
 def __pad_awkward_array_to_numpy(
