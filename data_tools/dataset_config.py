@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 from urllib.parse import urlparse
 
-import awkward as ak
 from camel_converter import to_pascal
 
 from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
@@ -31,6 +30,9 @@ class DatasetParameters(ABC):
     # Background parameters
     dataset__mean_number_of_background_events: int
 
+    # Explicit binning
+    dataset__detector_binning_maxima: List[int] = field(default=None)
+
     # Signal parameters
     dataset__signal_data_generation_function: str = field(default="")
     dataset__mean_number_of_signal_events: int = field(default=0)
@@ -38,6 +40,8 @@ class DatasetParameters(ABC):
     
     # Detector simulation
     dataset__detector_efficiency: str = field(default="")
+    dataset__detector_binning_minima: List[int] = field(default=0)
+    dataset__detector_binning_number_of_bins: List[int] = field(default=30)
     dataset__detector_efficiency_uncertainty: str = field(default="")
     dataset__detector_error: str = field(default="")
 
@@ -50,7 +54,6 @@ class DatasetParameters(ABC):
     dataset__number_of_signal_events: int = field(default=None)
     dataset__number_of_background_events: int = field(default=None)  # in the case of loaded datasets, None loads the full amount
 
-
     @classmethod
     @abstractmethod
     def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
@@ -62,6 +65,7 @@ class DatasetParameters(ABC):
         pass
 
     def __post_init__(self):
+        # Poisson distribution of event numbers per run given mean
         if not self.dataset__number_of_background_events:
             self.dataset__number_of_background_events = np.random.poisson(
                 lam=self.dataset__mean_number_of_background_events * np.exp(self.dataset__induced_norm_nuisance_value),
@@ -73,6 +77,25 @@ class DatasetParameters(ABC):
                 lam=self.dataset__mean_number_of_signal_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
+
+        # Detector dimensions should fit DataSet dimension. Inserts default and expands dimensions if given an int.
+        if isinstance(self.dataset__detector_binning_minima, int):
+            self.dataset__detector_binning_minima = [self.dataset__detector_binning_minima] * self._dataset__number_of_dimensions
+
+        if isinstance(self.dataset__detector_binning_number_of_bins, int):
+            self.dataset__detector_binning_number_of_bins = [self.dataset__detector_binning_number_of_bins] * self._dataset__number_of_dimensions
+
+        self.validate()
+
+    def validate(self):
+        assert len(self.dataset__detector_binning_minima) == self._dataset__number_of_dimensions, \
+            f"Detector binning minima length {len(self.dataset__detector_binning_minima)} does not match "\
+            
+        assert len(self.dataset__detector_binning_maxima) == self._dataset__number_of_dimensions, \
+            f"Detector binning maxima length {len(self.dataset__detector_binning_maxima)} does not match "\
+            
+        assert len(self.dataset__detector_binning_number_of_bins) == self._dataset__number_of_dimensions, \
+            f"Detector binning number of bins length {len(self.dataset__detector_binning_number_of_bins)} does not match "\
 
     
 @dataclass
