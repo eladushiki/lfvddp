@@ -40,11 +40,13 @@ class DetectorEffect:
         assert ndim == len(number_of_bins), "Detector binning dimensions don't match"
         self._ndim = ndim
 
-        self._dimensional_bin_centers = [] * ndim
-        self._dimensional_bin_edges = [] * ndim
-        for i in range(len(binning_minima)):
-            self._dimensional_bin_centers[i], self._dimensional_bin_edges[i] = \
+        self._dimensional_bin_centers = []
+        self._dimensional_bin_edges = []
+        for i in range(ndim):
+            bin_edges, bin_centers = \
                 create_bins(xmin=binning_minima[i], xmax=binning_maxima[i], nbins=number_of_bins[i])
+            self._dimensional_bin_centers.append(bin_centers)
+            self._dimensional_bin_edges.append(bin_edges)
         
         # Statistics reconstruction mechanism
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
@@ -104,16 +106,16 @@ class DetectorEffect:
     ) -> npt.NDArray:
         
         bin_centers = []
-        for event_idx in range(events.n_samples):
-            event_data = events[event_idx]._data
-            event_bins_idx = [np.digitize(element, bins)
-                for element, bins in zip(event_data, self._dimensional_bin_edges)
-            ]
+        for d in range(self._ndim):
+            dim_bin_indices = np.digitize(
+                events.slice_along_dimension(d),
+                self._dimensional_bin_edges[d],
+            )
             bin_centers.append(np.array([
-                self._dimensional_bin_centers[dim][idx] for dim, idx in enumerate(event_bins_idx)
+                self._dimensional_bin_centers[d][dim_bin_indices]
             ]))
 
-        return np.array(bin_centers)
+        return np.column_stack(bin_centers)
 
     def affect_and_compensate(self, dataset: DataSet) -> DataSet:
         filter = self.generate_true_efficiency_filter(dataset)
@@ -231,7 +233,7 @@ def resample(
     if replacement:
         remainder = source_dataset
     else:
-        rest_idx = np.array(list(set(range(source_dataset.n_samples)) - set(idx)))
+        rest_idx = np.array(list(set(range(source_dataset.n_samples)) - set(idx)), dtype=int)
         remainder = source_dataset[rest_idx]
 
     return sample, remainder

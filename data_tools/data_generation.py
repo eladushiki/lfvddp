@@ -52,6 +52,10 @@ class DataGeneration:
             except KeyError:
                 loaded_data = dataset_parameters.dataset__data
             
+            if loaded_data.n_samples < dataset_parameters.dataset__number_of_background_events:
+                raise ValueError(f"Loaded dataset has only {loaded_data.n_samples} samples, "\
+                    f"but requested {dataset_parameters.dataset__number_of_background_events} samples.")
+            
             if dataset_parameters.dataset_loaded__resample_is_resample:
                 loaded_data, self._loaded_datasets[dataset_parameters.dataset_loaded__file_name] = ddp_resample(
                     loaded_data,
