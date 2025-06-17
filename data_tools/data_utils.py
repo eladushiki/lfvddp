@@ -105,17 +105,17 @@ class DetectorEffect:
         events: DataSet,
     ) -> npt.NDArray:
         
-        bin_centers = []
+        bin_centered_events = []
         for d in range(self._ndim):
-            dim_bin_indices = np.digitize(
+            dim_bin_indices = np.clip(np.digitize(
                 events.slice_along_dimension(d),
                 self._dimensional_bin_edges[d],
-            )
-            bin_centers.append(np.array([
+            ), a_min=0, a_max=self._ndim - 1)
+            bin_centered_events.append(np.array([
                 self._dimensional_bin_centers[d][dim_bin_indices]
             ]))
 
-        return np.column_stack(bin_centers)
+        return np.column_stack(bin_centered_events)
 
     def affect_and_compensate(self, dataset: DataSet) -> DataSet:
         filter = self.generate_true_efficiency_filter(dataset)
