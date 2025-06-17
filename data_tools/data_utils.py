@@ -107,10 +107,11 @@ class DetectorEffect:
         
         bin_centered_events = []
         for d in range(self._ndim):
+            max_bin_index = len(self._dimensional_bin_centers[d]) - 1  # last bin is open-ended
             dim_bin_indices = np.clip(np.digitize(
                 events.slice_along_dimension(d),
                 self._dimensional_bin_edges[d],
-            ), a_min=0, a_max=self._ndim - 1)
+            ), a_min=0, a_max=max_bin_index)
             bin_centered_events.append(np.array([
                 self._dimensional_bin_centers[d][dim_bin_indices]
             ]))
