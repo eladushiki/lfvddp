@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Callable, List, Optional, Tuple, Union
 
 from data_tools.detector import error
@@ -18,19 +17,37 @@ class DetectorEffect:
     """
     Responsible for the interaction between the data and the detector.
     Exported functions are divided into 2 parts:
-    - The application of the detector effects on the dataset, done with uncertain efficiency and errors
-    - The attempt to correct for the detector effects, done with clean theoretic efficiency and no errors
+    - The application of the detector effects on the dataset, done with perfect knowledge using "_true_efficiency"
+    - The attempt to correct for the detector effects, done over binned data and with deviations from
+     the true efficiency due to simulated uncertainty. This is done using "_binned_efficiency_uncertainty"
     Use them in the proper part of the generation/prediction process.
     """
     def __init__(
             self,
             efficiency_function: str,
+            binning_minima: List[int],
+            binning_maxima: List[int],
+            number_of_bins: List[int],
             efficiency_uncertainty_function: str,
             error_function: str,
         ):
+        # Detector effects on the data
         self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency_function)
-        self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
         self._error = self.__get_detector_error_inducer(error_function)
+
+        # Detector dimensions and binning
+        assert (ndim := len(binning_minima)) == len(binning_minima), "Detector binning dimensions don't match"
+        assert ndim == len(number_of_bins), "Detector binning dimensions don't match"
+        self._ndim = ndim
+
+        self._dimensional_bin_centers = [] * ndim
+        self._dimensional_bin_edges = [] * ndim
+        for i in range(len(binning_minima)):
+            self._dimensional_bin_centers[i], self._dimensional_bin_edges[i] = \
+                create_bins(xmin=binning_minima[i], xmax=binning_maxima[i], nbins=number_of_bins[i])
+        
+        # Statistics reconstruction mechanism
+        self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
 
     @retrieve_from_module(shapes, shapes.detector_unaffected)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
@@ -59,10 +76,11 @@ class DetectorEffect:
     
     ## Data correction - uses theoretical knowledge only
     @property
-    def _uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
+    def _binned_uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
         
         def __compensator(x: DataSet) -> np.ndarray:
-            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(x._data)
+            bin_centers = self.get_event_bin_centers(x)
+            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(bin_centers)
         
         return __compensator
 
@@ -80,6 +98,23 @@ class DetectorEffect:
         """
         return self._error(dataset._data)
 
+    def get_event_bin_centers(
+        self,
+        events: DataSet,
+    ) -> npt.NDArray:
+        
+        bin_centers = []
+        for event_idx in range(events.n_samples):
+            event_data = events[event_idx]._data
+            event_bins_idx = [np.digitize(element, bins)
+                for element, bins in zip(event_data, self._dimensional_bin_edges)
+            ]
+            bin_centers.append(np.array([
+                self._dimensional_bin_centers[dim][idx] for dim, idx in enumerate(event_bins_idx)
+            ]))
+
+        return np.array(bin_centers)
+
     def affect_and_compensate(self, dataset: DataSet) -> DataSet:
         filter = self.generate_true_efficiency_filter(dataset)
         affected_dataset = dataset.filter(filter)
@@ -87,7 +122,7 @@ class DetectorEffect:
         errors = self.generate_errors(affected_dataset)
         affected_dataset._data += errors
 
-        compensating_weights = self._uncertain_efficiency_compensator(affected_dataset)
+        compensating_weights = self._binned_uncertain_efficiency_compensator(affected_dataset)
         affected_dataset._weight_mask *= compensating_weights
 
         return affected_dataset
@@ -206,12 +241,24 @@ def create_slice_containing_bins(
         datasets: List[DataSet],
         nbins = 30,
         along_dimension: int = 0,
-):
+) -> Tuple[npt.NDArray, npt.NDArray]:
 
     # limits    
     xmin = 0
     xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
 
+    return create_bins(
+        xmin=xmin,
+        xmax=xmax,
+        nbins=nbins,
+    )
+
+def create_bins(
+        xmin: float,
+        xmax: float,
+        nbins: int,
+) -> Tuple[npt.NDArray, npt.NDArray]:
+    
     bins = np.linspace(xmin, xmax, nbins + 1)
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
 

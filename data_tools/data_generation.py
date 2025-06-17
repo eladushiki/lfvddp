@@ -68,6 +68,9 @@ class DataGeneration:
 
         detector = DetectorEffect(
             efficiency_function=dataset_parameters.dataset__detector_efficiency,
+            binning_minima=dataset_parameters.dataset__detector_binning_minima,
+            binning_maxima=dataset_parameters.dataset__detector_binning_maxima,
+            number_of_bins=dataset_parameters.dataset__detector_binning_number_of_bins,
             efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
             error_function=dataset_parameters.dataset__detector_error
         )
