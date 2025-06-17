@@ -378,22 +378,6 @@ def get_z_score(
     return z_score, sig_t, bkg_t
 
 
-def utils__create_slice_containing_bins(
-        datasets: List[DataSet],
-        nbins = 100,
-        along_dimension: int = 0,
-):
-    # limits    
-    xmin = 0
-    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
-
-    # bins
-    bins = np.linspace(xmin, xmax, nbins + 1)
-    bin_centers = 0.5 * (bins[1:] + bins[:-1])
-
-    return bins, bin_centers
-
-
 def utils__sample_over_background_histograms_sliced(
         ax: plt.Axes,
         sample: DataSet,

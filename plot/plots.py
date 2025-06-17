@@ -1,28 +1,27 @@
 from pathlib import Path
 from typing import List, Optional, Union
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, create_slice_containing_bins
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
+from numpy.typing import NDArray
 import matplotlib as mpl
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import font_manager, patches
-import plot
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2,norm
 from tensorflow.keras.models import Model  # type: ignore
 from matplotlib.animation import FuncAnimation
-import scipy.special as spc
 from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__sample_over_background_histograms_sliced, em_results, utils__create_slice_containing_bins, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__sample_over_background_histograms_sliced, em_results, get_z_score, results, scientific_number
 from train.train_config import TrainConfig
 
 
@@ -639,7 +638,7 @@ def plot_samples_over_background_sliced(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = utils__create_slice_containing_bins(
+    bins, _ = create_slice_containing_bins(
         background_solid_datasets + sample_hollow_datasets,
     )
 
@@ -663,12 +662,14 @@ def plot_data_generation_sliced(
         context: ExecutionContext,
         original_sample: DataSet,
         processed_sample: DataSet,
+        bins: Optional[NDArray] = None,
 ):
     c = Carpenter(context)
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, _ = utils__create_slice_containing_bins([processed_sample])
+    if bins is None:
+        bins, _ = create_slice_containing_bins([processed_sample])
 
     utils__datset_histogram_sliced(
         ax=ax,
@@ -734,7 +735,7 @@ def plot_prediction_process_sliced(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, bin_centers = utils__create_slice_containing_bins([experiment_sample, reference_sample])
+    bins, bin_centers = create_slice_containing_bins([experiment_sample, reference_sample])
 
     utils__sample_over_background_histograms_sliced(
         ax=ax,

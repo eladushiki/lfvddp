@@ -265,3 +265,15 @@ def create_bins(
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
 
     return bins, bin_centers
+
+
+def create_slice_containing_bins(
+        datasets: List[DataSet],
+        nbins = 100,
+        along_dimension: int = 0,
+):
+    # limits    
+    xmin = 0
+    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
+
+    return create_bins(xmin=xmin, xmax=xmax, nbins=nbins)
