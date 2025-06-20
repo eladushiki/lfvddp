@@ -51,7 +51,7 @@ class DetectorEffect:
         # Statistics reconstruction mechanism
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
 
-    @retrieve_from_module(shapes, shapes.detector_unaffected)
+    @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
         """
         Detector efficiency indicated the probability for each event (=row) to remain.
@@ -108,13 +108,13 @@ class DetectorEffect:
         bin_centered_events = []
         for d in range(self._ndim):
             max_bin_index = len(self._dimensional_bin_centers[d]) - 1  # last bin is open-ended
-            dim_bin_indices = np.clip(np.digitize(
-                events.slice_along_dimension(d),
+            dim_bin_indices = np.clip(np.expand_dims(np.digitize(
+                events.slice_along_observable_indices(d),
                 self._dimensional_bin_edges[d],
-            ), a_min=0, a_max=max_bin_index)
-            bin_centered_events.append(np.array([
+            ), axis=1), a_min=0, a_max=max_bin_index)
+            bin_centered_events.append(np.array(
                 self._dimensional_bin_centers[d][dim_bin_indices]
-            ]))
+            ))
 
         return np.column_stack(bin_centered_events)
 
@@ -186,15 +186,15 @@ class DataSet:
     def histogram_weight_mask(self) -> np.ndarray:
         return np.expand_dims(self._weight_mask, axis=1)
 
-    def slice_along_dimension(self, dims: Union[int, slice, npt.NDArray]) -> np.ndarray:
+    def slice_along_observable_indices(self, indices: Union[int, slice, npt.NDArray]) -> np.ndarray:
         """
         Get a slice of all events along a single dimension.
         """
-        return self._data[:, dims]
+        return self._data[:, indices]
     
-    def slice_along_observables(self, observables: List[str]) -> npt.NDArray:
-        dims = [self._observable_names.index(obs) for obs in observables]
-        return self.slice_along_dimension(np.array(dims))
+    def slice_along_observable_names(self, observables: List[str]) -> npt.NDArray:
+        indices = [self._observable_names.index(obs) for obs in observables]
+        return self.slice_along_observable_indices(np.array(indices))
     
     def filter(self, filter: np.ndarray) -> DataSet:
         """
@@ -248,7 +248,7 @@ def create_slice_containing_bins(
 
     # limits    
     xmin = 0
-    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
+    xmax = np.max([np.max(dataset.slice_along_observable_indices(along_dimension)) for dataset in datasets])
 
     return create_bins(
         xmin=xmin,
@@ -275,6 +275,6 @@ def create_slice_containing_bins(
 ):
     # limits    
     xmin = 0
-    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
+    xmax = np.max([np.max(dataset.slice_along_observable_indices(along_dimension)) for dataset in datasets])
 
     return create_bins(xmin=xmin, xmax=xmax, nbins=nbins)

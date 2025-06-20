@@ -413,7 +413,7 @@ def utils__datset_histogram_sliced(
         histtype: str = "bar",
 ):
     ax.hist(
-        x=dataset.slice_along_dimension(along_dimension),
+        x=dataset.slice_along_observable_indices(along_dimension),
         bins=bins,
         weights=dataset.histogram_weight_mask if alternative_weights is None else alternative_weights,
         log=True,

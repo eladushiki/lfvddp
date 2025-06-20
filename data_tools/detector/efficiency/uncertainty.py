@@ -13,6 +13,9 @@ DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE = Callable[[Callable[[np.ndarray], np.ndarr
 #   ...
 #
 # Should be implemented as a wrapper of the original efficiency
+#
+# Important: assume you get the binned data as input. It is the developer responsibility
+# to apply consistency within bins if needed.
 
 
 def detector_uncertainty_no_uncertainty(
@@ -24,8 +27,8 @@ def detector_uncertainty_no_uncertainty(
 def detector_uncertainty_10_percent_constant_diminish(
         detector_efficiency: Callable[[np.ndarray], np.ndarray],
 ):
-    def uncertainty_wrapper(x: np.ndarray) -> np.ndarray:
-        clean_efficiency = detector_efficiency(x)
+    def uncertainty_wrapper(binned_x: np.ndarray) -> np.ndarray:
+        clean_efficiency = detector_efficiency(binned_x)
         defected_efficiency = clean_efficiency * 0.9
         return defected_efficiency
     
@@ -36,23 +39,24 @@ def detector_uncertainty_gaussian_noise(
         detector_efficiency: Callable[[np.ndarray], np.ndarray],
 ):
     """
+    Adding a gaussian distributed error to the detector efficiency **by bin**.
     Using truncated normal distribution to prevent weird edge effects
     """
-    def uncertainty_wrapper(x: np.ndarray) -> np.ndarray:
-        clean_efficiency = detector_efficiency(x)
+    def uncertainty_wrapper(binned_x: np.ndarray) -> np.ndarray:
+        unique_bins, unique_inverse = np.unique(binned_x, axis=0, return_inverse=True)
+        unique_efficiency = detector_efficiency(unique_bins)
         
-        relative_error_magnitude_max = 0.5
-        relative_error_std = 0.2
+        relative_error_magnitude_max = 0.99
+        relative_error_std = 0.9
         relative_errors = truncnorm.rvs(
             -relative_error_magnitude_max,
             relative_error_magnitude_max,
             loc=0,
             scale=relative_error_std,
-            size=clean_efficiency.shape
+            size=unique_efficiency.shape
         )
-        errors = clean_efficiency * relative_errors
-
-        defected_efficiency = clean_efficiency + errors
-        return defected_efficiency
+        errored_unique_efficiency = unique_efficiency * (1 + relative_errors)
+        errored_efficiency = errored_unique_efficiency[unique_inverse]
+        return errored_efficiency
     
     return uncertainty_wrapper

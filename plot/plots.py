@@ -757,7 +757,7 @@ def plot_prediction_process_sliced(
         "edgecolor": "black",
     }
 
-    _reference_data = reference_sample.slice_along_dimension(along_dimension)
+    _reference_data = reference_sample.slice_along_observable_indices(along_dimension)
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
     predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
     ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
