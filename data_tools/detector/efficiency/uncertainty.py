@@ -46,8 +46,8 @@ def detector_uncertainty_gaussian_noise(
         unique_bins, unique_inverse = np.unique(binned_x, axis=0, return_inverse=True)
         unique_efficiency = detector_efficiency(unique_bins)
         
-        relative_error_magnitude_max = 0.99
-        relative_error_std = 0.9
+        relative_error_magnitude_max = 0.5
+        relative_error_std = 0.3
         relative_errors = truncnorm.rvs(
             -relative_error_magnitude_max,
             relative_error_magnitude_max,
