@@ -36,7 +36,7 @@ def main(context: ExecutionContext) -> None:
     makedirs(context.training_outcomes_dir, exist_ok=True)
     context.save_and_document_text(
         f"{final_t}\n",
-        path=context.training_outcomes_dir / SINGLE_TRAINING_RESULT_FILE_NAME
+        file_path=context.training_outcomes_dir / SINGLE_TRAINING_RESULT_FILE_NAME
     )
 
 

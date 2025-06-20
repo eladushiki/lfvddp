@@ -40,4 +40,14 @@ class Carpenter:
         # Apply styling
         fig.patch.set_facecolor(self._figure_styling["patch_set_facecolor"])
 
+        # Stamp for run
+        fig.text(
+            x=0,
+            y=0,
+            s=f"run hash: {self._context.run_hash}",
+            fontsize=10,
+            verticalalignment='bottom',
+            horizontalalignment='left',
+        )
+
         return fig
