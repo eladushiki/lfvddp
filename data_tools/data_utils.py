@@ -101,7 +101,7 @@ class DataSet:
     collection of them.
     """
     
-    def __init__(self, data: npt.NDArray):
+    def __init__(self, data: npt.NDArray, observable_names: Optional[List[str]] = None):
         """
         Data has to be a 2D array
         """
@@ -112,17 +112,21 @@ class DataSet:
         else:
             raise ValueError(f"Data must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
         self._weight_mask = np.ones((self._data.shape[0],))
+        self._observable_names = observable_names if observable_names is not None else [f"param_{i}" for i in range(self._data.shape[1])]
 
     def __add__(self, other) -> DataSet:
+        if self._observable_names != other._observable_names:
+            raise ValueError("Observable names do not match between datasets.")
+        
         _data = np.concatenate((self._data, other._data), axis=0)
         _weight_mask = np.concatenate((self._weight_mask, other._weight_mask), axis=0)
-        
-        result = DataSet(_data)
+
+        result = DataSet(_data, observable_names=self._observable_names)
         result._weight_mask = _weight_mask
         return result
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
-        result = DataSet(self._data[item, :])
+        result = DataSet(self._data[item, :], observable_names=self._observable_names)
         result._weight_mask = self._weight_mask[item]
         return result
 
@@ -144,17 +148,15 @@ class DataSet:
     def histogram_weight_mask(self) -> np.ndarray:
         return np.expand_dims(self._weight_mask, axis=1)
 
-    def __get__(self, item: int) -> np.ndarray:
-        """
-        Get a single event from the dataset.
-        """
-        return self._data[item, :] 
-
-    def slice_along_dimension(self, dim: int) -> np.ndarray:
+    def slice_along_dimension(self, dims: Union[int, slice, npt.NDArray]) -> np.ndarray:
         """
         Get a slice of all events along a single dimension.
         """
-        return self._data[:, dim]
+        return self._data[:, dims]
+    
+    def slice_along_observables(self, observables: List[str]) -> npt.NDArray:
+        dims = [self._observable_names.index(obs) for obs in observables]
+        return self.slice_along_dimension(np.array(dims))
     
     def filter(self, filter: np.ndarray) -> DataSet:
         """
@@ -162,8 +164,8 @@ class DataSet:
         """
         filtered_data = self._data[filter]
         filtered_weight_mask = self._weight_mask[filter]
-        
-        result = DataSet(filtered_data)
+
+        result = DataSet(filtered_data, observable_names=self._observable_names)
         result._weight_mask = filtered_weight_mask
         return result
 

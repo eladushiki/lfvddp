@@ -1,5 +1,6 @@
 from json import JSONEncoder, dump, load
 from pathlib import Path
+from typing import List
 
 
 def load_dict_from_json(file_path: Path) -> dict:
@@ -11,6 +12,7 @@ def save_dict_to_json(dictionary: dict, file_path: Path):
     with open(file_path, 'w') as file:
         dump(dictionary, file, indent=4, cls=FallbackJSONEncoder)
 
+
 class FallbackJSONEncoder(JSONEncoder):
     def default(self, o):
         try:
@@ -20,3 +22,11 @@ class FallbackJSONEncoder(JSONEncoder):
                 return o.__dict__
             except AttributeError:
                 return str(o)
+
+
+def read_text_file_lines(file_path: Path) -> List[str]:
+    """
+    Read the content of a text file and return it as a string.
+    """
+    with open(file_path, 'r') as file:
+        return file.readlines()

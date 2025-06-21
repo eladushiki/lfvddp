@@ -1,13 +1,20 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Type, Union
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Type, Union
+from urllib.parse import urlparse
 
+import awkward as ak
 from camel_converter import to_pascal
 
+from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
 from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
+from frame.file_system.numpy_events import load_numpy_events
+from frame.file_system.root_reader import load_root_events
+from frame.file_system.textual_data import load_dict_from_json, read_text_file_lines
 from frame.module_retriever import _retrieve_from_module
 import numpy as np
 from os.path import isfile
@@ -41,7 +48,7 @@ class DatasetParameters(ABC):
     # Created automatically
     ## Picked poissonically based on mean numbers
     dataset__number_of_signal_events: int = field(default=None)
-    dataset__number_of_background_events: int = field(default=None)
+    dataset__number_of_background_events: int = field(default=None)  # in the case of loaded datasets, None loads the full amount
 
 
     @classmethod
@@ -70,7 +77,7 @@ class DatasetParameters(ABC):
     
 @dataclass
 class LoadedDatasetParameters(DatasetParameters):
-        
+    
     @classmethod
     def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
         return "loaded"
@@ -79,15 +86,19 @@ class LoadedDatasetParameters(DatasetParameters):
         super().__post_init__()
 
         # Make sure the file exists
-        if not isfile(self.dataset__loaded_file_name):
-            raise FileNotFoundError(f"Loaded file '{self.dataset__loaded_file_name}' does not exist.")
+        if not isfile(self.dataset_loaded__file_name):
+            try:
+                urlparse(self.dataset_loaded__file_name)
+            except ValueError:
+                raise FileNotFoundError(f"Loaded file '{self.dataset_loaded__file_name}' does not exist, nor it's a valid URL.")
 
     # Data source
-    dataset__loaded_file_name: str = field(default="")
+    dataset_loaded__file_name: str = field(default="")
+    dataset_loaded__file_parameters: Dict[str, Any] = field(default_factory=dict)
 
     # Resampling settings
-    dataset__resample_is_resample: bool = field(default=False)
-    dataset__resample_is_replacement: bool = field(default=False)
+    dataset_loaded__resample_is_resample: bool = field(default=False)
+    dataset_loaded__resample_is_replacement: bool = field(default=False)
 
     @property
     def dataset__data(self) -> DataSet:
@@ -95,8 +106,65 @@ class LoadedDatasetParameters(DatasetParameters):
         Load the data from the specified file, and update the internal
         state of loaded data to match resampling settings.
         """
-        data = np.load(self.dataset__loaded_file_name)
-        return DataSet(data)
+        loaded_dataset = self.__load_dataset(
+            self.dataset_loaded__file_name,
+            self.dataset__number_of_background_events
+        )
+
+        if loaded_dataset.dim != self._dataset__number_of_dimensions:
+            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.dim} do not match expected dimensions {self._dataset__number_of_dimensions}.")
+
+        if loaded_dataset.n_samples < self.dataset__number_of_background_events:
+            raise ValueError(f"Loaded dataset has only {loaded_dataset.n_samples} samples, "\
+                f"but requested {self.dataset__number_of_background_events} samples.")
+                
+        return loaded_dataset
+      
+    def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
+        """
+        Load data from the specified file.
+        If file is a text or json file, assume it contains a list
+        of ROOT files, then load them recursively (not supposed
+        to contain more than one hierarchy).
+        """
+        file_extension = Path(path).suffix
+
+        if file_extension == ".npy":
+            loaded_dataset = load_numpy_events(path, number_of_events)
+        
+        elif file_extension == ".root":
+            loaded_dataset = load_root_events(
+                XRootD_url=path,
+                stop=number_of_events,
+                **self.dataset_loaded__file_parameters,
+            )
+        
+        else:  # Assuming the file contains a list of root files to load
+            if file_extension == ".json":
+                json_params = load_dict_from_json(Path(path))
+                source_uri_list = parse_CMS_open_data_sources_json(json_params)
+            
+            elif file_extension == ".txt":
+                source_uri_list = read_text_file_lines(Path(path))
+
+            else:
+                raise ValueError(f"Unsupported file format: {file_extension} for data source file, got {file_extension}.")
+
+            if not source_uri_list:
+                raise ValueError(f"No source URIs found in the file: {path}. Please check the file content.")
+            
+            loaded_datasets = []
+            for source_uri in source_uri_list:
+                additional_events = self.__load_dataset(source_uri, number_of_events)
+                
+                if  number_of_events is not None:
+                    number_of_events -= additional_events.n_samples
+                    if number_of_events <= 0:
+                        break
+
+            loaded_dataset = sum(loaded_datasets[1:], loaded_datasets[0])
+  
+        return loaded_dataset
 
 
 @dataclass
