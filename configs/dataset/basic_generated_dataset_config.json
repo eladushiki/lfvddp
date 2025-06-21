@@ -14,17 +14,21 @@
                 "location": 6.4,
                 "gaussian_signal_sigma": 0.16
             },
-
+            
             "dataset__detector_efficiency": "detector_efficiency_tanh",
             "dataset__detector_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
-            "dataset__detector_error": ""
+            "dataset__detector_error": "",
+
+            "dataset__detector_binning_maxima": [10]
         },
         {
             "name": "B",
             "type": "generated",
             
             "dataset_generated__background_parameters": "exponential_background",
-            "dataset__mean_number_of_background_events": 10000
+            "dataset__mean_number_of_background_events": 10000,
+
+            "dataset__detector_binning_maxima": [10]
         }
     ]
 }
