@@ -149,8 +149,8 @@ class DataSet:
             self._data = data
         else:
             raise ValueError(f"Data must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
-        self._weight_mask = np.ones((self._data.shape[0],))
-        self._observable_names = observable_names if observable_names is not None else [f"param_{i}" for i in range(self._data.shape[1])]
+        self._weight_mask = np.ones((self.n_samples,))
+        self._observable_names = observable_names if observable_names is not None else [f"param_{i}" for i in range(self.n_observables)]
 
     def __add__(self, other) -> DataSet:
         if self._observable_names != other._observable_names:
@@ -169,7 +169,7 @@ class DataSet:
         return result
 
     @property
-    def dim(self) -> int:
+    def n_observables(self) -> int:
         if self._data.size == 0:
             return 0
         return self._data.shape[1]

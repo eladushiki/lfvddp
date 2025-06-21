@@ -137,8 +137,8 @@ class LoadedDatasetParameters(DatasetParameters):
             self.dataset_loaded__event_amount_load_limit
         )
 
-        if loaded_dataset.dim != self._dataset__number_of_dimensions:
-            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.dim} do not match expected dimensions {self._dataset__number_of_dimensions}.")
+        if loaded_dataset.n_observables != self._dataset__number_of_dimensions:
+            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.n_observables} do not match expected dimensions {self._dataset__number_of_dimensions}.")
                 
         return loaded_dataset
       
