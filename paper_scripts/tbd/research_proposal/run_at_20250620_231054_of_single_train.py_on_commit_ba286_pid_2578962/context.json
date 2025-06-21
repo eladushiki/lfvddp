@@ -1,0 +1,149 @@
+{
+    "commit_hash": "ba286b4e2e78177feec2a286a2c2fcb6275e05da",
+    "config": {
+        "config__user": "eladklig",
+        "config__out_dir": "results",
+        "config__log_level": "INFO",
+        "cluster__project_root_at_cluster_abspath": "/storage/agrp/eladklig/SymmetrizedDDP",
+        "cluster__environment_activation_script_at_cluster_abspath": "/storage/agrp/eladklig/SymmetrizedDDP/.vscode/personal_rcfile.sh",
+        "cluster__qsub_queue": "N",
+        "cluster__qsub_n_jobs": 500,
+        "cluster__qsub_job_name": "SymmetryDDPPythonJob",
+        "cluster__qsub_walltime": "12:00:00",
+        "cluster__qsub_io": 5,
+        "cluster__qsub_mem": 2,
+        "cluster__qsub_ngpus_for_train": 0,
+        "dataset__number_of_dimensions": 1,
+        "dataset__definitions": [
+            {
+                "name": "A",
+                "type": "generated",
+                "dataset_generated__background_function": "exponential_background",
+                "dataset__mean_number_of_background_events": 10000,
+                "dataset__signal_data_generation_function": "gaussian_signal",
+                "dataset__mean_number_of_signal_events": 50,
+                "dataset__signal_parameters": {
+                    "location": 4,
+                    "gaussian_signal_sigma": 0.16
+                },
+                "dataset__detector_efficiency": "detector_efficiency_tanh",
+                "dataset__detector_efficiency_uncertainty": "detector_uncertainty_gaussian_noise",
+                "dataset__detector_error": "",
+                "dataset__detector_binning_maxima": [
+                    10
+                ]
+            },
+            {
+                "name": "B",
+                "type": "generated",
+                "dataset_generated__background_function": "exponential_background",
+                "dataset__mean_number_of_background_events": 10000,
+                "dataset__detector_efficiency": "detector_efficiency_tanh",
+                "dataset__detector_efficiency_uncertainty": "detector_uncertainty_gaussian_noise",
+                "dataset__detector_binning_maxima": [
+                    10
+                ]
+            }
+        ],
+        "train__nuisance_correction_types": "",
+        "train__data_is_train_for_nuisances": false,
+        "train__shape_nuisance_std": 0.15,
+        "train__shape_nuisance_mean": 0,
+        "train__shape_nuisance_reference": 0,
+        "train__norm_nuisance_std": 0.15,
+        "train__norm_nuisance_mean": 0,
+        "train__norm_nuisance_reference": 0,
+        "train__epochs": 50,
+        "train__number_of_epochs_for_checkpoint": 10000,
+        "train__nn_weight_clipping": 0,
+        "train__nn_input_dimension": 1,
+        "train__nn_inner_layer_nodes": 4,
+        "train__nn_output_dimension": 1,
+        "train__like_NPLM": false,
+        "plot__target_run_parent_directory": "",
+        "plot__pyplot_styling": {
+            "rcParams": {
+                "font.family": "serif",
+                "font.size": 24
+            },
+            "style.use": "classic"
+        },
+        "plot__figure_styling": {
+            "patch_set_facecolor": "white",
+            "plot": {
+                "histogram_color": "plum",
+                "edge_color": "darkorchid",
+                "chi2_color": "grey",
+                "linewidth": 5,
+                "alpha": 0.8
+            }
+        },
+        "plot__figure_size": [
+            10,
+            9
+        ],
+        "plot__plot_specifications": [
+            {
+                "name": "t_distribution_plot",
+                "instructions": {
+                    "number_of_bins": 30
+                }
+            },
+            {
+                "name": "t_train_percentile_progression_plot",
+                "instructions": {}
+            }
+        ]
+    },
+    "command_line_args": [
+        "train/single_train.py",
+        "--user-config",
+        "configs/user/eladklig.json",
+        "--cluster-config",
+        "configs/cluster/elad_cluster_config.json",
+        "--dataset-config",
+        "configs/dataset/exp_dataset_config.json",
+        "--train-config",
+        "configs/train/elad_train_config.json",
+        "--plot-config",
+        "configs/plot/t_dist_plot_config.json",
+        "--debug"
+    ],
+    "time": "20250620_231054",
+    "random_seed": 1824424462,
+    "is_debug_mode": true,
+    "run_successful": true,
+    "products": {
+        "products": [
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/A_data_process_plot_-6195891144235862255.png"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/B_data_process_plot_-6195891144235862255.png"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/training_outcomes/A_model_tau.history_-6195891144235862255.h5"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/training_outcomes/A_model_tau_training_result.weights_-6195891144235862255.h5"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/A_model_data_process_plot_-6195891144235862255.png"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/training_outcomes/B_model_tau.history_-6195891144235862255.h5"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/training_outcomes/B_model_tau_training_result.weights_-6195891144235862255.h5"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/B_model_data_process_plot_-6195891144235862255.png"
+            },
+            {
+                "store_path": "results/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/training_outcomes/final_t_-6195891144235862255.txt"
+            }
+        ]
+    },
+    "is_reloaded": false,
+    "run_hash": -6195891144235862255
+}
