@@ -18,12 +18,12 @@ DETECTOR_EFFICIENCY_TYPE = Callable[[np.ndarray], np.ndarray]
 
 
 ## Default for any type could be
-def detector_unaffected(x: np.ndarray) -> np.ndarray:
+def detector_efficiency_perfect_efficiency(x: np.ndarray) -> np.ndarray:
     efficiency = np.ones((x.shape[0], 1))
     return efficiency.flatten()
 
 
 ## Possible detector efficiency shapes
 def detector_efficiency_tanh(x: np.ndarray) -> np.ndarray:
-    efficiency = (np.tanh(x[:, 0]) + 1) / 2
+    efficiency = (np.tanh(x[:, 0] / 5) + 1) / 2
     return efficiency.flatten()

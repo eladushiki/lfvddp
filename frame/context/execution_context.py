@@ -6,7 +6,7 @@ import random
 from data_tools.dataset_config import DatasetConfig
 from frame.cluster.cluster_config import ClusterConfig
 from frame.file_system.training_history import save_training_history
-from frame.validation import validate_configuration
+from frame.validation import corss_validate_configuration
 from numpy import random as npramdom
 from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
@@ -64,7 +64,7 @@ def create_config_from_paramters(
 
     config = DynamicConfig(**config_params)
 
-    validate_configuration(config)
+    corss_validate_configuration(config)
 
     return config
 

@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 from urllib.parse import urlparse
 
-import awkward as ak
 from camel_converter import to_pascal
 
 from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
@@ -23,13 +22,18 @@ from os.path import isfile
 @dataclass
 class DatasetParameters(ABC):
     
-    _dataset__number_of_dimensions: int = field(init=False)
+    # Automatically initialized parameters
+    _dataset__number_of_dimensions: int
+
     # For documentation purposes
     name: str
     type: str
 
     # Background parameters
     dataset__mean_number_of_background_events: int
+
+    # Explicit binning
+    dataset__detector_binning_maxima: List[int]
 
     # Signal parameters
     dataset__signal_data_generation_function: str = field(default="")
@@ -38,6 +42,8 @@ class DatasetParameters(ABC):
     
     # Detector simulation
     dataset__detector_efficiency: str = field(default="")
+    dataset__detector_binning_minima: List[int] = field(default=0)
+    dataset__detector_binning_number_of_bins: List[int] = field(default=30)
     dataset__detector_efficiency_uncertainty: str = field(default="")
     dataset__detector_error: str = field(default="")
 
@@ -50,10 +56,9 @@ class DatasetParameters(ABC):
     dataset__number_of_signal_events: int = field(default=None)
     dataset__number_of_background_events: int = field(default=None)  # in the case of loaded datasets, None loads the full amount
 
-
     @classmethod
     @abstractmethod
-    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
+    def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         pass
 
     @property
@@ -62,6 +67,7 @@ class DatasetParameters(ABC):
         pass
 
     def __post_init__(self):
+        # Poisson distribution of event numbers per run given mean
         if not self.dataset__number_of_background_events:
             self.dataset__number_of_background_events = np.random.poisson(
                 lam=self.dataset__mean_number_of_background_events * np.exp(self.dataset__induced_norm_nuisance_value),
@@ -74,12 +80,31 @@ class DatasetParameters(ABC):
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
 
+        # Detector dimensions should fit DataSet dimension. Inserts default and expands dimensions if given an int.
+        if isinstance(self.dataset__detector_binning_minima, int):
+            self.dataset__detector_binning_minima = [self.dataset__detector_binning_minima] * self._dataset__number_of_dimensions
+
+        if isinstance(self.dataset__detector_binning_number_of_bins, int):
+            self.dataset__detector_binning_number_of_bins = [self.dataset__detector_binning_number_of_bins] * self._dataset__number_of_dimensions
+
+        self.validate()
+
+    def validate(self):
+        assert len(self.dataset__detector_binning_minima) == self._dataset__number_of_dimensions, \
+            f"Detector binning minima length {len(self.dataset__detector_binning_minima)} does not match "\
+            
+        assert len(self.dataset__detector_binning_maxima) == self._dataset__number_of_dimensions, \
+            f"Detector binning maxima length {len(self.dataset__detector_binning_maxima)} does not match "\
+            
+        assert len(self.dataset__detector_binning_number_of_bins) == self._dataset__number_of_dimensions, \
+            f"Detector binning number of bins length {len(self.dataset__detector_binning_number_of_bins)} does not match "\
+
     
 @dataclass
 class LoadedDatasetParameters(DatasetParameters):
     
     @classmethod
-    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
+    def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "loaded"
 
     def __post_init__(self):
@@ -94,7 +119,8 @@ class LoadedDatasetParameters(DatasetParameters):
 
     # Data source
     dataset_loaded__file_name: str = field(default="")
-    dataset_loaded__file_parameters: Dict[str, Any] = field(default_factory=dict)
+    dataset_loaded__event_amount_load_limit: Optional[int] = field(default=None)
+    dataset_loaded__observable_names: List[str] = field(default_factory=list)
 
     # Resampling settings
     dataset_loaded__resample_is_resample: bool = field(default=False)
@@ -108,15 +134,11 @@ class LoadedDatasetParameters(DatasetParameters):
         """
         loaded_dataset = self.__load_dataset(
             self.dataset_loaded__file_name,
-            self.dataset__number_of_background_events
+            self.dataset_loaded__event_amount_load_limit
         )
 
-        if loaded_dataset.dim != self._dataset__number_of_dimensions:
-            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.dim} do not match expected dimensions {self._dataset__number_of_dimensions}.")
-
-        if loaded_dataset.n_samples < self.dataset__number_of_background_events:
-            raise ValueError(f"Loaded dataset has only {loaded_dataset.n_samples} samples, "\
-                f"but requested {self.dataset__number_of_background_events} samples.")
+        if loaded_dataset.n_observables != self._dataset__number_of_dimensions:
+            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.n_observables} do not match expected dimensions {self._dataset__number_of_dimensions}.")
                 
         return loaded_dataset
       
@@ -136,7 +158,7 @@ class LoadedDatasetParameters(DatasetParameters):
             loaded_dataset = load_root_events(
                 XRootD_url=path,
                 stop=number_of_events,
-                **self.dataset_loaded__file_parameters,
+                branch_names=self.dataset_loaded__observable_names,
             )
         
         else:  # Assuming the file contains a list of root files to load
@@ -171,7 +193,7 @@ class LoadedDatasetParameters(DatasetParameters):
 class GeneratedDatasetParameters(DatasetParameters, ABC):
 
     @classmethod
-    def DATASET_PARAMTER_TYPE_NAME(cls) -> str:
+    def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
     
     # Additional background parameters
@@ -242,7 +264,7 @@ class DatasetConfig:
     # Properties to avoid being documented in context
     @property
     def _dataset__types(self) -> Dict[str, Type[DatasetParameters]]:
-        return {cls.DATASET_PARAMTER_TYPE_NAME(): cls for cls in DatasetParameters.__subclasses__()}
+        return {cls.DATASET_PARAMETER_TYPE_NAME(): cls for cls in DatasetParameters.__subclasses__()}
     @property
     def _dataset__name_property(self) -> str:
         return "name"
@@ -268,8 +290,10 @@ class DatasetConfig:
                 except KeyError:
                     raise KeyError(f"Dataset type '{dataset_type}' not defined")
 
-                set = dataset_class(**user_dataset_definitions)
-                set._dataset__number_of_dimensions = self.dataset__number_of_dimensions
+                set = dataset_class(
+                    _dataset__number_of_dimensions=self.dataset__number_of_dimensions,
+                    **user_dataset_definitions,
+                )
                 return set
 
         raise KeyError(f"Dataset '{name}' not defined")

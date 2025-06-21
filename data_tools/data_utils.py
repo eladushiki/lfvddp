@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Callable, List, Optional, Tuple, Union
 
 from data_tools.detector import error
@@ -18,21 +17,41 @@ class DetectorEffect:
     """
     Responsible for the interaction between the data and the detector.
     Exported functions are divided into 2 parts:
-    - The application of the detector effects on the dataset, done with uncertain efficiency and errors
-    - The attempt to correct for the detector effects, done with clean theoretic efficiency and no errors
+    - The application of the detector effects on the dataset, done with perfect knowledge using "_true_efficiency"
+    - The attempt to correct for the detector effects, done over binned data and with deviations from
+     the true efficiency due to simulated uncertainty. This is done using "_binned_efficiency_uncertainty"
     Use them in the proper part of the generation/prediction process.
     """
     def __init__(
             self,
             efficiency_function: str,
+            binning_minima: List[int],
+            binning_maxima: List[int],
+            number_of_bins: List[int],
             efficiency_uncertainty_function: str,
             error_function: str,
         ):
+        # Detector effects on the data
         self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency_function)
-        self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
         self._error = self.__get_detector_error_inducer(error_function)
 
-    @retrieve_from_module(shapes, shapes.detector_unaffected)
+        # Detector dimensions and binning
+        assert (ndim := len(binning_minima)) == len(binning_minima), "Detector binning dimensions don't match"
+        assert ndim == len(number_of_bins), "Detector binning dimensions don't match"
+        self._ndim = ndim
+
+        self._dimensional_bin_centers = []
+        self._dimensional_bin_edges = []
+        for i in range(ndim):
+            bin_edges, bin_centers = \
+                create_bins(xmin=binning_minima[i], xmax=binning_maxima[i], nbins=number_of_bins[i])
+            self._dimensional_bin_centers.append(bin_centers)
+            self._dimensional_bin_edges.append(bin_edges)
+        
+        # Statistics reconstruction mechanism
+        self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
+
+    @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
         """
         Detector efficiency indicated the probability for each event (=row) to remain.
@@ -59,10 +78,11 @@ class DetectorEffect:
     
     ## Data correction - uses theoretical knowledge only
     @property
-    def _uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
+    def _binned_uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
         
         def __compensator(x: DataSet) -> np.ndarray:
-            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(x._data)
+            bin_centers = self.get_event_bin_centers(x)
+            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(bin_centers)
         
         return __compensator
 
@@ -80,6 +100,24 @@ class DetectorEffect:
         """
         return self._error(dataset._data)
 
+    def get_event_bin_centers(
+        self,
+        events: DataSet,
+    ) -> npt.NDArray:
+        
+        bin_centered_events = []
+        for d in range(self._ndim):
+            max_bin_index = len(self._dimensional_bin_centers[d]) - 1  # last bin is open-ended
+            dim_bin_indices = np.clip(np.expand_dims(np.digitize(
+                events.slice_along_observable_indices(d),
+                self._dimensional_bin_edges[d],
+            ), axis=1), a_min=0, a_max=max_bin_index)
+            bin_centered_events.append(np.array(
+                self._dimensional_bin_centers[d][dim_bin_indices]
+            ))
+
+        return np.column_stack(bin_centered_events)
+
     def affect_and_compensate(self, dataset: DataSet) -> DataSet:
         filter = self.generate_true_efficiency_filter(dataset)
         affected_dataset = dataset.filter(filter)
@@ -87,7 +125,7 @@ class DetectorEffect:
         errors = self.generate_errors(affected_dataset)
         affected_dataset._data += errors
 
-        compensating_weights = self._uncertain_efficiency_compensator(affected_dataset)
+        compensating_weights = self._binned_uncertain_efficiency_compensator(affected_dataset)
         affected_dataset._weight_mask *= compensating_weights
 
         return affected_dataset
@@ -111,8 +149,8 @@ class DataSet:
             self._data = data
         else:
             raise ValueError(f"Data must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
-        self._weight_mask = np.ones((self._data.shape[0],))
-        self._observable_names = observable_names if observable_names is not None else [f"param_{i}" for i in range(self._data.shape[1])]
+        self._weight_mask = np.ones((self.n_samples,))
+        self._observable_names = observable_names if observable_names is not None else [f"param_{i}" for i in range(self.n_observables)]
 
     def __add__(self, other) -> DataSet:
         if self._observable_names != other._observable_names:
@@ -131,7 +169,7 @@ class DataSet:
         return result
 
     @property
-    def dim(self) -> int:
+    def n_observables(self) -> int:
         if self._data.size == 0:
             return 0
         return self._data.shape[1]
@@ -148,15 +186,15 @@ class DataSet:
     def histogram_weight_mask(self) -> np.ndarray:
         return np.expand_dims(self._weight_mask, axis=1)
 
-    def slice_along_dimension(self, dims: Union[int, slice, npt.NDArray]) -> np.ndarray:
+    def slice_along_observable_indices(self, indices: Union[int, slice, npt.NDArray]) -> np.ndarray:
         """
         Get a slice of all events along a single dimension.
         """
-        return self._data[:, dims]
+        return self._data[:, indices]
     
-    def slice_along_observables(self, observables: List[str]) -> npt.NDArray:
-        dims = [self._observable_names.index(obs) for obs in observables]
-        return self.slice_along_dimension(np.array(dims))
+    def slice_along_observable_names(self, observables: List[str]) -> npt.NDArray:
+        indices = [self._observable_names.index(obs) for obs in observables]
+        return self.slice_along_observable_indices(np.array(indices))
     
     def filter(self, filter: np.ndarray) -> DataSet:
         """
@@ -196,7 +234,7 @@ def resample(
     if replacement:
         remainder = source_dataset
     else:
-        rest_idx = np.array(list(set(range(source_dataset.n_samples)) - set(idx)))
+        rest_idx = np.array(list(set(range(source_dataset.n_samples)) - set(idx)), dtype=int)
         remainder = source_dataset[rest_idx]
 
     return sample, remainder
@@ -206,13 +244,37 @@ def create_slice_containing_bins(
         datasets: List[DataSet],
         nbins = 30,
         along_dimension: int = 0,
-):
+) -> Tuple[npt.NDArray, npt.NDArray]:
 
     # limits    
     xmin = 0
-    xmax = np.max([np.max(dataset.slice_along_dimension(along_dimension)) for dataset in datasets])
+    xmax = np.max([np.max(dataset.slice_along_observable_indices(along_dimension)) for dataset in datasets])
 
+    return create_bins(
+        xmin=xmin,
+        xmax=xmax,
+        nbins=nbins,
+    )
+
+def create_bins(
+        xmin: float,
+        xmax: float,
+        nbins: int,
+) -> Tuple[npt.NDArray, npt.NDArray]:
+    
     bins = np.linspace(xmin, xmax, nbins + 1)
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
 
     return bins, bin_centers
+
+
+def create_slice_containing_bins(
+        datasets: List[DataSet],
+        nbins = 100,
+        along_dimension: int = 0,
+):
+    # limits    
+    xmin = 0
+    xmax = np.max([np.max(dataset.slice_along_observable_indices(along_dimension)) for dataset in datasets])
+
+    return create_bins(xmin=xmin, xmax=xmax, nbins=nbins)

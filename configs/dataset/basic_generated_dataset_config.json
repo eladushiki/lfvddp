@@ -19,7 +19,7 @@
             "dataset__detector_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
             "dataset__detector_error": "",
 
-            "dataset__detector_binning_maxima": [10]
+            "dataset__detector_binning_maxima": [20]
         },
         {
             "name": "B",
@@ -28,7 +28,7 @@
             "dataset_generated__background_parameters": "exponential_background",
             "dataset__mean_number_of_background_events": 10000,
 
-            "dataset__detector_binning_maxima": [10]
+            "dataset__detector_binning_maxima": [20]
         }
     ]
 }

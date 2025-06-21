@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from logging import warning
 from typing import List
 
 from neural_networks.NPLM.src.NPLM.PLOTutils import compute_df
@@ -45,3 +46,15 @@ class TrainConfig:
         ) - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
 
     train__like_NPLM: bool  # Should we trian with NPLM's train_model or tensorflow's model.fit like LFVNN
+
+    def __post_init__(self):
+        self.validate()
+
+    def validate(self):
+        if self.train__epochs < 1e5 and self.train__like_NPLM or \
+                self.train__epochs < 5e5 and not self.train__like_NPLM:
+            warning("Training epochs not sufficient, train may not converge")
+
+        if not self.train__like_NPLM and \
+                (self.train__nuisance_correction_types != "" or self.train__data_is_train_for_nuisances):
+            warning("You probably meant to mimic LFVNN, but it does not deal with nuisances.")
