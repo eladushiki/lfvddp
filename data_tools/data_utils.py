@@ -152,7 +152,11 @@ class DataSet:
         self._weight_mask = np.ones((self.n_samples,))
         self._observable_names = observable_names if observable_names is not None else [f"param_{i}" for i in range(self.n_observables)]
 
-    def __add__(self, other) -> DataSet:
+    def __add__(self, other: DataSet) -> DataSet:
+        if self.empty:
+            return other
+        if other.empty:
+            return self
         if self._observable_names != other._observable_names:
             raise ValueError("Observable names do not match between datasets.")
         
@@ -181,6 +185,10 @@ class DataSet:
     @property
     def corrected_n_samples(self) -> float:
         return float(np.sum(self._weight_mask))
+    
+    @property
+    def empty(self) -> bool:
+        return self.n_samples == 0
 
     @property
     def histogram_weight_mask(self) -> np.ndarray:
