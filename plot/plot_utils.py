@@ -2,17 +2,16 @@ from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Callable, List, Optional, Union
+from typing import List, Optional, Union
 
 from data_tools.data_utils import DataSet
-from data_tools.profile_likelihood import calc_median_t_significance_relative_to_background
+from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 import numpy as np
 from matplotlib import patches, pyplot as plt
 from plot.plotting_config import PlottingConfig
-import scipy.special as spc
 from matplotlib.legend_handler import HandlerPatch
 import re
 
@@ -72,6 +71,35 @@ def t_hist_epoch(epochs_list,t_history,epoch_numbers):
         if len(tepoch)>0:
             t_hist_dict[epoch] = np.concatenate(tepoch).ravel()
     return t_hist_dict 
+
+
+def utils__get_signal_dataset_parameters(
+        signal_context: ExecutionContext,
+) -> DatasetParameters:
+    
+    # Validate signal configuration
+    signal_dataset_parameters = None
+    number_of_signal_events = 0
+    
+    signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
+    for dataset_name in signal_config._dataset__names:
+        dataset_parameters: DatasetParameters = signal_config._dataset__parameters(dataset_name)
+        assert isinstance(dataset_parameters, GeneratedDatasetParameters), \
+            f"performance plot possible only for generated datasets, got {dataset_parameters.type}"
+
+        # We do validate that there is a signal in at most one dataset
+        if (current_number_of_signal_events := dataset_parameters.dataset__number_of_signal_events) != 0:
+            assert number_of_signal_events == 0, \
+                f"multiple signal datasets found, {dataset_name} being the second"
+
+            # Use de-facto signal and background event amounts to estimate PL
+            number_of_signal_events = current_number_of_signal_events
+            signal_dataset_parameters = dataset_parameters
+
+    if not signal_dataset_parameters:
+        raise ValueError("No signal dataset found in the configuration")
+    
+    return signal_dataset_parameters
 
 
 class results:  # todo: deprecate
@@ -260,122 +288,6 @@ class results:  # todo: deprecate
                 if flag and (file not in filenames):
                     filenames.append(file)
         return filenames
-
-
-class em_results(results):
-    # channel='em'
-    # signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
-    # background = {}
-    # signal = {}
-    # background["em_background"] = np.load("/storage/agrp/yuvalzu/NPLM/em_MLL_dist.npy")
-    # for s in signal_samples:
-    #     signal[f"{s}_em_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/em_{s}_signal_MLL_dist.npy")
-    # Bkg = background["em_background"]
-    
-    def __init__(self, file_name):
-        super().__init__(file_name)
-
-    def collect_data(self):
-        channel='em'
-        signal_samples=["ggH_taue","vbfH_taue"]#["ggH_taue","ggH_taumu","vbfH_taue","vbfH_taumu","Z_taue","Z_taumu"]
-        background = {}
-        signal = {}
-        background["em_background"] = np.load("/storage/agrp/yuvalzu/NPLM/em_MLL_dist.npy")
-        for s in signal_samples:
-            signal[f"{s}_em_signal"] = np.load(f"/storage/agrp/yuvalzu/NPLM/em_{s}_signal_MLL_dist.npy")
-        Bkg = background["em_background"]
-        return Bkg, signal, signal_samples
-
-    def get_sqrt_q0(self,Data_bins=6):
-        # Bkg = em_results.Bkg
-        # signal_samples = em_results.signal_samples
-        # signal = em_results.signal
-        Bkg, signal, signal_samples = self.collect_data()
-        Sig = np.concatenate(tuple([signal[f"{s}_em_signal"] for s in signal_samples]),axis=0).reshape(-1,)
-        mu = self._config.train__signal_number_of_events/len(Sig)
-        bkgFrac = self.Bkg_events/len(Bkg)
-        histData = np.histogram(Sig,Data_bins)
-        bins = histData[1]
-        data = histData[0][histData[0]!=0]
-        histBkg = np.histogram(Bkg,bins)
-        bkg = histBkg[0][histData[0]!=0]
-        sqrt_q0 = 2*(-self._config.train__signal_number_of_events+np.sum((mu*data+(bkg*bkgFrac))*np.log(mu*data/(bkg*bkgFrac)+1)))
-        return np.sqrt(sqrt_q0)
-    
-    def get_binned_sqrt_q0(self,resolution=0.05):
-        Bkg, signal, signal_samples = self.collect_data()
-        Sig = np.concatenate(tuple([signal[f"{s}_em_signal"] for s in signal_samples]),axis=0).reshape(-1,)
-        Bkg = np.floor((Bkg/1e5)/resolution)*resolution
-        Sig = np.floor((Sig/1e5)/resolution)*resolution
-        mu = self._config.train__signal_number_of_events/len(Sig)
-        bkgFrac = self.Bkg_events/len(Bkg)
-        decimals = len(str(resolution).split('.')[1])
-        histData = np.histogram(Sig, bins=[min(Sig)+round(i*resolution,decimals) for i in range(int((max(Sig)-min(Sig)+round(2*resolution,decimals))/resolution))])
-        bins = histData[1]
-        data = histData[0][histData[0]!=0]
-        histBkg = np.histogram(Bkg,bins)
-        bkg = histBkg[0][histData[0]!=0]
-        sqrt_q0 = 2*(-self._config.train__signal_number_of_events+np.sum((mu*data+(bkg*bkgFrac))*np.log(mu*data/(bkg*bkgFrac)+1)))
-        return np.sqrt(sqrt_q0)
-    
-    def get_signals_files(self):
-        filenames =self.get_signal_files(Sig_loc = [6.4],Sig_scale = [0.16],resonant=["True"])
-        return filenames
-        
-    
-
-def scientific_number(num, digits=2):
-    if num==0:
-        return "0"
-    exp = int(np.floor(np.log10(np.abs(num))))
-    coeff = round(np.abs(num)/(10**exp),digits)
-    if num<0:
-        coeff = -coeff
-    if exp==0:
-        sn_string = f"{coeff}"
-    elif exp==-1:
-        sn_string = f"0.{str(10*coeff).split('.')[0]}"
-    else:
-        sn_string = f"${coeff}\\times{{10}}^{{{exp}}}$"
-    # print(sn_string)
-    return sn_string
-
-
-def get_z_score(
-        results_file: Path,
-        bkg_results_file: Path,
-        epoch = 500000
-    ):
-    res = results(results_file)
-    background_results = results(bkg_results_file)
-    sig_results = res
-    bkg_results = background_results
-    sig_t = []
-    bkg_t = []
-    z_score = float("nan")
-    if epoch == sig_results._config.train__epochs:
-        sig_t = sig_results.read_final_t_csv()[0]
-    if (len(sig_t)<1) or (epoch < sig_results._config.train__epochs):
-        sig_t_dict = sig_results.get_t_history_dict()
-        sig_t = sig_t_dict[epoch] if epoch in sig_t_dict.keys() else sig_t_dict[sig_results._config.train__epochs]
-    if epoch > sig_results._config.train__epochs: 
-        print(f"maximal number of signal epochs = {sig_results._config.train__epochs}")
-        return z_score, sig_t, bkg_t
-
-    if epoch == bkg_results._config.train__epochs:
-        bkg_t = bkg_results.read_final_t_csv()[0]
-    if (len(bkg_t)<1) or (epoch < bkg_results._config.train__epochs):
-        bkg_t_dict = bkg_results.get_t_history_dict()
-        bkg_t = bkg_t_dict[epoch] if epoch in bkg_t_dict.keys() else bkg_t_dict[sig_results._config.train__epochs]
-    if epoch > bkg_results._config.train__epochs: 
-        print(f"maximal number of bkg epochs = { background_results._config.train__epochs}")
-        return z_score, sig_t, bkg_t
-
-    # replace NaNs in bkg_t and sig_t with inf.
-    bkg_t[np.isnan(bkg_t)] = np.inf
-    sig_t[np.isnan(sig_t)] = np.inf
-    z_score = calc_median_t_significance_relative_to_background(sig_t, bkg_t)
-    return z_score, sig_t, bkg_t
 
 
 def utils__sample_over_background_histograms_sliced(
