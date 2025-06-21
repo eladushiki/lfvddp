@@ -53,7 +53,20 @@ We were able to reproduce the results of the previous study in ref \cite{LastDDP
 
 Our first new results include modeling a detector effect, which affects two datasets that are otherwise summetric. We estimate the effect with some induced errors, correct for it and create an approximation for the true datasets.
 
-<<figure>>
+\begin{figure}[h]
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,trim=0 18pt 0 0,clip]
+        {../research_proposal/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/A_data_process_plot_-6195891144235862255.png}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,trim=0 18pt 0 0,clip]
+        {../research_proposal/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/B_data_process_plot_-6195891144235862255.png}
+    \end{minipage}
+    \caption{The process of generating a dataset, distributed by some arbitrary physical observable of the events. Left: 10000 exponentially decaying probability background events with 50 signal events distributed around $param\_0=4$. Right: no signal events. In each graph three steps are shown: 1. The true dataset in blue. 2. The observed dataset with missing events due to a non perfect detector efficiency. 3. The approximation for the original dataset made from the observed dataset and non-perfect knowledge of the detector efficiency.}
+    \label{fig:data_process_plot}
+\end{figure}
 
 \input{bibliography.tex}
 
