@@ -663,6 +663,7 @@ def plot_data_generation_sliced(
         original_sample: DataSet,
         processed_sample: DataSet,
         bins: Optional[NDArray] = None,
+        xlabel: str = "",
 ):
     c = Carpenter(context)
     fig = c.figure()
@@ -693,10 +694,12 @@ def plot_data_generation_sliced(
         dataset=processed_sample,
         # the usual weights
         histtype="step",
-        label="detector affected sample (weighted)",
+        label="detector affected sample (weight adjusted)",
     )
 
-    ax.set_title("Data generation process")
+    ax.set_title("Sample Generation Process Illustration", fontsize=24)
+    ax.set_xlabel(xlabel, fontsize=20)
+    ax.set_ylabel("number of events", fontsize=20)
     ax.legend()
     return fig
 
