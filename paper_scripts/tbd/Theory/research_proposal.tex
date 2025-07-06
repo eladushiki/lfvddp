@@ -13,33 +13,22 @@
 \section{Scientific Background}
 
 The Standard Model (SM) of particle physics is a well established theory that describes the very basic building blocks of matter and their interactions. It account for all observed matter and antimatter, and all known forces except for gravity. The theory has been thoroughly tested in many experiments.
+This being said, it is clear that the Standard Model is not a complete theory of nature, since there are certain phenomena it does not account for. Neutrino masses and dark matter are two of them. This motivates the development of Beyond Standard Model (BSM) theories and triggers searches for signatures originating from such models.
 
-%This being said, there are reasons to believe that the Standard Model is not complete, and does not fully describe the behavior of nature. Neutrino masses and the absence of dark matter in experimental investigations so far are but two of them. In order to achieve a more accurate description, Beyond Standard Model (BSM) theories are required.
+Most theoretically motivated extensions of the SM were or are being searched for, with majority of them already excluded. Thus, at current times, there are no strong theoretical motivation to prefer the search for evidence for one specific BSM theory over another.
 
-\textcolor{red}{This being said, it is clear that the Standard Model is not a complete theory of nature, since there are certain phenomena it does not account for. Neutrino masses and dark matter are two of them. This motivates the development of Beyond Standard Model (BSM) theories and triggers searches for signatures originating from such models.}
+Despite this huge effort, the majority of the data produced by the Large Hadron Collider (LHC) have not been thoroughly investigated. Using current search techniques, which examine a specific theoretically possible extension of the model at a time, covering all possible scenarios is impossible. For it was not yet proven otherwise, BSM physics could be hidden within reach.
 
-%At current times, there are no theoretical motivation to prefer the search for evidence for any specific BSM theory over another. All previously motivated extensions of the SM were ruled out in the current collider energy limits to a good confidence level. %Some theoreticians are waiting for experimental hint for which new physics to look for.
+Recent works suggest a new method, the Data Directed Paradigm (DDP)\cite{LastDDPpaper}, to invest in detecting various unexplained deviations from the SM prediction. To examine the vast amounts of data, a machine is used, before investing expensive physicist-years in building a model that explains them.
 
-\textcolor{red}{Most theoretically motivated extensions of the SM were or are being searched for, with majority of them already excluded. Thus, at current times, there are no strong theoretical motivation to prefer the search for evidence for one specific BSM theory over another.}
-
-%In the past decades the ATLAS collaboration withing the CERN association is gathering obscene amounts of experimental data from the Large Hadron Collider (LHC), little of which have been thoroughly investigated. The labor heavy process of physical analysis of data sets is not approaching a foreseeable better utilization of it.
-
-\textcolor{red}{Nonetheless, despite this huge effort, the majority of the data produced by the Large Hadron Collider (LHC) have not been thoroughly investigated. Using current search techniques, covering all possible scenarios is impossible ... somehting like that...  and BSM physics could be within reach.}
-
-Recent works suggest a new method, the Data Directed Paradigm (DDP)\cite{LastDDPpaper}, to invest in detecting "suspicious signal" within the vast data using a machine, before investing many scientist-years in the model, to speed the process. \textcolor{red}{change to match the previous paragraph}
-
-
-Lepton Flavour Universality (LFU) is an an accidental symmetry of the SM, broken only by the Yukawa interactions. These break the universal symmetry to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. Consequently, any two datasets that differ only by the flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics\cite{LeptonFlavorViolationHiggsDecays}. Thus, any observed asymmetry is an indication for BSM physics \textcolor{red}{Either address also tau leptons in the discussion, or refer specifically to electrons and muons}
+Lepton Flavour Universality (LFU) is an an accidental symmetry of the SM, broken only by the Yukawa interactions. These break the universal symmetry to a $U(1)_{e} \times U(1)_{\mu} \times U(1)_{\tau}$ that is lepton flavor conserving. Consequently, any two datasets that differ only by the flavor of lepton (neglecting phase space and detector effects, along with Yukawa interactions), should have the same statistics\cite{LeptonFlavorViolationHiggsDecays}. We will examine pairs of datasets that differ by replacing electrons that appear in one's cuts with a muon. Thus, any observed asymmetry in them is an indication for BSM physics. 
 
 We suggest utilizing this symmetry of nature to scan through all available data, looking for deviations.
 
-
 \section{Goal}
-Our goal is to model experimental datasets and estimate to what sensitivity we could detect a LU breaking signal, had those been real datasets.
+Our goal is to discover BSM physics, if exists, that violate LFU.
 
-To this end, we would model detector effects and datasets that contain multiple physical observables, as we would get from a non simulated experiment. We would modify our machine to handle the new task and run it with generated as well as physically simulated datasets.
-
-\textcolor{red}{I would rather say that our goal is to search and discover BSM, if exists, through LFU violation. I would say that we develop a tool to do it in a systematic way. }
+We'll do so by building a tool to discover said violations in a systematic way, estimate its sensitivity using simulated datasets before applying it to real experimental data.
 
 \section{Existing Tools}
 Previous research suggests tools and methods for performing such analysis. Previous studies\cite{Italian no 1 - Learning New Physics from a Machine}\cite{Italian no 2 - Learning New Physics from an Imperfect Machine} lay the foundations of phrasing the problem of determining whether two data sets stem from the same underlying statistics, as well as using a neural network (NN) for the process.
