@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List
 
+from frame.file_structure import JSON_FILE_EXTENSION, PLOT_FILE_EXTENSION, TEXT_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION, TRAINING_WEIGHTS_FILE_EXTENSION
+
 
 @dataclass
 class Product(ABC):
@@ -40,7 +42,7 @@ class TextualDataFileProduct(FileProduct):
 
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return ["txt", "csv", "json"]
+        return [TEXT_FILE_EXTENSION, JSON_FILE_EXTENSION]
 
 
 @dataclass
@@ -50,7 +52,7 @@ class FigureFileProduct(FileProduct):
     """
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return ["png", "jpg", "jpeg", "pdf", "fig"]
+        return [PLOT_FILE_EXTENSION]
 
 
 @dataclass
@@ -60,7 +62,7 @@ class ModelWeightsFileProduct(FileProduct):
     """
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return ["h5"]
+        return [TRAINING_HISTORY_FILE_EXTENSION, TRAINING_WEIGHTS_FILE_EXTENSION]
 
 
 class ProductFactory:

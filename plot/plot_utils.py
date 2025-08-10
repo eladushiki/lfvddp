@@ -7,7 +7,7 @@ from typing import List, Optional, Union
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRIANING_OUTCOMES_DIR_NAME
+from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 import numpy as np
 from matplotlib import patches, pyplot as plt
@@ -172,7 +172,7 @@ class results:  # todo: deprecate
         
         
         #Sig_events = int(re.search(r'\d+signals', file_name)[0][:-len('signals')])
-        files_all_patience_str = glob(TRIANING_OUTCOMES_DIR_NAME + all_patience_str)
+        files_all_patience_str = glob(TRAINING_OUTCOMES_DIR_NAME + all_patience_str)
         files = files_all_patience_str[:]
         for file_name in files:
             NPLM = "True" if ("TrueNPLM" in file_name  or ("delta" not in file_name and "Trueresample" not in file_name)) else "False"
