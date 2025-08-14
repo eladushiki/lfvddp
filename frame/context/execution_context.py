@@ -6,13 +6,13 @@ import random
 from data_tools.dataset_config import DatasetConfig
 from frame.cluster.cluster_config import ClusterConfig
 from frame.file_system.training_history import save_training_history
-from frame.validation import validate_configuration
-from numpy import random as npramdom
+from frame.validation import corss_validate_configuration
+from numpy import random as nprandom
 from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
-from frame.file_structure import CONTEXT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
@@ -64,29 +64,35 @@ def create_config_from_paramters(
 
     config = DynamicConfig(**config_params)
 
-    validate_configuration(config)
+    corss_validate_configuration(config)
 
     return config
 
 
 @dataclass
 class ExecutionContext:
+    run_hash: str = field(init=False)
     commit_hash: str
     config: UserConfig
     command_line_args: List[str]
     time: str = get_time_and_date_string()
-    random_seed: int = get_unix_timestamp() + getpid()
+    random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
     is_reloaded: bool = False
 
     def __post_init__(self):
+        # Run identification
+        self.run_hash = hash(self._unique_descriptor)
+
         # Initialize once unique output directory
         if not self.is_reloaded:
             makedirs(self.unique_out_dir, exist_ok=False)
+
+        # Random seeding
         random.seed(self.random_seed)
-        npramdom.seed(self.random_seed)
+        nprandom.seed(self.random_seed)
 
     @property
     def _unique_descriptor(self) -> str:
@@ -100,7 +106,7 @@ class ExecutionContext:
 
     @property
     def training_outcomes_dir(self) -> Path:
-        return self.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
+        return self.unique_out_dir / TRAINING_OUTCOMES_DIR_NAME
 
     def document_created_product(self, product_descriptor: Any):
         self.products.add_product(product_descriptor)
@@ -119,36 +125,45 @@ class ExecutionContext:
 
         return series
 
+    def _run_stamp_product_path(self, file_path: Path) -> Path:
+        stamped_file_name = file_path.stem + f"_{self.run_hash}" + file_path.suffix
+        return file_path.parent / stamped_file_name
+
     # todo: export to decorator and add os.makedirs(out_dir, exist_ok=False)
     def save_and_document_dict(self, dict: dict, file_path: Path):
+        file_path = self._run_stamp_product_path(file_path)
         save_dict_to_json(dict, file_path)
         self.document_created_product(file_path)
 
-    def save_and_document_figure(self, figure: Figure, path: Path):
-        save_figure(figure, path)
-        self.document_created_product(path)
+    def save_and_document_figure(self, figure: Figure, file_path: Path):
+        file_path = self._run_stamp_product_path(file_path)
+        save_figure(figure, file_path)
+        self.document_created_product(file_path)
 
-    def save_and_document_text(self, text: str, path: Path):
-        with open(path, 'w') as file:
+    def save_and_document_text(self, text: str, file_path: Path):
+        file_path = self._run_stamp_product_path(file_path)
+        with open(file_path, 'w') as file:
             file.write(text)
-        self.document_created_product(path)
+        self.document_created_product(file_path)
 
-    def save_and_document_model_weights(self, model: Model, path: Path):
-        model.save_weights(path)
-        self.document_created_product(path)
+    def save_and_document_model_weights(self, model: Model, file_path: Path):
+        file_path = self._run_stamp_product_path(file_path)
+        model.save_weights(file_path)
+        self.document_created_product(file_path)
 
     def save_and_document_model_history(
             self,
             model_history: Dict[str, Any],
-            path: Path,
+            file_path: Path,
         ):
+        file_path = self._run_stamp_product_path(file_path)
         save_training_history(
             model_history,
-            path,
+            file_path,
             self.config.train__epochs,
             epochs_checkpoint=self.config.train__number_of_epochs_for_checkpoint,
         )
-        self.document_created_product(path)
+        self.document_created_product(file_path)
 
     def close(self):
         self.run_successful = True

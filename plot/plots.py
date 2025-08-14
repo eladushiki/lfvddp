@@ -1,28 +1,23 @@
 from pathlib import Path
-from typing import List, Optional, Union
-from data_tools.data_utils import DataSet
+from typing import List, Optional
+from data_tools.data_utils import DataSet, create_slice_containing_bins
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
-from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background, calc_injected_t_significance_by_sqrt_q0_continuous
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
 from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
 import numpy as np
-import matplotlib as mpl
+from numpy.typing import NDArray
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib import font_manager, patches
-import plot
+from matplotlib import patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
-from scipy.stats import chi2,norm
+from scipy.stats import chi2
 from tensorflow.keras.models import Model  # type: ignore
-from matplotlib.animation import FuncAnimation
-import scipy.special as spc
-from IPython.display import HTML
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__sample_over_background_histograms_sliced, em_results, utils__create_slice_containing_bins, get_z_score, results, scientific_number
+from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__get_signal_dataset_parameters, utils__sample_over_background_histograms_sliced
 from train.train_config import TrainConfig
 
 
@@ -202,8 +197,8 @@ def performance_plot(
     ):
     '''
     Create a plot of the measured significance as a function of
-    the injected z = sqrt(q0) for the exponential distribution
-    with a given signal type.
+    the ideal z = sqrt(q0) with a given background and signal
+    types.
 
     Data needed to generate the plot:
     - t values distribution for a run with background only.
@@ -214,7 +209,7 @@ def performance_plot(
         from the context file, from the data specification under
         the corresponding signal dataset name BY ORDER.
 
-    The plot__target_run_parent_directory has no significance to
+    The plot__target_run_parent_directory has no use here to
     not cause ambiguity.
     '''
     if not isinstance(plot_config := context.config, PlottingConfig):
@@ -223,7 +218,6 @@ def performance_plot(
     # Validate background configuration
     ## this has to be a generated type, else the distribution is not well known
     background_context = ExecutionContext.naive_load_from_file(Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME)
-    mean_number_of_background_events = 0
     background_config: DatasetConfig = background_context.config
     for background_dataset_name in background_config._dataset__names:
         background_dataset_properties: DatasetParameters = background_config._dataset__parameters(background_dataset_name)
@@ -231,7 +225,6 @@ def performance_plot(
             f"performance plot possible only for generated datasets, got {background_dataset_properties.type}"
         assert background_dataset_properties.dataset__number_of_signal_events == 0, \
             f"background dataset expected to have only background events, {background_dataset_name} has {background_dataset_properties.dataset__number_of_signal_events} signal events"
-        mean_number_of_background_events = background_dataset_properties.dataset__mean_number_of_background_events  # Assuming all datasets have the same mean number of events
 
     # Gather background data
     background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
@@ -239,61 +232,39 @@ def performance_plot(
 
     # Result lists
     ## The analytic calculation of significance based on input parameters, by eq. (33) in the last paper
-    injected_significances = []
-    
-    ## The significance by the chance to generate an equal or larger t value had the background only dataset
-    ## been exactly a chi2 distribution
-    chi2_significances = []
+    mean_injected_significances = []
+    injected_significance_stds = []
 
     ## The significance by the observed chance to generate an equal or larger t value had this been a 
     ## background only dataset, and confidence bounds
     observed_significances = []
-    observed_significance_upper_confidence_bounds = []
+    observed_significances_upper_confidence_bounds = []
     observed_significances_lower_confidence_bounds = []
     observed_significances_by_gaussian_fit = []
 
     for signal_t_values_dir in signal_t_values_parent_directories:
+        
+        # Load corresponding dataset
         signal_context = ExecutionContext.naive_load_from_file(Path(signal_t_values_dir) / CONTEXT_FILE_NAME)
-
-        # Validate signal configuration
-        mean_number_of_signal_events = 0
-        signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
-        for dataset_name in signal_config._dataset__names:
-            dataset_properties: DatasetParameters = signal_config._dataset__parameters(dataset_name)
-            assert isinstance(dataset_properties, GeneratedDatasetParameters), \
-                f"performance plot possible only for generated datasets, got {dataset_properties.type}"
-
-            # We do assume there is a signal in at most one dataset
-            if (current_mean_number_of_signal_events := dataset_properties.dataset__mean_number_of_signal_events) != 0:
-                assert mean_number_of_signal_events == 0, \
-                    f"multiple signal datasets found, {dataset_name} being the second"
-                mean_number_of_signal_events = current_mean_number_of_signal_events
-                signal_dataset_properties = dataset_properties
+        signal_dataset_parameters = utils__get_signal_dataset_parameters(signal_context)
 
         # Gather data
         signal_agg = ResultAggregator(Path(signal_t_values_dir))
         signal_t_dist = signal_agg.all_t_values
 
-        # If no signal events were found, the significance is 0
-        if mean_number_of_signal_events == 0:
-            injected_significances.append(0)
-        
-        # Else, calculate the injected significance using the mean number of events.
+        # Calculate the injected significance centers using the mean number of events.
         # Those are before introducting poisson fluctuations.
-        else:
-            injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
-                background_pdf=signal_dataset_properties.dataset_generated__background_pdf,
-                signal_pdf=signal_dataset_properties.dataset_generated__signal_pdf,
-                n_background_events=mean_number_of_background_events,
-                n_signal_events=mean_number_of_signal_events,
-                upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
-            ))
-
-        chi2_significances.append(calc_t_significance_by_chi2_percentile(
-            t_distribution=signal_t_dist,
-            degrees_of_freedom=signal_config.train__nn_degrees_of_freedom,
+        mean_injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
+            background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+            signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+            n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+            n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+            upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
         ))
-        
+        injected_significance_stds.append(np.std(
+            signal_agg.all_injected_significances
+        ))
+
         # Calculate observed significance and +-1 sigma confidence interval
         observed_significances.append(
             calc_median_t_significance_relative_to_background(
@@ -305,7 +276,7 @@ def performance_plot(
             calc_t_significance_relative_to_background(
                 np.mean(signal_t_dist) - signal_t_dist_std, background_t_dist
         ))
-        observed_significance_upper_confidence_bounds.append(
+        observed_significances_upper_confidence_bounds.append(
             calc_t_significance_relative_to_background(
                 np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
         ))
@@ -316,12 +287,12 @@ def performance_plot(
         ))
 
     # Sort all results by injected significance    
-    sort = np.argsort(np.array(injected_significances))
-    chi2_significances = np.array(chi2_significances)[sort]
-    injected_significances = np.array(injected_significances)[sort]
+    sort = np.argsort(np.array(mean_injected_significances))
+    mean_injected_significances = np.array(mean_injected_significances)[sort]
+    injected_significance_stds = np.array(injected_significance_stds)[sort]
     observed_significances = np.array(observed_significances)[sort]
     observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
-    observed_significance_upper_confidence_bounds = np.array(observed_significance_upper_confidence_bounds)[sort]
+    observed_significances_upper_confidence_bounds = np.array(observed_significances_upper_confidence_bounds)[sort]
     observed_significances_by_gaussian_fit = np.array(observed_significances_by_gaussian_fit)[sort]
 
     # Framing
@@ -332,14 +303,13 @@ def performance_plot(
     # Borders
     graph_border = 1
     clean_y_significances = np.concatenate([
-        chi2_significances[np.isfinite(chi2_significances)],
         observed_significances[np.isfinite(observed_significances)],
         observed_significances_lower_confidence_bounds[np.isfinite(observed_significances_lower_confidence_bounds)],
-        observed_significance_upper_confidence_bounds[np.isfinite(observed_significance_upper_confidence_bounds)],
+        observed_significances_upper_confidence_bounds[np.isfinite(observed_significances_upper_confidence_bounds)],
         observed_significances_by_gaussian_fit[np.isfinite(observed_significances_by_gaussian_fit)],
     ])
-    min_x = max(min(injected_significances) - graph_border, 0)
-    max_x = max(injected_significances) + graph_border
+    min_x = max(min(mean_injected_significances) - graph_border, 0)
+    max_x = max(mean_injected_significances) + graph_border
     min_y = max(min(clean_y_significances) - graph_border, 0)
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x,max_x)
@@ -348,17 +318,22 @@ def performance_plot(
     # Plots
     colors = plt.get_cmap('cool')
     
-    chi2_label = r"$\chi^2_{" + str(background_config.train__nn_degrees_of_freedom) + r"}$ significance"
-    ax.plot(injected_significances, chi2_significances, color=colors(0), linewidth=2, linestyle='--', label=chi2_label)
-    ax.plot(injected_significances, observed_significances_by_gaussian_fit, color=colors(0.75), linewidth=2, linestyle='--', label="gaussian fit significance")
-    ax.plot(injected_significances, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
+    ax.plot(mean_injected_significances, observed_significances_by_gaussian_fit, color=colors(0.75), linewidth=2, linestyle='--', label="gaussian fit significance")
+    ax.plot(mean_injected_significances, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
     ax.fill_between(
-        injected_significances,
+        mean_injected_significances,
         np.clip(observed_significances_lower_confidence_bounds, a_min=0, a_max=max_y),
-        np.clip(observed_significance_upper_confidence_bounds, a_min=0, a_max=max_y),
+        np.clip(observed_significances_upper_confidence_bounds, a_min=0, a_max=max_y),
         color=colors(1),
         linewidth=2,
         alpha=0.1
+    )
+
+    # Error bars
+    ax.errorbar(
+        mean_injected_significances,
+        observed_significances,
+        xerr=injected_significance_stds,
     )
     
     # Texting
@@ -379,252 +354,6 @@ def performance_plot(
     return fig
 
 
-def em_luminosity_plot(Bkg_only_files, S_in_20=1200,title="", title_fs=24, labels_fs=21, ticks_fs=20, legend_fs=20, save=False, save_path='', saved_file_name=''):
-    '''
-    The function creates a plot of the measured significance as a function of the luminosity (in inverse fb) for the em distribution.
-
-    S_in_20:        (int) number of signal events injected to the 20 fb^-1 background (1:2-1:2).
-
-    For more details, see em_performance_plot's docstring.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-    fig = plt.figure(figsize=(16, 12))
-    ax = fig.add_subplot(223)
-    fig.set_facecolor('white')
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    colors = plt.get_cmap('spring')
-    luminosity_vec = []
-    Sig_z_score = []
-    approx_z_score = []
-    Sig_q0 = []
-    for i,Bkg_only_file in enumerate(Bkg_only_files):
-        if Bkg_only_file.Bkg_sample == 'exp':
-            print('Used em plot function for exp sample.')
-            return
-        luminosity = 20*Bkg_only_file.Bkg_ratio
-        Bkg_only_file_name = Bkg_only_file.file
-        Sig_file_names = Bkg_only_file.get_signal_files()
-        
-        N_sig = int(S_in_20*2*Bkg_only_file.Bkg_ratio)
-        print(N_sig)
-        for sig in Sig_file_names:
-            Sig_file = em_results(sig)
-            if Sig_file.Sig_events==N_sig:
-                print(Sig_file.Sig_events)
-                z_score, Sig_t, Bkg_t = get_z_score(Sig_file,Bkg_only_file)
-                Sig_z_score.append(z_score)
-                approx_z_score.append(norm.ppf(chi2.cdf(np.median(Sig_t), df=12)))
-                Sig_q0.append(Sig_file.get_sqrt_q0())
-                luminosity_vec.append(luminosity)
-
-    if len(luminosity_vec)>0:
-        luminosity_vec = np.array(luminosity_vec)
-        Sig_z_score = np.array(Sig_z_score)
-        approx_z_score = np.array(approx_z_score)
-        Sig_q0 = np.array(Sig_q0)
-        sort = np.argsort(luminosity_vec)
-        luminosity_vec = luminosity_vec[sort]
-        Sig_z_score = Sig_z_score[sort]
-        approx_z_score = approx_z_score[sort]
-        Sig_q0 = Sig_q0[sort]
-        ax.plot(luminosity_vec, Sig_z_score, color=colors[1], label=r"$Z_{\rm meas}$", linewidth=2)
-        ax.plot(luminosity_vec,Sig_q0, color=colors[2], label=r"$\sqrt{q_0}$", linewidth=2,ls = ':')
-        ax.plot(luminosity_vec, approx_z_score, color=colors[3],label = r"$\chi^{2}_{12}$",linewidth=2, linestyle='--')
-        ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-        ax.set_xlim(left=5)
-        ax.set_xlabel(r'Luminosity $[{fb}^{-1}]$', fontsize=labels_fs)
-        ax.set_ylabel('Z', fontsize=labels_fs)
-        ax.set_title(title, fontsize=title_fs)
-        handles, labels = ax.get_legend_handles_labels()
-        legend = ax.legend( labels=labels, loc='upper left', fontsize=legend_fs, fancybox=True, frameon=False)
-        legend.get_frame().set_facecolor('white')
-        legend.get_frame().set_alpha(1)
-        legend.get_frame().set_linewidth(0.2)
-        ax.tick_params(labelsize=ticks_fs)
-        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-        ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True,prune='lower'))
-        xmin, xmax = ax.get_xlim()
-        ax.set_xticks(ticks=np.arange(xmin, xmax+1, 5))
-        if save:
-            if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-            else:
-                plt.savefig(save_path+saved_file_name+'.pdf')
-        plt.show()
-
-
-def animated_t_distribution(results_file:results, df, epoch = 500000,xmin=0, xmax=300, nbins=10, samples_to_take='all', frames=300, repeat=False, label='', title='', save=False, save_path='', file_name=''):
-    '''
-    Creates an animated gif of the t distribution.
-
-    frames:         (int) number of frames in the animation.
-    repeat:         (bool) if True, the animation repeats itself.
-                    If repeat=False is required, other file formats should be used (instead of gif).
-    For more details, see t_distribution's docstring.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-    t_dict = results_file.get_t_history_dict()
-    max_epoch = max(t_dict.keys())
-    t = t_dict[epoch] if epoch in t_dict.keys() else t_dict[max_epoch]
-    if samples_to_take != 'all':
-        t = t[:samples_to_take]
-    Ref_events = results_file.Ref_events
-    Bkg_events = results_file.Bkg_events
-    Sig_events = results_file._config.train__signal_number_of_events
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(12,9))
-    ax = fig.add_subplot(111)
-    box = ax.get_position()
-    fig.patch.set_facecolor('white')
-    bins      = np.linspace(xmin, xmax, nbins+1)
-    Z_obs     = norm.ppf(chi2.cdf(np.median(t), df))
-    t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
-    Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
-    Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
-    t_median = np.median(t[np.where(np.logical_not(np.isnan(t)))])
-    t_std = np.std(t[np.where(np.logical_not(np.isnan(t)))])
-    t_num_of_nan = np.sum(np.isnan(t))
-    if label =='':
-        label  = 'med: %s \nstd: %s'%(str(np.around(t_median, 2)), str(np.around(t_std, 2)))
-    if title == '':
-        title = r'$N_A^0=$'+f"{scientific_number(Bkg_events)}"+r',   $N_B^0=$'+f"{scientific_number(Ref_events)}"
-        if Sig_events > 0:
-            title += r',   $N_{sig}^0=$'+f"{scientific_number(Sig_events)}"
-    binswidth = (xmax-xmin)*1./nbins
-    if results_file.NPLM == 'False':
-        color = 'plum'
-        ec = 'darkorchid'
-        chi2_color = 'grey'
-    elif results_file.NPLM == 'True':
-        color = 'lightcoral'
-        ec = 'red'
-        chi2_color = 'grey'
-    h = ax.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color, ec=ec,
-                 bins=bins, label=label)
-    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-    ax.plot(x, chi2.pdf(x, df), color=chi2_color, lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    font = font_manager.FontProperties(family='serif', size=24) 
-    circ = patches.Circle((0,0), 1, facecolor=color, edgecolor=ec)
-    rect1 = patches.Rectangle((0,0), 1, 1, color=chi2_color, alpha=0.8)
-    legend = ax.legend((circ, rect1), (label, f'$\chi^{2}_{{{df}}}$'),
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    if t_num_of_nan > 0:
-        rect2 = patches.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
-        legend = ax.legend((circ, rect1, rect2), (label, f'$\chi^{2}_{{{df}}}$',f'NaN: {t_num_of_nan/t.shape[0]*100:.1f}%'),
-            handler_map={
-            patches.Rectangle: HandlerRect(),
-            patches.Circle: HandlerCircle(),
-            },
-            prop=font,frameon=False)
-    ax.set_xlabel('t', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylabel('PDF', fontsize=24, fontname="serif", labelpad=20)
-    ax.set_ylim(0,0.1)
-    plt.yticks([0.03,0.06,0.09], fontsize=24, fontname="serif")
-    plt.xticks(fontsize=24, fontname="serif")
-    ax.set_title(title, fontsize=30, fontname="serif", pad=20)
-    mpl.rcParams['animation.embed_limit'] = 2**128
-
-    def update(frame, h):
-        for bar, real_height in zip(h[-1], h[0]):
-            if frame == 0:
-                bar.set_height(0)
-            elif frame <= frames//2:
-                bar.set_height(real_height * frame / (frames//2))
-            else:
-                amplitude = real_height * (frames - frame) / (2*frames)
-                oscillations = amplitude * np.sin(frame / (frames//2) * np.pi)
-                bar.set_height(real_height + oscillations)
-                err = np.sqrt(h[0]/(t.shape[0]*binswidth))
-                x   = 0.5*(bins[1:]+bins[:-1])
-                if frame == frames-1: ax.errorbar(x, h[0], yerr = err, color='darkorchid', marker='o', ls='', lw=0.05, mew=0.1, animated=True)
-        return h[-1]
-    
-    anim = FuncAnimation(fig, update, frames=frames, fargs=(h,), interval=20, blit=True, save_count=frames, repeat=repeat)
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = '1distribution'
-            else: file_name += '_1distribution'
-            anim.save(save_path+file_name+'.gif', writer='imagemagick', fps=30)
-    return HTML(anim.to_jshtml())
-    
-
-def animated_t_2distributions(results_file1:results, results_file2:results, df, epoch = 500000,xmin=0, xmax=300, nbins=10, frames=300, repeat=False, label='', title='', save=False, save_path='', file_name=''):
-    '''
-    Creates an animated gif of the two t distributions for comaprison.
-    For more details, see t_2distributions's and animated_t_distribution's docstrings.
-    '''
-    raise NotImplementedError('This function is not implemented yet.')
-
-    t1_dict = results_file1.get_t_history_dict()
-    t2_dict = results_file2.get_t_history_dict()
-    max_epoch = min(max(t1_dict.keys()),max(t2_dict.keys()))
-    t1 = t1_dict[epoch] if ((epoch in t1_dict.keys()) and (epoch in t2_dict.keys())) else t1_dict[max_epoch]
-    t2 = t2_dict[epoch] if ((epoch in t1_dict.keys()) and (epoch in t2_dict.keys())) else t1_dict[max_epoch]
-
-    color1 = ['plum', 'darkorchid']
-    color2 = ['lightcoral', 'crimson']
-    alpha = [0.8, 0.5]
-    plt.rcParams["font.family"] = "serif"
-    plt.style.use('classic')
-    fig  = plt.figure(figsize=(12,9))
-    fig.patch.set_facecolor('white')
-    for i in [2,1]:
-        t = t1 if i==1 else t2
-        color = color1 if i==1 else color2
-        bins      = np.linspace(xmin, xmax, nbins+1)
-        Z_obs     = norm.ppf(chi2.cdf(np.median(t), df))
-        t_obs_err = 1.2533*np.std(t)*1./np.sqrt(t.shape[0])
-        Z_obs_p   = norm.ppf(chi2.cdf(np.median(t)+t_obs_err, df))
-        Z_obs_m   = norm.ppf(chi2.cdf(np.median(t)-t_obs_err, df))
-        label  = 'sample: %s\nsize: %i \nmedian: %s, std: %s\n'%(label, t.shape[0], str(np.around(np.median(t), 2)),str(np.around(np.std(t), 2)))
-        label += 'Z = %s (+%s/-%s)'%(str(np.around(Z_obs, 2)), str(np.around(Z_obs_p-Z_obs, 2)), str(np.around(Z_obs-Z_obs_m, 2)))
-        binswidth = (xmax-xmin)*1./nbins
-        h = plt.hist(t, weights=np.ones_like(t)*1./(t.shape[0]*binswidth), color=color[0], ec=color[1],
-                    bins=bins, label=label, alpha=alpha[i-1])
-        err = np.sqrt(h[0]/(t.shape[0]*binswidth))
-        x   = 0.5*(bins[1:]+bins[:-1])
-        if i == 2: plt.errorbar(x, h[0], yerr = err, color=color[1], marker='o', ls='')
-    x  = np.linspace(chi2.ppf(0.0001, df), chi2.ppf(0.9999, df), 1000)
-    plt.plot(x, chi2.pdf(x, df),'rebeccapurple', lw=5, alpha=0.8, label=f'$\chi^{2}_{{{df}}}$')
-    font = font_manager.FontProperties(family='serif', size=14) 
-    plt.legend(prop=font,frameon=False)
-    plt.xlabel('t', fontsize=18, fontname="serif")
-    plt.ylabel('PDF', fontsize=18, fontname="serif")
-    plt.yticks(fontsize=16, fontname="serif")
-    plt.xticks(fontsize=16, fontname="serif")
-    plt.title(title, fontsize=18, fontname="serif")
-    mpl.rcParams['animation.embed_limit'] = 2**128
-    def update(frame, h):
-        for bar, real_height in zip(h[-1], h[0]):
-            if frame == 0:
-                bar.set_height(0)
-            elif frame <= frames//2:
-                bar.set_height(real_height * frame / (frames//2))
-            else:
-                amplitude = real_height * (frames - frame) / (2*frames)
-                oscillations = amplitude * np.sin(frame / (frames//2) * np.pi)
-                bar.set_height(real_height + oscillations)
-                err = np.sqrt(h[0]/(t.shape[0]*binswidth))
-                x   = 0.5*(bins[1:]+bins[:-1])
-                if frame == frames-1: plt.errorbar(x, h[0], yerr = err, color='darkorchid', marker='o', ls='', lw=0.05, mew=0.1)
-        return h[-1]
-    
-    anim = FuncAnimation(fig, update, frames=frames, fargs=(h,), interval=20, blit=True, save_count=frames, repeat=repeat)
-    if save:
-        if save_path=='': print('argument save_path is not defined. The figure will not be saved.')
-        else:
-            if file_name=='': file_name = '2distributions'
-            else: file_name += '_2distributions'
-            anim.save(save_path+file_name+'.gif', writer='imagemagick', fps=30)
-    return HTML(anim.to_jshtml())
-
-
 def plot_samples_over_background_sliced(
         context: ExecutionContext,
         background_solid_datasets: List[DataSet] = [],
@@ -639,7 +368,7 @@ def plot_samples_over_background_sliced(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = utils__create_slice_containing_bins(
+    bins, _ = create_slice_containing_bins(
         background_solid_datasets + sample_hollow_datasets,
     )
 
@@ -663,12 +392,15 @@ def plot_data_generation_sliced(
         context: ExecutionContext,
         original_sample: DataSet,
         processed_sample: DataSet,
+        bins: Optional[NDArray] = None,
+        xlabel: str = "",
 ):
     c = Carpenter(context)
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, _ = utils__create_slice_containing_bins([processed_sample])
+    if bins is None:
+        bins, _ = create_slice_containing_bins([processed_sample])
 
     utils__datset_histogram_sliced(
         ax=ax,
@@ -682,7 +414,7 @@ def plot_data_generation_sliced(
         ax=ax,
         bins=bins,
         dataset=processed_sample,
-        alternative_weights=np.ones_like(processed_sample._data),
+        alternative_weights=np.ones(shape=(processed_sample.n_samples, 1)),
         histtype="stepfilled",
         label="detector affected sample",
     )
@@ -692,10 +424,12 @@ def plot_data_generation_sliced(
         dataset=processed_sample,
         # the usual weights
         histtype="step",
-        label="detector affected sample (weighted)",
+        label="detector affected sample (weight adjusted)",
     )
 
-    ax.set_title("Data generation process")
+    ax.set_title("Sample Generation Process Illustration", fontsize=24)
+    ax.set_xlabel(xlabel, fontsize=20)
+    ax.set_ylabel("number of events", fontsize=20)
     ax.legend()
     return fig
 
@@ -734,7 +468,7 @@ def plot_prediction_process_sliced(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, bin_centers = utils__create_slice_containing_bins([experiment_sample, reference_sample])
+    bins, bin_centers = create_slice_containing_bins([experiment_sample, reference_sample])
 
     utils__sample_over_background_histograms_sliced(
         ax=ax,
@@ -756,7 +490,7 @@ def plot_prediction_process_sliced(
         "edgecolor": "black",
     }
 
-    _reference_data = reference_sample.slice_along_dimension(along_dimension)
+    _reference_data = reference_sample.slice_along_observable_indices(along_dimension)
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
     predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
     ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)

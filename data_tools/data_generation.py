@@ -33,6 +33,7 @@ class DataGeneration:
             dataset_parameters = self._config.get_parameters(item)
             self._datasets[item] = self.__create_dataset(dataset_parameters, name=item)
             return self._datasets[item]
+
         except KeyError:
             raise KeyError(f"Dataset '{item}' not found in the configuration.")
 
@@ -47,18 +48,22 @@ class DataGeneration:
         # In case of a loaded dataset, we keep track of the remaining data to enable resampling mechanism
         elif isinstance(dataset_parameters, LoadedDatasetParameters):
             try:
-                loaded_data = self._loaded_datasets[dataset_parameters.dataset__loaded_file_name]
+                loaded_data = self._loaded_datasets[dataset_parameters.dataset_loaded__file_name]
             except KeyError:
                 loaded_data = dataset_parameters.dataset__data
             
-            if dataset_parameters.dataset__resample_is_resample:
-                loaded_data, self._loaded_datasets[dataset_parameters.dataset__loaded_file_name] = ddp_resample(
+            if loaded_data.n_samples < dataset_parameters.dataset__number_of_background_events:
+                raise ValueError(f"Loaded dataset has only {loaded_data.n_samples} samples, "\
+                    f"but requested {dataset_parameters.dataset__number_of_background_events} samples.")
+            
+            if dataset_parameters.dataset_loaded__resample_is_resample:
+                loaded_data, self._loaded_datasets[dataset_parameters.dataset_loaded__file_name] = ddp_resample(
                     loaded_data,
                     dataset_parameters.dataset__number_of_background_events,
-                    replacement=dataset_parameters.dataset__resample_is_replacement,
+                    replacement=dataset_parameters.dataset_loaded__resample_is_replacement,
                 )
             else:
-                self._loaded_datasets[dataset_parameters.dataset__loaded_file_name] = loaded_data
+                self._loaded_datasets[dataset_parameters.dataset_loaded__file_name] = loaded_data
             
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
@@ -67,6 +72,9 @@ class DataGeneration:
 
         detector = DetectorEffect(
             efficiency_function=dataset_parameters.dataset__detector_efficiency,
+            binning_minima=dataset_parameters.dataset__detector_binning_minima,
+            binning_maxima=dataset_parameters.dataset__detector_binning_maxima,
+            number_of_bins=dataset_parameters.dataset__detector_binning_number_of_bins,
             efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
             error_function=dataset_parameters.dataset__detector_error
         )
@@ -77,6 +85,8 @@ class DataGeneration:
                 context=self._context,
                 original_sample=original_data,
                 processed_sample=loaded_data,
+                bins=detector._dimensional_bin_centers[0],
+                xlabel=f"{original_data._observable_names[0]}",
             )
             self._context.save_and_document_figure(figure, self._context.unique_out_dir / f"{name}_data_process_plot.png")
 
