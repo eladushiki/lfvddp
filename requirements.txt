@@ -82,6 +82,7 @@ tornado==6.4.1
 traitlets==5.14.3
 typing_extensions==4.12.2
 urllib3==2.2.3
+vector==1.6.3
 wcwidth==0.2.13
 Werkzeug==3.1.2
 wrapt==1.16.0

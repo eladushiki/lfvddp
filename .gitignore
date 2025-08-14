@@ -21,6 +21,8 @@ configs/**/*.json
 ## Untracked directories
 results/
 temp/
+data/
+
 ## Untracked file types
 **.h5
 **.log

@@ -1,6 +1,9 @@
 from logging import error, info
+
+from aiohttp import ClientError
 from data_tools.data_utils import DataSet
 import numpy as np
+from numpy.exceptions import AxisError
 from numpy.typing import NDArray
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,10 +20,14 @@ def load_root_events(
     aliases: Optional[Dict[str, str]] = None,
     start: int = 0,
     stop: Optional[int] = None,
+    step_size: int = 1000,
+    network_retries: int = 3,
 ) -> DataSet:
     
     # Load events from a ROOT file
     with uproot.open(XRootD_url) as file:
+
+        # Find the tree root from withing the file
         try:
             tree = file[tree_key]
 
@@ -28,43 +35,67 @@ def load_root_events(
             error(f"KeyError: The key '{tree_key}' does not exist in the ROOT file at {XRootD_url}.")
             raise ke
         
+        # If no branch names are provided, read all branches
         if not branch_names:
-            # If no branch names are provided, read all branches
             branch_names = tree.keys()
 
-        if stop is None or stop > tree.num_entries:
-            stop = tree.num_entries
-        
-        try:
-            arrays = tree.arrays( # type: ignore
-                branch_names,
-                cut=cut,
-                aliases=aliases,
-                entry_start=start,
-                entry_stop=stop,
-                library="ak",
-            )
-            info(f"Read items from {tree_key} numbers {start} to {stop} of {tree.num_entries}")
+        data_sets = []
+        iter = 0
 
-        except KeyError as ke:
-            error(f"KeyError: One or more branch names {branch_names} do not exist in the ROOT file at {XRootD_url}.")
-            raise ke
-        
-        return __branches_to_events(arrays, branch_names)
+        # Generate global maxima for numbers of parameters
+        length_maxima = []
+        for name in branch_names:
+            
+            for i in range(network_retries):
+                try:
+                    branch = tree[name].array()
+                    break
+                except (ClientError, TimeoutError):
+                    if i == network_retries - 1:
+                        raise ConnectionError("Failed to retrieve branch data after multiple attempts.")
+
+            if branch.ndim == 1:
+                length_maxima.append(1)
+            else:
+                length_maxima.append(max(ak.num(branch)))
+            
+        # Load the desired range by batches
+        for batch in tree.iterate(
+            step_size=step_size,
+            filter_branch=lambda TBranch: TBranch.name in branch_names,
+            cut=cut,
+            aliases=aliases,
+            entry_start=start,
+            entry_stop=stop,
+            library="ak",
+        ):
+            data_sets.append(__branches_to_events(
+                batch,
+                branch_names,
+                length_maxima,
+            ))
+            info(f"Read {batch.count} items from {tree_key}")
+
+        return sum(data_sets, DataSet())
 
 
 def __branches_to_events(
         arrays: ak.Array,
         branch_names: List[str],
+        length_maxima: List[int]
 ) -> DataSet:
     
     # Convert to padded numpy arrays and name columns accordingly
     numpy_arrays = []
     observable_names = []
     for i, field_name in enumerate(arrays.fields):
+        num_columns = length_maxima[i]
 
         # Convert and pad
-        numpy_array, num_columns = __pad_awkward_array_to_numpy(arrays[field_name])
+        numpy_array = __pad_awkward_array_to_numpy(
+            arrays[field_name],
+            num_columns,
+        )
         numpy_arrays.append(numpy_array)
 
         # Duplicate observable names according to the number of columns
@@ -84,8 +115,9 @@ def __branches_to_events(
 
 def __pad_awkward_array_to_numpy(
     ak_array: ak.Array,
+    length_max: int,
     default_value: Any = -1,
-) -> Tuple[NDArray[np.float64], int]:
+) -> NDArray[np.float64]:
     """
     convert an awkward array to a padded numpy array.
     Returns the padded array and the number of columns.
@@ -95,19 +127,17 @@ def __pad_awkward_array_to_numpy(
     # Find the maximum length across all events
     if ak_array.ndim == 1:
         np_padded_array = ak.unflatten(fixed_array, 1).to_numpy()
-        max_length = 1
 
     else:  # ndim is 2
-        max_length = ak.max(ak.num(fixed_array))
 
         # Pad with zeros and convert to numpy
-        padded_array = ak.pad_none(fixed_array, target=max_length, axis=1)
+        padded_array = ak.pad_none(fixed_array, target=length_max, axis=1)
         np_converted_array = ak.to_numpy(padded_array)
         
         # Replace None values with 0
         np_padded_array = np.where(np_converted_array == None, default_value, np_converted_array)
 
-    return np_padded_array.astype(np.float64), int(max_length)  # Ensure numeric type
+    return np_padded_array.astype(np.float64)  # Ensure numeric type
 
 
 def save_root_events(

@@ -139,11 +139,13 @@ class DataSet:
     collection of them.
     """
     
-    def __init__(self, data: npt.NDArray, observable_names: Optional[List[str]] = None):
+    def __init__(self, data: Optional[npt.NDArray] = None, observable_names: Optional[List[str]] = None):
         """
         Data has to be a 2D array
         """
-        if data.ndim == 1:
+        if data is None or len(data) == 0:
+            self._data = np.empty((0, 0))
+        elif data.ndim == 1:
             self._data = np.expand_dims(data, axis=1)
         elif data.ndim == 2:
             self._data = data
