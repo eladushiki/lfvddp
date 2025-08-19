@@ -1,6 +1,9 @@
 absl-py==2.1.0
 asttokens==2.4.1
 astunparse==1.6.3
+awkward==2.7.4
+awkward-pandas==2023.8.0
+awkward_cpp==44
 bcrypt==4.2.1
 camel_converter==4.0.1
 certifi==2024.8.30

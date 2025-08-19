@@ -1,19 +1,18 @@
 from logging import error, info
 
-from aiohttp import ClientError
+import pandas as pd
 from data_tools.data_utils import DataSet
 import numpy as np
-from numpy.exceptions import AxisError
 from numpy.typing import NDArray
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Union
 import awkward as ak
 from numpy.typing import NDArray
 import uproot
 
 
 def load_root_events(
-    XRootD_url: str,
+    XRootD_url: Union[str, List[str]],
     tree_key: str = "Events",
     branch_names: List[str] = [],
     cut: Optional[str] = None,
@@ -21,8 +20,10 @@ def load_root_events(
     start: int = 0,
     stop: Optional[int] = None,
     step_size: int = 1000,
-    network_retries: int = 3,
 ) -> DataSet:
+    
+    if isinstance(XRootD_url, list):
+        XRootD_url = uproot.concatenate([f"{url}:{tree_key}" for url in XRootD_url])
     
     # Load events from a ROOT file
     with uproot.open(XRootD_url) as file:
@@ -40,25 +41,7 @@ def load_root_events(
             branch_names = tree.keys()
 
         data_sets = []
-        iter = 0
 
-        # Generate global maxima for numbers of parameters
-        length_maxima = []
-        for name in branch_names:
-            
-            for i in range(network_retries):
-                try:
-                    branch = tree[name].array()
-                    break
-                except (ClientError, TimeoutError):
-                    if i == network_retries - 1:
-                        raise ConnectionError("Failed to retrieve branch data after multiple attempts.")
-
-            if branch.ndim == 1:
-                length_maxima.append(1)
-            else:
-                length_maxima.append(max(ak.num(branch)))
-            
         # Load the desired range by batches
         for batch in tree.iterate(
             step_size=step_size,
@@ -67,78 +50,38 @@ def load_root_events(
             aliases=aliases,
             entry_start=start,
             entry_stop=stop,
-            library="ak",
+            library="pd",
         ):
-            data_sets.append(__branches_to_events(
-                batch,
-                branch_names,
-                length_maxima,
-            ))
-            info(f"Read {batch.count} items from {tree_key}")
+            data_sets.append(
+                __expand_awkward_cols(batch)
+            )
 
-        return sum(data_sets, DataSet())
-
-
-def __branches_to_events(
-        arrays: ak.Array,
-        branch_names: List[str],
-        length_maxima: List[int]
-) -> DataSet:
-    
-    # Convert to padded numpy arrays and name columns accordingly
-    numpy_arrays = []
-    observable_names = []
-    for i, field_name in enumerate(arrays.fields):
-        num_columns = length_maxima[i]
-
-        # Convert and pad
-        numpy_array = __pad_awkward_array_to_numpy(
-            arrays[field_name],
-            num_columns,
+        collected_data = pd.concat(data_sets).reset_index(level=0, drop=True)
+        return DataSet(
+            collected_data,
+            observable_names=collected_data.columns,
         )
-        numpy_arrays.append(numpy_array)
 
-        # Duplicate observable names according to the number of columns
-        branch_name = branch_names[i]
-        if num_columns > 1:
-            observable_names.extend([f"{branch_name}_{col}" for col in range(num_columns)])
-        else:
-            observable_names.append(branch_name)
+
+def __expand_awkward_cols(
+    batch: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Expand awkward columns in a DataFrame to multiple columns.
+    """
+    expanded_batch = batch.copy()
     
-    # Convert to a single 2D numpy array
-    events = np.column_stack(numpy_arrays)
-
-    info(f"Loaded DataSet with observables: {observable_names}")
-
-    return DataSet(events, observable_names=observable_names)
-
-
-def __pad_awkward_array_to_numpy(
-    ak_array: ak.Array,
-    length_max: int,
-    default_value: Any = -1,
-) -> NDArray[np.float64]:
-    """
-    convert an awkward array to a padded numpy array.
-    Returns the padded array and the number of columns.
-    """
-    fixed_array = ak.values_astype(ak_array, np.float64)
-
-    # Find the maximum length across all events
-    if ak_array.ndim == 1:
-        np_padded_array = ak.unflatten(fixed_array, 1).to_numpy()
-
-    else:  # ndim is 2
-
-        # Pad with zeros and convert to numpy
-        padded_array = ak.pad_none(fixed_array, target=length_max, axis=1)
-        np_converted_array = ak.to_numpy(padded_array)
+    # Split awkward cols to multiple cols
+    for col in batch.select_dtypes(include=['awkward']).columns:
+        split_col = pd.DataFrame(batch[col].to_list())
+        split_col.index = expanded_batch.index
+        col_position: int = expanded_batch.columns.get_loc(col)
+        expanded_batch.drop(col, axis=1, inplace=True)
         
-        # Replace None values with 0
-        np_padded_array = np.where(np_converted_array == None, default_value, np_converted_array)
-
-    return np_padded_array.astype(np.float64)  # Ensure numeric type
-
+        for i in range(split_col.shape[1]):
+            expanded_batch.insert(col_position + i, f"{col}_{i}", split_col[i])
+    
+    return expanded_batch
 
 def save_root_events(
     root_file_path: Path,
