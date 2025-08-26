@@ -1,7 +1,8 @@
 from copy import deepcopy
-from typing import Dict
+from typing import Dict, Union
 from data_tools.data_utils import DataSet, DetectorEffect, resample as ddp_resample
-from data_tools.dataset_config import DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
+from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
+from data_tools.detector.detector_config import DetectorConfig
 from frame.context.execution_context import ExecutionContext
 from plot.plots import plot_data_generation_sliced
 
@@ -19,7 +20,10 @@ class DataGeneration:
 
     def __init__(self, context: ExecutionContext):
         self._context = context
-        self._config = context.config
+        self._config: Union[
+            DatasetConfig,
+            DetectorConfig,
+        ] = context.config
         self._datasets: Dict[str, DataSet] = {}
 
     def __getitem__(self, item: str) -> DataSet:
@@ -72,9 +76,9 @@ class DataGeneration:
 
         detector = DetectorEffect(
             efficiency_function=dataset_parameters.dataset__detector_efficiency,
-            binning_minima=dataset_parameters.dataset__detector_binning_minima,
-            binning_maxima=dataset_parameters.dataset__detector_binning_maxima,
-            number_of_bins=dataset_parameters.dataset__detector_binning_number_of_bins,
+            binning_minima=self._config.detector__binning_minima,
+            binning_maxima=self._config.detector__binning_maxima,
+            number_of_bins=self._config.detector__binning_number_of_bins,
             efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
             error_function=dataset_parameters.dataset__detector_error
         )

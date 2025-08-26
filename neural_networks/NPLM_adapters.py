@@ -5,7 +5,7 @@ from typing import Any, Dict
 from data_tools.data_utils import DataSet
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, WEIGHTS_OUTPUT_FILE_NAME
+from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, WEIGHTS_OUTPUT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.NPLM.src.NPLM.NNutils import imperfect_loss, imperfect_model, logging, np, train_model
 import numpy as np
@@ -183,5 +183,5 @@ def save_NPLM_training_outcomes(
     os.makedirs(context.training_outcomes_dir, exist_ok=True)
 
     # Save training
-    context.save_and_document_model_history(model_history, context.training_outcomes_dir / f"{tau_model.name}.{TRAINING_HISTORY_FILE_EXTENSION}")
+    context.save_and_document_model_history(model_history, context.training_outcomes_dir / f"{tau_model.name}.{TRAINING_HISTORY_LOG_FILE_SUFFIX}")
     context.save_and_document_model_weights(tau_model, context.training_outcomes_dir / f"{tau_model.name}_{WEIGHTS_OUTPUT_FILE_NAME}")

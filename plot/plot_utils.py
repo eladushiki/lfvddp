@@ -7,7 +7,7 @@ from typing import List, Optional, Union
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 import numpy as np
 from matplotlib import patches, pyplot as plt
@@ -130,7 +130,7 @@ class results:  # todo: deprecate
         self.resolution = self._config.train__histogram_resolution
         self.WC = self._config.train__nn_weight_clipping
 
-        self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)]
+        self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_LOG_FILE_SUFFIX}", recursive=True)]
         self.Bkg_events = int(results.N * self._config.train__batch_train_fraction)
         self.Ref_events = int(results.N * self._config.train__batch_test_fraction)
         

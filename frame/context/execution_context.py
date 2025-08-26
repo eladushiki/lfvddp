@@ -4,15 +4,15 @@ from logging import basicConfig, info
 import logging
 import random
 from data_tools.dataset_config import DatasetConfig
+from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
 from frame.file_system.training_history import save_training_history
-from frame.validation import corss_validate_configuration
 from numpy import random as nprandom
 from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_LOG_FILE_EXTENSION, TRAINING_OUTCOMES_DIR_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
@@ -38,10 +38,11 @@ def create_config_from_paramters(
 
     # Resolve config typing according to deepest hierarchy:
     config_classes = [
-        UserConfig,
         ClusterConfig,
         DatasetConfig,
+        DetectorConfig,
         TrainConfig,
+        UserConfig,
     ]
 
     if is_plot:
@@ -63,8 +64,6 @@ def create_config_from_paramters(
         config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
 
     config = DynamicConfig(**config_params)
-
-    corss_validate_configuration(config)
 
     return config
 
@@ -126,7 +125,13 @@ class ExecutionContext:
         return series
 
     def _run_stamp_product_path(self, file_path: Path) -> Path:
-        stamped_file_name = file_path.stem + f"_{self.run_hash}" + file_path.suffix
+        if file_path.suffix.lstrip(".") == TRAINING_LOG_FILE_EXTENSION:
+            stamped_file_name = ".".join(file_path.stem.split(".")[:-1]) + f"_{self.run_hash}"
+            suffix = "." + ".".join(str(file_path).split(".")[-2:])
+        else:
+            stamped_file_name = file_path.stem + f"_{self.run_hash}"
+            suffix = file_path.suffix
+        stamped_file_name += suffix
         return file_path.parent / stamped_file_name
 
     # todo: export to decorator and add os.makedirs(out_dir, exist_ok=False)

@@ -1,9 +1,10 @@
 from glob import glob
 from logging import warning
 from pathlib import Path
+from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONTEXT_FILE_NAME, SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_FILE_EXTENSION
+from frame.file_structure import CONTEXT_FILE_NAME, SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_LOG_FILE_SUFFIX
 from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
 from numpy.typing import NDArray
@@ -52,7 +53,7 @@ class ResultAggregator:
 
     def _load_test_statistics(self):
         # Gather history files
-        all_history_files = glob(str(self._parent_directory) + f"/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)
+        all_history_files = glob(str(self._parent_directory) + f"/**/*.{TRAINING_HISTORY_LOG_FILE_SUFFIX}", recursive=True)
         if not all_history_files:
             raise ValueError("No history files found")
         
@@ -104,12 +105,13 @@ class ResultAggregator:
         injected_significances = []
         for context in self._run_contexts:
             signal_dataset_parameters = utils__get_signal_dataset_parameters(context)
+            detector_config: DetectorConfig = context.config
             injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
                 background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
                 signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
                 n_background_events=signal_dataset_parameters.dataset__number_of_background_events,
                 n_signal_events=signal_dataset_parameters.dataset__number_of_signal_events,
-                upper_limit=signal_dataset_parameters.dataset__detector_binning_maxima[0], # ohhh this is going to break at dim>=2
+                upper_limit=detector_config.detector__binning_maxima[0], # ohhh this is going to break at dim>=2
             ))
 
         return np.array(injected_significances)
