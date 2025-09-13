@@ -26,9 +26,6 @@ class DatasetParameters(ABC):
     name: str
     type: str
 
-    # Basic parameters
-    dataset__number_of_dimensions: int
-    
     # Background parameters
     dataset__mean_number_of_background_events: int
 
@@ -117,10 +114,7 @@ class LoadedDatasetParameters(DatasetParameters):
             self.dataset_loaded__file_name,
             self.dataset_loaded__event_amount_load_limit
         )
-
-        if loaded_dataset.n_observables != self.dataset__number_of_dimensions:
-            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.n_observables} do not match expected dimensions {self.dataset__number_of_dimensions}.")
-                
+  
         return loaded_dataset
       
     def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
@@ -188,6 +182,8 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
     
+    dataset__number_of_dimensions: int = field(default=0)
+    
     # Additional background parameters
     # This is the defining attribute for the subclass
     dataset_generated__background_function: str = field(default="")
@@ -246,6 +242,9 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         # but class hierarchy forces to set a default. Hence, we check it here
         assert self.dataset_generated__background_function, \
             "dataset_generated__background_function must be defined in the configuration"
+
+        assert self.dataset__number_of_dimensions > 0, \
+            "dataset__number_of_dimensions must be defined and greater than 0"
 
 @dataclass
 class DatasetConfig:

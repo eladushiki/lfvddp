@@ -295,7 +295,7 @@ def utils__sample_over_background_histograms_sliced(
         sample: DataSet,
         background: DataSet,
         bins: np.ndarray,
-        along_dimension: int = 0,
+        along_observable: Optional[str] = None,
         sample_legend: str = "sample",
         background_legend: str = "background",
 ):
@@ -303,14 +303,14 @@ def utils__sample_over_background_histograms_sliced(
         ax=ax,
         bins=bins,
         dataset=background,
-        along_dimension=along_dimension,
+        along_observable=along_observable,
         label=background_legend,
     )
     utils__datset_histogram_sliced(
         ax=ax,
         bins=bins,
         dataset=sample,
-        along_dimension=along_dimension,
+        along_observable=along_observable,
         label=sample_legend,
     )
 
@@ -320,12 +320,15 @@ def utils__datset_histogram_sliced(
         bins: np.ndarray,
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
-        along_dimension: int = 0,
+        along_observable: Optional[str] = None,
         label: Optional[str] = None,
         histtype: str = "bar",
 ):
+    if along_observable is None:
+        along_observable = dataset.observable_names[0]
+    
     ax.hist(
-        x=dataset.slice_along_observable_indices(along_dimension),
+        x=dataset.slice_along_observable_names(along_observable),
         bins=bins,
         weights=dataset.histogram_weight_mask if alternative_weights is None else alternative_weights,
         log=True,

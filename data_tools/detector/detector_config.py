@@ -5,6 +5,7 @@ from typing import List
 @dataclass
 class DetectorConfig:
     detector__number_of_dimensions: int
+    detector__detect_observable_names: List[str]
     detector__binning_maxima: List[int]
 
     # Default enabled parameters

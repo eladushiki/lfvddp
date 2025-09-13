@@ -76,9 +76,10 @@ class DataGeneration:
 
         detector = DetectorEffect(
             efficiency_function=dataset_parameters.dataset__detector_efficiency,
+            observable_names=self._config.detector__detect_observable_names,
             binning_minima=self._config.detector__binning_minima,
             binning_maxima=self._config.detector__binning_maxima,
-            number_of_bins=self._config.detector__binning_number_of_bins,
+            numbers_of_bins=self._config.detector__binning_number_of_bins,
             efficiency_uncertainty_function=dataset_parameters.dataset__detector_efficiency_uncertainty,
             error_function=dataset_parameters.dataset__detector_error
         )
@@ -89,8 +90,8 @@ class DataGeneration:
                 context=self._context,
                 original_sample=original_data,
                 processed_sample=loaded_data,
-                bins=detector._dimensional_bin_centers[0],
-                xlabel=f"{original_data.observable_names[0]}",
+                bins=detector._dimensional_bin_centers[self._config.detector__detect_observable_names[0]],
+                xlabel=f"{self._config.detector__detect_observable_names[0]}",
             )
             self._context.save_and_document_figure(figure, self._context.unique_out_dir / f"{name}_data_process_plot.png")
 

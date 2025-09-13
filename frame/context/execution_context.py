@@ -3,6 +3,7 @@ from inspect import signature
 from logging import basicConfig, info
 import logging
 import random
+from configs.x_validate import cross_validate
 from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
@@ -56,6 +57,9 @@ def create_config_from_paramters(
                     if k in signature(config_class).parameters
                 }
                 config_class.__init__(self, **filtered_args)
+            
+            # Cross validate configuration
+            cross_validate(self)
 
     # Configuration according to arguments
     if out_dir:

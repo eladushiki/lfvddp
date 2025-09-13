@@ -1,13 +1,13 @@
 {
-    "detector__number_of_dimensions": 11,
+    "detector__number_of_dimensions": 2,
+    "detector__detect_observable_names": [
+        "Tau_mass_0",
+        "Lepton_mass_0"
+    ],
     "detector__binning_maxima": [
-        4,
-        0.5,
-        4,
-        0.1056583745,
-        4,
-        0.000511
+        5,
+        2.450
     ],
     "detector__binning_minima": 0,
-    "detector__binning_number_of_bins": 30
+    "detector__binning_number_of_bins": 10
 }
