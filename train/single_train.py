@@ -1,5 +1,6 @@
 from os import makedirs
 
+from data_tools.detector_effect import DetectorEffect
 from data_tools.data_generation import DataGeneration
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
@@ -25,13 +26,32 @@ def main(context: ExecutionContext) -> None:
     gen = DataGeneration(context)
 
     # Generate data
-    A_dataset = gen["TauMuon"]
-    B_dataset = gen["TauElectron"]
-    reference_dataset = A_dataset + B_dataset
+    A_dataset, A_params = gen["TauMuon"]
+    B_dataset, B_params = gen["TauElectron"]
+
+    # Simulate detector
+    det = DetectorEffect(context)
+    detected_A_dataset = det.affect_and_compensate(A_dataset, A_params)
+    detected_B_dataset = det.affect_and_compensate(B_dataset, B_params)
+
+    # For reference, we combine both datasets
+    reference_dataset = detected_A_dataset + detected_B_dataset
 
     # Train symmetrically to obtain the combined loss
-    t_a_loss = follow_instructions_for_t(context, A_dataset, reference_dataset, name="A_model")
-    t_b_loss = follow_instructions_for_t(context, B_dataset, reference_dataset, name="B_model")
+    t_a_loss = follow_instructions_for_t(
+        context,
+        detected_A_dataset,
+        reference_dataset,
+        detector_effect=det,
+        name="A_model",
+    )
+    t_b_loss = follow_instructions_for_t(
+        context,
+        detected_B_dataset,
+        reference_dataset,
+        detector_effect=det,
+        name="B_model",
+    )
     final_t = t_a_loss + t_b_loss
 
     ## Training log
@@ -46,6 +66,7 @@ def follow_instructions_for_t(
         context: ExecutionContext,
         sample_dataset: DataSet,
         reference_dataset: DataSet,
+        detector_effect: DetectorEffect,
         name: str,
 ) -> float:
     if not isinstance((config := context.config), TrainConfig):
@@ -63,6 +84,7 @@ def follow_instructions_for_t(
             context,
             sample_dataset,
             reference_dataset,
+            detector_effect,
             name,
         )
 

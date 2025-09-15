@@ -5,6 +5,7 @@ import keras
 import numpy as np
 import tensorflow as tf
 
+from data_tools.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
 from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
@@ -16,9 +17,14 @@ from train.train_config import TrainConfig
 
 
 class DifferentiatingModel(keras.models.Model):
+    """
+    Symmetrized DDP's model used to estimate the test statistic.
+    A custom loss function is used to find the maximizing parameters for hypothesis.
+    """
     def __init__(
         self,
         context: ExecutionContext,
+        detector_effect: DetectorEffect,
         name: str,
         **kwargs
     ):
@@ -43,9 +49,10 @@ class DifferentiatingModel(keras.models.Model):
         )
 
         # Add detector uncertainty nuisance parameters
+        self._detector_effect = detector_effect
         self.detector_deltas = tf.Variable(
             trainable=True,
-            initial_value=np.zeros(shape=tuple(self._config.detector__binning_number_of_bins)),
+            initial_value=np.zeros(shape=tuple(detector_effect._numbers_of_bins)),
             dtype="float32",
             name="detector-binwise-nuisances",
         )
@@ -88,13 +95,20 @@ class DifferentiatingModel(keras.models.Model):
         ) - self.__nuisance_aux_loss()
 
     def call(self, data_set: DataSet) -> np.ndarray:
-        return super().call(data_set)
+        naive_prediction = super().call(data_set)
+
+        # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
+        bin_centers = self._detector_effect.get_event_bin_centers(data_set)
+        nuisance_corrections = tf.exp(self.detector_deltas)[bin_centers].folded_multiply(axis=1)
+        
+        return tf.multiply(naive_prediction, nuisance_corrections)
 
 
 def calc_t_LFVNN(
         context: ExecutionContext,
         sample_dataset: DataSet,
         reference_dataset: DataSet,
+        detector_effect: DetectorEffect,
         name: str,
 ) -> Tuple[keras.models.Model, float]:
     
@@ -118,7 +132,7 @@ def calc_t_LFVNN(
     t0 = time()
     
     # Just fit without any special training, like is done in LFVNN
-    model = DifferentiatingModel(context, name=name)
+    model = DifferentiatingModel(context, detector_effect, name=name)
     model.compile(loss=model.ddp_symmetrized_loss,  optimizer='adam')
     tau_model_fit = model.fit(
         np.array(feature_dataset.events, dtype=np.float32),
