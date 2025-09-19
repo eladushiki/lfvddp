@@ -89,7 +89,7 @@ class DataSet:
 
     @property
     def events(self) -> npt.NDArray:
-        return np.array(self._data)
+        return self._data.to_numpy()
 
     @property
     def histogram_weight_mask(self) -> np.ndarray:

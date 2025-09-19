@@ -1,8 +1,12 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
 from logging import info
 from time import time
 from typing import Any, Tuple, Union
 import keras
 import numpy as np
+import numpy.typing as npt
 import tensorflow as tf
 
 from data_tools.detector_effect import DetectorEffect
@@ -94,14 +98,33 @@ class DifferentiatingModel(keras.models.Model):
             y__is_sample_truth,
         ) - self.__nuisance_aux_loss()
 
-    def call(self, data_set: DataSet) -> np.ndarray:
+    @contextmanager
+    def binning_context(self, data: DataSet):
+        """
+        Context is necessary each time a new dataset is used.
+        This is implemented this way to only run once the binning calculation.
+        """
+        try:
+            self._bins_of_events = self._detector_effect.get_event_bin_centers(data, indexed=True)
+            yield
+        finally:
+            self._bins_of_events = None
+
+    def fit(self, data: DataSet, target: npt.NDArray, **kwargs):
+        with self.binning_context(data):
+            return super().fit(data.events, y=target, **kwargs)
+        
+    def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
+        with self.binning_context(data):
+            return super().predict(data.events, **kwargs)
+
+    def call(self, data_set: tf.Tensor) -> tf.Tensor:
         naive_prediction = super().call(data_set)
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
-        bin_centers = self._detector_effect.get_event_bin_centers(data_set)
-        nuisance_corrections = tf.exp(self.detector_deltas)[bin_centers].folded_multiply(axis=1)
-        
-        return tf.multiply(naive_prediction, nuisance_corrections)
+        nuisance_skews = tf.gather_nd(tf.exp(self.detector_deltas), self._bins_of_events)
+
+        return tf.multiply(naive_prediction, nuisance_skews)
 
 
 def calc_t_LFVNN(
@@ -135,8 +158,8 @@ def calc_t_LFVNN(
     model = DifferentiatingModel(context, detector_effect, name=name)
     model.compile(loss=model.ddp_symmetrized_loss,  optimizer='adam')
     tau_model_fit = model.fit(
-        np.array(feature_dataset.events, dtype=np.float32),
-        np.array(target_structure, dtype=np.float32),
+        feature_dataset,
+        target_structure,
         sample_weight=loss_weights,
         epochs=context.config.train__epochs,
         batch_size=feature_dataset.n_samples,

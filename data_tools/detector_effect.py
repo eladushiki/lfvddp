@@ -33,7 +33,7 @@ class DetectorEffect:
         if not isinstance(self._context.config, DetectorConfig):
             raise TypeError(f"Expected DetectorConfig, got {self._context.config.__class__.__name__}")
         self._config = self._context.config
-        self._dataset_parameters_for_detection = None
+        self.__dataset_parameters_for_detection = None
 
         # Detector dimensions and binning
         assert (ndim := len(self._config.detector__detect_observable_names)) == len(self._config.detector__binning_maxima), "Detector binning dimensions don't match"
@@ -78,7 +78,7 @@ class DetectorEffect:
 
     @property
     def detection_parameters(self) -> Optional[DatasetParameters]:
-        return self._dataset_parameters_for_detection
+        return self.__dataset_parameters_for_detection
 
     @detection_parameters.setter
     def detection_parameters(self, dataset_parameters: DatasetParameters):
@@ -92,7 +92,7 @@ class DetectorEffect:
         )
 
         # finally, finish updating internal state
-        self._dataset_parameters_for_detection = dataset_parameters
+        self.__dataset_parameters_for_detection = dataset_parameters
 
     @property
     def _uncertain_efficiency(self) -> DETECTOR_EFFICIENCY_TYPE:
@@ -157,7 +157,7 @@ class DetectorEffect:
             original_dataset = dataset.create_copy()
 
         # Update internal state for detection
-        self._dataset_parameters_for_detection = dataset_parameters
+        self.detection_parameters = dataset_parameters
 
         # Leave only detected fields
         detected_dataset = dataset.filter_observable_names(self._observable_names)
