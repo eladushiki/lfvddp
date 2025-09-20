@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from logging import info
 from time import time
-from typing import Any, Tuple, Union
+from typing import Any, List, Tuple, Union
 import keras
 import numpy as np
 import numpy.typing as npt
@@ -54,12 +54,13 @@ class DifferentiatingModel(keras.models.Model):
 
         # Add detector uncertainty nuisance parameters
         self._detector_effect = detector_effect
-        self.detector_deltas = tf.Variable(
+        self._bins_of_events = None  # Set in context
+        self.detector_deltas = {self._observable_names[i]: tf.Variable(
             trainable=True,
-            initial_value=np.zeros(shape=tuple(detector_effect._numbers_of_bins)),
+            initial_value=np.zeros(shape=(nbins,), dtype=np.float32),
             dtype="float32",
-            name="detector-binwise-nuisances",
-        )
+            name=f"detector-binwise-nuisances-{i}",
+        ) for i, nbins in enumerate(detector_effect._numbers_of_bins)}
 
     @staticmethod
     def __single_nuisance_loss(nuisance_value: Any):
@@ -67,11 +68,11 @@ class DifferentiatingModel(keras.models.Model):
         return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(2.0 * tf.cast(np.pi, tf.float32)))
 
     def __nuisance_aux_loss(self) -> float:
-        return tf.reduce_prod(
+        return tf.reduce_prod(tf.stack([
             self.__single_nuisance_loss(
-                self.detector_deltas
-            )
-        )
+                self.detector_deltas[obs]
+            ) for obs in self._observable_names
+        ], axis=1))
     
     def __prediction_loss(
             self,
@@ -84,6 +85,10 @@ class DifferentiatingModel(keras.models.Model):
                 - y__is_sample_truth * f__is_sample_prediction
         )
     
+    @property
+    def _observable_names(self) -> List[str]:
+        return self._detector_effect._observable_names
+
     def ddp_symmetrized_loss(
             self,
             y__is_sample_truth,
@@ -111,20 +116,34 @@ class DifferentiatingModel(keras.models.Model):
             self._bins_of_events = None
 
     def fit(self, data: DataSet, target: npt.NDArray, **kwargs):
+        """
+        Overload of the fit method to be used with DataSet objects and one-time calculation of binning.
+
+        batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
+        """
         with self.binning_context(data):
-            return super().fit(data.events, y=target, **kwargs)
+            return super().fit(data.events, y=target, batch_size=data.n_samples, **kwargs)
         
     def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
+        """
+        Overload of the predict method to be used with DataSet objects and one-time calculation of binning.
+
+        batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
+        """
         with self.binning_context(data):
-            return super().predict(data.events, **kwargs)
+            return super().predict(data.events, batch_size=data.n_samples, **kwargs)
 
     def call(self, data_set: tf.Tensor) -> tf.Tensor:
         naive_prediction = super().call(data_set)
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
-        nuisance_skews = tf.gather_nd(tf.exp(self.detector_deltas), self._bins_of_events)
+        nuisance_skews = [
+            tf.gather(tf.exp(self.detector_deltas[obs]), self._bins_of_events[:, i])
+            for i, obs in enumerate(self._observable_names)
+        ]
 
-        return tf.multiply(naive_prediction, nuisance_skews)
+        items = tf.stack([tf.squeeze(naive_prediction), *nuisance_skews])
+        return tf.reduce_prod(items, axis=0)
 
 
 def calc_t_LFVNN(
@@ -162,7 +181,6 @@ def calc_t_LFVNN(
         target_structure,
         sample_weight=loss_weights,
         epochs=context.config.train__epochs,
-        batch_size=feature_dataset.n_samples,
         verbose=0,
     )
     tau_model_history = tau_model_fit.history

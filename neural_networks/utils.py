@@ -29,6 +29,6 @@ def save_training_outcomes(
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:
-    model_prediction = trained_model.predict(reference_ndf_estimation)[:, 0]  # Corresponds the 1 dimension of array output
+    model_prediction = trained_model.predict(reference_ndf_estimation)
     hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
     return predicted_distribution_corrected_size / reference_ndf_estimation.corrected_n_samples * hypothesis_weights

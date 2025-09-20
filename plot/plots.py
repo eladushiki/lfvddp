@@ -4,7 +4,7 @@ from data_tools.data_utils import DataSet, create_slice_containing_bins
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
-from neural_networks.NPLM_adapters import predict_sample_ndf_hypothesis_weights
+from neural_networks.utils import predict_sample_ndf_hypothesis_weights
 import numpy as np
 from numpy.typing import NDArray
 from matplotlib.figure import Figure
