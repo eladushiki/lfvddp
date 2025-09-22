@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from logging import info
 from time import time
-from typing import Any, Callable, List, Tuple, Union
+from typing import Any, List, Tuple, Union
 import keras
 import numpy as np
 import numpy.typing as npt
@@ -15,6 +15,7 @@ from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
+from frame.file_structure import TENSORBOARD_LOG_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import save_training_outcomes
 from train.train_config import TrainConfig
@@ -137,10 +138,28 @@ class DifferentiatingModel(keras.models.Model):
             def result(self):
                 return super().result() / sum(len(vars) for vars in self.detector_deltas)
 
+        class NuisanceAbsSumMetric(keras.metrics.Metric):
+            def update_state(inner_self, y_true, y_pred, sample_weight=None):
+                pass
+            
+            def result(inner_self):
+                return tf.reduce_sum(tf.stack([
+                    tf.reduce_sum(tf.abs(var)) for var in self.detector_deltas.values()
+                ]))
+
         return [
             PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
             NuisanceAuxLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
             SingleNuisanceLossMetric(name=HistoryKeys.SINGLE_NUISANCE_LOSS.value),
+            NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
+        ]
+
+    def get_callbacks(self) -> List[keras.callbacks.Callback]:
+        return [
+            keras.callbacks.TensorBoard(
+                log_dir=self._context.training_outcomes_dir / TENSORBOARD_LOG_FILE_NAME,
+                histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
+            )
         ]
 
     def fit(self, data: DataSet, target: npt.NDArray, **kwargs):
@@ -214,6 +233,7 @@ def calc_t_LFVNN(
         sample_weight=loss_weights,
         epochs=context.config.train__epochs,
         verbose=0,
+        callbacks=model.get_callbacks(),
     )
     tau_model_history = tau_model_fit.history
     tau_model_history[HistoryKeys.EPOCH.value] = np.concatenate([
