@@ -3,13 +3,13 @@ from __future__ import annotations
 from contextlib import contextmanager
 from logging import info
 from time import time
-from typing import Any, List, Tuple, Union
+from typing import Any, Callable, List, Tuple, Union
 import keras
 import numpy as np
 import numpy.typing as npt
 import tensorflow as tf
 
-from data_tools.detector_effect import DetectorEffect
+from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
 from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
@@ -67,11 +67,14 @@ class DifferentiatingModel(keras.models.Model):
         std = tf.cast(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, tf.float32)
         return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(2.0 * tf.cast(np.pi, tf.float32)))
 
+    def __observable_nuisance_loss(self, observable_name: str) -> float:
+        return tf.reduce_prod(self.__single_nuisance_loss(
+            self.detector_deltas[observable_name]
+        ))
+
     def __nuisance_aux_loss(self) -> float:
         return tf.reduce_prod(tf.stack([
-            self.__single_nuisance_loss(
-                self.detector_deltas[obs]
-            ) for obs in self._observable_names
+            self.__observable_nuisance_loss(obs) for obs in self._observable_names
         ], axis=1))
     
     def __prediction_loss(
@@ -84,7 +87,7 @@ class DifferentiatingModel(keras.models.Model):
             is_ref_truth * (tf.exp(f__is_sample_prediction) - 1) \
                 - y__is_sample_truth * f__is_sample_prediction
         )
-    
+
     @property
     def _observable_names(self) -> List[str]:
         return self._detector_effect._observable_names
@@ -114,6 +117,31 @@ class DifferentiatingModel(keras.models.Model):
             yield
         finally:
             self._bins_of_events = None
+
+    def get_metrics(self) -> List[tf.keras.metrics.Metric]:
+        class PredictionLossMetric(keras.metrics.Metric):
+            def update_state(self, y_true, y_pred, sample_weight=None):
+                self.y_true, self.y_pred = y_true, y_pred
+            
+            def result(inner_self):
+                return self.__prediction_loss(inner_self.y_true, inner_self.y_pred)
+
+        class NuisanceAuxLossMetric(keras.metrics.Metric):
+            def update_state(self, y_true, y_pred, sample_weight=None):
+                pass
+            
+            def result(inner_self):
+                return self.__nuisance_aux_loss()
+        
+        class SingleNuisanceLossMetric(NuisanceAuxLossMetric):
+            def result(self):
+                return super().result() / sum(len(vars) for vars in self.detector_deltas)
+
+        return [
+            PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
+            NuisanceAuxLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
+            SingleNuisanceLossMetric(name=HistoryKeys.SINGLE_NUISANCE_LOSS.value),
+        ]
 
     def fit(self, data: DataSet, target: npt.NDArray, **kwargs):
         """
@@ -175,7 +203,11 @@ def calc_t_LFVNN(
     
     # Just fit without any special training, like is done in LFVNN
     model = DifferentiatingModel(context, detector_effect, name=name)
-    model.compile(loss=model.ddp_symmetrized_loss,  optimizer='adam')
+    model.compile(
+        loss=model.ddp_symmetrized_loss,
+        metrics=model.get_metrics(),
+        optimizer='adam',
+    )
     tau_model_fit = model.fit(
         feature_dataset,
         target_structure,
