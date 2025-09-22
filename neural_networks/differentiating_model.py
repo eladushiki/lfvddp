@@ -74,12 +74,12 @@ class DifferentiatingModel(keras.models.Model):
             self.detector_deltas[observable_name]
         ))
 
-    def __nuisance_aux_loss(self) -> float:
+    def _nuisance_aux_loss(self) -> float:
         return tf.reduce_prod([
             self.__observable_nuisance_loss(obs) for obs in self._observable_names
         ])
     
-    def __prediction_loss(
+    def _prediction_loss(
             self,
             f__is_sample_prediction: np.ndarray,
             y__is_sample_truth: np.ndarray,
@@ -103,10 +103,10 @@ class DifferentiatingModel(keras.models.Model):
         Symmetrized DDP custom loss for optimizing likelihood of the
         estimation.
         """
-        return self.__prediction_loss(
+        return self._prediction_loss(
             f__is_sample_prediction,
             y__is_sample_truth,
-        ) - self.__nuisance_aux_loss()
+        ) - self._nuisance_aux_loss()
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -126,14 +126,14 @@ class DifferentiatingModel(keras.models.Model):
                 self.y_true, self.y_pred = y_true, y_pred
             
             def result(inner_self):
-                return self.__prediction_loss(inner_self.y_true, inner_self.y_pred)
+                return self._prediction_loss(inner_self.y_true, inner_self.y_pred)
 
         class NuisanceAuxLossMetric(keras.metrics.Metric):
             def update_state(self, y_true, y_pred, sample_weight=None):
                 pass
             
             def result(inner_self):
-                return self.__nuisance_aux_loss()
+                return self._nuisance_aux_loss()
         
         class SingleNuisanceLossMetric(NuisanceAuxLossMetric):
             def result(self):
