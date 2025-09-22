@@ -13,8 +13,8 @@ from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_LOG_FILE_EXTENSION, TRAINING_OUTCOMES_DIR_NAME
-from frame.context.execution_products import ExecutionProducts
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
+from frame.context.execution_products import ExecutionProducts, stamp_product_path
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 from plot.plotting_config import PlottingConfig
@@ -129,14 +129,7 @@ class ExecutionContext:
         return series
 
     def _run_stamp_product_path(self, file_path: Path) -> Path:
-        if file_path.suffix.lstrip(".") == TRAINING_LOG_FILE_EXTENSION:
-            stamped_file_name = ".".join(file_path.stem.split(".")[:-1]) + f"_{self.run_hash}"
-            suffix = "." + ".".join(str(file_path).split(".")[-2:])
-        else:
-            stamped_file_name = file_path.stem + f"_{self.run_hash}"
-            suffix = file_path.suffix
-        stamped_file_name += suffix
-        return file_path.parent / stamped_file_name
+        return stamp_product_path(file_path, self.run_hash)
 
     # todo: export to decorator and add os.makedirs(out_dir, exist_ok=False)
     def save_and_document_dict(self, dict: dict, file_path: Path):

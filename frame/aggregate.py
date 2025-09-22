@@ -4,6 +4,7 @@ from pathlib import Path
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
+from frame.context.execution_products import products_from_stem, unstamp_product_stem
 from frame.file_structure import CONTEXT_FILE_NAME, SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_LOG_FILE_SUFFIX
 from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
@@ -68,15 +69,20 @@ class ResultAggregator:
         epochs = all_epochs[0]
 
         # We assume each run generates each type of test statistic, and that they all should be summed to get a single value
-        unique_history_file_names = np.unique([Path(history_file).name for history_file in all_history_files])
+        unique_history_file_stems = np.unique([unstamp_product_stem(Path(history_file)) for history_file in all_history_files])
         unique_runs_output_dirs = np.unique([str(Path(history_file).parent) for history_file in all_history_files])
 
         # We assume that we need to sum two types of test statistics for every single value, each with different name
         all_model_t_test_statistics = np.zeros(shape=(len(unique_runs_output_dirs), len(epochs)))
         for run_index, run_output in enumerate(unique_runs_output_dirs):
-            for history_file_name in unique_history_file_names:
-                history = all_loaded_histories[run_output + '/' + history_file_name]
-                all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history[HistoryKeys.LOSS.value]))  # type: ignore
+            for history_file_stem in unique_history_file_stems:    
+                history_files = [f for f in products_from_stem(history_file_stem, Path(run_output)) if str(f) in all_history_files]
+                
+                if len(history_files) != 1:
+                    raise ValueError(f"Found multiple history files for stem {history_file_stem} in directory {run_output}")
+                
+                history_file = all_loaded_histories[str(history_files[0])]
+                all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history_file[HistoryKeys.LOSS.value]))  # type: ignore
 
         self._test_statistics = all_model_t_test_statistics
         self._epochs = epochs

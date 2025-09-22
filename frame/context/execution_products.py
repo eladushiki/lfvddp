@@ -108,3 +108,27 @@ class ExecutionProducts:
             if product.descriptor == descriptor:
                 return product
         raise ValueError(f"Product with descriptor {descriptor} not found")
+
+
+def stamp_product_path(file_path: Path, run_hash: str) -> Path:
+    if file_path.suffix.lstrip(".") == TRAINING_LOG_FILE_EXTENSION:
+        stamped_file_name = ".".join(file_path.stem.split(".")[:-1]) + f"_{run_hash}"
+        suffix = "." + ".".join(str(file_path).split(".")[-2:])
+    else:
+        stamped_file_name = file_path.stem + f"_{run_hash}"
+        suffix = file_path.suffix
+    stamped_file_name += suffix
+    return file_path.parent / stamped_file_name
+
+
+def unstamp_product_stem(stamped_file_path: Path) -> str:
+    name = stamped_file_path.name
+    original_stem = "_".join(name.split("_")[:-1])
+    return original_stem
+
+
+def products_from_stem(stem: str, directory: Path) -> List[Path]:
+    """
+    Searches all the files whose names start with the given stem in the given directory.
+    """
+    return [f for f in directory.iterdir() if f.is_file() and f.stem.startswith(stem)]
