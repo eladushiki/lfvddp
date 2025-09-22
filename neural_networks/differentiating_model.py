@@ -33,6 +33,7 @@ class DifferentiatingModel(keras.models.Model):
         name: str,
         **kwargs
     ):
+        self._context = context
         self._config: Union[TrainConfig, DetectorConfig] = context.config
 
         # Add layers by spec
@@ -74,9 +75,9 @@ class DifferentiatingModel(keras.models.Model):
         ))
 
     def __nuisance_aux_loss(self) -> float:
-        return tf.reduce_prod(tf.stack([
+        return tf.reduce_prod([
             self.__observable_nuisance_loss(obs) for obs in self._observable_names
-        ], axis=1))
+        ])
     
     def __prediction_loss(
             self,
@@ -157,9 +158,9 @@ class DifferentiatingModel(keras.models.Model):
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
         return [
             keras.callbacks.TensorBoard(
-                log_dir=self._context.training_outcomes_dir / TENSORBOARD_LOG_FILE_NAME,
+                log_dir=self._context.training_outcomes_dir / TENSORBOARD_LOG_FILE_NAME, # type: ignore
                 histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
-            )
+            ),
         ]
 
     def fit(self, data: DataSet, target: npt.NDArray, **kwargs):
