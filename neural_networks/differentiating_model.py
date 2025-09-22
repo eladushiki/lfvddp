@@ -63,6 +63,11 @@ class DifferentiatingModel(keras.models.Model):
             dtype="float32",
             name=f"detector-binwise-nuisances-{i}",
         ) for i, nbins in enumerate(detector_effect._numbers_of_bins)}
+        
+        # Logging setup
+        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_FILE_NAME
+        self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
+
 
     @staticmethod
     def __single_nuisance_loss(nuisance_value: Any):
@@ -103,10 +108,17 @@ class DifferentiatingModel(keras.models.Model):
         Symmetrized DDP custom loss for optimizing likelihood of the
         estimation.
         """
-        return self._prediction_loss(
+        prediction_loss = self._prediction_loss(
             f__is_sample_prediction,
             y__is_sample_truth,
-        ) - self._nuisance_aux_loss()
+        )
+        nuisance_aux_loss = self._nuisance_aux_loss()
+        with self._train_summary_writer.as_default():
+            tf.summary.scalar(HistoryKeys.PREDICTION_LOSS.value, prediction_loss, step=self._config.train__number_of_epochs_for_checkpoint)
+            tf.summary.scalar(HistoryKeys.NUISANCE_LOSS.value, nuisance_aux_loss, step=self._config.train__number_of_epochs_for_checkpoint)
+            tf.summary.scalar(HistoryKeys.SINGLE_NUISANCE_LOSS.value, nuisance_aux_loss / sum(len(vars) for vars in self.detector_deltas), step=self._config.train__number_of_epochs_for_checkpoint)
+
+        return prediction_loss - nuisance_aux_loss
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -121,23 +133,6 @@ class DifferentiatingModel(keras.models.Model):
             self._bins_of_events = None
 
     def get_metrics(self) -> List[tf.keras.metrics.Metric]:
-        class PredictionLossMetric(keras.metrics.Metric):
-            def update_state(self, y_true, y_pred, sample_weight=None):
-                self.y_true, self.y_pred = y_true, y_pred
-            
-            def result(inner_self):
-                return self._prediction_loss(inner_self.y_true, inner_self.y_pred)
-
-        class NuisanceAuxLossMetric(keras.metrics.Metric):
-            def update_state(self, y_true, y_pred, sample_weight=None):
-                pass
-            
-            def result(inner_self):
-                return self._nuisance_aux_loss()
-        
-        class SingleNuisanceLossMetric(NuisanceAuxLossMetric):
-            def result(self):
-                return super().result() / sum(len(vars) for vars in self.detector_deltas)
 
         class NuisanceAbsSumMetric(keras.metrics.Metric):
             def update_state(inner_self, y_true, y_pred, sample_weight=None):
@@ -149,16 +144,13 @@ class DifferentiatingModel(keras.models.Model):
                 ]))
 
         return [
-            PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
-            NuisanceAuxLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
-            SingleNuisanceLossMetric(name=HistoryKeys.SINGLE_NUISANCE_LOSS.value),
             NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
         ]
 
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
         return [
             keras.callbacks.TensorBoard(
-                log_dir=self._context.training_outcomes_dir / TENSORBOARD_LOG_FILE_NAME, # type: ignore
+                log_dir=self._tensorboard_log_file, # type: ignore
                 histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
             ),
         ]
