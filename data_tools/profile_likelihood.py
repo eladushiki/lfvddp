@@ -76,9 +76,11 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
     The method is integrating over analytic signal and background pdfs instead
     of bin-wise.
 
-    Upper limit is needed especially for long tials, say, decaying exponentials
+    Upper limit is needed especially for long tails, say, decaying exponentials
     division.
     """
+    if n_signal_events <= 0:
+         return 0
     
     integrand = lambda x: (
         n_signal_events * signal_pdf(x) + n_background_events * background_pdf(x)
@@ -86,8 +88,8 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         1 + n_signal_events * signal_pdf(x) / (n_background_events * background_pdf(x))
     )
 
-    try:
         # Convert warnings to exceptions
+    try:
         simplefilter("error", IntegrationWarning)
         integral, _ = quad(integrand, 0, upper_limit)
     except IntegrationWarning:

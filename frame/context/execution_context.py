@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
-from frame.file_structure import CONTEXT_FILE_NAME, TRIANING_OUTCOMES_DIR_NAME
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
 from frame.context.execution_products import ExecutionProducts
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
@@ -106,7 +106,7 @@ class ExecutionContext:
 
     @property
     def training_outcomes_dir(self) -> Path:
-        return self.unique_out_dir / TRIANING_OUTCOMES_DIR_NAME
+        return self.unique_out_dir / TRAINING_OUTCOMES_DIR_NAME
 
     def document_created_product(self, product_descriptor: Any):
         self.products.add_product(product_descriptor)
