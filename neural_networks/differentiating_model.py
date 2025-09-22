@@ -15,7 +15,7 @@ from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TENSORBOARD_LOG_FILE_NAME
+from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import save_training_outcomes
 from train.train_config import TrainConfig
@@ -65,7 +65,7 @@ class DifferentiatingModel(keras.models.Model):
         ) for i, nbins in enumerate(detector_effect._numbers_of_bins)}
         
         # Logging setup
-        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_FILE_NAME
+        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME
         self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
 
 

@@ -11,7 +11,6 @@ def get_relpath_from_local_root(local_absolute_path: PurePath) -> PurePosixPath:
 ## Textual data
 JSON_FILE_EXTENSION = "json"
 TEXT_FILE_EXTENSION = "txt"
-LOG_FILE_EXTENSION = "log"
 ## Training logs
 TRAINING_LOG_FILE_EXTENSION = "h5"
 TRAINING_HISTORY_LOG_FILE_SUFFIX = "history." + TRAINING_LOG_FILE_EXTENSION
@@ -29,4 +28,4 @@ RESULTS_BRIEFING_FILE_NAME = f"results_briefing.{TEXT_FILE_EXTENSION}"
 TRAINING_OUTCOMES_DIR_NAME = "training_outcomes"
 SINGLE_TRAINING_RESULT_FILE_NAME = f"final_t.{SINGLE_TRAINING_RESULT_FILE_EXTENSION}"
 WEIGHTS_OUTPUT_FILE_NAME = f"training_result.{TRAINING_WEIGHTS_LOG_FILE_SUFFIX}"
-TENSORBOARD_LOG_FILE_NAME = f"tensorboard_logs.{LOG_FILE_EXTENSION}"
+TENSORBOARD_LOG_DIR_NAME = f"tensorboard_logs"
