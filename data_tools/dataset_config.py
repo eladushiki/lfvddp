@@ -22,18 +22,12 @@ from os.path import isfile
 @dataclass
 class DatasetParameters(ABC):
     
-    # Automatically initialized parameters
-    _dataset__number_of_dimensions: int
-
     # For documentation purposes
     name: str
     type: str
 
     # Background parameters
     dataset__mean_number_of_background_events: int
-
-    # Explicit binning
-    dataset__detector_binning_maxima: List[int]
 
     # Signal parameters
     dataset__signal_data_generation_function: str = field(default="")
@@ -42,8 +36,6 @@ class DatasetParameters(ABC):
     
     # Detector simulation
     dataset__detector_efficiency: str = field(default="")
-    dataset__detector_binning_minima: List[int] = field(default=0)
-    dataset__detector_binning_number_of_bins: List[int] = field(default=30)
     dataset__detector_efficiency_uncertainty: str = field(default="")
     dataset__detector_error: str = field(default="")
 
@@ -80,25 +72,6 @@ class DatasetParameters(ABC):
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
 
-        # Detector dimensions should fit DataSet dimension. Inserts default and expands dimensions if given an int.
-        if isinstance(self.dataset__detector_binning_minima, int):
-            self.dataset__detector_binning_minima = [self.dataset__detector_binning_minima] * self._dataset__number_of_dimensions
-
-        if isinstance(self.dataset__detector_binning_number_of_bins, int):
-            self.dataset__detector_binning_number_of_bins = [self.dataset__detector_binning_number_of_bins] * self._dataset__number_of_dimensions
-
-        self.validate()
-
-    def validate(self):
-        assert len(self.dataset__detector_binning_minima) == self._dataset__number_of_dimensions, \
-            f"Detector binning minima length {len(self.dataset__detector_binning_minima)} does not match "\
-            
-        assert len(self.dataset__detector_binning_maxima) == self._dataset__number_of_dimensions, \
-            f"Detector binning maxima length {len(self.dataset__detector_binning_maxima)} does not match "\
-            
-        assert len(self.dataset__detector_binning_number_of_bins) == self._dataset__number_of_dimensions, \
-            f"Detector binning number of bins length {len(self.dataset__detector_binning_number_of_bins)} does not match "\
-
     
 @dataclass
 class LoadedDatasetParameters(DatasetParameters):
@@ -121,6 +94,11 @@ class LoadedDatasetParameters(DatasetParameters):
     dataset_loaded__file_name: str = field(default="")
     dataset_loaded__event_amount_load_limit: Optional[int] = field(default=None)
     dataset_loaded__observable_names: List[str] = field(default_factory=list)
+    dataset_loaded__observables_to_be_called: Optional[List[str]] = field(default=None)
+
+    # Tampering mechanics
+    dataset_loaded__cut: Optional[str] = field(default=None)
+    dataset_loaded__aliases: Optional[Dict[str, str]] = field(default=None)
 
     # Resampling settings
     dataset_loaded__resample_is_resample: bool = field(default=False)
@@ -136,10 +114,7 @@ class LoadedDatasetParameters(DatasetParameters):
             self.dataset_loaded__file_name,
             self.dataset_loaded__event_amount_load_limit
         )
-
-        if loaded_dataset.n_observables != self._dataset__number_of_dimensions:
-            raise ValueError(f"Loaded dataset dimensions {loaded_dataset.n_observables} do not match expected dimensions {self._dataset__number_of_dimensions}.")
-                
+  
         return loaded_dataset
       
     def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
@@ -155,10 +130,21 @@ class LoadedDatasetParameters(DatasetParameters):
             loaded_dataset = load_numpy_events(path, number_of_events)
         
         elif file_extension == ".root":
+            if self.dataset_loaded__observables_to_be_called:
+                rename_dict = {
+                    old_name: new_name
+                    for old_name, new_name in zip(
+                        self.dataset_loaded__observable_names,
+                        self.dataset_loaded__observables_to_be_called,
+                    )
+                }
             loaded_dataset = load_root_events(
                 XRootD_url=path,
-                stop=number_of_events,
                 branch_names=self.dataset_loaded__observable_names,
+                observable_renames=rename_dict if self.dataset_loaded__observables_to_be_called else None,
+                cut=self.dataset_loaded__cut,
+                aliases=self.dataset_loaded__aliases,
+                stop=number_of_events,
             )
         
         else:  # Assuming the file contains a list of root files to load
@@ -196,6 +182,8 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
     
+    dataset__number_of_dimensions: int = field(default=0)
+    
     # Additional background parameters
     # This is the defining attribute for the subclass
     dataset_generated__background_function: str = field(default="")
@@ -211,7 +199,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
 
         distribution_class = _retrieve_from_module(background, class_name)
         
-        return distribution_class(self._dataset__number_of_dimensions, **self.dataset_generated__background_parameters)
+        return distribution_class(self.dataset__number_of_dimensions, **self.dataset_generated__background_parameters)
 
     @property
     def dataset_generated__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
@@ -229,7 +217,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
 
         distribution_class = _retrieve_from_module(signal, class_name, signal.NoSignal)
 
-        return distribution_class(self._dataset__number_of_dimensions, **self.dataset__signal_parameters)
+        return distribution_class(self.dataset__number_of_dimensions, **self.dataset__signal_parameters)
 
     @property
     def dataset_generated__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
@@ -255,10 +243,12 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         assert self.dataset_generated__background_function, \
             "dataset_generated__background_function must be defined in the configuration"
 
+        assert self.dataset__number_of_dimensions > 0, \
+            "dataset__number_of_dimensions must be defined and greater than 0"
+
 @dataclass
 class DatasetConfig:
     
-    dataset__number_of_dimensions: int
     dataset__definitions: List[Dict[str, Any]]
     
     # Properties to avoid being documented in context
@@ -291,7 +281,6 @@ class DatasetConfig:
                     raise KeyError(f"Dataset type '{dataset_type}' not defined")
 
                 set = dataset_class(
-                    _dataset__number_of_dimensions=self.dataset__number_of_dimensions,
                     **user_dataset_definitions,
                 )
                 return set

@@ -7,7 +7,7 @@ from typing import List, Optional, Union
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRAINING_HISTORY_FILE_EXTENSION, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 import numpy as np
 from matplotlib import patches, pyplot as plt
@@ -130,7 +130,7 @@ class results:  # todo: deprecate
         self.resolution = self._config.train__histogram_resolution
         self.WC = self._config.train__nn_weight_clipping
 
-        self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_FILE_EXTENSION}", recursive=True)]
+        self._history_files = [Path(s) for s in glob(f"{containing_directory}/**/*.{TRAINING_HISTORY_LOG_FILE_SUFFIX}", recursive=True)]
         self.Bkg_events = int(results.N * self._config.train__batch_train_fraction)
         self.Ref_events = int(results.N * self._config.train__batch_test_fraction)
         
@@ -295,7 +295,7 @@ def utils__sample_over_background_histograms_sliced(
         sample: DataSet,
         background: DataSet,
         bins: np.ndarray,
-        along_dimension: int = 0,
+        along_observable: Optional[str] = None,
         sample_legend: str = "sample",
         background_legend: str = "background",
 ):
@@ -303,14 +303,14 @@ def utils__sample_over_background_histograms_sliced(
         ax=ax,
         bins=bins,
         dataset=background,
-        along_dimension=along_dimension,
+        along_observable=along_observable,
         label=background_legend,
     )
     utils__datset_histogram_sliced(
         ax=ax,
         bins=bins,
         dataset=sample,
-        along_dimension=along_dimension,
+        along_observable=along_observable,
         label=sample_legend,
     )
 
@@ -320,12 +320,15 @@ def utils__datset_histogram_sliced(
         bins: np.ndarray,
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
-        along_dimension: int = 0,
+        along_observable: Optional[str] = None,
         label: Optional[str] = None,
         histtype: str = "bar",
 ):
+    if along_observable is None:
+        along_observable = dataset.observable_names[0]
+    
     ax.hist(
-        x=dataset.slice_along_observable_indices(along_dimension),
+        x=dataset.slice_along_observable_names(along_observable),
         bins=bins,
         weights=dataset.histogram_weight_mask if alternative_weights is None else alternative_weights,
         log=True,

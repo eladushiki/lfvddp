@@ -1,136 +1,13 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple, Union
+from copy import deepcopy
+from typing import List, Optional, Tuple, Union
 
 import pandas as pd
 
-from data_tools.detector import error
-from data_tools.detector.efficiency import shapes, uncertainty
-from data_tools.detector.efficiency.shapes import DETECTOR_EFFICIENCY_TYPE
-from data_tools.detector.efficiency.uncertainty import DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE
-from data_tools.detector.error import DETECTOR_ERROR_TYPE
-from frame.module_retriever import retrieve_from_module
 import numpy as np
 from numpy.random import default_rng
 import numpy.typing as npt
-
-
-class DetectorEffect:
-    """
-    Responsible for the interaction between the data and the detector.
-    Exported functions are divided into 2 parts:
-    - The application of the detector effects on the dataset, done with perfect knowledge using "_true_efficiency"
-    - The attempt to correct for the detector effects, done over binned data and with deviations from
-     the true efficiency due to simulated uncertainty. This is done using "_binned_efficiency_uncertainty"
-    Use them in the proper part of the generation/prediction process.
-    """
-    def __init__(
-            self,
-            efficiency_function: str,
-            binning_minima: List[int],
-            binning_maxima: List[int],
-            number_of_bins: List[int],
-            efficiency_uncertainty_function: str,
-            error_function: str,
-        ):
-        # Detector effects on the data
-        self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency_function)
-        self._error = self.__get_detector_error_inducer(error_function)
-
-        # Detector dimensions and binning
-        assert (ndim := len(binning_minima)) == len(binning_minima), "Detector binning dimensions don't match"
-        assert ndim == len(number_of_bins), "Detector binning dimensions don't match"
-        self._ndim = ndim
-
-        self._dimensional_bin_centers = []
-        self._dimensional_bin_edges = []
-        for i in range(ndim):
-            bin_edges, bin_centers = \
-                create_bins(xmin=binning_minima[i], xmax=binning_maxima[i], nbins=number_of_bins[i])
-            self._dimensional_bin_centers.append(bin_centers)
-            self._dimensional_bin_edges.append(bin_edges)
-        
-        # Statistics reconstruction mechanism
-        self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(efficiency_uncertainty_function)
-
-    @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
-    def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
-        """
-        Detector efficiency indicated the probability for each event (=row) to remain.
-        """
-        return effect_name
-        
-    @retrieve_from_module(uncertainty, uncertainty.detector_uncertainty_no_uncertainty)
-    def __retrieve_detector_efficiency_uncertainty_modifier(self, uncertainty: Optional[str]) -> Union[DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE, str, None]:
-        """
-        Detector efficiency uncertainty.
-        """
-        return uncertainty
-
-    @retrieve_from_module(error, error.detector_no_error)
-    def __get_detector_error_inducer(self, error_name: Optional[str]) -> Union[DETECTOR_ERROR_TYPE, str, None]:
-        """
-        Detector error returns the same shape as the input.
-        """
-        return error_name
-
-    @property
-    def _uncertain_efficiency(self) -> DETECTOR_EFFICIENCY_TYPE:
-        return self._efficiency_uncertainty(self._true_efficiency)
-    
-    ## Data correction - uses theoretical knowledge only
-    @property
-    def _binned_uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
-        
-        def __compensator(x: DataSet) -> np.ndarray:
-            bin_centers = self.get_event_bin_centers(x)
-            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(bin_centers)
-        
-        return __compensator
-
-    # Exported functions - uses DataSet
-    def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
-        """
-        Generate a filter for the dataset based on the true efficiency.
-        """
-        dataset_efficiency = self._true_efficiency(dataset._data)
-        return np.random.uniform(size=(dataset.n_samples,)) < dataset_efficiency
-
-    def generate_errors(self, dataset: DataSet) -> np.ndarray:
-        """
-        Generate errors for the dataset based on the error function.
-        """
-        return self._error(dataset._data)
-
-    def get_event_bin_centers(
-        self,
-        events: DataSet,
-    ) -> npt.NDArray:
-        
-        bin_centered_events = []
-        for d in range(self._ndim):
-            max_bin_index = len(self._dimensional_bin_centers[d]) - 1  # last bin is open-ended
-            dim_bin_indices = np.clip(np.expand_dims(np.digitize(
-                events.slice_along_observable_indices(d),
-                self._dimensional_bin_edges[d],
-            ), axis=1), a_min=0, a_max=max_bin_index)
-            bin_centered_events.append(np.array(
-                self._dimensional_bin_centers[d][dim_bin_indices]
-            ))
-
-        return np.column_stack(bin_centered_events)
-
-    def affect_and_compensate(self, dataset: DataSet) -> DataSet:
-        filter = self.generate_true_efficiency_filter(dataset)
-        affected_dataset = dataset.filter(filter)
-
-        errors = self.generate_errors(affected_dataset)
-        affected_dataset._data += errors
-
-        compensating_weights = self._binned_uncertain_efficiency_compensator(affected_dataset)
-        affected_dataset._weight_mask *= compensating_weights
-
-        return affected_dataset
 
 
 class DataSet:
@@ -185,6 +62,11 @@ class DataSet:
         result._weight_mask = self._weight_mask[item]
         return result
 
+    def create_copy(self) -> DataSet:
+        copy = DataSet(self._data.copy(), observable_names=self.observable_names)
+        copy._weight_mask = self._weight_mask.copy()
+        return copy
+
     @property
     def observable_names(self) -> List[str]:
         return self._data.columns.tolist()
@@ -207,16 +89,19 @@ class DataSet:
 
     @property
     def events(self) -> npt.NDArray:
-        return np.array(self._data)
+        return self._data.to_numpy()
 
     @property
     def histogram_weight_mask(self) -> np.ndarray:
         return np.expand_dims(self._weight_mask, axis=1)
 
-    def slice_along_observable_indices(self, indices: Union[int, slice, npt.NDArray]) -> npt.NDArray:
+    def slice_along_observable_indices(self, indices: Optional[Union[int, slice, npt.NDArray]] = None) -> npt.NDArray:
         """
         Get a slice of all events along a single dimension.
         """
+        if indices is None:
+            indices = 0
+
         return self.slice_along_observable_names(self.observable_names[indices])
 
     def slice_along_observable_names(self, observables: Union[str, List[str]]) -> npt.NDArray:
@@ -232,6 +117,14 @@ class DataSet:
         result = DataSet(filtered_data, observable_names=self.observable_names)
         result._weight_mask = filtered_weight_mask
         return result
+
+    def filter_observable_names(self, observables: Union[str, List[str]]) -> DataSet:
+        filtered_dataset = DataSet(
+            self.slice_along_observable_names(observables),
+            observable_names=[observables] if isinstance(observables, str) else observables
+        )
+        filtered_dataset._weight_mask = deepcopy(self._weight_mask)
+        return filtered_dataset
 
 
 def resample(
@@ -281,6 +174,7 @@ def create_slice_containing_bins(
         xmax=xmax,
         nbins=nbins,
     )
+
 
 def create_bins(
         xmin: float,

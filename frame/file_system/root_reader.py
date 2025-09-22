@@ -15,6 +15,7 @@ def load_root_events(
     XRootD_url: Union[str, List[str]],
     tree_key: str = "Events",
     branch_names: List[str] = [],
+    observable_renames: Optional[Dict[str, str]] = None,
     cut: Optional[str] = None,
     aliases: Optional[Dict[str, str]] = None,
     start: int = 0,
@@ -52,6 +53,8 @@ def load_root_events(
             entry_stop=stop,
             library="pd",
         ):
+            if observable_renames:
+                batch.rename(columns=observable_renames, inplace=True)
             data_sets.append(
                 __expand_awkward_cols(batch)
             )

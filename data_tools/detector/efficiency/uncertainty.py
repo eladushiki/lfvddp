@@ -2,6 +2,8 @@ from typing import Callable
 from scipy.stats import truncnorm
 import numpy as np
 
+from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
+
 # Uncertainty variations for detector effect efficiencies
 # Each function implemented here would be recognized and recalled by name
 # Have the function signature as:
@@ -47,7 +49,7 @@ def detector_uncertainty_gaussian_noise(
         unique_efficiency = detector_efficiency(unique_bins)
         
         relative_error_magnitude_max = 0.5
-        relative_error_std = 0.3
+        relative_error_std = TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
         relative_errors = truncnorm.rvs(
             -relative_error_magnitude_max,
             relative_error_magnitude_max,

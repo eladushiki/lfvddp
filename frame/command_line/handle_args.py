@@ -18,13 +18,6 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         
     # Mandatory arguments
     parser.add_argument(
-        "--user-config", type=Path, required=True,
-        help="User details configuration file path", dest="user_config_path"
-    )
-
-    # Optional arguments
-    ## Additional configurations
-    parser.add_argument(
         "--cluster-config", type=Path, required=True,
         help="Path to cluster configuration file", dest="cluster_config_path"
     )
@@ -33,9 +26,19 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         help="Path to dataset configuration file", dest="dataset_config_path"
     )
     parser.add_argument(
+        "--detector-config", type=Path, required=True,
+        help="Path to detector configuration file", dest="detector_config_path"
+    )
+    parser.add_argument(
         "--train-config", type=Path, required=True,
         help="Path to training configuration file", dest="train_config_path"
     )
+    parser.add_argument(
+        "--user-config", type=Path, required=True,
+        help="User details configuration file path", dest="user_config_path"
+    )
+
+    # Optional arguments
     parser.add_argument(
         "--plot-config", type=Path, required=False,
         help="Path to plot configuration file", dest="plot_config_path"
@@ -60,10 +63,11 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
 
     # Parse configuration files
     config_paths = [
-        args.user_config_path,
         args.cluster_config_path,
         args.dataset_config_path,
+        args.detector_config_path,
         args.train_config_path,
+        args.user_config_path,
     ]
     if args.plot_config_path:
         config_paths.append(args.plot_config_path)
