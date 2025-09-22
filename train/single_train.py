@@ -1,6 +1,6 @@
 from os import makedirs
 
-from data_tools.detector_effect import DetectorEffect
+from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_generation import DataGeneration
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig

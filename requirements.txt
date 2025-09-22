@@ -4,6 +4,7 @@ astunparse==1.6.3
 awkward==2.7.4
 awkward-pandas==2023.8.0
 awkward_cpp==44
+awkward-pandas==2023.8.0
 bcrypt==4.2.1
 camel_converter==4.0.1
 certifi==2024.8.30
@@ -89,4 +90,5 @@ vector==1.6.3
 wcwidth==0.2.13
 Werkzeug==3.1.2
 wrapt==1.16.0
+xrootd==5.8.4
 zipp==3.21.0

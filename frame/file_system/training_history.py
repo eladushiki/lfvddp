@@ -8,6 +8,9 @@ from pathlib import Path
 
 class HistoryKeys(Enum):
     LOSS = "loss"
+    PREDICTION_LOSS = "prediction_loss"
+    NUISANCE_LOSS = "nuisance_loss"
+    SINGLE_NUISANCE_LOSS = "single_nuisance_loss"
     EPOCH = "epoch"
 
 
