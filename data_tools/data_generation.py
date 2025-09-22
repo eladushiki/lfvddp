@@ -86,7 +86,7 @@ class DataGeneration:
                 original_sample=original_data,
                 processed_sample=loaded_data,
                 bins=detector._dimensional_bin_centers[0],
-                xlabel=f"{original_data._observable_names[0]}",
+                xlabel=f"{original_data.observable_names[0]}",
             )
             self._context.save_and_document_figure(figure, self._context.unique_out_dir / f"{name}_data_process_plot.png")
 

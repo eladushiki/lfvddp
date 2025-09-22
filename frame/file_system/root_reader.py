@@ -1,24 +1,34 @@
 from logging import error, info
+
+import pandas as pd
 from data_tools.data_utils import DataSet
 import numpy as np
 from numpy.typing import NDArray
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Dict, List, Optional, Union
 import awkward as ak
 from numpy.typing import NDArray
 import uproot
 
 
 def load_root_events(
-    XRootD_url: str,
+    XRootD_url: Union[str, List[str]],
     tree_key: str = "Events",
     branch_names: List[str] = [],
+    cut: Optional[str] = None,
+    aliases: Optional[Dict[str, str]] = None,
     start: int = 0,
     stop: Optional[int] = None,
+    step_size: int = 1000,
 ) -> DataSet:
+    
+    if isinstance(XRootD_url, list):
+        XRootD_url = uproot.concatenate([f"{url}:{tree_key}" for url in XRootD_url])
     
     # Load events from a ROOT file
     with uproot.open(XRootD_url) as file:
+
+        # Find the tree root from withing the file
         try:
             tree = file[tree_key]
 
@@ -26,82 +36,52 @@ def load_root_events(
             error(f"KeyError: The key '{tree_key}' does not exist in the ROOT file at {XRootD_url}.")
             raise ke
         
+        # If no branch names are provided, read all branches
         if not branch_names:
-            # If no branch names are provided, read all branches
             branch_names = tree.keys()
 
-        if stop is None or stop > tree.num_entries:
-            stop = tree.num_entries
-        
-        try:
-            arrays = tree.arrays( # type: ignore
-                branch_names,
-                entry_start=start,
-                entry_stop=stop,
-                library="ak",
+        data_sets = []
+
+        # Load the desired range by batches
+        for batch in tree.iterate(
+            step_size=step_size,
+            filter_branch=lambda TBranch: TBranch.name in branch_names,
+            cut=cut,
+            aliases=aliases,
+            entry_start=start,
+            entry_stop=stop,
+            library="pd",
+        ):
+            data_sets.append(
+                __expand_awkward_cols(batch)
             )
-            info(f"Read items from {tree_key} numbers {start} to {stop} of {tree.num_entries}")
 
-        except KeyError as ke:
-            error(f"KeyError: One or more branch names {branch_names} do not exist in the ROOT file at {XRootD_url}.")
-            raise ke
-        
-        return __branches_to_events(arrays, branch_names)
-
-
-def __branches_to_events(
-        arrays: ak.Array,
-        branch_names: List[str],
-) -> DataSet:
-    
-    # Convert to padded numpy arrays and name columns accordingly
-    numpy_arrays = []
-    observable_names = []
-    for i, field_name in enumerate(arrays.fields):
-
-        # Convert and pad
-        numpy_array, num_columns = __pad_awkward_array_to_numpy(arrays[field_name])
-        numpy_arrays.append(numpy_array)
-
-        # Duplicate observable names according to the number of columns
-        branch_name = branch_names[i]
-        if num_columns > 1:
-            observable_names.extend([f"{branch_name}_{col}" for col in range(num_columns)])
-        else:
-            observable_names.append(branch_name)
-    
-    # Convert to a single 2D numpy array
-    events = np.column_stack(numpy_arrays)
-
-    info(f"Loaded DataSet with observables: {observable_names}")
-
-    return DataSet(events, observable_names=observable_names)
+        collected_data = pd.concat(data_sets).reset_index(level=0, drop=True)
+        return DataSet(
+            collected_data,
+            observable_names=collected_data.columns,
+        )
 
 
-def __pad_awkward_array_to_numpy(
-    ak_array: ak.Array,
-    default_value: Any = None,
-) -> Tuple[NDArray[np.float64], int]:
+def __expand_awkward_cols(
+    batch: pd.DataFrame,
+) -> pd.DataFrame:
     """
-    convert an awkward array to a padded numpy array.
-    Returns the padded array and the number of columns.
+    Expand awkward columns in a DataFrame to multiple columns.
     """
-    # Find the maximum length across all events
-    if ak_array.ndim == 1:
-        np_padded_array = ak.unflatten(ak_array, 1).to_numpy()
-        max_length = 1
-
-    else:  # ndim is 2
-        max_length = ak.max(ak.num(ak_array))
-
-        # Pad with zeros and convert to numpy
-        np_none_padded_array = ak.to_numpy(ak.pad_none(ak_array, max_length, clip=True))
+    expanded_batch = batch.copy()
+    
+    # Split awkward cols to multiple cols
+    for col in batch.select_dtypes(include=['awkward']).columns:
+        split_col = pd.DataFrame(batch[col].to_list())
+        split_col.index = expanded_batch.index
+        col_position: int = expanded_batch.columns.get_loc(col)
+        expanded_batch.drop(col, axis=1, inplace=True)
         
-        # Replace None values with 0
-        np_padded_array = np.where(np_none_padded_array == None, default_value, np_none_padded_array)
-
-    return np_padded_array.astype(np.float64), int(max_length)  # Ensure numeric type
-
+        for i in range(split_col.shape[1]):
+            expanded_batch.insert(col_position + i, f"{col}_{i}", split_col[i])
+    
+    return expanded_batch
 
 def save_root_events(
     root_file_path: Path,

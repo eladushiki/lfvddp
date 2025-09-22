@@ -123,7 +123,7 @@ def train_NPML_model(
         # Just fit without any special training, like is done in LFVNN
         model.compile(loss=imperfect_loss,  optimizer='adam')
         tau_model_fit = model.fit(
-            np.array(feature_dataset._data, dtype=np.float32),
+            np.array(feature_dataset.events, dtype=np.float32),
             np.array(target_structure, dtype=np.float32),
             epochs=config.train__epochs,
             batch_size=feature_dataset.n_samples,
@@ -140,7 +140,7 @@ def train_NPML_model(
         # Train either of the nuisance parameters, or
         tau_model_history = train_model(
             model=model,
-            feature=np.array(feature_dataset._data, dtype=np.float32),
+            feature=np.array(feature_dataset.events, dtype=np.float32),
             target=np.array(target_structure, dtype=np.float32),
             loss=imperfect_loss,  # This is (11) in "Learning New Physics from a Machine", D'Angolo et al.
             optimizer=optimizers.legacy.Adam(),
@@ -166,7 +166,7 @@ def train_NPML_model(
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:
-    model_prediction = trained_model.predict(reference_ndf_estimation._data)[:, 0]  # Corresponds the 1 dimension of array output
+    model_prediction = trained_model.predict(reference_ndf_estimation.events)[:, 0]  # Corresponds the 1 dimension of array output
     hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
     return predicted_distribution_corrected_size / reference_ndf_estimation.corrected_n_samples * hypothesis_weights
 
