@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import gc
 from logging import info
 from time import time
 from typing import Any, List, Tuple, Union
@@ -37,29 +38,38 @@ class DifferentiatingModel(keras.models.Model):
         self._config: Union[TrainConfig, DetectorConfig] = context.config
 
         # Add layers by spec
-        input_layer = keras.Input(shape=(self._config.train__nn_input_dimension,))
-        last_layer = input_layer
+        self._build_layers()
+        
+        # Build model
+        super(DifferentiatingModel, self).__init__(
+            name=name,
+            inputs=self._input_layer,
+            outputs=self._last_layer,
+            **kwargs
+        )
+
+        # Add detector uncertainty nuisance parameters
+        self._detector_effect = detector_effect
+        self._build_detector_nuisances()
+        self._bins_of_events = None  # Set in context
+
+        # Logging setup
+        self._setup_tensorboard()
+
+    def _build_layers(self):
+        self._input_layer = keras.Input(shape=(self._config.train__nn_input_dimension,))
+        last_layer = self._input_layer
         for secondary_layer_size in self._config.train__nn_architecture[1:]:
             layer = keras.layers.Dense(
                 secondary_layer_size,
                 activation='relu',
             )(last_layer)
             last_layer = layer
-        
-        # Build model
-        super(DifferentiatingModel, self).__init__(
-            name=name,
-            inputs=input_layer,
-            outputs=last_layer,
-            **kwargs
-        )
+        self._last_layer = last_layer
 
-        # Add detector uncertainty nuisance parameters
-        self._detector_effect = detector_effect
-        self._bins_of_events = None  # Set in context
-
+    def _build_detector_nuisances(self):
         self._detector_deltas = {}
-        for i, nbins in enumerate(detector_effect._numbers_of_bins):
+        for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             nuisance_var = self.add_weight(
                 name=f"detector-bin-nuisances-{i}",
                 shape=(nbins,),
@@ -68,42 +78,44 @@ class DifferentiatingModel(keras.models.Model):
                 initializer=tf.zeros_initializer()
             )
             self._detector_deltas[self._observable_names[i]] = nuisance_var
-            
-        # Logging setup
+
+    def _setup_tensorboard(self):
+        # Initialize
+        tf.keras.backend.clear_session()
+        gc.collect()
+
+        # Create logging directory
         self._current_epoch = tf.Variable(0, trainable=False, dtype=tf.int64)
-        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME
+        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / self.name
         self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
-
-    @staticmethod
-    def __single_nuisance_loss(nuisance_value: Any):
+        
+    @tf.function
+    def _single_nuisance_loss(self, nuisance_value: Any) -> tf.Tensor:
         std = tf.cast(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, tf.float32)
-        return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(2.0 * tf.cast(np.pi, tf.float32)))
+        return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(tf.constant(2 * np.pi, dtype=tf.float32)))
 
-    def __observable_nuisance_loss(self, observable_name: str) -> float:
-        return tf.reduce_prod(self.__single_nuisance_loss(
-            self._detector_deltas[observable_name]
-        ))
-
-    def _nuisance_aux_loss(self) -> float:
-        return tf.reduce_prod([
-            self.__observable_nuisance_loss(obs) for obs in self._observable_names
-        ])
+    @tf.function
+    def _nuisance_aux_loss(self) -> tf.Tensor:
+        nuisances = tf.stack([var.value for var in self._detector_deltas.values()])
+        return tf.reduce_prod(self._single_nuisance_loss(nuisances))
     
+    @tf.function
     def _prediction_loss(
             self,
-            f__is_sample_prediction: np.ndarray,
-            y__is_sample_truth: np.ndarray,
+            f__is_sample_prediction: tf.Tensor,
+            y__is_sample_truth: tf.Tensor,
         ) -> float:
-        is_ref_truth = 1 - y__is_sample_truth
+        is_ref_truth = tf.subtract(1.0, y__is_sample_truth)
         return tf.reduce_sum(
             is_ref_truth * (tf.exp(f__is_sample_prediction) - 1) \
-                - y__is_sample_truth * f__is_sample_prediction
+                - tf.multiply(y__is_sample_truth, f__is_sample_prediction)
         )
 
     @property
     def _observable_names(self) -> List[str]:
         return self._detector_effect._observable_names
 
+    @tf.function
     def ddp_symmetrized_loss(
             self,
             y__is_sample_truth,
@@ -118,12 +130,9 @@ class DifferentiatingModel(keras.models.Model):
             y__is_sample_truth,
         )
         nuisance_aux_loss = self._nuisance_aux_loss()
-        with self._train_summary_writer.as_default():
-            tf.summary.scalar(HistoryKeys.PREDICTION_LOSS.value, prediction_loss, step=self._current_epoch)
-            tf.summary.scalar(HistoryKeys.NUISANCE_LOSS.value, nuisance_aux_loss, step=self._current_epoch)
-            tf.summary.scalar(HistoryKeys.SINGLE_NUISANCE_LOSS.value, nuisance_aux_loss / sum(vars.shape[0] for vars in self._detector_deltas.values()), step=self._current_epoch)
+        loss = tf.math.log(prediction_loss) + tf.math.log(nuisance_aux_loss)
 
-        return prediction_loss + nuisance_aux_loss
+        return loss
 
     def get_metrics(self) -> List[tf.keras.metrics.Metric]:
 
@@ -144,31 +153,49 @@ class DifferentiatingModel(keras.models.Model):
             def reset_state(inner_self):
                 inner_self.__value.assign(0.0)
 
+        class PredictionLossMetric(keras.metrics.Metric):
+            def __init__(inner_self, **kwargs):
+                super().__init__(**kwargs)
+                inner_self.__value = inner_self.add_weight(name="prediction_loss", initializer="zeros")
+
+            def update_state(inner_self, y_true, y_pred, sample_weight=None):
+                val = self._prediction_loss(y_pred, y_true)
+                inner_self.__value.assign(val)
+
+            def result(inner_self):
+                return inner_self.__value
+
+            def reset_state(inner_self):
+                inner_self.__value.assign(0.0)
+
+        class NuisanceLossMetric(keras.metrics.Metric):
+            def __init__(inner_self, **kwargs):
+                super().__init__(**kwargs)
+                inner_self.__value = inner_self.add_weight(name="nuisance_loss", initializer="zeros")
+
+            def update_state(inner_self, y_true, y_pred, sample_weight=None):
+                nuisance_loss = self._nuisance_aux_loss()
+                inner_self.__value.assign(nuisance_loss)
+            
+            def result(inner_self):
+                return inner_self.__value
+            
+            def reset_state(inner_self):
+                inner_self.__value.assign(0.0)
+
         return [
             NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
+            PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
+            NuisanceLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
         ]
 
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
-        class TrackerCallback(keras.callbacks.Callback):
-            def __init__(self, model):
-                self._model = model
-                self._model._current_epoch.assign(0)
-                
-            def on_epoch_begin(self, epoch, logs=None):
-                self._model._current_epoch.assign(epoch)
-
-            def on_epoch_end(self, epoch, logs=None):
-                with self._model._train_summary_writer.as_default():
-                    for key, value in logs.items():
-                        tf.summary.scalar(key, value, step=epoch)
-                self._model._train_summary_writer.flush()
-        
         return [
             keras.callbacks.TensorBoard(
                 log_dir=self._tensorboard_log_file, # type: ignore
                 histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
+                update_freq='epoch',
             ),
-            TrackerCallback(self),
         ]
 
     def train_step(self, data: Tuple[tf.Tensor, tf.Tensor]):
