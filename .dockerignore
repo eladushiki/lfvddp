@@ -1,0 +1,77 @@
+# Git files
+.git
+.gitignore
+.gitmodules
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Results and outputs (keep structure but not content)
+results/*/
+!results/.gitkeep
+
+# Data files (might be large)
+data/*/
+!data/.gitkeep
+mattiasdata/outputs/
+mattiasdata/*.root
+mattiasdata/*.csv
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Documentation
+README.md
+docs/
+*.md
+!requirements.txt
+
+# Docker files (avoid recursion)
+Dockerfile*
+.dockerignore
+docker-compose*.yml
