@@ -7,6 +7,7 @@ awkward_cpp==44
 awkward-pandas==2023.8.0
 bcrypt==4.2.1
 camel_converter==4.0.1
+cernopendata-client==1.0.0
 certifi==2024.8.30
 cffi==1.17.1
 charset-normalizer==3.4.0
@@ -92,3 +93,4 @@ Werkzeug==3.1.2
 wrapt==1.16.0
 xrootd==5.8.4
 zipp==3.21.0
+PyYAML==6.0.2
