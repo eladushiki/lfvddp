@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from frame.context.execution_context import version_controlled_execution_context
 from frame.context.execution_context import create_config_from_paramters
-from frame.file_system.textual_data import load_dict_from_json
+from frame.file_system.textual_data import load_dict_from_json, load_config_file
 
 
 def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
@@ -83,7 +83,7 @@ def create_config_from_paths(
     ):
     config_params = {}
     for config_path in config_paths:
-        config_params.update(load_dict_from_json(config_path))
+        config_params.update(load_config_file(config_path))
 
     return create_config_from_paramters(
         config_params,

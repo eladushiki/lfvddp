@@ -10,6 +10,9 @@ def get_relpath_from_local_root(local_absolute_path: PurePath) -> PurePosixPath:
 # File extensions
 ## Textual data
 JSON_FILE_EXTENSION = "json"
+YAML_FILE_EXTENSION = "yaml"
+YML_FILE_EXTENSION = "yml"
+YAML_FILE_EXTENSIONS = [YAML_FILE_EXTENSION, YML_FILE_EXTENSION]
 TEXT_FILE_EXTENSION = "txt"
 ## Training logs
 TRAINING_LOG_FILE_EXTENSION = "h5"
