@@ -1,50 +1,109 @@
+import shlex
 from typing import Dict, Optional
 
 from frame.cluster.cluster_config import ClusterConfig
 
-def build_qsub_command(
+QSUB_TEMPLATE_SCRIPT = """#!/bin/bash
+#$ -S /bin/bash
+#$ -cwd
+#$ -j y
+#$ -N {job_name}
+#$ -q {queue}
+#$ -pe {parallel_environment} {num_slots}
+#$ -l walltime={walltime}
+#$ -l mem={memory}g
+#$ -l io={io}
+{gpu_line}#$ -o {output_dir}/
+#$ -e {error_dir}/
+{environment_vars}
+{array_job_line}
+
+# Environment setup
+echo "Job started at: $(date)"
+echo "Running on host: $(hostname)"
+echo "Job ID: $JOB_ID"
+
+{singularity_executable} build lfvnn.sif {git_url}
+
+{task_id_line}
+
+# Change to project root directory
+cd /app/LFVNN-symmetrized
+echo "Current directory: $(pwd)"
+
+# Main command execution
+echo "Executing command on Singularity: {safe_command}"
+{singularity_executable} exec lfvnn.sif {safe_command}
+
+# Job completion
+echo "Job completed at: $(date)"
+exit $?
+"""
+
+
+def format_qsub_script(
         config: ClusterConfig,
-        submitted_command: str,
+        command: str,
         environment_variables: Optional[Dict[str, str]] = None,
-        number_of_jobs: int = 1,
-        output_dir: str = "",
+        array_jobs: Optional[int] = None,
+        parallel_environment: str = "smp",
+        num_slots: int = 1,
+        output_dir: str = "/tmp",
     ) -> str:
+    """
+    Format the qsub script template with the provided parameters.
     
-    command = f"/opt/pbs/bin/qsub"
-    
-    resource_list = [
-        f"walltime={config.cluster__qsub_walltime}",
-        f"io={config.cluster__qsub_io}",
-    ]
+    Args:
+        config: ClusterConfig object containing cluster settings
+        command: The main command to execute
+        environment_variables: Dictionary of environment variables to set
+        array_jobs: Number of array jobs (if None, no array job)
+        parallel_environment: Parallel environment specification
+        num_slots: Number of slots to request
+        output_dir: Directory for output and error logs
+        
+    Returns:
+        Formatted qsub script as a string
+    """
+    # Handle GPU line
+    gpu_line = ""
     if config.cluster__qsub_ngpus_for_train:
-        resource_list.append(f"ngpus={config.cluster__qsub_ngpus_for_train}")
-    if config.cluster__qsub_mem is not None:
-        resource_list.append(f"mem={config.cluster__qsub_mem}g")
-        
-    if resource_list:  # For future optional removal of the mandatory resources
-        command += f" -l {','.join(resource_list)}"
-
-    # todo: format this so any config would be optional and taken from config
-    # and also, remove all duplicate configs from shell file
+        gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
     
-    if config.cluster__qsub_job_name:
-        command += f" -N {config.cluster__qsub_job_name}"
-
+    # Handle environment variables
+    env_vars_line = ""
     if environment_variables:
-        command += " -v "
-        command += ",".join([f"{key}={value}" for key, value in environment_variables.items()])
-
-    command += f" -j oe"
-
-    if output_dir:
-        command += f" -o {output_dir}"
-
-    if config.cluster__qsub_queue:
-        command += f" -q {config.cluster__qsub_queue}"
-
-    if number_of_jobs > 1:
-        command += f" -J 1-{number_of_jobs}"
-        
-    command += f" {submitted_command}"
-
-    return command
+        env_vars = ",".join([f"{key}={value}" for key, value in environment_variables.items()])
+        env_vars_line = f"#$ -v {env_vars}\n"
+    
+    # Handle array jobs
+    array_job_line = ""
+    task_id_line = ""
+    if array_jobs and array_jobs > 1:
+        array_job_line = f"#$ -t 1-{array_jobs}\n"
+        task_id_line = 'echo "Task ID: $SGE_TASK_ID"'
+    
+    # Format output and error directories
+    error_dir = output_dir  # SGE uses same directory for both by default with -j y
+    
+    # Sanitize the command to prevent expansion problems
+    safe_command = shlex.quote(command)
+    
+    return QSUB_TEMPLATE_SCRIPT.format(
+        job_name=config.cluster__qsub_job_name,
+        queue=config.cluster__qsub_queue or "all.q",
+        parallel_environment=parallel_environment,
+        num_slots=num_slots,
+        walltime=config.cluster__qsub_walltime,
+        memory=config.cluster__qsub_mem or 4,
+        io=config.cluster__qsub_io,
+        gpu_line=gpu_line,
+        output_dir=output_dir,
+        error_dir=error_dir,
+        environment_vars=env_vars_line,
+        array_job_line=array_job_line,
+        git_url=config.cluster__repo_url,
+        singularity_executable=config.cluster__singularity_executable,
+        task_id_line=task_id_line,
+        safe_command=safe_command,
+    )

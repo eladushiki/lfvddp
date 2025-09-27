@@ -2,7 +2,8 @@
     "config__user": "",
     "config__out_dir": "",
     "config__log_level": "INFO",
-
+    
     "cluster__project_root_at_cluster_abspath": "",
-    "cluster__environment_activation_script_at_cluster_abspath": ""
+    "cluster__repo_url": "",
+    "cluster__singularity_executable": "singularity"
 }

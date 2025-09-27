@@ -1,7 +1,7 @@
 from logging import error
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Dict, Optional
-from frame.command_line.execution import build_qsub_command
+from frame.command_line.execution import format_qsub_script
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
 
@@ -17,14 +17,24 @@ def submit_cluster_job(
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
 
-    # build submission command
-    qsub_command = build_qsub_command(
+    # Create qsub script from template
+    qsub_script_content = format_qsub_script(
         config=context.config,
-        submitted_command=command,
+        command=command,
         environment_variables=environment_variables,
-        number_of_jobs=number_of_jobs,
+        array_jobs=number_of_jobs if number_of_jobs > 1 else None,
         output_dir=str(context.unique_out_dir),
     )
+    
+    # Save script using ExecutionContext's save_and_document function
+    script_filename = context.unique_out_dir / f"{context.config.cluster__qsub_job_name}_submit.sh"
+    context.save_and_document_text(qsub_script_content, script_filename)
+    
+    # Make script executable
+    script_filename.chmod(0o755)
+    
+    # Build qsub command to submit the script
+    qsub_command = f"qsub {script_filename}"
 
     for round in range(max_tries):
         try:
