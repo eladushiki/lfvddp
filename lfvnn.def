@@ -1,0 +1,51 @@
+# Singularity definition file for LFVNN-symmetrized project
+# Using CERN CMS Cloud Python VNC image as base
+Bootstrap: docker
+From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
+
+%arguments
+    REPO_URL=https://github.com/inbarsavoray/LFVNN-symmetrized.git
+    BRANCH=main
+
+%post
+    # Install additional system dependencies if needed
+    apt-get update && apt-get install -y \
+        # Required for cryptography package
+        libffi-dev \
+        libssl-dev \
+        # Clean up
+        && rm -rf /var/lib/apt/lists/*
+
+    # Set working directory
+    mkdir -p /app
+    cd /app
+
+    # Clone the repository
+    git clone --branch {{ BRANCH }} --single-branch {{ REPO_URL }} . && \
+    git submodule update --init --recursive && \
+    rm -rf .git
+
+    # Install Python dependencies
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
+
+%environment
+    export PYTHONUNBUFFERED=1
+    export PYTHONPATH=/app
+
+%runscript
+    exec /bin/bash "$@"
+
+%labels
+    Author LFVNN-symmetrized project
+    Version 1.0
+    Description Symmetrized DDP research project infrastructure and tools
+
+%help
+    This container includes the LFVNN-symmetrized project with all dependencies.
+    
+    Usage:
+    singularity run lfvnn.sif [command]
+    singularity exec lfvnn.sif python train/single_train.py [args]
+    
+    The container sets up the Python environment and clones the project repository.
