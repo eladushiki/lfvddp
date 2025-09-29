@@ -321,8 +321,7 @@ def utils__datset_histogram_sliced(
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
         along_observable: Optional[str] = None,
-        label: Optional[str] = None,
-        histtype: str = "bar",
+        **hist_kwargs,
 ):
     if along_observable is None:
         along_observable = dataset.observable_names[0]
@@ -332,6 +331,5 @@ def utils__datset_histogram_sliced(
         bins=bins,
         weights=dataset.histogram_weight_mask if alternative_weights is None else alternative_weights,
         log=True,
-        histtype=histtype,
-        label=label,
+        **hist_kwargs,
     )
