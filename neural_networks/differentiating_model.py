@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import gc
 from logging import info
 from time import time
-from typing import Any, Callable, List, Tuple, Union
+from typing import Any, List, Tuple, Union
 import keras
 import numpy as np
 import numpy.typing as npt
@@ -15,6 +16,7 @@ from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
+from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import save_training_outcomes
 from train.train_config import TrainConfig
@@ -32,66 +34,88 @@ class DifferentiatingModel(keras.models.Model):
         name: str,
         **kwargs
     ):
+        self._context = context
         self._config: Union[TrainConfig, DetectorConfig] = context.config
 
         # Add layers by spec
-        input_layer = keras.Input(shape=(self._config.train__nn_input_dimension,))
-        last_layer = input_layer
+        self._build_layers()
+        
+        # Build model
+        super(DifferentiatingModel, self).__init__(
+            name=name,
+            inputs=self._input_layer,
+            outputs=self._last_layer,
+            **kwargs
+        )
+
+        # Add detector uncertainty nuisance parameters
+        self._detector_effect = detector_effect
+        self._build_detector_nuisances()
+        self._bins_of_events = None  # Set in context
+
+        # Logging setup
+        self._setup_tensorboard()
+
+    def _build_layers(self):
+        self._input_layer = keras.Input(shape=(self._config.train__nn_input_dimension,))
+        last_layer = self._input_layer
         for secondary_layer_size in self._config.train__nn_architecture[1:]:
             layer = keras.layers.Dense(
                 secondary_layer_size,
                 activation='relu',
             )(last_layer)
             last_layer = layer
+        self._last_layer = last_layer
+
+    def _build_detector_nuisances(self):
+        self._detector_deltas = {}
+        for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
+            nuisance_var = self.add_weight(
+                name=f"detector-bin-nuisances-{i}",
+                shape=(nbins,),
+                dtype=tf.float32,
+                trainable=True,
+                initializer=tf.zeros_initializer()
+            )
+            self._detector_deltas[self._observable_names[i]] = nuisance_var
+
+    def _setup_tensorboard(self):
+        # Initialize
+        tf.keras.backend.clear_session()
+        gc.collect()
+
+        # Create logging directory
+        self._current_epoch = tf.Variable(0, trainable=False, dtype=tf.int64)
+        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / self.name
+        self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
         
-        # Build model
-        super(DifferentiatingModel, self).__init__(
-            name=name,
-            inputs=input_layer,
-            outputs=last_layer,
-            **kwargs
-        )
-
-        # Add detector uncertainty nuisance parameters
-        self._detector_effect = detector_effect
-        self._bins_of_events = None  # Set in context
-        self.detector_deltas = {self._observable_names[i]: tf.Variable(
-            trainable=True,
-            initial_value=np.zeros(shape=(nbins,), dtype=np.float32),
-            dtype="float32",
-            name=f"detector-binwise-nuisances-{i}",
-        ) for i, nbins in enumerate(detector_effect._numbers_of_bins)}
-
-    @staticmethod
-    def __single_nuisance_loss(nuisance_value: Any):
+    @tf.function
+    def _single_nuisance_loss(self, nuisance_value: Any) -> tf.Tensor:
         std = tf.cast(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, tf.float32)
-        return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(2.0 * tf.cast(np.pi, tf.float32)))
+        return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(tf.constant(2 * np.pi, dtype=tf.float32)))
 
-    def __observable_nuisance_loss(self, observable_name: str) -> float:
-        return tf.reduce_prod(self.__single_nuisance_loss(
-            self.detector_deltas[observable_name]
-        ))
-
-    def __nuisance_aux_loss(self) -> float:
-        return tf.reduce_prod(tf.stack([
-            self.__observable_nuisance_loss(obs) for obs in self._observable_names
-        ], axis=1))
+    @tf.function
+    def _nuisance_aux_loss(self) -> tf.Tensor:
+        nuisances = tf.stack([var.value for var in self._detector_deltas.values()])
+        return tf.reduce_prod(self._single_nuisance_loss(nuisances))
     
-    def __prediction_loss(
+    @tf.function
+    def _prediction_loss(
             self,
-            f__is_sample_prediction: np.ndarray,
-            y__is_sample_truth: np.ndarray,
+            f__is_sample_prediction: tf.Tensor,
+            y__is_sample_truth: tf.Tensor,
         ) -> float:
-        is_ref_truth = 1 - y__is_sample_truth
+        is_ref_truth = tf.subtract(1.0, y__is_sample_truth)
         return tf.reduce_sum(
             is_ref_truth * (tf.exp(f__is_sample_prediction) - 1) \
-                - y__is_sample_truth * f__is_sample_prediction
+                - tf.multiply(y__is_sample_truth, f__is_sample_prediction)
         )
 
     @property
     def _observable_names(self) -> List[str]:
         return self._detector_effect._observable_names
 
+    @tf.function
     def ddp_symmetrized_loss(
             self,
             y__is_sample_truth,
@@ -101,57 +125,121 @@ class DifferentiatingModel(keras.models.Model):
         Symmetrized DDP custom loss for optimizing likelihood of the
         estimation.
         """
-        return self.__prediction_loss(
+        prediction_loss = self._prediction_loss(
             f__is_sample_prediction,
             y__is_sample_truth,
-        ) - self.__nuisance_aux_loss()
+        )
+        nuisance_aux_loss = self._nuisance_aux_loss()
+        loss = tf.math.log(prediction_loss) + tf.math.log(nuisance_aux_loss)
+
+        return loss
+
+    def get_metrics(self) -> List[tf.keras.metrics.Metric]:
+
+        class NuisanceAbsSumMetric(keras.metrics.Metric):
+            def __init__(inner_self, **kwargs):
+                super().__init__(**kwargs)
+                inner_self.__value = inner_self.add_weight(name="nuisance_abs_sum", initializer="zeros")
+
+            def update_state(inner_self, y_true, y_pred, sample_weight=None):
+                val = tf.reduce_sum(tf.stack([
+                    tf.reduce_sum(tf.abs(var)) for var in self._detector_deltas.values()
+                ]))
+                inner_self.__value.assign(val)
+            
+            def result(inner_self):
+                return inner_self.__value
+            
+            def reset_state(inner_self):
+                inner_self.__value.assign(0.0)
+
+        class PredictionLossMetric(keras.metrics.Metric):
+            def __init__(inner_self, **kwargs):
+                super().__init__(**kwargs)
+                inner_self.__value = inner_self.add_weight(name="prediction_loss", initializer="zeros")
+
+            def update_state(inner_self, y_true, y_pred, sample_weight=None):
+                val = self._prediction_loss(y_pred, y_true)
+                inner_self.__value.assign(val)
+
+            def result(inner_self):
+                return inner_self.__value
+
+            def reset_state(inner_self):
+                inner_self.__value.assign(0.0)
+
+        class NuisanceLossMetric(keras.metrics.Metric):
+            def __init__(inner_self, **kwargs):
+                super().__init__(**kwargs)
+                inner_self.__value = inner_self.add_weight(name="nuisance_loss", initializer="zeros")
+
+            def update_state(inner_self, y_true, y_pred, sample_weight=None):
+                nuisance_loss = self._nuisance_aux_loss()
+                inner_self.__value.assign(nuisance_loss)
+            
+            def result(inner_self):
+                return inner_self.__value
+            
+            def reset_state(inner_self):
+                inner_self.__value.assign(0.0)
+
+        return [
+            NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
+            PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
+            NuisanceLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
+        ]
+
+    def get_callbacks(self) -> List[keras.callbacks.Callback]:
+        return [
+            keras.callbacks.TensorBoard(
+                log_dir=self._tensorboard_log_file, # type: ignore
+                histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
+                update_freq='epoch',
+            ),
+        ]
+
+    def train_step(self, data: Tuple[tf.Tensor, tf.Tensor]):
+        """
+        A custom loop is implemented in order to learn the nuisance variables as well as the model's weights.
+        """
+        x, y, weights = keras.utils.unpack_x_y_sample_weight(data)
+
+        # Record operations while calling the NN for auto differentiation
+        with tf.GradientTape() as tape:
+            prediction = self(x, training=True)
+            loss = self.compute_loss(
+                x, y,
+                prediction,
+                sample_weight=weights,
+                training=True,
+            )
+
+        # Use tape to update trainable vars. Apply a single step
+        gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+
+        # Update and return metrics
+        for metric in self.metrics:
+            metric.update_state(y, prediction)
+        return self.compute_metrics(x, y, y_pred=prediction, sample_weight=weights)
 
     @contextmanager
     def binning_context(self, data: DataSet):
-        """
-        Context is necessary each time a new dataset is used.
-        This is implemented this way to only run once the binning calculation.
-        """
         try:
             self._bins_of_events = self._detector_effect.get_event_bin_centers(data, indexed=True)
             yield
         finally:
             self._bins_of_events = None
 
-    def get_metrics(self) -> List[tf.keras.metrics.Metric]:
-        class PredictionLossMetric(keras.metrics.Metric):
-            def update_state(self, y_true, y_pred, sample_weight=None):
-                self.y_true, self.y_pred = y_true, y_pred
-            
-            def result(inner_self):
-                return self.__prediction_loss(inner_self.y_true, inner_self.y_pred)
-
-        class NuisanceAuxLossMetric(keras.metrics.Metric):
-            def update_state(self, y_true, y_pred, sample_weight=None):
-                pass
-            
-            def result(inner_self):
-                return self.__nuisance_aux_loss()
-        
-        class SingleNuisanceLossMetric(NuisanceAuxLossMetric):
-            def result(self):
-                return super().result() / sum(len(vars) for vars in self.detector_deltas)
-
-        return [
-            PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
-            NuisanceAuxLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
-            SingleNuisanceLossMetric(name=HistoryKeys.SINGLE_NUISANCE_LOSS.value),
-        ]
-
-    def fit(self, data: DataSet, target: npt.NDArray, **kwargs):
+    def fit(self, data: DataSet, target: npt.NDArray, **kwargs) -> keras.callbacks.History:
         """
         Overload of the fit method to be used with DataSet objects and one-time calculation of binning.
 
         batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
         """
         with self.binning_context(data):
-            return super().fit(data.events, y=target, batch_size=data.n_samples, **kwargs)
-        
+            return super().fit(data.events, target, batch_size=data.n_samples, **kwargs)
+
     def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
         """
         Overload of the predict method to be used with DataSet objects and one-time calculation of binning.
@@ -166,7 +254,7 @@ class DifferentiatingModel(keras.models.Model):
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
         nuisance_skews = [
-            tf.gather(tf.exp(self.detector_deltas[obs]), self._bins_of_events[:, i])
+            tf.gather(tf.exp(self._detector_deltas[obs]), self._bins_of_events[:, i])
             for i, obs in enumerate(self._observable_names)
         ]
 
@@ -202,7 +290,11 @@ def calc_t_LFVNN(
     t0 = time()
     
     # Just fit without any special training, like is done in LFVNN
-    model = DifferentiatingModel(context, detector_effect, name=name)
+    model = DifferentiatingModel(
+        context,
+        detector_effect,
+        name=name,
+    )
     model.compile(
         loss=model.ddp_symmetrized_loss,
         metrics=model.get_metrics(),
@@ -214,6 +306,7 @@ def calc_t_LFVNN(
         sample_weight=loss_weights,
         epochs=context.config.train__epochs,
         verbose=0,
+        callbacks=model.get_callbacks(),
     )
     tau_model_history = tau_model_fit.history
     tau_model_history[HistoryKeys.EPOCH.value] = np.concatenate([
