@@ -31,8 +31,8 @@ def main(context: ExecutionContext) -> None:
 
     # Simulate detector
     det = DetectorEffect(context)
-    detected_A_dataset = det.affect_and_compensate(A_dataset, A_params)
-    detected_B_dataset = det.affect_and_compensate(B_dataset, B_params)
+    detected_A_dataset = det.affect_and_compensate(A_dataset, A_params, is_display=context.is_debug_mode)
+    detected_B_dataset = det.affect_and_compensate(B_dataset, B_params, is_display=context.is_debug_mode)
 
     # For reference, we combine both datasets
     reference_dataset = detected_A_dataset + detected_B_dataset

@@ -3,7 +3,7 @@ from typing import Callable, Optional, Union
 import numpy as np
 import numpy.typing as npt
 
-from data_tools.data_utils import DataSet, create_bins
+from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetParameters
 from data_tools.detector import error
 from data_tools.detector.detector_config import DetectorConfig
@@ -45,15 +45,9 @@ class DetectorEffect:
 
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}
-        for i, obs in enumerate(self._observable_names):
-            bin_edges, bin_centers = \
-                create_bins(
-                    xmin=self._config.detector__binning_minima[i],
-                    xmax=self._config.detector__binning_maxima[i],
-                    nbins=self._config.detector__binning_number_of_bins[i],
-                )
-            self._dimensional_bin_centers[obs] = bin_centers
-            self._dimensional_bin_edges[obs] = bin_edges
+        for obs in self._observable_names:
+            self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
+                self._config.observable_bins(obs)
 
     @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
@@ -179,8 +173,7 @@ class DetectorEffect:
                 context=self._context,
                 original_sample=original_dataset,
                 processed_sample=affected_dataset,
-                bins=self._dimensional_bin_centers[self._context.config.detector__detect_observable_names[0]],
-                xlabel=f"{self._context.config.detector__detect_observable_names[0]}",
+                observable=affected_dataset.observable_names[0],
             )
             self._context.save_and_document_figure(
                 figure, self._context.unique_out_dir / f"{dataset_parameters.name}_data_process_plot.png"
