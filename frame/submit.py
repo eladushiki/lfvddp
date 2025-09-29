@@ -4,6 +4,7 @@ from typing import Dict, Optional
 from frame.command_line.execution import format_qsub_script
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
+from frame.git_tools import current_git_branch
 
 
 def submit_cluster_job(
@@ -24,17 +25,18 @@ def submit_cluster_job(
         environment_variables=environment_variables,
         array_jobs=number_of_jobs if number_of_jobs > 1 else None,
         output_dir=str(context.unique_out_dir),
+        git_branch=current_git_branch()
     )
     
     # Save script using ExecutionContext's save_and_document function
     script_filename = context.unique_out_dir / f"{context.config.cluster__qsub_job_name}_submit.sh"
-    context.save_and_document_text(qsub_script_content, script_filename)
+    stamped_script_filename = context.save_and_document_text(qsub_script_content, script_filename)
     
     # Make script executable
-    script_filename.chmod(0o755)
+    stamped_script_filename.chmod(0o755)
     
     # Build qsub command to submit the script
-    qsub_command = f"qsub {script_filename}"
+    qsub_command = f"qsub {stamped_script_filename}"
 
     for round in range(max_tries):
         try:

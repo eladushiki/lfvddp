@@ -132,26 +132,30 @@ class ExecutionContext:
         return stamp_product_path(file_path, self.run_hash)
 
     # todo: export to decorator and add os.makedirs(out_dir, exist_ok=False)
-    def save_and_document_dict(self, dict: dict, file_path: Path):
+    def save_and_document_dict(self, dict: dict, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         save_dict_to_json(dict, file_path)
         self.document_created_product(file_path)
+        return file_path
 
-    def save_and_document_figure(self, figure: Figure, file_path: Path):
+    def save_and_document_figure(self, figure: Figure, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         save_figure(figure, file_path)
         self.document_created_product(file_path)
+        return file_path
 
-    def save_and_document_text(self, text: str, file_path: Path):
+    def save_and_document_text(self, text: str, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         with open(file_path, 'w') as file:
             file.write(text)
         self.document_created_product(file_path)
+        return file_path
 
-    def save_and_document_model_weights(self, model: Model, file_path: Path):
+    def save_and_document_model_weights(self, model: Model, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         model.save_weights(file_path)
         self.document_created_product(file_path)
+        return file_path
 
     def save_and_document_model_history(
             self,

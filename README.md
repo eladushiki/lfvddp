@@ -69,6 +69,8 @@ to install the project to run locally with dependecies and being able to run the
 
 Alternatively, either clone project and use `singularity build` or build it directly from repo (for recent enough versions).
 
+WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
+
 ## Environment Configuration
 
 ### VPN

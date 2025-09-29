@@ -15,15 +15,14 @@ QSUB_TEMPLATE_SCRIPT = """#!/bin/bash
 #$ -l io={io}
 {gpu_line}#$ -o {output_dir}/
 #$ -e {error_dir}/
-{environment_vars}
-{array_job_line}
+{environment_vars}{array_job_line}
 
 # Environment setup
 echo "Job started at: $(date)"
 echo "Running on host: $(hostname)"
 echo "Job ID: $JOB_ID"
 
-{singularity_executable} build lfvnn.sif {git_url}
+{singularity_executable} build --remote --build-arg GIT_URL={git_url} --build-arg GIT_BRANCH={git_branch} lfvnn.sif lfvnn.def
 
 {task_id_line}
 
@@ -49,6 +48,7 @@ def format_qsub_script(
         parallel_environment: str = "smp",
         num_slots: int = 1,
         output_dir: str = "/tmp",
+        git_branch: str = "main",
     ) -> str:
     """
     Format the qsub script template with the provided parameters.
@@ -61,6 +61,7 @@ def format_qsub_script(
         parallel_environment: Parallel environment specification
         num_slots: Number of slots to request
         output_dir: Directory for output and error logs
+        git_branch: Git branch to use for building the container
         
     Returns:
         Formatted qsub script as a string
@@ -103,6 +104,7 @@ def format_qsub_script(
         environment_vars=env_vars_line,
         array_job_line=array_job_line,
         git_url=config.cluster__repo_url,
+        git_branch=git_branch,
         singularity_executable=config.cluster__singularity_executable,
         task_id_line=task_id_line,
         safe_command=safe_command,

@@ -11,3 +11,12 @@ def is_git_head_clean() -> bool:
     
     # Check if the Git working directory is clean
     return subprocess.check_output(['git', 'status', '--porcelain']).strip() == b''
+
+
+def current_git_branch() -> str:
+    """Get the current Git branch name.
+    
+    Returns:
+        str: The name of the current Git branch
+    """
+    return subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
