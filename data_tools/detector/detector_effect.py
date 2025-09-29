@@ -46,7 +46,7 @@ class DetectorEffect:
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}
         for obs in self._observable_names:
-            self._dimensional_bin_centers[obs], self._dimensional_bin_edges[obs] = \
+            self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
                 self._config.observable_bins(obs)
 
     @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
@@ -173,8 +173,7 @@ class DetectorEffect:
                 context=self._context,
                 original_sample=original_dataset,
                 processed_sample=affected_dataset,
-                bins=self._dimensional_bin_centers[self._context.config.detector__detect_observable_names[0]],
-                xlabel=f"{self._context.config.detector__detect_observable_names[0]}",
+                observable=affected_dataset.observable_names[0],
             )
             self._context.save_and_document_figure(
                 figure, self._context.unique_out_dir / f"{dataset_parameters.name}_data_process_plot.png"

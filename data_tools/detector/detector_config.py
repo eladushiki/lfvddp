@@ -47,7 +47,7 @@ class DetectorConfig:
         bins_edges = np.linspace(
             self.detector__binning_minima[index],
             self.detector__binning_maxima[index],
-            self.detector__binning_number_of_bins[index],
+            self.detector__binning_number_of_bins[index] + 1,
         )
         bin_centers = 0.5 * (bins_edges[:-1] + bins_edges[1:])
         return bins_edges, bin_centers

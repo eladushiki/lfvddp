@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import List, Optional
-from data_tools.data_utils import DataSet, create_slice_containing_bins
+from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
+from data_tools.detector.detector_config import DetectorConfig
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
 from neural_networks.utils import predict_sample_ndf_hypothesis_weights
 import numpy as np
-from numpy.typing import NDArray
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -358,6 +358,7 @@ def plot_samples_over_background_sliced(
         context: ExecutionContext,
         background_solid_datasets: List[DataSet] = [],
         sample_hollow_datasets: List[DataSet] = [],
+        observable: Optional[str] = None,
         title: str = "Sample over background",
         background_legends: List[str] = [],
         sample_legends: List[str] = [],
@@ -368,9 +369,7 @@ def plot_samples_over_background_sliced(
     """
     c = Carpenter(context)
     fig = c.figure()
-    bins, _ = create_slice_containing_bins(
-        background_solid_datasets + sample_hollow_datasets,
-    )
+    bins, _ = context.config.observable_bins(observable or context.config.detector__detect_observable_names[0])
 
     datasets = sample_hollow_datasets + background_solid_datasets
     legends = sample_legends + background_legends
@@ -380,6 +379,7 @@ def plot_samples_over_background_sliced(
             ax=ax,
             bins=bins,
             dataset=background,
+            along_observable=observable,
             label=legends[i],
             histtype="stepfilled" if i >= len(sample_hollow_datasets) else "step",
         )
@@ -392,43 +392,44 @@ def plot_data_generation_sliced(
         context: ExecutionContext,
         original_sample: DataSet,
         processed_sample: DataSet,
-        bins: Optional[NDArray] = None,
-        xlabel: str = "",
+        observable: str,
 ):
     c = Carpenter(context)
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    if bins is None:
-        bins, _ = create_slice_containing_bins([processed_sample])
+    bins, _ = context.config.observable_bins(observable)
 
     utils__datset_histogram_sliced(
         ax=ax,
         bins=bins,
         dataset=original_sample,
         # the usual weights
-        histtype="stepfilled",
+        along_observable=observable,
         label="original sample",
+        histtype="stepfilled",
     )
     utils__datset_histogram_sliced(
         ax=ax,
         bins=bins,
         dataset=processed_sample,
         alternative_weights=np.ones(shape=(processed_sample.n_samples, 1)),
-        histtype="stepfilled",
+        along_observable=observable,
         label="detector affected sample",
+        histtype="stepfilled",
     )
     utils__datset_histogram_sliced(
         ax=ax,
         bins=bins,
         dataset=processed_sample,
         # the usual weights
-        histtype="step",
+        along_observable=observable,
         label="detector affected sample (weight adjusted)",
+        histtype="step",
     )
 
     ax.set_title("Sample Generation Process Illustration", fontsize=24)
-    ax.set_xlabel(xlabel, fontsize=20)
+    ax.set_xlabel(f"{observable}", fontsize=20)
     ax.set_ylabel("number of events", fontsize=20)
     ax.legend()
     return fig
@@ -463,12 +464,17 @@ def plot_prediction_process_sliced(
         raise ValueError("The context config is not a TrainConfig.")
     if not isinstance(config, DatasetConfig):
         raise ValueError("The context config is not a DatasetConfig.")
+    if not isinstance(config, DetectorConfig):
+        raise ValueError("The context config is not a DetectorConfig.")
+
+    if along_observable is None:
+        along_observable = config.detector__detect_observable_names[0]
     
     c = Carpenter(context)
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    bins, bin_centers = create_slice_containing_bins([experiment_sample, reference_sample])
+    bins, bin_centers = config.observable_bins(along_observable)
 
     utils__sample_over_background_histograms_sliced(
         ax=ax,
@@ -490,14 +496,14 @@ def plot_prediction_process_sliced(
         "edgecolor": "black",
     }
 
-    _reference_data = reference_sample.slice_along_observable_indices(along_observable)
+    _reference_data = reference_sample.slice_along_observable_names(along_observable)
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
-    predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
+    predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=list(bins), **prediction_hist_kwargs)
     ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
 
     if trained_delta_model is not None:
         delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
-        predicted_delta_ndf = plt.hist(_reference_data, weights=delta_hypothesis_weights, bins=bins, **prediction_hist_kwargs)
+        predicted_delta_ndf = plt.hist(_reference_data, weights=delta_hypothesis_weights, bins=list(bins), **prediction_hist_kwargs)
         ax.scatter(bin_centers, predicted_delta_ndf[0], label=delta_prediction_legend, color=delta_prediction_color, **prediction_scatter_kwargs)
 
     ax.set_title(title, fontsize=30, pad=20)
