@@ -3,13 +3,12 @@ from typing import Dict, Optional
 
 from frame.cluster.cluster_config import ClusterConfig
 
-QSUB_TEMPLATE_SCRIPT = """#!/bin/bash
+QSUB_EXECUTION_SCRIPT = """#!/bin/bash
 #$ -S /bin/bash
 #$ -cwd
 #$ -j y
 #$ -N {job_name}
 #$ -q {queue}
-#$ -pe {parallel_environment} {num_slots}
 #$ -l walltime={walltime}
 #$ -l mem={memory}g
 #$ -l io={io}
@@ -21,8 +20,6 @@ QSUB_TEMPLATE_SCRIPT = """#!/bin/bash
 echo "Job started at: $(date)"
 echo "Running on host: $(hostname)"
 echo "Job ID: $JOB_ID"
-
-{singularity_executable} build --remote --build-arg GIT_URL={git_url} --build-arg GIT_BRANCH={git_branch} lfvnn.sif lfvnn.def
 
 {task_id_line}
 
@@ -40,28 +37,22 @@ exit $?
 """
 
 
-def format_qsub_script(
+def format_qsub_execution_script(
         config: ClusterConfig,
         command: str,
         environment_variables: Optional[Dict[str, str]] = None,
         array_jobs: Optional[int] = None,
-        parallel_environment: str = "smp",
-        num_slots: int = 1,
         output_dir: str = "/tmp",
-        git_branch: str = "main",
     ) -> str:
     """
-    Format the qsub script template with the provided parameters.
+    Format the qsub script to execute a single_train on a built container.
     
     Args:
         config: ClusterConfig object containing cluster settings
         command: The main command to execute
         environment_variables: Dictionary of environment variables to set
         array_jobs: Number of array jobs (if None, no array job)
-        parallel_environment: Parallel environment specification
-        num_slots: Number of slots to request
         output_dir: Directory for output and error logs
-        git_branch: Git branch to use for building the container
         
     Returns:
         Formatted qsub script as a string
@@ -90,11 +81,9 @@ def format_qsub_script(
     # Sanitize the command to prevent expansion problems
     safe_command = shlex.quote(command)
     
-    return QSUB_TEMPLATE_SCRIPT.format(
+    return QSUB_EXECUTION_SCRIPT.format(
         job_name=config.cluster__qsub_job_name,
         queue=config.cluster__qsub_queue or "all.q",
-        parallel_environment=parallel_environment,
-        num_slots=num_slots,
         walltime=config.cluster__qsub_walltime,
         memory=config.cluster__qsub_mem or 4,
         io=config.cluster__qsub_io,
@@ -103,9 +92,70 @@ def format_qsub_script(
         error_dir=error_dir,
         environment_vars=env_vars_line,
         array_job_line=array_job_line,
-        git_url=config.cluster__repo_url,
-        git_branch=git_branch,
         singularity_executable=config.cluster__singularity_executable,
         task_id_line=task_id_line,
         safe_command=safe_command,
+    )
+
+QSUB_BUILT_SCRIPT = """#!/bin/bash
+#$ -S /bin/bash
+#$ -cwd
+#$ -j y
+#$ -N {job_name}_build
+#$ -q {queue}
+#$ -l walltime={walltime}
+#$ -l mem={memory}g
+#$ -o {output_dir}/
+#$ -e {error_dir}/
+
+# Build job setup
+echo "Build job started at: $(date)"
+echo "Running on host: $(hostname)"
+echo "Job ID: $JOB_ID"
+
+# Build Singularity container
+echo "Building Singularity container..."
+{singularity_executable} build --remote --build-arg GIT_URL={git_url} --build-arg GIT_BRANCH={git_branch} lfvnn.sif lfvnn.def
+
+# Build completion
+echo "Build job completed at: $(date)"
+exit $?
+"""
+
+def format_qsub_build_script(
+        config: ClusterConfig,
+        output_dir: str = "/tmp",
+        git_branch: str = "main",
+    ) -> str:
+    """
+    Format a script to be submitted by qsub, that builds the singularity container.
+    
+    Args:
+        config: ClusterConfig object containing cluster settings
+        output_dir: Directory for output and error logs
+        git_branch: Git branch to use for building the container
+        
+    Returns:
+        Formatted qsub build script as a string
+    """
+    # Format output and error directories
+    error_dir = output_dir  # SGE uses same directory for both by default with -j y
+    
+    return QSUB_BUILT_SCRIPT.format(
+        job_name=config.cluster__qsub_job_name,
+        queue=config.cluster__qsub_queue or "all.q",
+        walltime=config.cluster__qsub_walltime,
+        memory=config.cluster__qsub_mem or 4,
+        output_dir=output_dir,
+        error_dir=error_dir,
+        git_url=config.cluster__repo_url,
+        git_branch=git_branch,
+        singularity_executable=config.cluster__singularity_executable,
+    )
+        memory=config.cluster__qsub_mem or 4,
+        output_dir=output_dir,
+        error_dir=error_dir,
+        git_url=config.cluster__repo_url,
+        git_branch=git_branch,
+        singularity_executable=config.cluster__singularity_executable,
     )
