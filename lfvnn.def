@@ -3,25 +3,24 @@
 Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
-%arguments
-    REPO_URL=https://github.com/inbarsavoray/LFVNN-symmetrized.git
-    BRANCH=main
-
 %post
+    # Set default values for build arguments
+    REPO_URL="${REPO_URL:-https://github.com/inbarsavoray/LFVNN-symmetrized.git}"
+    BRANCH="${BRANCH:-main}"
+    
     # Install additional system dependencies if needed
     apt-get update && apt-get install -y \
-        # Required for cryptography package
         libffi-dev \
         libssl-dev \
-        # Clean up
         && rm -rf /var/lib/apt/lists/*
 
     # Set working directory
     mkdir -p /app
     cd /app
 
-    # Clone the repository
-    git clone --branch {{ BRANCH }} --single-branch {{ REPO_URL }} . && \
+    # Clone the repository using build arguments
+    echo "Cloning repository: $REPO_URL (branch: $BRANCH)"
+    git clone --branch "$BRANCH" --single-branch "$REPO_URL" . && \
     git submodule update --init --recursive && \
     rm -rf .git
 
@@ -44,8 +43,14 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 %help
     This container includes the LFVNN-symmetrized project with all dependencies.
     
+    Build with custom repository and branch:
+    singularity build --remote --build-arg REPO_URL=<repo_url> --build-arg BRANCH=<branch_name> lfvnn.sif lfvnn.def
+    
+    Example:
+    singularity build --remote --build-arg REPO_URL=https://github.com/inbarsavoray/LFVNN-symmetrized.git --build-arg BRANCH=feature/remote-submission lfvnn.sif lfvnn.def
+    
     Usage:
     singularity run lfvnn.sif [command]
     singularity exec lfvnn.sif python train/single_train.py [args]
     
-    The container sets up the Python environment and clones the project repository.
+    The container sets up the Python environment and clones the specified repository and branch.
