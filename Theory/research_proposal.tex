@@ -51,10 +51,15 @@ The performance of our prediction would be compared to an "ideal" profile likeli
 \subsection{Preliminary Studies}
 We were able to reproduce the results of the previous study in ref \cite{LastDDPpaper} and train a NN with comparative results.
 
-Our first new results include modeling a detector effect, which affects two datasets that are otherwise summetric. We estimate the effect with some induced errors, correct for it and create an approximation for the true datasets.
+Our first new results include modeling a detector effect, which affects two datasets that are otherwise symmetric. We estimate the effect with some induced errors, correct for it and create an approximation for the true datasets.
 
-\textcolor{red}{Missing reference to the plot and a clear explanation of what is shown.
-Other than this, it's OK}
+The detector effect is modeled as follows:
+\begin{enumerate}
+    \item Two datasets of the same size are drawn from a probability distribution. A signal is added to one of them.
+    \item A detector efficiency is applied to each dataset, resulting in observed datasets with missing events.
+    \item Reconstruction of the original dataset statistics is done by applying weights to the observed dataset, which intend to negate the imperfect efficiency effect, with some errors.
+\end{enumerate} 
+The steps of such a process are shown in figure \ref{fig:data_process_plot}.
 
 \begin{figure}[h]
     \begin{minipage}{0.48\textwidth}
@@ -67,7 +72,8 @@ Other than this, it's OK}
         \includegraphics[width=\textwidth,trim=0 18pt 0 0,clip]
         {../research_proposal/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/B_data_process_plot_-6195891144235862255.png}
     \end{minipage}
-    \caption{The process of generating a dataset, distributed by some arbitrary physical observable of the events. Left: 10000 exponentially decaying probability background events with 50 signal events distributed around $param\_0=4$. Right: no signal events. In each graph three steps are shown: 1. The true dataset in blue. 2. The observed dataset with missing events due to a non perfect detector efficiency. 3. The approximation for the original dataset made from the observed dataset and non-perfect knowledge of the detector efficiency.}
+    \caption{Process steps of generating datasets. An amount of 10,000 events is drawn with an exponentially decaying probability. Left: events with 50 added signal events distributed gaussianly around $param\_0=4$. Right: no added signal events.
+    In each graph three steps are shown: 1. The true dataset (blue). 2. The observed dataset with missing events due to a non perfect detector efficiency (green). 3. The approximation for the original dataset made from the observed dataset and imperfect reweighing of the remaining events.}
     \label{fig:data_process_plot}
 \end{figure}
 
