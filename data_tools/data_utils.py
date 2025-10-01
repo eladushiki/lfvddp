@@ -105,7 +105,10 @@ class DataSet:
         return self.slice_along_observable_names(self.observable_names[indices])
 
     def slice_along_observable_names(self, observables: Union[str, List[str]]) -> npt.NDArray:
-        return self._data[observables].to_numpy()
+        try:
+            return self._data[observables].to_numpy()
+        except KeyError as e:
+            raise KeyError(f"One or more observable names not found in dataset: {observables}") from e
     
     def filter(self, filter: np.ndarray) -> DataSet:
         """

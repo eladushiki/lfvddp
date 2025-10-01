@@ -16,7 +16,10 @@ class DetectorConfig:
     
     def __post_init__(self):
         # Detector dimensions should fit DataSet dimension. Inserts default and expands dimensions if given an int.
-        if isinstance(self.detector__binning_minima, int):
+        if isinstance(self.detector__binning_maxima, (int, float)):
+            self.detector__binning_maxima = [self.detector__binning_maxima] * self.detector__number_of_dimensions
+        
+        if isinstance(self.detector__binning_minima, (int, float)):
             self.detector__binning_minima = [self.detector__binning_minima] * self.detector__number_of_dimensions
 
         if isinstance(self.detector__binning_number_of_bins, int):
