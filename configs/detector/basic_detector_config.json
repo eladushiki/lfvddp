@@ -1,5 +1,4 @@
 {
-    "detector__number_of_dimensions": 2,
     "detector__detect_observable_names": [
         "Tau_mass_0",
         "Lepton_mass_0"

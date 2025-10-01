@@ -36,10 +36,6 @@ class DetectorEffect:
         self.__dataset_parameters_for_detection = None
 
         # Detector dimensions and binning
-        assert (ndim := len(self._config.detector__detect_observable_names)) == len(self._config.detector__binning_maxima), "Detector binning dimensions don't match"
-        assert ndim == len(self._config.detector__binning_maxima), "Detector binning dimensions don't match"
-        assert ndim == len(self._config.detector__binning_number_of_bins), "Detector binning dimensions don't match"
-        self._ndim = ndim
         self._observable_names = self._config.detector__detect_observable_names
         self._numbers_of_bins = self._config.detector__binning_number_of_bins
 

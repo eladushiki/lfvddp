@@ -408,6 +408,7 @@ def plot_data_generation_sliced(
         along_observable=observable,
         label="original sample",
         histtype="stepfilled",
+        alpha=0.6,
     )
     utils__datset_histogram_sliced(
         ax=ax,
@@ -417,6 +418,7 @@ def plot_data_generation_sliced(
         along_observable=observable,
         label="detector affected sample",
         histtype="stepfilled",
+        alpha=0.6,
     )
     utils__datset_histogram_sliced(
         ax=ax,
