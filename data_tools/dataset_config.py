@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
 from urllib.parse import urlparse
 
 from camel_converter import to_pascal
@@ -90,11 +90,15 @@ class LoadedDatasetParameters(DatasetParameters):
             except ValueError:
                 raise FileNotFoundError(f"Loaded file '{self.dataset_loaded__file_name}' does not exist, nor it's a valid URL.")
 
+        assert self.dataset_loaded__observable_naming is not None, \
+            "dataset_loaded__observable_naming must be defined in the configuration"
+
     # Data source
-    dataset_loaded__file_name: str = field(default="")
+    dataset_loaded__file_name: str = field(default=None)
     dataset_loaded__event_amount_load_limit: Optional[int] = field(default=None)
-    dataset_loaded__observable_names: List[str] = field(default_factory=list)
-    dataset_loaded__observables_to_be_called: Optional[List[str]] = field(default=None)
+
+    # Names of observables to load should be defined by the convension {name_in_dataset: name_in_program}
+    dataset_loaded__observable_naming: Dict[str, str] = field(default=None)
 
     # Tampering mechanics
     dataset_loaded__cut: Optional[str] = field(default=None)
@@ -103,6 +107,14 @@ class LoadedDatasetParameters(DatasetParameters):
     # Resampling settings
     dataset_loaded__resample_is_resample: bool = field(default=False)
     dataset_loaded__resample_is_replacement: bool = field(default=False)
+
+    @property
+    def dataset_loaded__observable_to_load(self) -> Iterable[str]:
+        return self.dataset_loaded__observable_naming.keys()
+
+    @property
+    def dataset_loaded__observable_names(self) -> Iterable[str]:
+        return self.dataset_loaded__observable_naming.values()
 
     @property
     def dataset__data(self) -> DataSet:
@@ -130,18 +142,10 @@ class LoadedDatasetParameters(DatasetParameters):
             loaded_dataset = load_numpy_events(path, number_of_events)
         
         elif file_extension == ".root":
-            if self.dataset_loaded__observables_to_be_called:
-                rename_dict = {
-                    old_name: new_name
-                    for old_name, new_name in zip(
-                        self.dataset_loaded__observable_names,
-                        self.dataset_loaded__observables_to_be_called,
-                    )
-                }
             loaded_dataset = load_root_events(
                 XRootD_url=path,
-                branch_names=self.dataset_loaded__observable_names,
-                observable_renames=rename_dict if self.dataset_loaded__observables_to_be_called else None,
+                branch_names=self.dataset_loaded__observable_to_load,
+                observable_renames=self.dataset_loaded__observable_naming,
                 cut=self.dataset_loaded__cut,
                 aliases=self.dataset_loaded__aliases,
                 stop=number_of_events,

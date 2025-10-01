@@ -105,7 +105,10 @@ class DataSet:
         return self.slice_along_observable_names(self.observable_names[indices])
 
     def slice_along_observable_names(self, observables: Union[str, List[str]]) -> npt.NDArray:
-        return self._data[observables].to_numpy()
+        try:
+            return self._data[observables].to_numpy()
+        except KeyError as e:
+            raise KeyError(f"One or more observable names not found in dataset: {observables}") from e
     
     def filter(self, filter: np.ndarray) -> DataSet:
         """
@@ -157,44 +160,3 @@ def resample(
         remainder = source_dataset[rest_idx]
 
     return sample, remainder
-
-
-def create_slice_containing_bins(
-        datasets: List[DataSet],
-        nbins = 30,
-        along_dimension: int = 0,
-) -> Tuple[npt.NDArray, npt.NDArray]:
-
-    # limits    
-    xmin = 0
-    xmax = np.max([np.max(dataset.slice_along_observable_indices(along_dimension)) for dataset in datasets])
-
-    return create_bins(
-        xmin=xmin,
-        xmax=xmax,
-        nbins=nbins,
-    )
-
-
-def create_bins(
-        xmin: float,
-        xmax: float,
-        nbins: int,
-) -> Tuple[npt.NDArray, npt.NDArray]:
-    
-    bins = np.linspace(xmin, xmax, nbins + 1)
-    bin_centers = 0.5 * (bins[1:] + bins[:-1])
-
-    return bins, bin_centers
-
-
-def create_slice_containing_bins(
-        datasets: List[DataSet],
-        nbins = 100,
-        along_dimension: int = 0,
-):
-    # limits    
-    xmin = 0
-    xmax = np.max([np.max(dataset.slice_along_observable_indices(along_dimension)) for dataset in datasets])
-
-    return create_bins(xmin=xmin, xmax=xmax, nbins=nbins)

@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Tuple
+
+import numpy as np
+import numpy.typing as npt
 
 
 @dataclass
 class DetectorConfig:
-    detector__number_of_dimensions: int
     detector__detect_observable_names: List[str]
     detector__binning_maxima: List[int]
 
@@ -14,7 +16,10 @@ class DetectorConfig:
     
     def __post_init__(self):
         # Detector dimensions should fit DataSet dimension. Inserts default and expands dimensions if given an int.
-        if isinstance(self.detector__binning_minima, int):
+        if isinstance(self.detector__binning_maxima, (int, float)):
+            self.detector__binning_maxima = [self.detector__binning_maxima] * self.detector__number_of_dimensions
+        
+        if isinstance(self.detector__binning_minima, (int, float)):
             self.detector__binning_minima = [self.detector__binning_minima] * self.detector__number_of_dimensions
 
         if isinstance(self.detector__binning_number_of_bins, int):
@@ -34,3 +39,21 @@ class DetectorConfig:
         assert len(self.detector__binning_number_of_bins) == self.detector__number_of_dimensions, \
             f"Detector binning number of bins length {len(self.detector__binning_number_of_bins)} does not match "\
             f"Detector number of dimensions {self.detector__number_of_dimensions}"
+
+    @property
+    def detector__number_of_dimensions(self) -> int:
+        return len(self.detector__detect_observable_names)
+
+    def observable_bins(self, observable_name: str) -> Tuple[npt.NDArray, npt.NDArray]:
+        try:
+            index = self.detector__detect_observable_names.index(observable_name)
+        except ValueError:
+            raise ValueError(f"Observable name {observable_name} not found in detector observable names {self.detector__detect_observable_names}")
+        
+        bins_edges = np.linspace(
+            self.detector__binning_minima[index],
+            self.detector__binning_maxima[index],
+            self.detector__binning_number_of_bins[index] + 1,
+        )
+        bin_centers = 0.5 * (bins_edges[:-1] + bins_edges[1:])
+        return bins_edges, bin_centers
