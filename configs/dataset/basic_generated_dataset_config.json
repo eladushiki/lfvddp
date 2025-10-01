@@ -1,0 +1,31 @@
+{
+    "dataset__definitions": [
+        {
+            "name": "A",
+            "type": "generated",
+            
+            "dataset__number_of_dimensions": 2,
+            "dataset_generated__background_function": "exponential_background",
+            "dataset__mean_number_of_background_events": 10000,
+            
+            "dataset__signal_data_generation_function": "gaussian_signal",
+            "dataset__mean_number_of_signal_events": 100,
+            "dataset__signal_parameters": {
+                "location": 6.4,
+                "gaussian_signal_sigma": 0.16
+            },
+            
+            "dataset__detector_efficiency": "detector_efficiency_tanh",
+            "dataset__detector_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
+            "dataset__detector_error": ""
+        },
+        {
+            "name": "B",
+            "type": "generated",
+            
+            "dataset__number_of_dimensions": 2,
+            "dataset_generated__background_parameters": "exponential_background",
+            "dataset__mean_number_of_background_events": 10000
+        }
+    ]
+}

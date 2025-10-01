@@ -1,3 +1,4 @@
+from data_tools.profile_likelihood import calc_t_significance_relative_to_background
 import numpy as np, os, re, glob, h5py, sys, os, time #, pandas as pd
 from scipy.stats import chi2
 import scipy.special as spc
@@ -345,5 +346,4 @@ def get_z_score(results_file:results,bkg_results_file:results, epoch = 500000):
         bkg_t_dict = bkg_file.get_t_history_dict
         bkg_t = bkg_t_dict[epoch] if epoch in bkg_t_dict.keys() else bkg_t_dict[sig_results.tot_epochs]
     
-    z_score = np.sqrt(2)*spc.erfinv((len(bkg_t[bkg_t<=np.median(sig_t)])/len(bkg_t))*2-1)
-    return z_score
+    return calc_t_significance_relative_to_background(bkg_t, sig_t)

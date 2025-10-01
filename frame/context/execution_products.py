@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List
 
+from frame.file_structure import JSON_FILE_EXTENSION, PLOT_FILE_EXTENSION, TEXT_FILE_EXTENSION, TRAINING_LOG_FILE_EXTENSION
+
 
 @dataclass
 class Product(ABC):
@@ -40,7 +42,7 @@ class TextualDataFileProduct(FileProduct):
 
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return ["txt", "csv", "json"]
+        return [TEXT_FILE_EXTENSION, JSON_FILE_EXTENSION]
 
 
 @dataclass
@@ -50,7 +52,7 @@ class FigureFileProduct(FileProduct):
     """
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return ["png", "jpg", "jpeg", "pdf", "fig"]
+        return [PLOT_FILE_EXTENSION]
 
 
 @dataclass
@@ -60,7 +62,7 @@ class ModelWeightsFileProduct(FileProduct):
     """
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return ["h5"]
+        return [TRAINING_LOG_FILE_EXTENSION]
 
 
 class ProductFactory:
@@ -106,3 +108,27 @@ class ExecutionProducts:
             if product.descriptor == descriptor:
                 return product
         raise ValueError(f"Product with descriptor {descriptor} not found")
+
+
+def stamp_product_path(file_path: Path, run_hash: str) -> Path:
+    if file_path.suffix.lstrip(".") == TRAINING_LOG_FILE_EXTENSION:
+        stamped_file_name = ".".join(file_path.stem.split(".")[:-1]) + f"_{run_hash}"
+        suffix = "." + ".".join(str(file_path).split(".")[-2:])
+    else:
+        stamped_file_name = file_path.stem + f"_{run_hash}"
+        suffix = file_path.suffix
+    stamped_file_name += suffix
+    return file_path.parent / stamped_file_name
+
+
+def unstamp_product_stem(stamped_file_path: Path) -> str:
+    name = stamped_file_path.name
+    original_stem = "_".join(name.split("_")[:-1])
+    return original_stem
+
+
+def products_from_stem(stem: str, directory: Path) -> List[Path]:
+    """
+    Searches all the files whose names start with the given stem in the given directory.
+    """
+    return [f for f in directory.iterdir() if f.is_file() and f.stem.startswith(stem)]

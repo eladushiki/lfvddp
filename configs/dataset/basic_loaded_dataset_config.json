@@ -1,0 +1,50 @@
+{
+    "dataset__definitions": [
+        {
+            "name": "A",
+            "type": "loaded",
+            
+            "dataset_loaded__file_name": "root://eospublic.cern.ch//eos/opendata/cms/mc/RunIISummer20UL16NanoAODv9/VVTo2L2Nu_MLL-1toInf_TuneCP5_13TeV-amcatnloFXFX-pythia8/NANOAODSIM/106X_mcRun2_asymptotic_v17-v1/30000/0922B4A4-59D8-2C4E-837E-D5832DEBC7D5.root",
+            "dataset_loaded__observable_naming": {
+                "nTau": "nTau",
+                "Tau_mass": "Tau_mass",
+                "nMuon": "nLepton",
+                "Muon_mass": "Lepton_mass"
+            },
+            "dataset_loaded__cut": "(nTau > 0) & (nMuon > 0)",
+            "dataset_loaded__aliases": null,
+            "dataset_loaded__event_amount_load_limit": 10000,
+
+            "dataset__signal_data_generation_function": "gaussian_signal",
+            "dataset__mean_number_of_signal_events": 100,
+            "dataset__signal_parameters": {
+                "location": 6.4,
+                "gaussian_signal_sigma": 0.16
+            },
+
+            "dataset_loaded__resample_is_resample": true,
+            "dataset_loaded__resample_is_replacement": false,
+
+            "dataset__mean_number_of_background_events": 10000
+        },
+        {
+            "name": "B",
+            "type": "loaded",
+
+            "dataset_loaded__file_name": "root://eospublic.cern.ch//eos/opendata/cms/mc/RunIISummer20UL16NanoAODv9/VVTo2L2Nu_MLL-1toInf_TuneCP5_13TeV-amcatnloFXFX-pythia8/NANOAODSIM/106X_mcRun2_asymptotic_v17-v1/30000/0922B4A4-59D8-2C4E-837E-D5832DEBC7D5.root",
+            "dataset_loaded__observable_naming": {
+                "nTau": "nTau",
+                "Tau_mass": "Tau_mass",
+                "nElectron": "nLepton",
+                "Electron_mass": "Lepton_mass"
+            },
+            "dataset_loaded__cut": "(nTau > 0) & (nElectron > 0)",
+            "dataset_loaded__event_amount_load_limit": 10000,
+
+            "dataset_loaded__resample_is_resample": true,
+            "dataset_loaded__resample_is_replacement": false,
+
+            "dataset__mean_number_of_background_events": 10000
+        }
+    ]
+}

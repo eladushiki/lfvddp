@@ -1,4 +1,3 @@
-from inspect import signature
 from logging import warning
 from sys import argv
 from argparse import ArgumentParser
@@ -6,14 +5,9 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional
 
-from data_tools.dataset_config import DatasetConfig
-from frame.config_handle import UserConfig
 from frame.context.execution_context import version_controlled_execution_context
+from frame.context.execution_context import create_config_from_paramters
 from frame.file_system.textual_data import load_dict_from_json
-from frame.validation import validate_configuration
-from plot.plotting_config import PlottingConfig
-from frame.cluster.cluster_config import ClusterConfig
-from train.train_config import TrainConfig
 
 
 def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
@@ -24,13 +18,6 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         
     # Mandatory arguments
     parser.add_argument(
-        "--user-config", type=Path, required=True,
-        help="User details configuration file path", dest="user_config_path"
-    )
-
-    # Optional arguments
-    ## Additional configurations
-    parser.add_argument(
         "--cluster-config", type=Path, required=True,
         help="Path to cluster configuration file", dest="cluster_config_path"
     )
@@ -39,9 +26,19 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         help="Path to dataset configuration file", dest="dataset_config_path"
     )
     parser.add_argument(
+        "--detector-config", type=Path, required=True,
+        help="Path to detector configuration file", dest="detector_config_path"
+    )
+    parser.add_argument(
         "--train-config", type=Path, required=True,
         help="Path to training configuration file", dest="train_config_path"
     )
+    parser.add_argument(
+        "--user-config", type=Path, required=True,
+        help="User details configuration file path", dest="user_config_path"
+    )
+
+    # Optional arguments
     parser.add_argument(
         "--plot-config", type=Path, required=False,
         help="Path to plot configuration file", dest="plot_config_path"
@@ -66,10 +63,11 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
 
     # Parse configuration files
     config_paths = [
-        args.user_config_path,
         args.cluster_config_path,
         args.dataset_config_path,
+        args.detector_config_path,
         args.train_config_path,
+        args.user_config_path,
     ]
     if args.plot_config_path:
         config_paths.append(args.plot_config_path)
@@ -87,38 +85,12 @@ def create_config_from_paths(
     for config_path in config_paths:
         config_params.update(load_dict_from_json(config_path))
 
-    # Resolve config typing according to deepest hierarchy:
-    config_classes = [
-        UserConfig,
-        ClusterConfig,
-        DatasetConfig,
-        TrainConfig,
-    ]
-
-    if is_plot:
-        config_classes.append(PlottingConfig)
-
-    class DynamicConfig(*config_classes):
-        def __init__(self, **kwargs):
-            for config_class in config_classes:
-                filtered_args = {
-                    k: v for k, v in kwargs.items()
-                    if k in signature(config_class).parameters
-                }
-                config_class.__init__(self, **filtered_args)
-
-    # Configuration according to arguments
-    if out_dir:
-        config_params["config__out_dir"] = out_dir
-    if plot_in_place:
-        config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
-
-    config = DynamicConfig(**config_params)
-
-    validate_configuration(config)
-
-    return config
-
+    return create_config_from_paramters(
+        config_params,
+        is_plot=is_plot,
+        out_dir=out_dir,
+        plot_in_place=plot_in_place,
+    )
 
 def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
     """

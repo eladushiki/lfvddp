@@ -1,7 +1,12 @@
 absl-py==2.1.0
 asttokens==2.4.1
 astunparse==1.6.3
+awkward==2.7.4
+awkward-pandas==2023.8.0
+awkward_cpp==44
+awkward-pandas==2023.8.0
 bcrypt==4.2.1
+camel_converter==4.0.1
 certifi==2024.8.30
 cffi==1.17.1
 charset-normalizer==3.4.0
@@ -16,6 +21,7 @@ exceptiongroup==1.2.2
 executing==2.1.0
 flatbuffers==24.3.25
 fonttools==4.54.1
+fsspec-xrootd==0.5.1
 gast==0.6.0
 google-pasta==0.2.0
 grpcio==1.67.1
@@ -80,7 +86,9 @@ tornado==6.4.1
 traitlets==5.14.3
 typing_extensions==4.12.2
 urllib3==2.2.3
+vector==1.6.3
 wcwidth==0.2.13
 Werkzeug==3.1.2
 wrapt==1.16.0
+xrootd==5.8.4
 zipp==3.21.0

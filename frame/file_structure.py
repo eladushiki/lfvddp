@@ -1,33 +1,31 @@
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePath, PurePosixPath
 
 
 # project hierarchy
 PROJECT_ROOT = Path(__file__).parent.parent
 def get_relpath_from_local_root(local_absolute_path: PurePath) -> PurePosixPath:
     return PurePosixPath(local_absolute_path.relative_to(PROJECT_ROOT))
-def get_remote_equivalent_path(remote_root_path: PurePosixPath, local_absolute_path: Path):
-    return remote_root_path / get_relpath_from_local_root(local_absolute_path)
-def get_local_equivalent_path(remote_root_path: PurePosixPath, remote_absolute_path: PurePosixPath):
-    return PROJECT_ROOT / PurePath(remote_absolute_path.relative_to(remote_root_path))
 
-CONFIGS_DIR = PROJECT_ROOT / "configs"
 
-# file title constants
-CONTEXT_FILE_NAME = "context.json"
-JOB_OUTPUT_FILE_NAME = "job_output.txt"
-RESULTS_BRIEFING_FILE_NAME = "results_briefing.txt"
-
-# NN training
-TRIANING_OUTCOMES_DIR_NAME = "training_outcomes"
-TRAINING_HISTORY_FILE_EXTENSION = "history.h5"
-SINGLE_TRAINING_RESULT_FILE_EXTENSION = "txt"
-SINGLE_TRAINING_RESULT_FILE_NAME = "final_t." + SINGLE_TRAINING_RESULT_FILE_EXTENSION
-TRAINING_WEIGHTS_FILE_EXTENSION = "weights.h5"
-WEIGHTS_OUTPUT_FILE_NAME = "training_result." + TRAINING_WEIGHTS_FILE_EXTENSION
-
-# Plotting
+# File extensions
+## Textual data
+JSON_FILE_EXTENSION = "json"
+TEXT_FILE_EXTENSION = "txt"
+## Training logs
+TRAINING_LOG_FILE_EXTENSION = "h5"
+TRAINING_HISTORY_LOG_FILE_SUFFIX = "history." + TRAINING_LOG_FILE_EXTENSION
+TRAINING_WEIGHTS_LOG_FILE_SUFFIX = "weights." + TRAINING_LOG_FILE_EXTENSION
+SINGLE_TRAINING_RESULT_FILE_EXTENSION = TEXT_FILE_EXTENSION
+## Plotting
 PLOT_FILE_EXTENSION = "png"
 
-def convert_win_path_to_wsl(path: PureWindowsPath) -> PurePosixPath:
-        slashed_path = (str(path)).replace("\\", "/")
-        return PurePosixPath(f"/mnt/{slashed_path[0].lower()}/{slashed_path[3:]}")
+# File title constants
+CONTEXT_FILE_NAME = f"context.{JSON_FILE_EXTENSION}"
+JOB_OUTPUT_FILE_NAME = f"job_output.{TEXT_FILE_EXTENSION}"
+RESULTS_BRIEFING_FILE_NAME = f"results_briefing.{TEXT_FILE_EXTENSION}"
+
+# NN training
+TRAINING_OUTCOMES_DIR_NAME = "training_outcomes"
+SINGLE_TRAINING_RESULT_FILE_NAME = f"final_t.{SINGLE_TRAINING_RESULT_FILE_EXTENSION}"
+WEIGHTS_OUTPUT_FILE_NAME = f"training_result.{TRAINING_WEIGHTS_LOG_FILE_SUFFIX}"
+TENSORBOARD_LOG_DIR_NAME = f"tensorboard_logs"

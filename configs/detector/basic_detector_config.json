@@ -1,0 +1,12 @@
+{
+    "detector__detect_observable_names": [
+        "Tau_mass_0",
+        "Lepton_mass_0"
+    ],
+    "detector__binning_maxima": [
+        5,
+        2.450
+    ],
+    "detector__binning_minima": 0,
+    "detector__binning_number_of_bins": 10
+}
