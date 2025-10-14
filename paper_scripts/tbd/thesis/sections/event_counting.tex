@@ -1,0 +1,61 @@
+\documentclass[../thesis.tex]{subfiles}
+
+\begin{document}
+
+\section{Event Counting and Detector Effects}
+Due to detector and selection effects, not all events generated (or ``collected'') in the underlying physical process are observed or measured. We distinguish the following quantities:
+
+\begin{itemize}
+    \item \( N_{\mathrm{col}} \): the number of true collected events passing all physics selections (the quantity we ultimately want to estimate).
+    \item \( N_{\mathrm{meas}} \): the number of measured (observed) events actually recorded by the detector, after filtering by efficiency.
+\end{itemize}
+
+Our goal is to estimate \( N_{\mathrm{col}} \) from the observed \( N_{\mathrm{meas}} \), correcting for detector efficiency effects and propagating uncertainties associated with the efficiency estimation.
+
+\section{Multidimensional Events and Detector Efficiency}
+Let each event \( x \in \mathbb{R}^k \) be a point in \( k \)-dimensional feature space (e.g., energy, momentum components, angles). Each dataset \(\mathbf{A} \in \mathbb{R}^{N_A \times k}\), \(\mathbf{B} \in \mathbb{R}^{N_B \times k}\) consists of such events.
+
+Let the detector efficiency be a function
+\[
+\eta: \mathbb{R}^k \to [0,1],
+\]
+where \(\eta(x)\) denotes the probability that an event with features \( x \) is detected.
+
+We define the filtering process \(\mathrm{Det}(\eta, n)\) that stochastically removes events:
+\[
+\mathrm{Det}(\eta, n) := \{ x_i \in n \mid x_i \text{ is retained with probability } \eta(x_i) \}.
+\]
+The observed (filtered) datasets are then:
+\[
+\tilde{\mathbf{A}} = \mathrm{Det}(\eta, \mathbf{A}), \quad \tilde{\mathbf{B}} = \mathrm{Det}(\eta, \mathbf{B}).
+\]
+
+\section{Efficiency Compensation via Event Weights}
+To reconstruct the statistics of the original datasets, we assign weights:
+\[
+\text{for } x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}, \quad w_i := \frac{1}{\eta(x_i)}.
+\]
+This gives rise to the efficiency-compensated reconstructed datasets:
+\[
+\dot{\mathbf{A}} := \{ (x_i, w_i) \mid x_i \in \tilde{\mathbf{A}} \}, \quad
+\dot{\mathbf{B}} := \{ (x_i, w_i) \mid x_i \in \tilde{\mathbf{B}} \}.
+\]
+
+The estimated total event counts become:
+\[
+\dot{N}_{\mathbf{A}} = \sum_{x_i \in \tilde{\mathbf{A}}} w_i \approx N_{\mathrm{col},\mathbf{A}}, \quad \dot{N}_{\mathbf{B}} = \sum_{x_i \in \tilde{\mathbf{B}}} w_i \approx N_{\mathrm{col},\mathbf{B}}.
+\]
+
+\subsection*{Proposition 1 (Unbiasedness of the weighted estimator).}
+Let \(\{x_j\}_{j=1}^{N_{\mathrm{col}}}\) be the set of true collected events, each detected independently with probability \(\eta(x_j)\). Then:
+\[
+\mathbb{E}\!\left[ \dot{N}_{\mathbf{A}} \right] = N_{\mathrm{col},\mathbf{A}}.
+\]
+\emph{Proof.}
+For a single event \(x_j\), the contribution to the sum is \(\frac{1}{\eta(x_j)}\) if detected and \(0\) otherwise. Its expectation is:
+\[
+\eta(x_j) \cdot \frac{1}{\eta(x_j)} + (1-\eta(x_j))\cdot 0 = 1.
+\]
+Summing over all \(N_{\mathrm{col},\mathbf{A}}\) events yields the result. \(\square\)
+
+\end{document}
