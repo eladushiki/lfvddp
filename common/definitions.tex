@@ -1,0 +1,29 @@
+% =============================================================================
+% COMMON DEFINITIONS AND SHORTCUTS
+% =============================================================================
+% This file contains LaTeX function definitions and shortcuts to be included
+% in other tex files. Include with: \input{../common/definitions.tex}
+
+% =============================================================================
+% NOTATIONS
+% =============================================================================
+
+%% Data sets
+\newcommand{\dataset}[1]{{\mathbf{#1}}}  % A dataset
+\newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
+\newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}  % A measured dataset
+\newcommand{\reco}[1]{{\dataset{\dot{#1}}}}  % A reconstructed dataset
+
+%% Detecting events
+\newcommand{\detector}{\mathrm{Det}}  % Detector function
+
+% =============================================================================
+% CUSTOM COLORS (if needed)
+% =============================================================================
+
+% Define custom colors for highlighting, etc.
+% \definecolor{...}{RGB}{...}
+
+% =============================================================================
+% END OF DEFINITIONS
+% =============================================================================
