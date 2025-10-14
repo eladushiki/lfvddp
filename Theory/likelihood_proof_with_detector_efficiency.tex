@@ -1,21 +1,4 @@
 % Updated LaTeX with full proof of the symmetrized test statistic
-\documentclass{article}
-
-\usepackage{amsmath, amssymb, amsfonts}
-\usepackage{physics}
-\usepackage{graphicx}
-\usepackage{hyperref}
-\usepackage{bm}
-\usepackage{geometry}
-\geometry{margin=1in}
-
-\title{Generalizing the Symmetrized Likelihood Formalism with Detector Efficiency in \(\mathbb{R}^k\) and Uncertainty Propagation}
-\author{}
-\date{}
-
-\begin{document}
-
-\maketitle
 
 \section{Introduction}
 We present a generalization of the symmetrized likelihood-based test statistic used in \cite{LastDDPpaper}, incorporating nontrivial detector efficiencies and extending the event representation to \(\mathbb{R}^k\), the realistic multidimensional case. This generalization is important for distinguishing genuine physical effects from distortions introduced by varying detector responses across event types.
@@ -272,10 +255,3 @@ converges in probability to \(\mathrm{Var}(t)\) as \(B \to \infty\), provided \(
 
 \section{Summary}
 Incorporating detector efficiency uncertainties into the symmetrized likelihood framework allows robust distinction of physical signals from detector artifacts. The formalism extends naturally to multidimensional event data and is compatible with modern machine learning training methods.
-
-\bibliographystyle{unsrt}
-\begin{thebibliography}{9}
-\bibitem{LastDDPpaper} Bressler, S., Savoray, I., \& Zurgil, Y. (2024). Learning new physics from data — a symmetrized approach. \emph{Physical Review D, 110}(9), 095004. \href{https://arxiv.org/abs/2401.09530}{arXiv:2401.09530}
-\end{thebibliography}
-
-\end{document}
