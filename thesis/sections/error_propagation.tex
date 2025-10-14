@@ -1,0 +1,56 @@
+\documentclass[../thesis.tex]{subfiles}
+
+\begin{document}
+
+\section{Error Propagation in Detector Efficiency}
+In practical scenarios, the detector efficiency \( \eta(x) \) is estimated and carries uncertainties \( \delta \eta(x) \). These propagate into the weights, reconstructed event counts, the test statistic, and the training loss:
+
+\subsection{Uncertainty in Event Weights}
+The weights depend inversely on efficiency:
+\[
+w_i = \frac{1}{\eta(x_i)} \implies \delta w_i \approx \frac{\delta \eta(x_i)}{\eta(x_i)^2}
+\]
+where we have taken the first-order derivative \(\partial w / \partial \eta = -1/\eta^2\) and noted that the sign is irrelevant for variances.
+
+\subsection*{Proposition 2 (Variance of reconstructed counts).}
+If efficiency uncertainties for different events are uncorrelated,
+\[
+(\delta \dot{N}_{\mathbf{A}})^2 = \sum_{x_i \in \tilde{\mathbf{A}}} \left( \frac{\delta \eta(x_i)}{\eta(x_i)^2} \right)^2,
+\]
+and similarly for \( \mathbf{B} \).  
+\emph{Proof.} Using the standard error propagation formula for independent variables \(\eta(x_i)\):
+\[
+(\delta \dot{N}_{\mathbf{A}})^2 = \sum_i \left( \frac{\partial \dot{N}_{\mathbf{A}}}{\partial \eta(x_i)} \delta \eta(x_i) \right)^2 = \sum_i \left( -\frac{1}{\eta(x_i)^2} \delta \eta(x_i) \right)^2.
+\]
+\(\square\)
+
+\subsection{Uncertainty Propagation into the Test Statistic}
+The test statistic depends on \( \dot{N}_{\mathbf{A}} \), \( \dot{N}_{\mathbf{B}} \), and functions \( f(x), g(x) \) trained on weighted data. To first order, the propagated uncertainty is
+\[
+(\delta t)^2 \approx \left( \frac{\partial t}{\partial \dot{N}_{\mathbf{A}}} \delta \dot{N}_{\mathbf{A}} \right)^2 + \left( \frac{\partial t}{\partial \dot{N}_{\mathbf{B}}} \delta \dot{N}_{\mathbf{B}} \right)^2 + \cdots,
+\]
+where higher-order contributions and training uncertainties can be estimated numerically.
+
+\subsection{Incorporating Uncertainty into the Loss Function}
+Uncertainty in weights also propagates into the loss:
+\[
+\delta L = \sqrt{
+\sum_{i} \left( \frac{\partial L}{\partial w_i} \delta w_i \right)^2
+} = \sqrt{
+\sum_{i} \left( \frac{\partial L}{\partial w_i} \frac{\delta \eta(x_i)}{\eta(x_i)^2} \right)^2
+}.
+\]
+A practical approach is to add a regularization term:
+\[
+L_{\mathrm{total}} = L + \lambda \cdot \delta L,
+\]
+where \(\lambda\) controls the tradeoff between fitting the data and accounting for efficiency uncertainty.
+
+\subsection{Proposition 3 (Bootstrap consistency).}
+Let \(t\) be any statistic computed from the efficiency-weighted data. If \(\hat{F}\) is the empirical distribution of \((x_i, w_i)\), then the bootstrap variance estimator
+\[
+\hat{\sigma}^2_{\mathrm{boot}}(t) = \frac{1}{B-1} \sum_{j=1}^B \left( t^{(j)} - \bar{t} \right)^2
+\]
+converges in probability to \(\mathrm{Var}(t)\) as \(B \to \infty\), provided \(t\) is a smooth functional of \(F\). This follows from standard nonparametric bootstrap theory. \(\square\)
+
+\end{document}
