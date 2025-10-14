@@ -1,6 +1,6 @@
 \documentclass{article}
 
-\input{common_packages.tex}
+\input{../common/packages.tex}
 
 \title{Research Proposal}
 \author{Elad Kliger}
@@ -61,22 +61,22 @@ The detector effect is modeled as follows:
 \end{enumerate} 
 The steps of such a process are shown in figure \ref{fig:data_process_plot}.
 
-\begin{figure}[h]
+\begin{figure}[!htbp]
     \begin{minipage}{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth,trim=0 18pt 0 0,clip]
-        {../research_proposal/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/A_data_process_plot_-6195891144235862255.png}
+        {run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/A_data_process_plot_-6195891144235862255.png}
     \end{minipage}\hfill
     \begin{minipage}{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth,trim=0 18pt 0 0,clip]
-        {../research_proposal/run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/B_data_process_plot_-6195891144235862255.png}
+        {run_at_20250620_231054_of_single_train.py_on_commit_ba286_pid_2578962/B_data_process_plot_-6195891144235862255.png}
     \end{minipage}
     \caption{Process steps of generating datasets. An amount of 10,000 events is drawn with an exponentially decaying probability. Left: events with 50 added signal events distributed gaussianly around $param\_0=4$. Right: no added signal events.
     In each graph three steps are shown: 1. The true dataset (blue). 2. The observed dataset with missing events due to a non perfect detector efficiency (green). 3. The approximation for the original dataset made from the observed dataset and imperfect reweighing of the remaining events.}
     \label{fig:data_process_plot}
 \end{figure}
 
-\input{bibliography.tex}
+\input{../common/bibliography.tex}
 
 \end{document}
