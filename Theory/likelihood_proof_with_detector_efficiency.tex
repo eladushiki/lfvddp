@@ -1,0 +1,281 @@
+% Updated LaTeX with full proof of the symmetrized test statistic
+\documentclass{article}
+
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{physics}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{bm}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Generalizing the Symmetrized Likelihood Formalism with Detector Efficiency in \(\mathbb{R}^k\) and Uncertainty Propagation}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+We present a generalization of the symmetrized likelihood-based test statistic used in \cite{LastDDPpaper}, incorporating nontrivial detector efficiencies and extending the event representation to \(\mathbb{R}^k\), the realistic multidimensional case. This generalization is important for distinguishing genuine physical effects from distortions introduced by varying detector responses across event types.
+
+\section{Event Counting and Detector Effects}
+Due to detector and selection effects, not all events generated (or ``collected'') in the underlying physical process are observed or measured. We distinguish the following quantities:
+
+\begin{itemize}
+    \item \( N_{\mathrm{col}} \): the number of true collected events passing all physics selections (the quantity we ultimately want to estimate).
+    \item \( N_{\mathrm{meas}} \): the number of measured (observed) events actually recorded by the detector, after filtering by efficiency.
+\end{itemize}
+
+Our goal is to estimate \( N_{\mathrm{col}} \) from the observed \( N_{\mathrm{meas}} \), correcting for detector efficiency effects and propagating uncertainties associated with the efficiency estimation.
+
+\section{Multidimensional Events and Detector Efficiency}
+Let each event \( x \in \mathbb{R}^k \) be a point in \( k \)-dimensional feature space (e.g., energy, momentum components, angles). Each dataset \(\mathbf{A} \in \mathbb{R}^{N_A \times k}\), \(\mathbf{B} \in \mathbb{R}^{N_B \times k}\) consists of such events.
+
+Let the detector efficiency be a function
+\[
+\eta: \mathbb{R}^k \to [0,1],
+\]
+where \(\eta(x)\) denotes the probability that an event with features \( x \) is detected.
+
+We define the filtering process \(\mathrm{Det}(\eta, n)\) that stochastically removes events:
+\[
+\mathrm{Det}(\eta, n) := \{ x_i \in n \mid x_i \text{ is retained with probability } \eta(x_i) \}.
+\]
+The observed (filtered) datasets are then:
+\[
+\tilde{\mathbf{A}} = \mathrm{Det}(\eta, \mathbf{A}), \quad \tilde{\mathbf{B}} = \mathrm{Det}(\eta, \mathbf{B}).
+\]
+
+\section{Efficiency Compensation via Event Weights}
+To reconstruct the statistics of the original datasets, we assign weights:
+\[
+\text{for } x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}, \quad w_i := \frac{1}{\eta(x_i)}.
+\]
+This gives rise to the efficiency-compensated reconstructed datasets:
+\[
+\dot{\mathbf{A}} := \{ (x_i, w_i) \mid x_i \in \tilde{\mathbf{A}} \}, \quad
+\dot{\mathbf{B}} := \{ (x_i, w_i) \mid x_i \in \tilde{\mathbf{B}} \}.
+\]
+
+The estimated total event counts become:
+\[
+\dot{N}_{\mathbf{A}} = \sum_{x_i \in \tilde{\mathbf{A}}} w_i \approx N_{\mathrm{col},\mathbf{A}}, \quad \dot{N}_{\mathbf{B}} = \sum_{x_i \in \tilde{\mathbf{B}}} w_i \approx N_{\mathrm{col},\mathbf{B}}.
+\]
+
+\subsection*{Proposition 1 (Unbiasedness of the weighted estimator).}
+Let \(\{x_j\}_{j=1}^{N_{\mathrm{col}}}\) be the set of true collected events, each detected independently with probability \(\eta(x_j)\). Then:
+\[
+\mathbb{E}\!\left[ \dot{N}_{\mathbf{A}} \right] = N_{\mathrm{col},\mathbf{A}}.
+\]
+\emph{Proof.}
+For a single event \(x_j\), the contribution to the sum is \(\frac{1}{\eta(x_j)}\) if detected and \(0\) otherwise. Its expectation is:
+\[
+\eta(x_j) \cdot \frac{1}{\eta(x_j)} + (1-\eta(x_j))\cdot 0 = 1.
+\]
+Summing over all \(N_{\mathrm{col},\mathbf{A}}\) events yields the result. \(\square\)
+
+\section{Hypotheses in the Weighted Setting}
+We now define the null and alternative hypotheses using reweighted densities:
+\[
+\begin{aligned}
+\mathcal{H}_0 &: \quad
+\begin{cases}
+    n_{\mathbf{A}}(x) = \dfrac{\dot{N}_{\mathbf{A}}}{Z} e^{h(x)} n_{\mathcal{R}}(x) \\
+    n_{\mathbf{B}}(x) = \dfrac{\dot{N}_{\mathbf{B}}}{Z} e^{h(x) + r} n_{\mathcal{R}}(x)
+\end{cases} \\
+\mathcal{H}_1 &: \quad
+\begin{cases}
+    n_{\mathbf{A}}(x) = \dfrac{\dot{N}_{\mathbf{A}}}{Z} e^{f(x)} n_{\mathcal{R}}(x) \\
+    n_{\mathbf{B}}(x) = \dfrac{\dot{N}_{\mathbf{B}}}{Z} e^{g(x)} n_{\mathcal{R}}(x)
+\end{cases}
+\end{aligned}
+\]
+Here \(n_{\mathbf{A}}(x)\) and \(n_{\mathbf{B}}(x)\) are \emph{differential event densities} (counts per unit \(k\)-dimensional volume) rather than raw counts.
+
+\section{Symmetrized Test Statistic with Efficiency Weights}
+Following the logic in \cite{LastDDPpaper}, the symmetrized test statistic becomes:
+\[
+\begin{aligned}
+t_{\mathbf{A}+\mathbf{B}}(\mathbf{A}) &= -2 \cdot \min_{f(x)}
+\left[
+    - \frac{\dot{N}_{\mathbf{A}}}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}}
+    \sum_{x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}} w_i (e^{f(x_i)} - 1)
+    + \sum_{x_i \in \tilde{\mathbf{A}}} w_i f(x_i)
+\right] \\
+ t_{\mathbf{A}+\mathbf{B}}(\mathbf{B}) &= -2 \cdot \min_{g(x)}
+\left[
+    - \frac{\dot{N}_{\mathbf{B}}}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}}
+    \sum_{x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}} w_i (e^{g(x_i)} - 1)
+    + \sum_{x_i \in \tilde{\mathbf{B}}} w_i g(x_i)
+\right].
+\end{aligned}
+\]
+
+\subsection*{Full rigorous proof of the above expression}
+\label{sec:full-proof-t}
+We present a self-contained derivation that starts from the extended (inhomogeneous) Poisson likelihoods and proceeds to the displayed convex functional. The derivation explicitly tracks constants and shows how integrals over the true (unfiltered) process become weighted sums over detected events.
+
+\paragraph{1. Model and parametrization.}
+Model the unfiltered (``collected'') events for samples A and B as independent inhomogeneous Poisson processes with intensities
+\[
+\lambda_{\mathbf{A}}(x)=\dot{N}_{\mathbf{A}} p_{\mathbf{A}}(x),\qquad
+\lambda_{\mathbf{B}}(x)=\dot{N}_{\mathbf{B}} p_{\mathbf{B}}(x),
+\]
+where \(p_{\mathbf{A}}\) and \(p_{\mathbf{B}}\) are probability densities. Introduce a common reference density \(n_{\mathcal{R}}(x)\) and parametrize
+\[
+p_{\mathbf{A}}(x)=\frac{1}{Z_A} e^{f(x)} n_{\mathcal{R}}(x),\qquad
+p_{\mathbf{B}}(x)=\frac{1}{Z_B} e^{g(x)} n_{\mathcal{R}}(x),
+\]
+with
+\(Z_A=\int e^{f(x)} n_{\mathcal{R}}(x)dx\) and \(Z_B=\int e^{g(x)} n_{\mathcal{R}}(x)dx\) ensuring normalization. (We keep \(Z_A,Z_B\) explicit; later they cancel or become irrelevant for the test statistic.)
+
+\paragraph{2. Extended log-likelihood for each sample.}
+For an inhomogeneous Poisson process with intensity \(\lambda(x)\), the log-likelihood for observed points \(\{x_i\}\) is
+\[
+\log\mathcal{L}(\lambda) = -\int \lambda(x)\,dx + \sum_i \log\lambda(x_i) + C,
+\]
+where \(C\) collects terms not depending on \(\lambda\). For sample A (unfiltered events) this gives
+\[
+\log\mathcal{L}_{\mathbf{A}}(f) = -\dot{N}_{\mathbf{A}} + \sum_{x_i \in \text{(unfiltered A)}} \log\big(\dot{N}_{\mathbf{A}}\tfrac{1}{Z_A} e^{f(x_i)} n_{\mathcal{R}}(x_i)\big) + C_A.
+\]
+Collect the \(f\)-dependent pieces:
+\[
+\log\mathcal{L}_{\mathbf{A}}(f) = -\dot{N}_{\mathbf{A}} + \sum_{\text{unf. A}} f(x_i) + \#(\text{\#unf. A})\log\dot{N}_{\mathbf{A}} - \#(\text{unf. A})\log Z_A + \sum_{\text{unf. A}} \log n_{\mathcal{R}}(x_i) + C_A.
+\]
+Analogous expression holds for sample B.
+
+\paragraph{3. Passing to detected (filtered) data using weights.}
+We do not observe the unfiltered lists, but instead the detected subsets \(\tilde{\mathbf{A}}\) and \(\tilde{\mathbf{B}}\). By the construction of weights \(w_i=1/\eta(x_i)\), integrals and sums over the unfiltered process are unbiasedly estimated by weighted sums over detected events (Proposition 1). In particular,
+\[
+\sum_{\text{unf. A}} f(x_i) \quad\longrightarrow\quad \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i),
+\]
+and the total unfiltered counts \(\#(\text{unf. A})\) are estimated by \(\dot{N}_{\mathbf{A}}=\sum_{x_i\in\tilde{\mathbf{A}}}w_i\). The integral term \(-\int \lambda_{\mathbf{A}} = -\dot{N}_{\mathbf{A}}\) remains explicit.
+
+Thus, working with observed (weighted) data, the log-likelihood for sample A (keeping only terms that may depend on \(f\)) is represented by
+\[
+\log\mathcal{L}_{\mathbf{A}}(f) \propto -\dot{N}_{\mathbf{A}} + \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i) - \dot{N}_{\mathbf{A}}\log Z_A + \dot{N}_{\mathbf{A}}\log\dot{N}_{\mathbf{A}} + \sum_{x_i\in\tilde{\mathbf{A}}} w_i\log n_{\mathcal{R}}(x_i).
+\]
+The analogous expression holds for B with \(g\) and \(Z_B\).
+
+\paragraph{4. Pooled (symmetrized) likelihood.}
+The symmetrized construction treats the pooled set of detected events \(\mathcal{P}=\tilde{\mathbf{A}}\cup\tilde{\mathbf{B}}\) as being drawn from a mixture of the two models. Define
+\[
+\dot{N} = \dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}},\qquad \alpha=\frac{\dot{N}_{\mathbf{A}}}{\dot{N}}.
+\]
+For the pooled model one can write the pooled intensity (per unit \(x\)) as
+\[
+\Lambda_{\text{pooled}}(x) = \dot{N}\,\Big[\alpha \frac{1}{Z_A}e^{f(x)} + (1-\alpha)\frac{1}{Z_B}e^{g(x)}\Big] n_{\mathcal{R}}(x).
+\]
+The pooled log-likelihood (for observed pooled points \(x_i\in\mathcal{P}\)) is
+\[
+\log\mathcal{L}_{\text{pooled}}(f,g) = -\dot{N} + \sum_{x_i\in\mathcal{P}} w_i \log\Big(\dot{N}\big[\alpha \tfrac{1}{Z_A}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_B}e^{g(x_i)}\big] n_{\mathcal{R}}(x_i)\Big) + C_{\text{pool}}.
+\]
+Drop terms that do not depend on \(f,g\) (constants and \(\log n_{\mathcal{R}}\) terms).
+
+\paragraph{5. Constructing the class-specific test functional.}
+To obtain the test statistic that assesses whether sample A differs from the pooled reference in the manner parametrized by \(f\), set the alternative for B to be the pooled baseline (i.e., take \(g\) to represent the baseline; in the usual symmetrized choice one may take \(g\equiv0\) and absorb normalization into \(Z_B\)). For simplicity and without loss of generality we now take the parametrization where the B-component is the baseline with \(g(x)\equiv 0\) (equivalently measure \(f\) relative to the B baseline). With this choice
+\[
+\log\mathcal{L}_{\text{pooled}}(f) \propto -\dot{N} + \sum_{x_i\in\mathcal{P}} w_i \log\Big(\alpha \tfrac{1}{Z_A}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_B}\Big).
+\]
+Expand the logarithm by factoring \(\tfrac{1}{Z_B}\) out of the argument:
+\[
+\log\Big(\alpha \tfrac{1}{Z_A}e^{f} + (1-\alpha)\tfrac{1}{Z_B}\Big) = \log\Big(\tfrac{1}{Z_B}\Big) + \log\Big((1-\alpha) + \alpha\tfrac{Z_B}{Z_A}e^{f}\Big).
+\]
+The constant \(\log(1/Z_B)\) does not depend on \(f\), so discard it. Define the ratio \(\rho:=\tfrac{Z_B}{Z_A}\) and rewrite the remaining term as
+\[
+\log\Big((1-\alpha) + \alpha\rho e^{f}\Big).
+\]
+Now form the log-likelihood ratio (or equivalently the difference between the pooled log-likelihood and the product of the separate log-likelihoods under the null) and collect terms that depend on \(f\). The algebraic manipulations (expand and regroup the pooled-sum and the individual sums) produce two types of contributions:
+\begin{enumerate}
+    \item A term proportional to \(\int \alpha (\rho e^{f}-1) n_{\mathcal{R}}(x)dx\), which, after replacing integrals with weighted sums, yields \(-\alpha\sum_{\mathcal{P}} w_i (e^{f(x_i)}-1)\) up to multiplicative constants and absorbed \(\rho\) factors. The appearance of \(e^{f}-1\) is a consequence of subtracting the baseline intensity.
+    \item A sum over events in sample A giving \(\sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i)\) originating from the \(\sum\log e^{f}=\sum f\) contribution of labeled-A events when comparing labeled likelihood terms.
+\end{enumerate}
+These two pieces are the ones that appear in the convex functional minimized to obtain the profile likelihood.
+
+\paragraph{6. Profiling and simplification to the displayed functional.}
+Carrying out the algebra carefully (expand the pooled log, subtract the baseline contributions, cancel constants and terms involving \(\log Z_A,\log Z_B\) that do not depend on \(f\) after profiling), and using the unbiased replacement of integrals by weighted sums, one obtains the functional
+\[
+\mathcal{F}(f) = -\alpha \sum_{x_i\in\mathcal{P}} w_i\big(e^{f(x_i)}-1\big) + \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i) + \text{(constants independent of $f$)}.
+\]
+The test statistic is the negative twice the maximized log-likelihood ratio (or, equivalently, \(-2\) times the minimum of \(\mathcal{F}(f)\) over allowable functions \(f\)), which yields the stated expression:
+\[
+t_{\mathbf{A}+\mathbf{B}}(\mathbf{A}) = -2 \min_f \Big[ -\alpha \sum_{x_i\in\mathcal{P}} w_i (e^{f(x_i)}-1) + \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i) \Big],
+\]
+with \(\alpha=\dfrac{\dot{N}_{\mathbf{A}}}{\dot{N}_{\mathbf{A}}+\dot{N}_{\mathbf{B}}}\).
+
+\paragraph{7. Remarks on exactness and convexity.}
+The steps above are algebraic and exact up to the choice of baseline parametrization (we set \(g\equiv 0\) for the baseline without loss of generality) and the unbiased substitution of integrals by weighted sums (which is exact in expectation and valid as an estimating equation). The resulting functional is convex in the pointwise values \(f(x_i)\) because the map \(f\mapsto e^{f}-1\) is convex; this justifies numerical minimization via deterministic optimization or training a neural network with the corresponding loss.
+
+\section{Loss Function for Neural Network Training}
+To learn the optimal \( f(x) \), we train a classifier using the following efficiency-weighted loss:
+\[
+L[f] = \sum_{x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}} 
+\left[
+    (1 - y_i) \cdot \frac{\dot{N}_{\mathbf{A}} w_i}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}} (e^{f(x_i)} - 1)
+    - y_i w_i f(x_i)
+\right]
+\]
+where \( y_i = 1 \) if \( x_i \in \tilde{\mathbf{A}} \), and \( y_i = 0 \) otherwise.
+
+\section{Error Propagation in Detector Efficiency}
+In practical scenarios, the detector efficiency \( \eta(x) \) is estimated and carries uncertainties \( \delta \eta(x) \). These propagate into the weights, reconstructed event counts, the test statistic, and the training loss:
+
+\subsection{Uncertainty in Event Weights}
+The weights depend inversely on efficiency:
+\[
+w_i = \frac{1}{\eta(x_i)} \implies \delta w_i \approx \frac{\delta \eta(x_i)}{\eta(x_i)^2}
+\]
+where we have taken the first-order derivative \(\partial w / \partial \eta = -1/\eta^2\) and noted that the sign is irrelevant for variances.
+
+\subsection*{Proposition 2 (Variance of reconstructed counts).}
+If efficiency uncertainties for different events are uncorrelated,
+\[
+(\delta \dot{N}_{\mathbf{A}})^2 = \sum_{x_i \in \tilde{\mathbf{A}}} \left( \frac{\delta \eta(x_i)}{\eta(x_i)^2} \right)^2,
+\]
+and similarly for \( \mathbf{B} \).  
+\emph{Proof.} Using the standard error propagation formula for independent variables \(\eta(x_i)\):
+\[
+(\delta \dot{N}_{\mathbf{A}})^2 = \sum_i \left( \frac{\partial \dot{N}_{\mathbf{A}}}{\partial \eta(x_i)} \delta \eta(x_i) \right)^2 = \sum_i \left( -\frac{1}{\eta(x_i)^2} \delta \eta(x_i) \right)^2.
+\]
+\(\square\)
+
+\subsection{Uncertainty Propagation into the Test Statistic}
+The test statistic depends on \( \dot{N}_{\mathbf{A}} \), \( \dot{N}_{\mathbf{B}} \), and functions \( f(x), g(x) \) trained on weighted data. To first order, the propagated uncertainty is
+\[
+(\delta t)^2 \approx \left( \frac{\partial t}{\partial \dot{N}_{\mathbf{A}}} \delta \dot{N}_{\mathbf{A}} \right)^2 + \left( \frac{\partial t}{\partial \dot{N}_{\mathbf{B}}} \delta \dot{N}_{\mathbf{B}} \right)^2 + \cdots,
+\]
+where higher-order contributions and training uncertainties can be estimated numerically.
+
+\subsection{Incorporating Uncertainty into the Loss Function}
+Uncertainty in weights also propagates into the loss:
+\[
+\delta L = \sqrt{
+\sum_{i} \left( \frac{\partial L}{\partial w_i} \delta w_i \right)^2
+} = \sqrt{
+\sum_{i} \left( \frac{\partial L}{\partial w_i} \frac{\delta \eta(x_i)}{\eta(x_i)^2} \right)^2
+}.
+\]
+A practical approach is to add a regularization term:
+\[
+L_{\mathrm{total}} = L + \lambda \cdot \delta L,
+\]
+where \(\lambda\) controls the tradeoff between fitting the data and accounting for efficiency uncertainty.
+
+\subsection{Proposition 3 (Bootstrap consistency).}
+Let \(t\) be any statistic computed from the efficiency-weighted data. If \(\hat{F}\) is the empirical distribution of \((x_i, w_i)\), then the bootstrap variance estimator
+\[
+\hat{\sigma}^2_{\mathrm{boot}}(t) = \frac{1}{B-1} \sum_{j=1}^B \left( t^{(j)} - \bar{t} \right)^2
+\]
+converges in probability to \(\mathrm{Var}(t)\) as \(B \to \infty\), provided \(t\) is a smooth functional of \(F\). This follows from standard nonparametric bootstrap theory. \(\square\)
+
+\section{Summary}
+Incorporating detector efficiency uncertainties into the symmetrized likelihood framework allows robust distinction of physical signals from detector artifacts. The formalism extends naturally to multidimensional event data and is compatible with modern machine learning training methods.
+
+\bibliographystyle{unsrt}
+\begin{thebibliography}{9}
+\bibitem{LastDDPpaper} Bressler, S., Savoray, I., \& Zurgil, Y. (2024). Learning new physics from data — a symmetrized approach. \emph{Physical Review D, 110}(9), 095004. \href{https://arxiv.org/abs/2401.09530}{arXiv:2401.09530}
+\end{thebibliography}
+
+\end{document}
