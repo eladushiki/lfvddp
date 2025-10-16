@@ -1,7 +1,6 @@
 \documentclass[../thesis.tex]{subfiles}
 
-\input{../../common/packages.tex}
-\input{../../common/definitions.tex}
+\input{../../common/preamble}
 
 \begin{document}
 
@@ -15,10 +14,10 @@ When detected, some physical attributes of each event are measured, e.g., energy
 Due to limited detector efficiency and selection effects, not all events that occur inside the detector are observed. Hence, the resulting collection of events that the detector produces is smaller.
 
 Let the detector efficiency be a function
-\begin{align}
+\begin{align*}
     \eta^i(\phi^i): \mathbb{R} \to [0,1] \\
     \eta(x): \mathbb{R}^k \to [0,1] \equiv \prod_{i=1}^k \eta^i(\phi^i).
-\end{align}
+\end{align*}
 
 where \(\eta(x)\) denotes the probability that an event is detected.
 
