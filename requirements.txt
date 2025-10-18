@@ -55,6 +55,7 @@ optree==0.13.0
 packaging==24.1
 paramiko==3.5.0
 parso==0.8.4
+particle==0.26.0
 pexpect==4.9.0
 pillow==11.0.0
 platformdirs==4.3.6
