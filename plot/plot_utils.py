@@ -10,7 +10,8 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 import numpy as np
-from matplotlib import patches, pyplot as plt
+import numpy.typing as npt
+from matplotlib import gridspec, patches, pyplot as plt
 from plot.plotting_config import PlottingConfig
 from matplotlib.legend_handler import HandlerPatch
 import re
@@ -333,3 +334,60 @@ def utils__datset_histogram_sliced(
         log=True,
         **hist_kwargs,
     )
+
+
+def utils__plot_datset_lfv_comparison(
+    fig: plt.Figure,
+    property_1: npt.NDArray,
+    property_1_name: str,
+    property_2: npt.NDArray,
+    property_2_name: str,
+    bin_edges: npt.NDArray,
+    bin_centers: npt.NDArray,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+):
+
+    clean_x = [x_i[~np.isnan(x_i)] for x_i in [property_1, property_2]]
+
+    gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1], figure=fig)
+    hist_ax = fig.add_subplot(gs[0])
+
+    bin_heights_1, _, _ = hist_ax.hist(
+        clean_x[0],
+        bins=bin_edges,
+        log=True,
+        label=property_1_name,
+        histtype='step',
+        alpha=0.6,
+    )
+    bin_heights_2, _, _ = hist_ax.hist(
+        clean_x[1],
+        bins=bin_edges,
+        log=True,
+        label=property_2_name,
+        histtype='step',
+        alpha=0.6,
+    )
+    ratio = np.divide(bin_heights_1, bin_heights_2)
+    
+    # Remove x-axis label from top subplot
+    hist_ax.tick_params(labelbottom=False)
+    hist_ax.set_ylabel(ylabel)
+    plt.legend()
+    
+    ratio_ax = fig.add_subplot(gs[1])
+    ratio_ax.bar(
+        bin_centers,
+        ratio,
+        label=f'{property_1} / {property_2}',
+        width=0.8 * (bin_centers[1] - bin_centers[0]),  # thick bars
+    )
+    
+    # Styling
+    ratio_ax.axhline(y=1, color='red', linestyle='--', alpha=0.7, label='y=1')
+    ratio_ax.set_ylim(0.5, 1.5)
+    ratio_ax.set_xlabel(xlabel)
+    ratio_ax.set_ylabel("ratio")
+    plt.suptitle(title)
