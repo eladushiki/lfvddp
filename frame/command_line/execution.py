@@ -66,9 +66,11 @@ SINGULARITY_BUILD_LINES = """
 # Build Singularity container with custom repository and branch
 echo "Building Singularity container..."
 
-git clone --depth 1 --filter=blob:none --sparse --branch {git_branch} {repo_url}
+git clone --depth 1 --no-checkout --filter=blob:none --branch {git_branch} {repo_url}
 cd {repo_name}
+git sparse-checkout init --cone
 git sparse-checkout set lfvddp.def
+git checkout {git_branch}
 
 sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" -e "s|^BRANCH=.*|BRANCH=\"{git_branch}\"|" lfvddp.def > lfvddp-edit.def
 
@@ -76,7 +78,9 @@ sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" -e "s|^BRANCH=.*|BRANCH=\"{git_
 {singularity_executable} build --remote lfvddp.sif lfvddp-edit.def
 
 # Cleanup
-rm -rf lfvddp-edit.def
+cd ..
+cp {repo_name}/lfvddp.sif .
+rm -rf {repo_name}
 """
 
 

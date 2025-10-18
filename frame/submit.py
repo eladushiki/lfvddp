@@ -1,6 +1,7 @@
 from logging import error
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
+from typing import Optional
 from frame.command_line.execution import format_qsub_build_script, format_qsub_execution_script
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
@@ -17,6 +18,10 @@ def submit_cluster_job(
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
 
+    # Define job names for build and execution
+    build_job_name = f"{context.config.cluster__qsub_job_name}_build"
+    exec_job_name = f"{context.config.cluster__qsub_job_name}_exec"
+
     # Perform container build
     qsub_build_script = format_qsub_build_script(
         config=context.config,
@@ -24,10 +29,16 @@ def submit_cluster_job(
     )
 
     # Save build script using ExecutionContext's save_and_document function
-    build_script_filename = context.unique_out_dir / f"{context.config.cluster__qsub_job_name}_build.sh"
+    build_script_filename = context.unique_out_dir / f"{build_job_name}.sh"
     stamped_build_script_filename = context.save_and_document_text(qsub_build_script, build_script_filename)
     
-    qsub_a_script(context, stamped_build_script_filename, max_tries=max_tries)
+    # Submit build script and capture job ID
+    build_job_id = qsub_a_script(
+        context=context,
+        stamped_script_filename=stamped_build_script_filename,
+        job_name=build_job_name,
+        max_tries=max_tries,
+    )
     
     # Create qsub script from template
     qsub_script_content = format_qsub_execution_script(
@@ -37,16 +48,25 @@ def submit_cluster_job(
     )
     
     # Save script using ExecutionContext's save_and_document function
-    script_filename = context.unique_out_dir / f"{context.config.cluster__qsub_job_name}_submit.sh"
+    script_filename = context.unique_out_dir / f"{exec_job_name}.sh"
     stamped_script_filename = context.save_and_document_text(qsub_script_content, script_filename)
 
-    qsub_a_script(context, stamped_script_filename, max_tries=max_tries)
+    # Submit execution script with dependency on build job
+    qsub_a_script(
+        context=context,
+        stamped_script_filename=stamped_script_filename,
+        job_name=exec_job_name,
+        max_tries=max_tries,
+        depends_on_success_of_jobid=build_job_id,
+    )
 
 
 def qsub_a_script(
     context: ExecutionContext,
     stamped_script_filename: Path,
+    job_name: str,
     max_tries: int = 3,
+    depends_on_success_of_jobid: Optional[str] = None,
 ):
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
@@ -54,18 +74,30 @@ def qsub_a_script(
     # Build qsub command to submit the script.
     # ATLAS cluster can't wait to io specification in script parameters on the qsub
     qsub_command = f"qsub "\
+        f"-N {job_name} "\
         f"-l io={context.config.cluster__qsub_io} "\
         f"-j oe "\
-        f"-o {context.unique_out_dir} "\
-        f"{stamped_script_filename}"
+        f"-o {context.unique_out_dir} "
+    
+    # Add PBS/Torque dependency if specified (only run if predecessor succeeds)
+    if depends_on_success_of_jobid:
+        qsub_command += f"-W depend=afterok:{depends_on_success_of_jobid} "
+    
+    qsub_command += f"{stamped_script_filename}"
 
     for round in range(max_tries):
         try:
-            return check_output(qsub_command, stderr=STDOUT, shell=True)
+            output = check_output(qsub_command, stderr=STDOUT, shell=True)
+            output_str = output.decode('utf-8').strip()
+            # PBS/Torque returns just the job ID (e.g., "12345.server.domain")
+            job_id = output_str.split('.')[0] if '.' in output_str else output_str
+            return job_id
+        
         except CalledProcessError as e:
             stdout = e.output.decode('utf-8')
             stderr = str(e.returncode)
-            error(f"Submission attempt {round} returned errorcode {stderr} with output:\n{stdout}")            
+            error(f"Submission attempt {round} returned errorcode {stderr} with output:\n{stdout}")
+
         except Exception as e:
             error(f"Unknown error with args: {e.args}\n occurred during submission attempt {round}")
 
