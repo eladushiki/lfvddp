@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 class ClusterConfig:
     cluster__project_root_at_cluster_abspath: PurePosixPath
     cluster__repo_url: str
+    cluster__environment_activation_command: str
     cluster__singularity_executable: str
 
     # qsub command parameters
