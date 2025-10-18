@@ -3,6 +3,8 @@ from pathlib import Path, PurePath, PurePosixPath
 
 # project hierarchy
 PROJECT_ROOT = Path(__file__).parent.parent
+CONFIGS_DIR = PROJECT_ROOT / "configs"
+SINGULARITY_DEFINITION_FILE = PROJECT_ROOT / "lfvddp.def"
 def get_relpath_from_local_root(local_absolute_path: PurePath) -> PurePosixPath:
     return PurePosixPath(local_absolute_path.relative_to(PROJECT_ROOT))
 
@@ -15,6 +17,7 @@ YML_FILE_EXTENSION = "yml"
 YAML_FILE_EXTENSIONS = [YAML_FILE_EXTENSION, YML_FILE_EXTENSION]
 TEXT_FILE_EXTENSION = "txt"
 BASH_FILE_EXTENSION = "sh"
+TARBALL_FILE_EXTENSION = "tar.gz"
 ## Training logs
 TRAINING_LOG_FILE_EXTENSION = "h5"
 TRAINING_HISTORY_LOG_FILE_SUFFIX = "history." + TRAINING_LOG_FILE_EXTENSION

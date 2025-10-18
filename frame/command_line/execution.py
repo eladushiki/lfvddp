@@ -66,21 +66,31 @@ SINGULARITY_BUILD_LINES = """
 # Build Singularity container with custom repository and branch
 echo "Building Singularity container..."
 
-git clone --depth 1 --no-checkout --filter=blob:none --branch {git_branch} {repo_url}
-cd {repo_name}
-git sparse-checkout init --cone
-git sparse-checkout set lfvddp.def
-git checkout {git_branch}
+# Create working directory for build
+BUILD_DIR=$(mktemp -d)
+cd $BUILD_DIR
 
+# Extract staged definition file (already transferred via PBS stagein)
+echo "Using staged lfvddp.def file..."
+cp $PBS_O_WORKDIR/lfvddp.def ./lfvddp.def
+
+# Customize the definition file with repository URL and branch
 sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" -e "s|^BRANCH=.*|BRANCH=\"{git_branch}\"|" lfvddp.def > lfvddp-edit.def
 
-# Build from the customized definition file
+# Extract staged configs tarball (configs dir will be embedded via %files section in def)
+echo "Extracting staged configs..."
+tar -xzf $PBS_O_WORKDIR/configs.tar.gz
+
+# Build from the customized definition file with configs embedded
+echo "Building container with embedded configs..."
 {singularity_executable} build --remote lfvddp.sif lfvddp-edit.def
 
+# Copy the built container back to submission directory
+cp lfvddp.sif $PBS_O_WORKDIR/
+
 # Cleanup
-cd ..
-cp {repo_name}/lfvddp.sif .
-rm -rf {repo_name}
+cd $PBS_O_WORKDIR
+rm -rf $BUILD_DIR
 """
 
 

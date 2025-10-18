@@ -3,6 +3,9 @@
 Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
+%files
+    configs /app/configs
+
 %post
     # Set default values for build arguments
     REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp-symmetrized.git}"
