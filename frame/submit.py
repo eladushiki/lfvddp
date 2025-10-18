@@ -109,9 +109,9 @@ def qsub_a_script(
         try:
             output = check_output(qsub_command, stderr=STDOUT, shell=True)
             output_str = output.decode('utf-8').strip()
-            # PBS/Torque returns just the job ID (e.g., "12345.server.domain")
-            job_id = output_str.split('.')[0] if '.' in output_str else output_str
-            return job_id
+            # PBS/Torque returns the full job ID (e.g., "12345.pbs.server.domain")
+            # Return the full ID for proper dependency handling
+            return output_str
         
         except CalledProcessError as e:
             stdout = e.output.decode('utf-8')
