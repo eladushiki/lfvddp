@@ -43,11 +43,9 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 %help
     This container includes the LFVNN-symmetrized project with all dependencies.
     
-    Build with custom repository and branch:
-    singularity build --remote --build-arg REPO_URL=<repo_url> --build-arg BRANCH=<branch_name> lfvnn.sif lfvnn.def
-    
     Example:
-    singularity build --remote --build-arg REPO_URL=https://github.com/inbarsavoray/LFVNN-symmetrized.git --build-arg BRANCH=feature/remote-submission lfvnn.sif lfvnn.def
+    set REPO_URL and BRANCH either from within script or by running through submit.py
+    singularity build --remote lfvnn.sif lfvnn.def
     
     Usage:
     singularity run lfvnn.sif [command]

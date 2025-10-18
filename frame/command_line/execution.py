@@ -113,9 +113,19 @@ echo "Build job started at: $(date)"
 echo "Running on host: $(hostname)"
 echo "Job ID: $JOB_ID"
 
-# Build Singularity container
+# Build Singularity container with custom repository and branch
 echo "Building Singularity container..."
-{singularity_executable} build --remote --build-arg GIT_URL={git_url} --build-arg GIT_BRANCH={git_branch} lfvnn.sif lfvnn.def
+echo "Repository: {git_url}"
+echo "Branch: {git_branch}"
+
+# Create temporary definition file with substituted values
+sed "s|REPO_URL=.*|REPO_URL=\"{git_url}\"|g; s|BRANCH=.*|BRANCH=\"{git_branch}\"|g" lfvnn.def > lfvnn_build.def
+
+# Build from the customized definition file
+{singularity_executable} build --remote lfvnn.sif lfvnn_build.def
+
+# Clean up temporary file
+rm -f lfvnn_build.def
 
 # Build completion
 echo "Build job completed at: $(date)"
@@ -145,13 +155,6 @@ def format_qsub_build_script(
         job_name=config.cluster__qsub_job_name,
         queue=config.cluster__qsub_queue or "all.q",
         walltime=config.cluster__qsub_walltime,
-        memory=config.cluster__qsub_mem or 4,
-        output_dir=output_dir,
-        error_dir=error_dir,
-        git_url=config.cluster__repo_url,
-        git_branch=git_branch,
-        singularity_executable=config.cluster__singularity_executable,
-    )
         memory=config.cluster__qsub_mem or 4,
         output_dir=output_dir,
         error_dir=error_dir,
