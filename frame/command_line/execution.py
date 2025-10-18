@@ -22,6 +22,8 @@ echo "Running on host: $(hostname)"
 echo "Job ID: $JOB_ID"
 echo "Current directory: $(pwd)"
 {task_id_line}{environment_activation_command}
+
+set -x
 """
 
 QSUB_COMPLETION = """
@@ -64,19 +66,32 @@ SINGULARITY_BUILD_LINES = """
 # Build Singularity container with custom repository and branch
 echo "Building Singularity container..."
 
+git clone --depth 1 --filter=blob:none --sparse --branch {git_branch} {repo_url}
+cd {repo_name}
+git sparse-checkout set lfvddp.def
+
+sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" -e "s|^BRANCH=.*|BRANCH=\"{git_branch}\"|" lfvddp.def > lfvddp-edit.def
+
 # Build from the customized definition file
-{singularity_executable} build --remote lfvnn.sif lfvnn.def
+{singularity_executable} build --remote lfvddp.sif lfvddp-edit.def
+
+# Cleanup
+rm -rf lfvddp-edit.def
 """
 
 
 def format_qsub_build_script(
     config: ClusterConfig,
+    git_branch: str,
 ) -> str:
     return format_qsub_script(
         config=config,
         core_script_lines=SINGULARITY_BUILD_LINES,
         array_jobs=0,
         gpu_line="",
+        git_branch=git_branch,
+        repo_url=config.cluster__repo_url,
+        repo_name=config.repo_name,
         singularity_executable=config.cluster__singularity_executable,
     )
 

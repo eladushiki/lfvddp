@@ -20,3 +20,16 @@ def current_git_branch() -> str:
         str: The name of the current Git branch
     """
     return subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
+
+
+def default_git_branch() -> str:
+    """Get the default Git branch name, usually 'main' or 'master'.
+    
+    Returns:
+        str: The name of the default Git branch
+    """
+    remote_info = subprocess.check_output(['git', 'remote', 'show', 'origin']).decode('utf-8')
+    for line in remote_info.splitlines():
+        if 'HEAD branch' in line:
+            return line.split(':')[-1].strip()
+    return 'main'  # Fallback to 'main' if not found

@@ -4,6 +4,7 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from frame.command_line.execution import format_qsub_build_script, format_qsub_execution_script
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
+from frame.git_tools import current_git_branch, default_git_branch
 
 
 def submit_cluster_job(
@@ -19,6 +20,7 @@ def submit_cluster_job(
     # Perform container build
     qsub_build_script = format_qsub_build_script(
         config=context.config,
+        git_branch=default_git_branch() if not context.is_debug_mode else current_git_branch()
     )
 
     # Save build script using ExecutionContext's save_and_document function

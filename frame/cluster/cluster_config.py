@@ -1,10 +1,8 @@
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 
 
 @dataclass
 class ClusterConfig:
-    cluster__project_root_at_cluster_abspath: PurePosixPath
     cluster__repo_url: str
     cluster__environment_activation_command: str
     cluster__singularity_executable: str
@@ -17,3 +15,7 @@ class ClusterConfig:
     cluster__qsub_io: int
     cluster__qsub_mem: int
     cluster__qsub_ngpus_for_train: int
+
+    @property
+    def repo_name(self) -> str:
+        return self.cluster__repo_url.rstrip("/").split("/")[-1].replace(".git", "")
