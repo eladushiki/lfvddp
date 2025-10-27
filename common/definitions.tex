@@ -9,13 +9,21 @@
 % =============================================================================
 
 %% Data sets
-\newcommand{\dataset}[1]{{\mathbf{#1}}}  % A dataset
+\newcommand{\dataset}[1]{{\mathbf{#1}}}         % A dataset
 \newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
-\newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}  % A measured dataset
-\newcommand{\reco}[1]{{\dataset{\dot{#1}}}}  % A reconstructed dataset
+\newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}   % A measured dataset
+\newcommand{\reco}[1]{{\dataset{\dot{#1}}}}     % A reconstructed dataset
 
 %% Detecting events
-\newcommand{\detector}{\mathrm{Det}}  % Detector function
+\newcommand{\detector}{\mathrm{Det}}            % Detector function
+
+%% Hypotheses
+%%% Distributions
+\newcommand{\dist}[1]{{n_{\dataset{#1}}(x)}}    % Any distribution of x
+\newcommand{\refdist}[1][x]{n_{\mathcal{R}}({#1})}  % Reference distribution
+%% Likelihood
+\newcommand{\likelihood}{\mathcal{L}}           % Likelihood function
+\newcommand{\llikelihood}{\log\mathcal{L}}      % Log-likelihood function
 
 % =============================================================================
 % CUSTOM COLORS (if needed)
