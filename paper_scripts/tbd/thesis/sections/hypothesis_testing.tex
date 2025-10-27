@@ -26,18 +26,18 @@ Here \(n_{\dataset{A}}(x)\) and \(n_{\dataset{B}}(x)\) are \emph{differential ev
 \section{Symmetrized Test Statistic with Efficiency Weights}
 Following the logic in \cite{LastDDPpaper}, the symmetrized test statistic becomes:
 \[
-\begin{aligned}
+\begin{aligned} \label{eq:symmetrized_test_statistics}
 t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \cdot \min_{f(x)}
 \left[
     - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}}
-    \sum_{x_i \in \meas{A} \cup \meas{B}} w_i (e^{f(x_i)} - 1)
-    + \sum_{x_i \in \meas{A}} w_i f(x_i)
+    \sum_{x_i \in \reco{A} \cup \reco{B}} w_i (e^{f(x_i)} - 1)
+    + \sum_{x_i \in \reco{A}} w_i f(x_i)
 \right] \\
  t_{\dataset{A}+\dataset{B}}(\dataset{B}) &= -2 \cdot \min_{g(x)}
 \left[
     - \frac{N_{\reco{B}}}{N_{\reco{A}} + N_{\reco{B}}}
-    \sum_{x_i \in \meas{A} \cup \meas{B}} w_i (e^{g(x_i)} - 1)
-    + \sum_{x_i \in \meas{B}} w_i g(x_i)
+    \sum_{x_i \in \reco{A} \cup \reco{B}} w_i (e^{g(x_i)} - 1)
+    + \sum_{x_i \in \reco{B}} w_i g(x_i)
 \right].
 \end{aligned}
 \]
@@ -47,10 +47,10 @@ t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \cdot \min_{f(x)}
 We present a self-contained derivation that starts from the extended (inhomogeneous) Poisson likelihoods and proceeds to the displayed convex functional. The derivation explicitly tracks constants and shows how integrals over the true (unfiltered) process become weighted sums over detected events.
 
 \paragraph{1. Model and parametrization.}
-Model the unfiltered (``collected'') events for samples A and B as independent inhomogeneous Poisson processes with intensities
+Model the "true" events for samples $\dataset{A}$ and $\dataset{B}$ as independent inhomogeneous Poisson processes with intensities
 \[
-\lambda_{\dataset{A}}(x)=N_{\reco{A}} p_{\dataset{A}}(x),\qquad
-\lambda_{\dataset{B}}(x)=N_{\reco{B}} p_{\dataset{B}}(x),
+\lambda_{\dataset{A}}(x)=N_{\dataset{A}} p_{\dataset{A}}(x),\qquad
+\lambda_{\dataset{B}}(x)=N_{\dataset{B}} p_{\dataset{B}}(x),
 \]
 where \(p_{\dataset{A}}\) and \(p_{\dataset{B}}\) are probability densities. Introduce a common reference density \(n_{\mathcal{R}}(x)\) and parametrize
 \[
@@ -76,14 +76,14 @@ Collect the \(f\)-dependent pieces:
 Analogous expression holds for sample $\dataset{B}$.
 
 \paragraph{3. Passing to detected (filtered) data using weights.}
-We do not observe the unfiltered lists, but instead the detected subsets \(\meas{A}\) and \(\meas{B}\). By the construction of weights as in (\ref{eq:def_weights}). Integrals and sums over the unfiltered process are unbiasedly estimated by weighted sums over detected events (Proposition \ref{prop:unbiasedness_of_weights}). In particular,
+We do not observe the unfiltered lists, but instead the detected subsets \(\meas{A}\) and \(\meas{B}\). By the construction of weights as in (\ref{eq:def_weights}), we convert our formulation to use the reconstructed datasets \(\reco{A}\) and \(\reco{B}\). Integrals and sums over the unfiltered process are unbiasedly estimated by weighted sums over detected events (Proposition \ref{prop:unbiasedness_of_weights}). In particular,
 \[
-\sum_{x_i \in \dataset{A}} f(x_i) \quad\longrightarrow\quad \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i)
+\sum_{x_i \in \dataset{A}} f(x_i) \quad\longrightarrow\quad \sum_{x_i \in \reco{A}} w_i f(x_i)
 \]
 
 while the integral term \(-\int \lambda_{\dataset{A}} = -N_{\reco{A}}\) remains explicit. Thus, working with reconstructed data, the log-likelihood for sample $\reco{A}$ (keeping only terms that may depend on \(f\)) is represented by
 \[
-\llikelihood_{\reco{A}}(f) \propto -N_{\reco{A}} + \sum_{x_i \in \meas{A}} w_i f(x_i) - N_\reco{A}\log Z_\reco{A} + N_\reco{A}\log N_\reco{A} + \sum_{x_i \in \meas{A}} w_i\log \refdist[x_i]
+\llikelihood_{\reco{A}}(f) \propto -N_{\reco{A}} + \sum_{x_i \in \reco{A}} w_i f(x_i) - N_\reco{A}\log Z_\reco{A} + N_\reco{A}\log N_\reco{A} + \sum_{x_i \in \reco{A}} w_i\log \refdist[x_i]
 \]
 The analogous expression holds for $\reco{B}$ with \(g\) and \(Z_\reco{B}\).
 
@@ -97,12 +97,12 @@ N_\reco{P} = N_\reco{A} + N_\reco{B},\qquad \alpha=\frac{N_\reco{A}}{N_\reco{P}}
 For the pooled model one can write the pooled intensity (per unit \(x\)) as
 
 \[
-\lambda_{P}(x) = N_\reco{P}\,\Big[\alpha \frac{1}{Z_\reco{A}}e^{f(x)} + (1-\alpha)\frac{1}{Z_B}e^{g(x)}\Big] \refdist
+\lambda_{P}(x) = N_\reco{P}\,\Big[\alpha \frac{1}{Z_\reco{A}}e^{f(x)} + (1-\alpha)\frac{1}{Z_\reco{B}}e^{g(x)}\Big] \refdist
 \]
 
 The pooled log-likelihood (for observed pooled points \(x_i\in\reco{P}\)) is
 
-\[
+\[ \label{eq:pooled_log_likelihood}
 \log\mathcal{L}_{\reco{P}}(f,g) = -N_\reco{P} + \sum_{x_i\in\reco{P}} w_i \log\Big(N_\reco{P}\big[\alpha \tfrac{1}{Z_\reco{A}}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}e^{g(x_i)}\big] \refdist[x_i] \Big) + C_{\reco{P}}
 \]
 

@@ -1,0 +1,71 @@
+\documentclass[../thesis.tex]{subfiles}
+
+\input{../common/preamble}
+
+\begin{document}
+
+\section{Adding Nuisance Parameters to Account for Imperfect knowledge}
+
+We would now formulate our confrontation with the finite accuracy with which we know to model the detector. In theory, we can formulate in the same manner how our theory depends on imperfections of all sorts, but modeling this method in further parameters is left for future work. This being said, the method with which we account for detector efficiency imperfection is easily translatable to any other parameter in the model.
+
+We would now elaborate on the structure of the likelihood. Having added nuisance parameters, with the expectance for them to be small, add another layer to how likely we think a certain hypothesis is. This is, we would consider a hypothesis in which the nuisance parameters are small more likely than one in which they are large. Of course, there is a tradeoff here to fitting the data well that we should address.
+
+From \ref{eq:pooled_log_likelihood} and discussions about likelihood in ref (\cite{Italian no 2 - Learning New Physics from an Imperfect Machine}), we claim %eq 3 there
+
+$$
+\begin{aligned}
+    \likelihood(\dataset{A}, \nu^j) = \likelihood(\dataset{A}| \nu^j) \cdot \likelihood(\nu^j)
+\end{aligned}
+$$
+
+To estimate likelihood of a value of a nuisance parameter, we should assume something about the way it behaves. For simplicity and for stating the foundations of our method, let us assume a normal disribution with some $\sigma_0$ that is centered around 0, w.l.o.g. 
+
+The likelihood of a gaussian distributed parameter is well known, as expressed By
+
+$$
+\begin{aligned} \label{eq:gaussian_likelihood}
+    \likelihood(\nu^j) = \frac{1}{\sqrt{2 \pi \sigma_0^2}} e^{-\frac{(\nu^j)^2}{2 \sigma_0^2}}
+\end{aligned}
+$$
+
+The logarithm of which is
+
+$$
+\begin{aligned} \label{eq:gaussian_log_likelihood}
+    \llikelihood(\nu^j) = -\frac{1}{2} \log(2 \pi \sigma_0^2) - \frac{(\nu^j)^2}{2 \sigma_0^2} = - \frac{1}{2 \sigma_0^2} (\nu^j)^2 + C
+\end{aligned}
+$$
+
+Leaving constants out, we incorporate this into the already existing "nuisance-clean" estimation of the likelihood of a dataset. Using the incorporation of nuisance parameters in our equation \ref{eq:efficiency_j_explicit_form}, \ref{eq:def_weights} and plugging it and \ref{eq:gaussian_log_likelihood} into \ref{eq:symmetrized_test_statistics} to get
+
+$$
+\begin{aligned} \label{eq:def_test_statistic_with_nuisance}
+t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \log \big( \likelihood(\dataset{A}| \nu^j) \cdot \likelihood(\nu^j) \big) = -2 \log \likelihood(\dataset{A}|\nu^j) + \sum_{\nu^j} \log \likelihood(\nu^j) \\
+ &= -2 \cdot \min_{f(x)}
+\left[
+    - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}}
+    \sum_{x_i \in \reco{A} \cup \reco{B}} \frac{1}{\theta(x_i)} (e^{f(x_i)} - 1)
+    + \sum_{x_i \in \reco{A}} \frac{1}{\theta(x_i)} f(x_i)
+    - \sum_{\nu^j} \frac{1}{2 \sigma_0^2} (\nu^j)^2
+\right]
+\end{aligned}
+$$
+
+and equivalently for $t_{\dataset{A}+\dataset{B}}(\dataset{B})$.
+
+This being said, we modify the loss function accordingly to
+
+$$
+\begin{aligned} \label{eq:loss_function_with_nuisance}
+L[f, \nu^j] &=
+    - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}} \frac{1}{\theta(x_i)}
+    \big[
+        \sum_{x_i \in \reco{A} \cup \reco{B}}
+        (1-y_i)(e^{f(x_i)} - 1)
+        - y_i f(x_i)
+    \big]
+    - \sum_{\nu^j} \frac{1}{2 \sigma_0^2} (\nu^j)^2
+\end{aligned}
+$$
+
+\end{document}
