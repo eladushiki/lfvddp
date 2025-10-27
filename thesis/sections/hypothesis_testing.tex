@@ -10,34 +10,34 @@ We now define the null and alternative hypotheses using reweighted densities:
 \begin{aligned}
 \mathcal{H}_0 &: \quad
 \begin{cases}
-    n_{\mathbf{A}}(x) = \dfrac{\dot{N}_{\mathbf{A}}}{Z} e^{h(x)} n_{\mathcal{R}}(x) \\
-    n_{\mathbf{B}}(x) = \dfrac{\dot{N}_{\mathbf{B}}}{Z} e^{h(x) + r} n_{\mathcal{R}}(x)
+    {\dist{A}} = \dfrac{N_\reco{A}}{Z} e^{h(x)} \refdist \\
+    {\dist{B}} = \dfrac{N_\reco{B}}{Z} e^{h(x) + r} \refdist
 \end{cases} \\
 \mathcal{H}_1 &: \quad
 \begin{cases}
-    n_{\mathbf{A}}(x) = \dfrac{\dot{N}_{\mathbf{A}}}{Z} e^{f(x)} n_{\mathcal{R}}(x) \\
-    n_{\mathbf{B}}(x) = \dfrac{\dot{N}_{\mathbf{B}}}{Z} e^{g(x)} n_{\mathcal{R}}(x)
+    {\dist{A}} = \dfrac{N_\reco{A}}{Z} e^{f(x)} \refdist \\
+    {\dist{B}} = \dfrac{N_\reco{B}}{Z} e^{g(x)} \refdist
 \end{cases}
 \end{aligned}
 \]
-Here \(n_{\mathbf{A}}(x)\) and \(n_{\mathbf{B}}(x)\) are \emph{differential event densities} (counts per unit \(k\)-dimensional volume) rather than raw counts.
+Here \(n_{\dataset{A}}(x)\) and \(n_{\dataset{B}}(x)\) are \emph{differential event densities} (counts per unit \(k\)-dimensional volume) rather than raw counts.
 
 
 \section{Symmetrized Test Statistic with Efficiency Weights}
 Following the logic in \cite{LastDDPpaper}, the symmetrized test statistic becomes:
 \[
 \begin{aligned}
-t_{\mathbf{A}+\mathbf{B}}(\mathbf{A}) &= -2 \cdot \min_{f(x)}
+t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \cdot \min_{f(x)}
 \left[
-    - \frac{\dot{N}_{\mathbf{A}}}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}}
-    \sum_{x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}} w_i (e^{f(x_i)} - 1)
-    + \sum_{x_i \in \tilde{\mathbf{A}}} w_i f(x_i)
+    - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}}
+    \sum_{x_i \in \meas{A} \cup \meas{B}} w_i (e^{f(x_i)} - 1)
+    + \sum_{x_i \in \meas{A}} w_i f(x_i)
 \right] \\
- t_{\mathbf{A}+\mathbf{B}}(\mathbf{B}) &= -2 \cdot \min_{g(x)}
+ t_{\dataset{A}+\dataset{B}}(\dataset{B}) &= -2 \cdot \min_{g(x)}
 \left[
-    - \frac{\dot{N}_{\mathbf{B}}}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}}
-    \sum_{x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}} w_i (e^{g(x_i)} - 1)
-    + \sum_{x_i \in \tilde{\mathbf{B}}} w_i g(x_i)
+    - \frac{N_{\reco{B}}}{N_{\reco{A}} + N_{\reco{B}}}
+    \sum_{x_i \in \meas{A} \cup \meas{B}} w_i (e^{g(x_i)} - 1)
+    + \sum_{x_i \in \meas{B}} w_i g(x_i)
 \right].
 \end{aligned}
 \]
@@ -49,90 +49,98 @@ We present a self-contained derivation that starts from the extended (inhomogene
 \paragraph{1. Model and parametrization.}
 Model the unfiltered (``collected'') events for samples A and B as independent inhomogeneous Poisson processes with intensities
 \[
-\lambda_{\mathbf{A}}(x)=\dot{N}_{\mathbf{A}} p_{\mathbf{A}}(x),\qquad
-\lambda_{\mathbf{B}}(x)=\dot{N}_{\mathbf{B}} p_{\mathbf{B}}(x),
+\lambda_{\dataset{A}}(x)=N_{\reco{A}} p_{\dataset{A}}(x),\qquad
+\lambda_{\dataset{B}}(x)=N_{\reco{B}} p_{\dataset{B}}(x),
 \]
-where \(p_{\mathbf{A}}\) and \(p_{\mathbf{B}}\) are probability densities. Introduce a common reference density \(n_{\mathcal{R}}(x)\) and parametrize
+where \(p_{\dataset{A}}\) and \(p_{\dataset{B}}\) are probability densities. Introduce a common reference density \(n_{\mathcal{R}}(x)\) and parametrize
 \[
-p_{\mathbf{A}}(x)=\frac{1}{Z_A} e^{f(x)} n_{\mathcal{R}}(x),\qquad
-p_{\mathbf{B}}(x)=\frac{1}{Z_B} e^{g(x)} n_{\mathcal{R}}(x),
+p_{\dataset{A}}(x)=\frac{1}{Z_\dataset{A}} e^{f(x)} \refdist,\qquad
+p_{\dataset{B}}(x)=\frac{1}{Z_\dataset{B}} e^{g(x)} \refdist,
 \]
 with
-\(Z_A=\int e^{f(x)} n_{\mathcal{R}}(x)dx\) and \(Z_B=\int e^{g(x)} n_{\mathcal{R}}(x)dx\) ensuring normalization. (We keep \(Z_A,Z_B\) explicit; later they cancel or become irrelevant for the test statistic.)
+\(Z_\dataset{A}=\int e^{f(x)} \refdist dx\) and \(Z_\dataset{B}=\int e^{g(x)} \refdist dx\) ensuring normalization. (We keep \(Z_\dataset{A},Z_\dataset{B}\) explicit; later they cancel or become irrelevant for the test statistic.)
 
 \paragraph{2. Extended log-likelihood for each sample.}
 For an inhomogeneous Poisson process with intensity \(\lambda(x)\), the log-likelihood for observed points \(\{x_i\}\) is
 \[
-\log\mathcal{L}(\lambda) = -\int \lambda(x)\,dx + \sum_i \log\lambda(x_i) + C,
+\llikelihood(\lambda) = -\int \lambda(x)\,dx + \sum_i \log\lambda(x_i) + C
 \]
-where \(C\) collects terms not depending on \(\lambda\). For sample A (unfiltered events) this gives
+where \(C\) collects terms not depending on \(\lambda\). For sample $\meas{A}$ (observed events) this gives
 \[
-\log\mathcal{L}_{\mathbf{A}}(f) = -\dot{N}_{\mathbf{A}} + \sum_{x_i \in \text{(unfiltered A)}} \log\big(\dot{N}_{\mathbf{A}}\tfrac{1}{Z_A} e^{f(x_i)} n_{\mathcal{R}}(x_i)\big) + C_A.
+\llikelihood_{\dataset{A}}(f) = -{N}_{\dataset{A}} + \sum_{x_i \in \dataset{A}} \log\big({N}_{\dataset{A}}\tfrac{1}{Z_\dataset{A}} e^{f(x_i)} \refdist[x_i]\big) + C_\dataset{A}
 \]
 Collect the \(f\)-dependent pieces:
 \[
-\log\mathcal{L}_{\mathbf{A}}(f) = -\dot{N}_{\mathbf{A}} + \sum_{\text{unf. A}} f(x_i) + \#(\text{\#unf. A})\log\dot{N}_{\mathbf{A}} - \#(\text{unf. A})\log Z_A + \sum_{\text{unf. A}} \log n_{\mathcal{R}}(x_i) + C_A.
+\llikelihood_{\dataset{A}}(f) = -N_{\dataset{A}} + \sum_{x_i \in \dataset{A}} f(x_i) + N_{\dataset{A}}\log{N_{\dataset{A}}} - N_{\dataset{A}}\log Z_\dataset{A} + \sum_{x_i \in \dataset{A}} \log \refdist[x_i] + C_A
 \]
-Analogous expression holds for sample B.
+Analogous expression holds for sample $\dataset{B}$.
 
 \paragraph{3. Passing to detected (filtered) data using weights.}
-We do not observe the unfiltered lists, but instead the detected subsets \(\tilde{\mathbf{A}}\) and \(\tilde{\mathbf{B}}\). By the construction of weights \(w_i=1/\eta(x_i)\), integrals and sums over the unfiltered process are unbiasedly estimated by weighted sums over detected events (Proposition 1). In particular,
+We do not observe the unfiltered lists, but instead the detected subsets \(\meas{A}\) and \(\meas{B}\). By the construction of weights as in (\ref{eq:def_weights}). Integrals and sums over the unfiltered process are unbiasedly estimated by weighted sums over detected events (Proposition \ref{prop:unbiasedness_of_weights}). In particular,
 \[
-\sum_{\text{unf. A}} f(x_i) \quad\longrightarrow\quad \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i),
+\sum_{x_i \in \dataset{A}} f(x_i) \quad\longrightarrow\quad \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i)
 \]
-and the total unfiltered counts \(\#(\text{unf. A})\) are estimated by \(\dot{N}_{\mathbf{A}}=\sum_{x_i\in\tilde{\mathbf{A}}}w_i\). The integral term \(-\int \lambda_{\mathbf{A}} = -\dot{N}_{\mathbf{A}}\) remains explicit.
 
-Thus, working with observed (weighted) data, the log-likelihood for sample A (keeping only terms that may depend on \(f\)) is represented by
+while the integral term \(-\int \lambda_{\dataset{A}} = -N_{\reco{A}}\) remains explicit. Thus, working with reconstructed data, the log-likelihood for sample $\reco{A}$ (keeping only terms that may depend on \(f\)) is represented by
 \[
-\log\mathcal{L}_{\mathbf{A}}(f) \propto -\dot{N}_{\mathbf{A}} + \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i) - \dot{N}_{\mathbf{A}}\log Z_A + \dot{N}_{\mathbf{A}}\log\dot{N}_{\mathbf{A}} + \sum_{x_i\in\tilde{\mathbf{A}}} w_i\log n_{\mathcal{R}}(x_i).
+\llikelihood_{\reco{A}}(f) \propto -N_{\reco{A}} + \sum_{x_i \in \meas{A}} w_i f(x_i) - N_\reco{A}\log Z_\reco{A} + N_\reco{A}\log N_\reco{A} + \sum_{x_i \in \meas{A}} w_i\log \refdist[x_i]
 \]
-The analogous expression holds for B with \(g\) and \(Z_B\).
+The analogous expression holds for $\reco{B}$ with \(g\) and \(Z_\reco{B}\).
 
 \paragraph{4. Pooled (symmetrized) likelihood.}
-The symmetrized construction treats the pooled set of detected events \(\mathcal{P}=\tilde{\mathbf{A}}\cup\tilde{\mathbf{B}}\) as being drawn from a mixture of the two models. Define
+The symmetrized construction treats the pooled set of detected events \(\meas{P}=\meas{A} \cup \meas{B}\) as being drawn from a mixture of the two models. Define
+
 \[
-\dot{N} = \dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}},\qquad \alpha=\frac{\dot{N}_{\mathbf{A}}}{\dot{N}}.
+N_\reco{P} = N_\reco{A} + N_\reco{B},\qquad \alpha=\frac{N_\reco{A}}{N_\reco{P}}
 \]
+
 For the pooled model one can write the pooled intensity (per unit \(x\)) as
+
 \[
-\Lambda_{\text{pooled}}(x) = \dot{N}\,\Big[\alpha \frac{1}{Z_A}e^{f(x)} + (1-\alpha)\frac{1}{Z_B}e^{g(x)}\Big] n_{\mathcal{R}}(x).
+\lambda_{P}(x) = N_\reco{P}\,\Big[\alpha \frac{1}{Z_\reco{A}}e^{f(x)} + (1-\alpha)\frac{1}{Z_B}e^{g(x)}\Big] \refdist
 \]
-The pooled log-likelihood (for observed pooled points \(x_i\in\mathcal{P}\)) is
+
+The pooled log-likelihood (for observed pooled points \(x_i\in\reco{P}\)) is
+
 \[
-\log\mathcal{L}_{\text{pooled}}(f,g) = -\dot{N} + \sum_{x_i\in\mathcal{P}} w_i \log\Big(\dot{N}\big[\alpha \tfrac{1}{Z_A}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_B}e^{g(x_i)}\big] n_{\mathcal{R}}(x_i)\Big) + C_{\text{pool}}.
+\log\mathcal{L}_{\reco{P}}(f,g) = -N_\reco{P} + \sum_{x_i\in\reco{P}} w_i \log\Big(N_\reco{P}\big[\alpha \tfrac{1}{Z_\reco{A}}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}e^{g(x_i)}\big] \refdist[x_i] \Big) + C_{\reco{P}}
 \]
-Drop terms that do not depend on \(f,g\) (constants and \(\log n_{\mathcal{R}}\) terms).
+
+Drop terms that do not depend on \(f,g\) (constants and \(\log \refdist\) terms).
 
 \paragraph{5. Constructing the class-specific test functional.}
-To obtain the test statistic that assesses whether sample A differs from the pooled reference in the manner parametrized by \(f\), set the alternative for B to be the pooled baseline (i.e., take \(g\) to represent the baseline; in the usual symmetrized choice one may take \(g\equiv0\) and absorb normalization into \(Z_B\)). For simplicity and without loss of generality we now take the parametrization where the B-component is the baseline with \(g(x)\equiv 0\) (equivalently measure \(f\) relative to the B baseline). With this choice
+To obtain the test statistic that assesses whether sample A differs from the pooled reference in the manner parametrized by \(f\), set the alternative for B to be the pooled baseline. For simplicity and without loss of generality we now take the parametrization where the B-component is the baseline with \(g(x)\equiv 0\) (equivalently measure \(f\) relative to the B baseline). With this choice
+
 \[
-\log\mathcal{L}_{\text{pooled}}(f) \propto -\dot{N} + \sum_{x_i\in\mathcal{P}} w_i \log\Big(\alpha \tfrac{1}{Z_A}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_B}\Big).
+\log\mathcal{L}_{\reco{P}}(f) \propto -N_\reco{P} + \sum_{x_i\in\reco{P}} w_i \log\Big(\alpha \tfrac{1}{Z_\reco{A}}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}\Big).
 \]
-Expand the logarithm by factoring \(\tfrac{1}{Z_B}\) out of the argument:
+
+Expand the logarithm by factoring \(\tfrac{1}{Z_\reco{B}}\) out of the argument:
+
 \[
-\log\Big(\alpha \tfrac{1}{Z_A}e^{f} + (1-\alpha)\tfrac{1}{Z_B}\Big) = \log\Big(\tfrac{1}{Z_B}\Big) + \log\Big((1-\alpha) + \alpha\tfrac{Z_B}{Z_A}e^{f}\Big).
+... = \log\Big(\tfrac{1}{Z_\reco{B}}\Big) + \log\Big((1-\alpha) + \alpha\tfrac{Z_\reco{B}}{Z_\reco{A}}e^{f}\Big).
 \]
-The constant \(\log(1/Z_B)\) does not depend on \(f\), so discard it. Define the ratio \(\rho:=\tfrac{Z_B}{Z_A}\) and rewrite the remaining term as
+The constant \(\log(1/Z_\reco{B})\) does not depend on \(f\), so discard it. Define the ratio \(\rho:=\tfrac{Z_\reco{B}}{Z_\reco{A}}\) and rewrite the remaining term as
 \[
 \log\Big((1-\alpha) + \alpha\rho e^{f}\Big).
 \]
 Now form the log-likelihood ratio (or equivalently the difference between the pooled log-likelihood and the product of the separate log-likelihoods under the null) and collect terms that depend on \(f\). The algebraic manipulations (expand and regroup the pooled-sum and the individual sums) produce two types of contributions:
 \begin{enumerate}
-    \item A term proportional to \(\int \alpha (\rho e^{f}-1) n_{\mathcal{R}}(x)dx\), which, after replacing integrals with weighted sums, yields \(-\alpha\sum_{\mathcal{P}} w_i (e^{f(x_i)}-1)\) up to multiplicative constants and absorbed \(\rho\) factors. The appearance of \(e^{f}-1\) is a consequence of subtracting the baseline intensity.
-    \item A sum over events in sample A giving \(\sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i)\) originating from the \(\sum\log e^{f}=\sum f\) contribution of labeled-A events when comparing labeled likelihood terms.
+    \item A term proportional to \(\int \alpha (\rho e^{f}-1) \refdist dx\), which, after replacing integrals with weighted sums, yields \(-\alpha\sum_{\reco{P}} w_i (e^{f(x_i)}-1)\) up to multiplicative constants and absorbed \(\rho\) factors. The appearance of \(e^{f}-1\) is a consequence of subtracting the baseline intensity.
+    \item A sum over events in sample A giving \(\sum_{x_i \in \reco{A}} w_i f(x_i)\) originating from the \(\sum\log e^{f}=\sum f\) contribution of labeled-A events when comparing labeled likelihood terms.
 \end{enumerate}
 These two pieces are the ones that appear in the convex functional minimized to obtain the profile likelihood.
 
 \paragraph{6. Profiling and simplification to the displayed functional.}
 Carrying out the algebra carefully (expand the pooled log, subtract the baseline contributions, cancel constants and terms involving \(\log Z_A,\log Z_B\) that do not depend on \(f\) after profiling), and using the unbiased replacement of integrals by weighted sums, one obtains the functional
 \[
-\mathcal{F}(f) = -\alpha \sum_{x_i\in\mathcal{P}} w_i\big(e^{f(x_i)}-1\big) + \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i) + \text{(constants independent of $f$)}.
+\mathcal{F}(f) = -\alpha \sum_{x_i\in\reco{P}} w_i\big(e^{f(x_i)}-1\big) + \sum_{x_i\in\reco{A}} w_i f(x_i) + \text{(constants independent of $f$)}.
 \]
 The test statistic is the negative twice the maximized log-likelihood ratio (or, equivalently, \(-2\) times the minimum of \(\mathcal{F}(f)\) over allowable functions \(f\)), which yields the stated expression:
 \[
-t_{\mathbf{A}+\mathbf{B}}(\mathbf{A}) = -2 \min_f \Big[ -\alpha \sum_{x_i\in\mathcal{P}} w_i (e^{f(x_i)}-1) + \sum_{x_i\in\tilde{\mathbf{A}}} w_i f(x_i) \Big],
+t_{\dataset{A}+\dataset{B}}(\dataset{A}) = -2 \min_f \Big[ -\alpha \sum_{x_i\in\reco{P}} w_i (e^{f(x_i)}-1) + \sum_{x_i\in\reco{A}} w_i f(x_i) \Big],
 \]
-with \(\alpha=\dfrac{\dot{N}_{\mathbf{A}}}{\dot{N}_{\mathbf{A}}+\dot{N}_{\mathbf{B}}}\).
+with \(\alpha=\dfrac{N_\reco{A}}{N_\reco{A}+N_\reco{B}}\).
 
 \paragraph{7. Remarks on exactness and convexity.}
 The steps above are algebraic and exact up to the choice of baseline parametrization (we set \(g\equiv 0\) for the baseline without loss of generality) and the unbiased substitution of integrals by weighted sums (which is exact in expectation and valid as an estimating equation). The resulting functional is convex in the pointwise values \(f(x_i)\) because the map \(f\mapsto e^{f}-1\) is convex; this justifies numerical minimization via deterministic optimization or training a neural network with the corresponding loss.
@@ -140,12 +148,12 @@ The steps above are algebraic and exact up to the choice of baseline parametriza
 \section{Loss Function for Neural Network Training}
 To learn the optimal \( f(x) \), we train a classifier using the following efficiency-weighted loss:
 \[
-L[f] = \sum_{x_i \in \tilde{\mathbf{A}} \cup \tilde{\mathbf{B}}} 
+L[f] = \sum_{x_i \in \reco{A} \cup \reco{B}} 
 \left[
-    (1 - y_i) \cdot \frac{\dot{N}_{\mathbf{A}} w_i}{\dot{N}_{\mathbf{A}} + \dot{N}_{\mathbf{B}}} (e^{f(x_i)} - 1)
+    (1 - y_i) \cdot \frac{N_\reco{A} w_i}{N_\reco{A} + N_\reco{B}} (e^{f(x_i)} - 1)
     - y_i w_i f(x_i)
 \right]
 \]
-where \( y_i = 1 \) if \( x_i \in \tilde{\mathbf{A}} \), and \( y_i = 0 \) otherwise.
+where \( y_i = 1 \) if \( x_i \in \reco{A} \), and \( y_i = 0 \) otherwise.
 
 \end{document}
