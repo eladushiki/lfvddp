@@ -90,14 +90,19 @@ class DifferentiatingModel(keras.models.Model):
         self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
         
     @tf.function
-    def _single_nuisance_loss(self, nuisance_value: Any) -> tf.Tensor:
+    def _single_nuisance_log_likelihood(self, nuisance_value: Any) -> tf.Tensor:
+        """Negative log-likelihood of a single nuisance parameter under Gaussian constraint."""
         std = tf.cast(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, tf.float32)
-        return tf.exp(-0.5 * tf.square(nuisance_value / std)) / (std * tf.sqrt(tf.constant(2 * np.pi, dtype=tf.float32)))
+        # -log(PDF) = 0.5 * (x/σ)² + log(σ√(2π))
+        # We can drop the constant term for optimization purposes
+        return 0.5 * tf.square(nuisance_value / std)
 
     @tf.function
-    def _nuisance_aux_loss(self) -> tf.Tensor:
-        nuisances = tf.stack([var.value for var in self._detector_deltas.values()])
-        return tf.reduce_prod(self._single_nuisance_loss(nuisances))
+    def _nuisance_log_likelihood(self) -> tf.Tensor:
+        """Total negative log-likelihood for all nuisance parameters."""
+        # Sum of negative log-likelihoods (equivalent to log of product of likelihoods)
+        nuisances = tf.concat([tf.reshape(var, [-1]) for var in self._detector_deltas.values()], axis=0)
+        return tf.reduce_sum(self._single_nuisance_log_likelihood(nuisances))
     
     @tf.function
     def _prediction_loss(
@@ -123,14 +128,18 @@ class DifferentiatingModel(keras.models.Model):
         ) -> float:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
-        estimation.
+        estimation. Returns negative log-likelihood to be minimized.
         """
         prediction_loss = self._prediction_loss(
             f__is_sample_prediction,
             y__is_sample_truth,
         )
-        nuisance_aux_loss = self._nuisance_aux_loss()
-        loss = tf.math.log(prediction_loss) + tf.math.log(nuisance_aux_loss)
+        log_prediction_loss = tf.math.log(prediction_loss)
+        
+        nuisance_log_likelihood = self._nuisance_log_likelihood()
+        
+        # Total loss is sum of negative log-likelihoods
+        loss = log_prediction_loss + nuisance_log_likelihood
 
         return loss
 
@@ -168,13 +177,13 @@ class DifferentiatingModel(keras.models.Model):
             def reset_state(inner_self):
                 inner_self.__value.assign(0.0)
 
-        class NuisanceLossMetric(keras.metrics.Metric):
+        class NuisanceNegLogLikelihoodMetric(keras.metrics.Metric):
             def __init__(inner_self, **kwargs):
                 super().__init__(**kwargs)
                 inner_self.__value = inner_self.add_weight(name="nuisance_loss", initializer="zeros")
 
             def update_state(inner_self, y_true, y_pred, sample_weight=None):
-                nuisance_loss = self._nuisance_aux_loss()
+                nuisance_loss = self._nuisance_log_likelihood()
                 inner_self.__value.assign(nuisance_loss)
             
             def result(inner_self):
@@ -186,7 +195,7 @@ class DifferentiatingModel(keras.models.Model):
         return [
             NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
             PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
-            NuisanceLossMetric(name=HistoryKeys.NUISANCE_LOSS.value),
+            NuisanceNegLogLikelihoodMetric(name=HistoryKeys.NUISANCE_LOSS.value),
         ]
 
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
