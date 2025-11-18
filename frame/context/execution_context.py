@@ -19,7 +19,7 @@ from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 from plot.plotting_config import PlottingConfig
 from tensorflow.keras.models import Model # type: ignore
-
+from tensorflow import random as tfrandom
 
 from dataclasses import dataclass, field
 from os import getpid, makedirs, sep
@@ -96,6 +96,7 @@ class ExecutionContext:
         # Random seeding
         random.seed(self.random_seed)
         nprandom.seed(self.random_seed)
+        tfrandom.set_seed(self.random_seed)
 
     @property
     def _unique_descriptor(self) -> str:

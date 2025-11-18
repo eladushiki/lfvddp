@@ -1,14 +1,17 @@
 from typing import Callable
+import pandas as pd
+from regex import D
 from scipy.stats import truncnorm
 import numpy as np
 
 from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
+from data_tools.detector.efficiency.shapes import DETECTOR_EFFICIENCY_TYPE
 
 # Uncertainty variations for detector effect efficiencies
 # Each function implemented here would be recognized and recalled by name
 # Have the function signature as:
 #
-DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE = Callable[[Callable[[np.ndarray], np.ndarray]], Callable[[np.ndarray], np.ndarray]]
+DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE = Callable[[DETECTOR_EFFICIENCY_TYPE], DETECTOR_EFFICIENCY_TYPE]
 # def detector_efficiency_...(
 #   detector_efficiency: Callable[[np.ndarray], np.ndarray]
 # ) -> Callable[[np.ndarray], np.ndarray]:
@@ -21,15 +24,15 @@ DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE = Callable[[Callable[[np.ndarray], np.ndarr
 
 
 def detector_uncertainty_no_uncertainty(
-        detector_efficiency: Callable[[np.ndarray], np.ndarray],
+        detector_efficiency: DETECTOR_EFFICIENCY_TYPE,
 ):
     return detector_efficiency
 
 
 def detector_uncertainty_10_percent_constant_diminish(
-        detector_efficiency: Callable[[np.ndarray], np.ndarray],
+        detector_efficiency: DETECTOR_EFFICIENCY_TYPE,
 ):
-    def uncertainty_wrapper(binned_x: np.ndarray) -> np.ndarray:
+    def uncertainty_wrapper(binned_x: pd.DataFrame) -> np.ndarray:
         clean_efficiency = detector_efficiency(binned_x)
         defected_efficiency = clean_efficiency * 0.9
         return defected_efficiency
@@ -38,14 +41,15 @@ def detector_uncertainty_10_percent_constant_diminish(
 
 
 def detector_uncertainty_gaussian_noise(
-        detector_efficiency: Callable[[np.ndarray], np.ndarray],
+        detector_efficiency: DETECTOR_EFFICIENCY_TYPE,
 ):
     """
     Adding a gaussian distributed error to the detector efficiency **by bin**.
     Using truncated normal distribution to prevent weird edge effects
     """
-    def uncertainty_wrapper(binned_x: np.ndarray) -> np.ndarray:
+    def uncertainty_wrapper(binned_x: pd.DataFrame) -> np.ndarray:
         unique_bins, unique_inverse = np.unique(binned_x, axis=0, return_inverse=True)
+        unique_bins = pd.DataFrame(unique_bins, columns=binned_x.columns)
         unique_efficiency = detector_efficiency(unique_bins)
         
         relative_error_magnitude_max = 0.5
