@@ -122,7 +122,6 @@ class DifferentiatingModel(keras.models.Model):
         return: tf.Tensor: Scalar tensor of total nuisance NLL.
         """
         nuisances = tf.concat([tf.reshape(var, [-1]) for var in self._detector_deltas.values()], axis=0)
-        tf.print("Nuisance values:", nuisances)
         return tf.reduce_sum(self._gaussian_nuisance_nll(nuisances))
     
     @tf.function
