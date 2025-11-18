@@ -77,6 +77,16 @@ The steps of such a process are shown in figure \ref{fig:data_process_plot}.
     \label{fig:data_process_plot}
 \end{figure}
 
+We further added quantitive tools to measure the performance of the process in discovering data anomalies in several measures. In figure \ref{fig:singificance_of_detected_vs_injected_signal} we can see an illustration of the detected singificance of an artifically injected signal vs the injected singificance. A test statistic is calculated, and its distribution with no injected signal is accumulated over many trials. Once the signal is injected, the measured significance can be estimated by the chance of achieveing the test statistic value under the no-signal distribution. 
+
+\begin{figure}[!htbp]
+    \includegraphics[width=\textwidth]{performance/Pasted image 20251103143747.png}
+    \caption{
+        Significance of detected signal versus injected signal significance. The injected signal significance is calculated by the conditional poisson likelihood ratio of the injected number of signal events vs. the existing background. The detected signal test statistic is compared to a no-signal test statistic twice; first, to a theoretical chi-squared distribution of the no signal case. Second, significance relative to a Gaussian fit of the test statistic. We added an analytic calculation of the observed singificance with knowledge og the number of signal and background events for comparison. A $\pm \sigma$ of the analytic calculation is shown as a shade.
+    }
+    \label{fig:singificance_of_detected_vs_injected_signal}
+\end{figure}
+
 \input{../common/bibliography.tex}
 
 \end{document}
