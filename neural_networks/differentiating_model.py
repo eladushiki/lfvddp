@@ -66,7 +66,7 @@ class DifferentiatingModel(keras.models.Model):
                 layer = keras.layers.Dense(
                     secondary_layer_size,
                     activation=None,  # No activation on final layer
-                    bias_initializer=keras.initializers.Constant(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
+                    bias_initializer=keras.initializers.Constant(0.1),
                     kernel_initializer='glorot_uniform',
                 )(last_layer)
             else:
@@ -85,7 +85,10 @@ class DifferentiatingModel(keras.models.Model):
                 shape=(nbins,),
                 dtype=tf.float32,
                 trainable=True,
-                initializer=tf.zeros_initializer()
+                initializer=keras.initializers.RandomNormal(
+                    mean=0.0,
+                    stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
+                ),
             )
             self._detector_deltas[self._observable_names[i]] = nuisance_var
 
@@ -120,16 +123,14 @@ class DifferentiatingModel(keras.models.Model):
         return tf.reduce_sum(self._gaussian_nuisance_nll(nuisances))
     
     @tf.function
-    def _prediction_loss(
+    def _prediction_nll(
             self,
             f__is_sample_prediction: tf.Tensor,
             y__is_sample_mask: tf.Tensor,
         ) -> tf.Tensor:
         is_ref_mask = tf.subtract(1.0, y__is_sample_mask)
-        return tf.reduce_sum(
-            is_ref_mask * (tf.exp(f__is_sample_prediction) - 1) \
-                - tf.multiply(y__is_sample_mask, f__is_sample_prediction)
-        )
+        return is_ref_mask * (tf.exp(f__is_sample_prediction) - 1) \
+            - tf.multiply(y__is_sample_mask, f__is_sample_prediction)
 
     @property
     def _observable_names(self) -> List[str]:
@@ -138,18 +139,18 @@ class DifferentiatingModel(keras.models.Model):
     @tf.function
     def ddp_symmetrized_loss(
             self,
-            y__is_sample_truth,
-            f__is_sample_prediction,
-        ) -> float:
+            y__is_sample_truth: tf.Tensor,
+            f__is_sample_prediction: tf.Tensor,
+        ) -> tf.Tensor:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
         estimation. Returns negative log-likelihood to be minimized.
         """
-        prediction_loss = self._prediction_loss(
+        prediction_loss = self._prediction_nll(
             f__is_sample_prediction,
             y__is_sample_truth,
-        )
-        nuisance_loss = self._total_nuisance_nll()
+        )  # Tensor the size of data
+        nuisance_loss = self._total_nuisance_nll() / tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
 
         # Total loss is sum of log-likelihoods
         return tf.math.add(prediction_loss, nuisance_loss)
@@ -179,7 +180,8 @@ class DifferentiatingModel(keras.models.Model):
                 inner_self.__value = inner_self.add_weight(name="prediction_loss", initializer="zeros")
 
             def update_state(inner_self, y_true, y_pred, sample_weight=None):
-                val = self._prediction_loss(y_pred, y_true)
+                batch_size = tf.cast(tf.shape(y_true)[0], tf.float32)
+                val = tf.reduce_sum(self._prediction_nll(y_pred, y_true)) / batch_size
                 inner_self.__value.assign(val)
 
             def result(inner_self):
@@ -210,12 +212,32 @@ class DifferentiatingModel(keras.models.Model):
         ]
 
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
+        class TextLoggerCallback(keras.callbacks.Callback):
+            TEXT_LOG_TEMPLATE = f"""
+            Nuisance parameters at epoch {{epoch}}:
+            {{nuisance_values}}
+            """
+            def on_epoch_end(inner_self, epoch, logs=None):
+                nuisance_values = "\n".join([
+                    f"{name}: {var.numpy()}"
+                    for name, var in self._detector_deltas.items()
+                ])
+                log_text = inner_self.TEXT_LOG_TEMPLATE.format(
+                    epoch=epoch,
+                    nuisance_values=nuisance_values,
+                )
+                with self._train_summary_writer.as_default():
+                    tf.summary.text("nuisance_parameters", log_text, step=epoch)
+
+                self._train_summary_writer.flush()
+                
         return [
             keras.callbacks.TensorBoard(
                 log_dir=self._tensorboard_log_file, # type: ignore
                 histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
                 update_freq='epoch',
             ),
+            TextLoggerCallback(),
         ]
 
     def train_step(self, data: Tuple[tf.Tensor, tf.Tensor]):
@@ -238,9 +260,7 @@ class DifferentiatingModel(keras.models.Model):
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
-        # Update and return metrics
-        for metric in self.metrics:
-            metric.update_state(y, prediction)
+        # Update and return metrics via the compiled Keras utilities (handles sample weights)
         return self.compute_metrics(x, y, y_pred=prediction, sample_weight=weights)
 
     @contextmanager
