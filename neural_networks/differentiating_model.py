@@ -88,7 +88,7 @@ class DifferentiatingModel(keras.models.Model):
                 initializer=keras.initializers.RandomNormal(
                     mean=0.0,
                     stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
-                ),
+                ),  # Randomizing initialization to prevent vanishing gradients
             )
             self._detector_deltas[self._observable_names[i]] = nuisance_var
 
@@ -105,9 +105,11 @@ class DifferentiatingModel(keras.models.Model):
     @tf.function
     def _gaussian_nuisance_nll(self, nuisance_value: Any) -> tf.Tensor:
         """
-        Negative log-likelihood of a single nuisance parameter under Gaussian constraint.
+        Negative log-likelihood of a single (or vector of) nuisance parameter(s) under
+        Gaussian constraint.
         - log(x) = 0.5 * (x/σ)² + log(σ√(2π))
-        We can drop the constant term for optimization purposes
+        Constant term is dropped.
+        return: tf.Tensor: Tensor of same shape as nuisance_value with NLL values.
         """
         std = tf.cast(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, tf.float32)
         return 0.5 * tf.square(nuisance_value / std)
@@ -115,8 +117,9 @@ class DifferentiatingModel(keras.models.Model):
     @tf.function
     def _total_nuisance_nll(self) -> tf.Tensor:
         """
-        Total negative log-likelihood for all nuisance parameters.
+        Total negative log-likelihood for all nuisance parameters, summed over observables.
         Calculated directly as a sum after taking the individual NLLs.
+        return: tf.Tensor: Scalar tensor of total nuisance NLL.
         """
         nuisances = tf.concat([tf.reshape(var, [-1]) for var in self._detector_deltas.values()], axis=0)
         tf.print("Nuisance values:", nuisances)
@@ -128,6 +131,11 @@ class DifferentiatingModel(keras.models.Model):
             f__is_sample_prediction: tf.Tensor,
             y__is_sample_mask: tf.Tensor,
         ) -> tf.Tensor:
+        """
+        The custom negative log-likelihood for the prediction of the NN.
+        Rewards correct classification of sample vs. reference events.
+        return: tf.Tensor: Tensor of same shape as input tensors with NLL values.
+        """
         is_ref_mask = tf.subtract(1.0, y__is_sample_mask)
         return is_ref_mask * (tf.exp(f__is_sample_prediction) - 1) \
             - tf.multiply(y__is_sample_mask, f__is_sample_prediction)
@@ -145,14 +153,18 @@ class DifferentiatingModel(keras.models.Model):
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
         estimation. Returns negative log-likelihood to be minimized.
+        return: tf.Tensor: Tensor of same shape as input tensors with total NLL values.
+        tf automatically reweights the loss by sample_weight given in fit(), as long
+        as this function returns a tf.Tensor of shape (batch_size,).
         """
         prediction_loss = self._prediction_nll(
             f__is_sample_prediction,
             y__is_sample_truth,
         )  # Tensor the size of data
-        nuisance_loss = self._total_nuisance_nll() / tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
+        nuisance_loss = self._total_nuisance_nll() / \
+            tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
 
-        # Total loss is sum of log-likelihoods
+        # Total loss is sum of log-likelihoods. Addition by tf is element-wise.
         return tf.math.add(prediction_loss, nuisance_loss)
 
     def get_metrics(self) -> List[tf.keras.metrics.Metric]:
@@ -180,8 +192,7 @@ class DifferentiatingModel(keras.models.Model):
                 inner_self.__value = inner_self.add_weight(name="prediction_loss", initializer="zeros")
 
             def update_state(inner_self, y_true, y_pred, sample_weight=None):
-                batch_size = tf.cast(tf.shape(y_true)[0], tf.float32)
-                val = tf.reduce_sum(self._prediction_nll(y_pred, y_true)) / batch_size
+                val = tf.reduce_sum(self._prediction_nll(y_pred, y_true))
                 inner_self.__value.assign(val)
 
             def result(inner_self):
