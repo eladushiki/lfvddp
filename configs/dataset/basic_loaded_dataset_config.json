@@ -11,7 +11,7 @@
                 "nMuon": "nLepton",
                 "Muon_mass": "Lepton_mass"
             },
-            "dataset_loaded__cut": "(nTau > 0) & (nMuon > 0)",
+            "dataset_loaded__cut": "(nTau == 1) & (nMuon == 1) & (nElectron == 0)",
             "dataset_loaded__aliases": null,
             "dataset_loaded__event_amount_load_limit": 10000,
 
@@ -38,7 +38,7 @@
                 "nElectron": "nLepton",
                 "Electron_mass": "Lepton_mass"
             },
-            "dataset_loaded__cut": "(nTau > 0) & (nElectron > 0)",
+            "dataset_loaded__cut": "(nTau == 1) & (nMuon == 0) & (nElectron == 1)",
             "dataset_loaded__event_amount_load_limit": 10000,
 
             "dataset_loaded__resample_is_resample": true,

@@ -2,6 +2,7 @@ from typing import Callable, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetParameters
@@ -94,6 +95,7 @@ class DetectorEffect:
 
         def __compensator(x: DataSet) -> np.ndarray:
             bin_centers = self.get_event_bin_centers(x)
+            bin_centers = pd.DataFrame(bin_centers, columns=x.observable_names)
             return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(bin_centers)
 
         return __compensator
