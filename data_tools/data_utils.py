@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -70,7 +70,11 @@ class DataSet:
     @property
     def observable_names(self) -> List[str]:
         return self._data.columns.tolist()
-    
+
+    @observable_names.setter
+    def observable_names(self, names: Iterable[str]):
+        self._data.columns = list(names)
+
     @property
     def n_observables(self) -> int:
         return len(self.observable_names)

@@ -39,7 +39,7 @@ class DatasetParameters(ABC):
     dataset__detector_efficiency_uncertainty: str = field(default="")
     dataset__detector_error: str = field(default="")
 
-    # Induced nuisance parameters
+    # Induced nuisance parameters (relevant for old NPLM implementation)
     dataset__induced_shape_nuisance_value: float = field(default=0.0)
     dataset__induced_norm_nuisance_value: float = field(default=0.0)
 
@@ -71,6 +71,30 @@ class DatasetParameters(ABC):
                 lam=self.dataset__mean_number_of_signal_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
+    
+    @property
+    @abstractmethod
+    def dataset__number_of_dimensions(self) -> int:
+        """Number of observables / dimensions in the dataset."""
+        pass
+    
+    @property
+    def _dataset__signal_distribution(self) -> DataDistribution:
+        """
+        Get the signal PDF function based on the configuration.
+        Note that it may accept additional parameters as kwargs.
+        """
+        class_name = to_pascal(self.dataset__signal_data_generation_function)
+
+        distribution_class = _retrieve_from_module(signal, class_name, signal.NoSignal)
+
+        return distribution_class(self.dataset__number_of_dimensions, **self.dataset__signal_parameters)
+
+    @property
+    def dataset_generated__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
+        return lambda x: self._dataset__signal_distribution.pdf(
+            x / np.exp(self.dataset__induced_shape_nuisance_value),
+        )
 
     
 @dataclass
@@ -117,18 +141,25 @@ class LoadedDatasetParameters(DatasetParameters):
         return self.dataset_loaded__observable_naming.values()
 
     @property
+    def dataset__number_of_dimensions(self) -> int:
+        return len(self.dataset_loaded__observable_naming)
+
+    @property
     def dataset__data(self) -> DataSet:
         """
         Load the data from the specified file, and update the internal
         state of loaded data to match resampling settings.
         """
-        loaded_dataset = self.__load_dataset(
+        background = self.__load_dataset(
             self.dataset_loaded__file_name,
             self.dataset_loaded__event_amount_load_limit
         )
-  
-        return loaded_dataset
-      
+        signal = self._dataset__signal_distribution.generate_amount(
+            amount=self.dataset__number_of_signal_events,
+        )
+        signal.observable_names = background.observable_names
+        return background + signal
+        
     def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
         """
         Load data from the specified file.
@@ -186,7 +217,13 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
     
-    dataset__number_of_dimensions: int = field(default=0)
+    @property
+    def dataset__number_of_dimensions(self) -> int:
+        return self._dataset__number_of_dimensions
+
+    @dataset__number_of_dimensions.setter
+    def dataset__number_of_dimensions(self, value: int) -> None:
+        self._dataset__number_of_dimensions = value
     
     # Additional background parameters
     # This is the defining attribute for the subclass
@@ -212,29 +249,11 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         )
 
     @property
-    def __dataset_generated__signal_distribution(self) -> DataDistribution:
-        """
-        Get the signal PDF function based on the configuration.
-        Note that it may accept additional parameters as kwargs.
-        """
-        class_name = to_pascal(self.dataset__signal_data_generation_function)
-
-        distribution_class = _retrieve_from_module(signal, class_name, signal.NoSignal)
-
-        return distribution_class(self.dataset__number_of_dimensions, **self.dataset__signal_parameters)
-
-    @property
-    def dataset_generated__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return lambda x: self.__dataset_generated__signal_distribution.pdf(
-            x / np.exp(self.dataset__induced_shape_nuisance_value),
-        )
-
-    @property
     def dataset__data(self) -> DataSet:
         background = self.__dataset_generated__background_distribution.generate_amount(
             amount=self.dataset__number_of_background_events,
         )
-        signal = self.__dataset_generated__signal_distribution.generate_amount(
+        signal = self._dataset__signal_distribution.generate_amount(
             amount=self.dataset__number_of_signal_events,
         )
         return background + signal
