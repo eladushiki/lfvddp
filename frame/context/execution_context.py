@@ -1,3 +1,4 @@
+from argparse import Namespace
 from contextlib import contextmanager
 from inspect import signature
 from logging import basicConfig, info
@@ -81,6 +82,7 @@ class ExecutionContext:
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
+    is_no_build: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
     is_reloaded: bool = False
@@ -195,17 +197,27 @@ class ExecutionContext:
 
 
 @contextmanager
-def version_controlled_execution_context(config: UserConfig, command_line_args: List[str], is_debug_mode: bool = False):
+def version_controlled_execution_context(
+    config: UserConfig,
+    command_line_args: List[str],
+    args: Namespace,
+):
     """
     Create a context which should contain any run dependent information.
     The data is later stored in the output_path for documentation.
     """
     # Force run on strict commit
-    if not is_debug_mode and not is_git_head_clean():
+    if not args.debug and not is_git_head_clean():
         raise RuntimeError("Commit changes before running the script.")
 
     # Initialize
-    context = ExecutionContext(get_commit_hash(), config, command_line_args, is_debug_mode=is_debug_mode)
+    context = ExecutionContext(
+        get_commit_hash(),
+        config,
+        command_line_args,
+        is_debug_mode=args.debug,
+        is_no_build=args.no_build,
+    )
 
     # Save in case run terminates prematurely
     context.save_self_to_out_file()

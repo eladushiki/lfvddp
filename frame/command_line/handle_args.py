@@ -1,16 +1,16 @@
 from logging import warning
 from sys import argv
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from frame.context.execution_context import version_controlled_execution_context
 from frame.context.execution_context import create_config_from_paramters
-from frame.file_system.textual_data import load_dict_from_json, load_config_file
+from frame.file_system.textual_data import load_config_file
 
 
-def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:# -> _Wrapped[Callable[..., Any], Any, Callable[..., Any], None]:
+def parse_config_from_args() -> tuple[list[Any], Namespace]:
     """
     A wrapper for any entry point in the project, to ensure context control.
     """
@@ -49,6 +49,10 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
         help="Run in debug mode. NOTE: Does not verify running on strict commits"
     )
     parser.add_argument(
+        "--no-build", action="store_true",
+        help="Do not build the container before running. Useful for debug, prone to errors.", dest="no_build"
+    )
+    parser.add_argument(
         "--out-dir", type=str,
         help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
@@ -72,7 +76,7 @@ def parse_config_from_args():# -> _Wrapped[Callable[..., Any], Any, Callable[...
     if args.plot_config_path:
         config_paths.append(args.plot_config_path)
 
-    return config_paths, args.plot_config_path, args.debug, args.out_dir, args.plot_in_place
+    return config_paths, args
 
 
 def create_config_from_paths(
@@ -96,16 +100,21 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     """
     A wrapper for any entry point in the project, to ensure context control.
     """
-    config_paths, is_plot, is_debug_mode, out_dir, plot_in_place = parse_config_from_args()
-    config = create_config_from_paths(config_paths, is_plot, out_dir, plot_in_place)
+    config_paths, args = parse_config_from_args()
+    config = create_config_from_paths(
+        config_paths,
+        args.plot_config_path,
+        args.out_dir,
+        args.plot_in_place
+    )
 
     @wraps(function)
-    def context_controlled_function(*args, **kwargs):
+    def context_controlled_function(*inner_args, **inner_kwargs):
         """
         Run any decorated function in this run with the documentation of the
         configuration file parsed above.
         """
-        with version_controlled_execution_context(config, argv, is_debug_mode) as context:
-            function(*args, **kwargs, context=context)
+        with version_controlled_execution_context(config, argv, args) as context:
+            function(*inner_args, **inner_kwargs, context=context)
 
     return context_controlled_function

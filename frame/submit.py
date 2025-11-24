@@ -45,13 +45,16 @@ def submit_cluster_job(
     build_env_vars = {
         "LFVDDP_DEF_PATH": str(SINGULARITY_DEFINITION_FILE.absolute()),
     }
-    build_job_id = qsub_a_script(
-        context=context,
-        stamped_script_filename=stamped_build_script_filename,
-        job_name=build_job_name,
-        max_tries=max_tries,
-        env_vars=build_env_vars,
-    )
+    if not context.is_no_build:
+        build_job_id = qsub_a_script(
+            context=context,
+            stamped_script_filename=stamped_build_script_filename,
+            job_name=build_job_name,
+            max_tries=max_tries,
+            env_vars=build_env_vars,
+        )
+    else:
+        build_job_id = None
     
     # Create qsub script from template
     qsub_script_content = format_qsub_execution_script(

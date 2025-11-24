@@ -3,9 +3,6 @@
 Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
-%files
-    {{CONFIGS_DIR}} /app/configs
-
 %post
     # Set default values for build arguments
     REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp-symmetrized.git}"
@@ -53,5 +50,8 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     Usage:
     singularity run lfvnn.sif [command]
     singularity exec lfvnn.sif python train/single_train.py [args]
+    
+    To copy configs after building:
+    singularity exec --bind /path/to/configs:/tmp/configs lfvnn.sif cp -r /tmp/configs /app/configs
     
     The container sets up the Python environment and clones the specified repository and branch.

@@ -5,6 +5,9 @@
 **.egg-info/
 **/__pycache__/
 
+# Singularity
+*.sif
+
 # IDE
 .vscode/
 **.code-workspace
