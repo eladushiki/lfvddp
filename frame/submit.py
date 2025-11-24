@@ -2,7 +2,7 @@ from logging import error
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 import tarfile
-from typing import Optional, List, Tuple
+from typing import Optional
 from frame.command_line.execution import format_qsub_build_script, format_qsub_execution_script
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
@@ -28,17 +28,12 @@ def submit_cluster_job(
     configs_tarball = context.unique_out_dir / f"configs.{TARBALL_FILE_EXTENSION}"
     with tarfile.open(configs_tarball, "w:gz") as tar:
         tar.add(CONFIGS_DIR, arcname="configs")
-    
-    # Prepare stagein files for build job: lfvddp.def and configs.tar.gz
-    stagein_files = [
-        (str(SINGULARITY_DEFINITION_FILE), "lfvddp.def"),
-        (str(configs_tarball), "configs.tar.gz"),
-    ]
 
     # Perform container build
     qsub_build_script = format_qsub_build_script(
         config=context.config,
-        git_branch=default_git_branch() if not context.is_debug_mode else current_git_branch()
+        git_branch=default_git_branch() if not context.is_debug_mode else current_git_branch(),
+        configs_tarball_path=str(configs_tarball.absolute()),
     )
 
     # Save build script using ExecutionContext's save_and_document function
@@ -46,12 +41,16 @@ def submit_cluster_job(
     stamped_build_script_filename = context.save_and_document_text(qsub_build_script, build_script_filename)
     
     # Submit build script and capture job ID
+    # Pass file paths as environment variables for the script to copy
+    build_env_vars = {
+        "LFVDDP_DEF_PATH": str(SINGULARITY_DEFINITION_FILE.absolute()),
+    }
     build_job_id = qsub_a_script(
         context=context,
         stamped_script_filename=stamped_build_script_filename,
         job_name=build_job_name,
         max_tries=max_tries,
-        stagein_files=stagein_files,
+        env_vars=build_env_vars,
     )
     
     # Create qsub script from template
@@ -81,7 +80,7 @@ def qsub_a_script(
     job_name: str,
     max_tries: int = 3,
     depends_on_success_of_jobid: Optional[str] = None,
-    stagein_files: Optional[List[Tuple[str, str]]] = None,
+    env_vars: Optional[dict] = None,
 ):
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
@@ -98,10 +97,10 @@ def qsub_a_script(
     if depends_on_success_of_jobid:
         qsub_command += f"-W depend=afterok:{depends_on_success_of_jobid} "
     
-    # Add PBS/Torque stagein for files if specified
-    if stagein_files:
-        stagein_spec = ",".join([f"{src}@{dst}" for src, dst in stagein_files])
-        qsub_command += f"-W stagein={stagein_spec} "
+    # Add environment variables if specified
+    if env_vars:
+        var_list = ",".join([f"{k}={v}" for k, v in env_vars.items()])
+        qsub_command += f"-v {var_list} "
     
     qsub_command += f"{stamped_script_filename}"
 

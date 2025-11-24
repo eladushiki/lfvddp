@@ -4,7 +4,7 @@ Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
 %files
-    configs /app/configs
+    {{CONFIGS_DIR}} /app/configs
 
 %post
     # Set default values for build arguments

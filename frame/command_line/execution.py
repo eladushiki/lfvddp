@@ -2,6 +2,7 @@ import shlex
 from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
+from frame.file_structure import CONFIGS_DIR
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -70,16 +71,19 @@ echo "Building Singularity container..."
 BUILD_DIR=$(mktemp -d)
 cd $BUILD_DIR
 
-# Extract staged definition file (already transferred via PBS stagein)
-echo "Using staged lfvddp.def file..."
-cp $PBS_O_WORKDIR/lfvddp.def ./lfvddp.def
+# Copy definition file from source path (passed as environment variable)
+echo "Copying lfvddp.def file from $LFVDDP_DEF_PATH..."
+cp $LFVDDP_DEF_PATH ./lfvddp.def
 
-# Customize the definition file with repository URL and branch
-sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" -e "s|^BRANCH=.*|BRANCH=\"{git_branch}\"|" lfvddp.def > lfvddp-edit.def
+# Extract configs tarball from source path
+echo "Extracting configs from {configs_tarball_path}..."
+tar -xzf {configs_tarball_path}
 
-# Extract staged configs tarball (configs dir will be embedded via %files section in def)
-echo "Extracting staged configs..."
-tar -xzf $PBS_O_WORKDIR/configs.tar.gz
+# Customize the definition file with repository URL, branch, and configs path
+sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
+    -e "s|^BRANCH=.*|BRANCH=\"{git_branch}\"|" \
+    -e "s|{{{{CONFIGS_DIR}}}}|{configs_abs_path}|g" \
+    lfvddp.def > lfvddp-edit.def
 
 # Build from the customized definition file with configs embedded
 echo "Building container with embedded configs..."
@@ -97,6 +101,7 @@ rm -rf $BUILD_DIR
 def format_qsub_build_script(
     config: ClusterConfig,
     git_branch: str,
+    configs_tarball_path: str,
 ) -> str:
     return format_qsub_script(
         config=config,
@@ -107,6 +112,8 @@ def format_qsub_build_script(
         repo_url=config.cluster__repo_url,
         repo_name=config.repo_name,
         singularity_executable=config.cluster__singularity_executable,
+        configs_tarball_path=configs_tarball_path,
+        configs_abs_path=str(CONFIGS_DIR.absolute()),
     )
 
 

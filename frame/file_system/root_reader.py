@@ -51,12 +51,14 @@ def load_root_events(
             aliases=aliases,
             entry_start=start,
             entry_stop=stop,
-            library="pd",
+            library="ak",
         ):
+            batch_df = ak.to_pandas(batch)
+
             if observable_renames:
-                batch.rename(columns=observable_renames, inplace=True)
+                batch_df.rename(columns=observable_renames, inplace=True)
             data_sets.append(
-                __expand_awkward_cols(batch)
+                __expand_awkward_cols(batch_df)
             )
 
         collected_data = pd.concat(data_sets).reset_index(level=0, drop=True)
