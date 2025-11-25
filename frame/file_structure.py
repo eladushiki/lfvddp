@@ -6,7 +6,9 @@ PROJECT_NAME = "lfvddp"
 LOCAL_PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 CONFIGS_DIR = LOCAL_PROJECT_ROOT / "configs"
 TRAIN_DIR = LOCAL_PROJECT_ROOT / "train"
+DATA_DIR = LOCAL_PROJECT_ROOT / "data"
 SINGULARITY_DEFINITION_FILE = LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.def"
+CVMFS_DIR = "/cvmfs"
 
 def get_relpath_from_local_root(local_absolute_path: PurePath) -> PurePosixPath:
     return PurePosixPath(local_absolute_path.relative_to(LOCAL_PROJECT_ROOT))

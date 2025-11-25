@@ -2,7 +2,7 @@ from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, CVMFS_DIR, DATA_DIR, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -36,7 +36,7 @@ exit $?
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} exec --cleanenv --pwd {container_project_root} --bind {local_configs_dir}:{container_configs_dir},{local_unique_output_dir}:{container_results_dir} {sif_path} {command}
+{singularity_executable} exec --cleanenv --pwd {container_project_root} --bind {local_configs_dir}:{container_configs_dir},{local_unique_output_dir}:{container_results_dir},{local_data_dir}:{container_data_dir},{local_cvmfs_dir}:{container_cvmfs_dir} {sif_path} {command}
 """
 
 
@@ -64,6 +64,10 @@ def format_qsub_execution_script(
         container_project_root=CONTAINER_PROJECT_ROOT,
         local_unique_output_dir=context.unique_out_dir,
         container_results_dir=path_as_in_container(config.config__out_dir),
+        local_data_dir=DATA_DIR,
+        container_data_dir=path_as_in_container(DATA_DIR),
+        local_cvmfs_dir=CVMFS_DIR,
+        container_cvmfs_dir=CVMFS_DIR,
         sif_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
     )
