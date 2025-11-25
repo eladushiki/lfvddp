@@ -2,7 +2,7 @@ from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, CVMFS_DIR, DATA_DIR, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
