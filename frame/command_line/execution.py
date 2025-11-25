@@ -147,7 +147,7 @@ def format_qsub_script(
     task_id_line = ""
     if array_jobs and array_jobs > 1:
         array_job_line = f"#$ -t 1-{array_jobs}\n"
-        task_id_line = 'echo "Task ID: $SGE_TASK_ID"'
+        task_id_line = 'echo "Task ID: $SGE_TASK_ID"\n'
     
     return script.format(
         job_name=config.cluster__qsub_job_name,
