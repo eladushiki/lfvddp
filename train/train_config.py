@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from logging import warning
 from typing import List
 
-from neural_networks.NPLM.src.NPLM.PLOTutils import compute_df
-
 
 @dataclass
 class TrainConfig:
@@ -39,13 +37,16 @@ class TrainConfig:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     @property
     def train__nn_degrees_of_freedom(self) -> int:
-        return compute_df(
-            input_size=self.train__nn_input_dimension,
-            hidden_layers=self.train__nn_architecture[1:-1],
-            output_size=self.train__nn_output_dimension,
-        ) - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
+        # Calculate total trainable parameters (weights + biases) in the dense NN
+        # For architecture [n0, n1, n2, ...], params = sum over layers i: (n[i] * n[i+1] + n[i+1])
+        architecture = self.train__nn_architecture
+        total_params = sum(
+            architecture[i] * architecture[i+1] + architecture[i+1]
+            for i in range(len(architecture) - 1)
+        )
+        return total_params - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
 
-    train__like_NPLM: bool  # Should we trian with NPLM's train_model or tensorflow's model.fit like LFVNN
+    train__like_NPLM: bool = False  # Should we trian with NPLM's train_model or tensorflow's model.fit like LFVNN
 
     def __post_init__(self):
         self.validate()
