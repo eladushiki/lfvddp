@@ -4,6 +4,7 @@ Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
 %post
+    # Cache-busting commit: PLACEHOLDER
     # Set default values for build arguments
     REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp-symmetrized.git}"
     BRANCH="${BRANCH:-main}"

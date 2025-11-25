@@ -33,3 +33,18 @@ def default_git_branch() -> str:
         if 'HEAD branch' in line:
             return line.split(':')[-1].strip()
     return 'main'  # Fallback to 'main' if not found
+
+
+def get_remote_commit_hash(branch: str = 'main') -> str:
+    """Get the latest commit hash from a remote branch without updating local git state.
+    
+    Args:
+        branch: The branch name to get the commit hash from
+        
+    Returns:
+        str: The commit hash of the latest commit on the remote branch
+    """
+    # Use ls-remote to query the remote without fetching or updating local state
+    output = subprocess.check_output(['git', 'ls-remote', 'origin', f'refs/heads/{branch}']).strip().decode('utf-8')
+    # Output format: "commit_hash\trefs/heads/branch_name"
+    return output.split()[0] if output else ''

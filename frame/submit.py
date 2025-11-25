@@ -7,7 +7,7 @@ from frame.command_line.execution import format_qsub_build_script, format_qsub_e
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
 from frame.file_structure import CONFIGS_DIR, SINGULARITY_DEFINITION_FILE, TARBALL_FILE_EXTENSION
-from frame.git_tools import current_git_branch, default_git_branch
+from frame.git_tools import current_git_branch, default_git_branch, get_remote_commit_hash
 
 
 def submit_cluster_job(
@@ -30,9 +30,11 @@ def submit_cluster_job(
         tar.add(CONFIGS_DIR, arcname="configs")
 
     # Perform container build
+    git_branch = default_git_branch() if not context.is_debug_mode else current_git_branch()
     qsub_build_script = format_qsub_build_script(
         config=context.config,
-        git_branch=default_git_branch() if not context.is_debug_mode else current_git_branch(),
+        git_branch=git_branch,
+        git_commit_hash=get_remote_commit_hash(git_branch),
         configs_tarball_path=str(configs_tarball.absolute()),
     )
 

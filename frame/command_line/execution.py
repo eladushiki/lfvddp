@@ -84,11 +84,13 @@ cp $LFVDDP_DEF_PATH ./{project_name}.def
 echo "Extracting configs from {configs_tarball_path}..."
 tar -xzf {configs_tarball_path}
 
-# Customize the definition file with repository URL and branch
+# Customize the definition file with repository URL, branch, and commit hash
+# The commit hash is added as a comment to bust Singularity's layer cache
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
     -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
     -e "s|CONTAINER_CONFIGS_DIR=.*|CONTAINER_CONFIGS_DIR=\"{container_configs_dir}\"|" \
     -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
+    -e "s|# Cache-busting commit: PLACEHOLDER|# Cache-busting commit: {git_commit_hash}|" \
     {project_name}.def > {project_name}-edit.def
 
 # Build from the customized definition file
@@ -107,6 +109,7 @@ rm -rf $BUILD_DIR
 def format_qsub_build_script(
     config: ClusterConfig,
     git_branch: str,
+    git_commit_hash: str,
     configs_tarball_path: str,
 ) -> str:
     return format_qsub_script(
@@ -115,6 +118,7 @@ def format_qsub_build_script(
         array_jobs=0,
         gpu_line="",
         git_branch=git_branch,
+        git_commit_hash=git_commit_hash,
         repo_url=config.cluster__repo_url,
         repo_name=config.repo_name,
         container_configs_dir=path_as_in_container(CONFIGS_DIR),
