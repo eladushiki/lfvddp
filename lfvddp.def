@@ -25,7 +25,6 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     echo "Cloning repository: $REPO_URL (branch: $BRANCH)"
     git clone --branch "$BRANCH" --single-branch "$REPO_URL" . && \
     git submodule update --init --recursive && \
-    rm -rf .git
 
     # Install Python dependencies
     pip install --no-cache-dir --upgrade pip setuptools wheel && \

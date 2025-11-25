@@ -2,7 +2,7 @@ from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -36,7 +36,7 @@ exit $?
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} exec --bind {local_configs_dir}:{container_configs_dir},{local_unique_output_dir}:{container_results_dir} {project_name}.sif {command}
+{singularity_executable} exec --cleanenv --pwd {container_project_root} --bind {local_configs_dir}:{container_configs_dir},{local_unique_output_dir}:{container_results_dir} {sif_path} {command}
 """
 
 
@@ -61,9 +61,10 @@ def format_qsub_execution_script(
         singularity_executable=config.cluster__singularity_executable,
         local_configs_dir=CONFIGS_DIR,
         container_configs_dir=path_as_in_container(CONFIGS_DIR),
+        container_project_root=CONTAINER_PROJECT_ROOT,
         local_unique_output_dir=context.unique_out_dir,
         container_results_dir=path_as_in_container(config.config__out_dir),
-        project_name=PROJECT_NAME,
+        sif_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
     )
 
