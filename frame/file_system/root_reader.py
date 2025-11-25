@@ -61,11 +61,11 @@ def load_root_events(
                 __expand_awkward_cols(batch_df)
             )
 
-        collected_data = pd.concat(data_sets).reset_index(level=0, drop=True)
-        return DataSet(
-            collected_data,
-            observable_names=collected_data.columns,
-        )
+    collected_data = pd.concat(data_sets).reset_index(level=0, drop=True)
+    return DataSet(
+        collected_data,
+        observable_names=collected_data.columns,
+    )
 
 
 def __expand_awkward_cols(
@@ -77,14 +77,16 @@ def __expand_awkward_cols(
     expanded_batch = batch.copy()
     
     # Split awkward cols to multiple cols
-    for col in batch.select_dtypes(include=['awkward']).columns:
-        split_col = pd.DataFrame(batch[col].to_list())
-        split_col.index = expanded_batch.index
-        col_position: int = expanded_batch.columns.get_loc(col)
-        expanded_batch.drop(col, axis=1, inplace=True)
-        
-        for i in range(split_col.shape[1]):
-            expanded_batch.insert(col_position + i, f"{col}_{i}", split_col[i])
+    for col in batch.columns:
+        # Check if the column contains awkward arrays
+        if len(batch[col]) > 0 and isinstance(batch[col].iloc[0], ak.Array):
+            split_col = pd.DataFrame(batch[col].to_list())
+            split_col.index = expanded_batch.index
+            col_position: int = expanded_batch.columns.get_loc(col)
+            expanded_batch.drop(col, axis=1, inplace=True)
+            
+            for i in range(split_col.shape[1]):
+                expanded_batch.insert(col_position + i, f"{col}_{i}", split_col[i])
     
     return expanded_batch
 
