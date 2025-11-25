@@ -58,6 +58,8 @@ def create_config_from_paramters(
                     if k in signature(config_class).parameters
                 }
                 config_class.__init__(self, **filtered_args)
+                if hasattr(config_class, "__post_init__"):
+                    config_class.__post_init__(self)
             
             # Cross validate configuration
             cross_validate(self)

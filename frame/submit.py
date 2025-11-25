@@ -58,7 +58,7 @@ def submit_cluster_job(
     
     # Create qsub script from template
     qsub_script_content = format_qsub_execution_script(
-        config=context.config,
+        context=context,
         command=command,
         array_jobs=number_of_jobs if number_of_jobs > 1 else None,
     )

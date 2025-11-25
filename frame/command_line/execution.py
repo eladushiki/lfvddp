@@ -1,8 +1,8 @@
-import shlex
 from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
-from frame.file_structure import CONFIGS_DIR
+from frame.context.execution_context import ExecutionContext
+from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -35,31 +35,36 @@ exit $?
 
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
-echo "Executing command on Singularity: {safe_command}"
-{singularity_executable} exec lfvnn.sif {safe_command}
+echo "Executing command on Singularity: {command}"
+{singularity_executable} exec --bind {local_configs_dir}:{container_configs_dir},{local_unique_output_dir}:{container_results_dir} {project_name}.sif {command}
 """
 
 
 def format_qsub_execution_script(
-        config: ClusterConfig,
+        context: ExecutionContext,
         command: str,
         array_jobs: Optional[int] = None,
     ) -> str:
+    config: ClusterConfig = context.config
+
     # Handle GPU line
     gpu_line = ""
     if config.cluster__qsub_ngpus_for_train:
         gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
-    # Sanitize the command to prevent expansion problems
-    safe_command = shlex.quote(command)
-    
+    # Pass command directly without quoting for Singularity
     return format_qsub_script(
         config=config,
         core_script_lines=SINGULARITY_EXECUTION_LINES,
         array_jobs=array_jobs,
         gpu_line=gpu_line,
         singularity_executable=config.cluster__singularity_executable,
-        safe_command=safe_command,
+        local_configs_dir=CONFIGS_DIR,
+        container_configs_dir=path_as_in_container(CONFIGS_DIR),
+        local_unique_output_dir=context.unique_out_dir,
+        container_results_dir=path_as_in_container(config.config__out_dir),
+        project_name=PROJECT_NAME,
+        command=command,
     )
 
 
@@ -72,25 +77,26 @@ BUILD_DIR=$(mktemp -d)
 cd $BUILD_DIR
 
 # Copy definition file from source path (passed as environment variable)
-echo "Copying lfvddp.def file from $LFVDDP_DEF_PATH..."
-cp $LFVDDP_DEF_PATH ./lfvddp.def
+echo "Copying {project_name}.def file from $LFVDDP_DEF_PATH..."
+cp $LFVDDP_DEF_PATH ./{project_name}.def
 
 # Extract configs tarball from source path
 echo "Extracting configs from {configs_tarball_path}..."
 tar -xzf {configs_tarball_path}
 
-# Customize the definition file with repository URL, branch, and configs path
-sed -e "s|^REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
-    -e "s|^BRANCH=.*|BRANCH=\"{git_branch}\"|" \
-    -e "s|{{{{CONFIGS_DIR}}}}|{configs_abs_path}|g" \
-    lfvddp.def > lfvddp-edit.def
+# Customize the definition file with repository URL and branch
+sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
+    -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
+    -e "s|CONTAINER_CONFIGS_DIR=.*|CONTAINER_CONFIGS_DIR=\"{container_configs_dir}\"|" \
+    -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
+    {project_name}.def > {project_name}-edit.def
 
-# Build from the customized definition file with configs embedded
-echo "Building container with embedded configs..."
-{singularity_executable} build --remote lfvddp.sif lfvddp-edit.def
-
-# Copy the built container back to submission directory
-cp lfvddp.sif $PBS_O_WORKDIR/
+# Build from the customized definition file
+echo "Building container..."
+{singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
+# Copy the built container and configs back to submission directory
+cp {project_name}.sif $PBS_O_WORKDIR/
+cp -r configs $PBS_O_WORKDIR/
 
 # Cleanup
 cd $PBS_O_WORKDIR
@@ -111,9 +117,11 @@ def format_qsub_build_script(
         git_branch=git_branch,
         repo_url=config.cluster__repo_url,
         repo_name=config.repo_name,
+        container_configs_dir=path_as_in_container(CONFIGS_DIR),
+        container_project_root=CONTAINER_PROJECT_ROOT,
         singularity_executable=config.cluster__singularity_executable,
+        project_name=PROJECT_NAME,
         configs_tarball_path=configs_tarball_path,
-        configs_abs_path=str(CONFIGS_DIR.absolute()),
     )
 
 
