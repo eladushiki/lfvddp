@@ -83,10 +83,6 @@ cd $BUILD_DIR
 echo "Copying {project_name}.def file from $LFVDDP_DEF_PATH..."
 cp $LFVDDP_DEF_PATH ./{project_name}.def
 
-# Extract configs tarball from source path
-echo "Extracting configs from {configs_tarball_path}..."
-tar -xzf {configs_tarball_path}
-
 # Customize the definition file with repository URL, branch, and commit hash
 # The commit hash is added as a comment to bust Singularity's layer cache
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
@@ -99,9 +95,8 @@ sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
 # Build from the customized definition file
 echo "Building container..."
 {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
-# Copy the built container and configs back to submission directory
+# Copy the built container back to submission directory
 cp {project_name}.sif $PBS_O_WORKDIR/
-cp -r configs $PBS_O_WORKDIR/
 
 # Cleanup
 cd $PBS_O_WORKDIR
@@ -113,7 +108,6 @@ def format_qsub_build_script(
     config: ClusterConfig,
     git_branch: str,
     git_commit_hash: str,
-    configs_tarball_path: str,
 ) -> str:
     return format_qsub_script(
         config=config,
@@ -128,7 +122,6 @@ def format_qsub_build_script(
         container_project_root=CONTAINER_PROJECT_ROOT,
         singularity_executable=config.cluster__singularity_executable,
         project_name=PROJECT_NAME,
-        configs_tarball_path=configs_tarball_path,
     )
 
 

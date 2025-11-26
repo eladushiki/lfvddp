@@ -1,12 +1,11 @@
 from logging import error
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
-import tarfile
 from typing import Optional
 from frame.command_line.execution import format_qsub_build_script, format_qsub_execution_script
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
-from frame.file_structure import CONFIGS_DIR, SINGULARITY_DEFINITION_FILE, TARBALL_FILE_EXTENSION
+from frame.file_structure import SINGULARITY_DEFINITION_FILE
 from frame.git_tools import current_git_branch, default_git_branch, get_remote_commit_hash
 
 
@@ -24,18 +23,12 @@ def submit_cluster_job(
     build_job_name = f"{context.config.cluster__qsub_job_name}_build"
     exec_job_name = f"{context.config.cluster__qsub_job_name}_exec"
 
-    # Create tarball of configs directory
-    configs_tarball = context.unique_out_dir / f"configs.{TARBALL_FILE_EXTENSION}"
-    with tarfile.open(configs_tarball, "w:gz") as tar:
-        tar.add(CONFIGS_DIR, arcname="configs")
-
     # Perform container build
     git_branch = default_git_branch() if not context.is_debug_mode else current_git_branch()
     qsub_build_script = format_qsub_build_script(
         config=context.config,
         git_branch=git_branch,
         git_commit_hash=get_remote_commit_hash(git_branch),
-        configs_tarball_path=str(configs_tarball.absolute()),
     )
 
     # Save build script using ExecutionContext's save_and_document function
