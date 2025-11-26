@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
@@ -53,9 +54,9 @@ def format_qsub_execution_script(
         gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
     singularity_bindings = ",".join([
-        f"{local_path}:{container_path}"
+        f"{Path(local_path).absolute()}:{container_path}"
         for local_path, container_path in context.config.config__bind_directories.items()
-    ] + [f"{context.unique_out_dir}:{path_as_in_container(config.config__out_dir)}"])
+    ] + [f"{context.unique_out_dir.absolute()}:{path_as_in_container(Path(config.config__out_dir).absolute())}"])
 
     # Pass command directly without quoting for Singularity
     return format_qsub_script(
