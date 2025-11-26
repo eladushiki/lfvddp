@@ -7,13 +7,12 @@ from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, PROJECT_NA
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
-#$ -S /bin/bash
-#$ -cwd
-#$ -j y
-#$ -N {job_name}
-#$ -q {queue}
-#$ -l walltime={walltime}
-#$ -l mem={memory}g
+#PBS -S /bin/bash
+#PBS -j oe
+#PBS -N {job_name}
+#PBS -q {queue}
+#PBS -l walltime={walltime}
+#PBS -l mem={memory}g
 {gpu_line}{array_job_line}
 """
 
@@ -21,7 +20,7 @@ QSUB_ENV_SETUP = """
 # Environment setup
 echo "Job started at: $(date)"
 echo "Running on host: $(hostname)"
-echo "Job ID: $JOB_ID"
+echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
 {task_id_line}{environment_activation_command}
 
@@ -145,8 +144,8 @@ def format_qsub_script(
     array_job_line = ""
     task_id_line = ""
     if array_jobs and array_jobs > 1:
-        array_job_line = f"#$ -t 1-{array_jobs}\n"
-        task_id_line = 'echo "Task ID: $SGE_TASK_ID"\n'
+        array_job_line = f"#PBS -t 1-{array_jobs}\n"
+        task_id_line = 'echo "Task ID: $PBS_ARRAYID"\n'
     
     return script.format(
         job_name=config.cluster__qsub_job_name,
