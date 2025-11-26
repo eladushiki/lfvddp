@@ -36,7 +36,7 @@ exit $?
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} exec --cleanenv --pwd {container_project_root} --bind {local_configs_dir}:{container_configs_dir},{local_unique_output_dir}:{container_results_dir},{local_data_dir}:{container_data_dir},{local_cvmfs_dir}:{container_cvmfs_dir} {sif_path} {command}
+{singularity_executable} exec --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sif_path} {command}
 """
 
 
@@ -52,6 +52,11 @@ def format_qsub_execution_script(
     if config.cluster__qsub_ngpus_for_train:
         gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
+    singularity_bindings = ",".join([
+        f"{local_path}:{container_path}"
+        for local_path, container_path in context.config.config__bind_directories.items()
+    ] + [f"{context.unique_out_dir}:{path_as_in_container(config.config__out_dir)}"])
+
     # Pass command directly without quoting for Singularity
     return format_qsub_script(
         config=config,
@@ -59,15 +64,8 @@ def format_qsub_execution_script(
         array_jobs=array_jobs,
         gpu_line=gpu_line,
         singularity_executable=config.cluster__singularity_executable,
-        local_configs_dir=CONFIGS_DIR,
-        container_configs_dir=path_as_in_container(CONFIGS_DIR),
         container_project_root=CONTAINER_PROJECT_ROOT,
-        local_unique_output_dir=context.unique_out_dir,
-        container_results_dir=path_as_in_container(config.config__out_dir),
-        local_data_dir=DATA_DIR,
-        container_data_dir=path_as_in_container(DATA_DIR),
-        local_cvmfs_dir=CVMFS_DIR,
-        container_cvmfs_dir=CVMFS_DIR,
+        singularity_bindings=singularity_bindings,
         sif_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
     )
