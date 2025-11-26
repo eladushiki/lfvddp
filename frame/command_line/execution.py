@@ -3,7 +3,7 @@ from typing import Optional
 
 from frame.cluster.cluster_config import ClusterConfig
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -137,8 +137,8 @@ def format_qsub_script(
     array_job_line = ""
     task_id_line = ""
     if array_jobs and array_jobs > 1:
-        array_job_line = f"#PBS -t 1-{array_jobs}\n"
-        task_id_line = 'echo "Task ID: $PBS_ARRAYID"\n'
+        array_job_line = f"#PBS -J 1-{array_jobs}\n"
+        task_id_line = 'echo "Task ID: $PBS_ARRAY_INDEX"\n'
     
     return script.format(
         job_name=config.cluster__qsub_job_name,
