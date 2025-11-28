@@ -1,6 +1,8 @@
 absl-py==1.4.0
 astunparse==1.6.3
 awkward==1.10.3
+awkward-pandas==2023.8.0
+awkward_cpp==44
 bcrypt==3.1.6
 camel-converter==4.0.1
 certifi==2022.12.7
@@ -15,6 +17,7 @@ decorator==5.1.1
 exceptiongroup==1.1.1
 flatbuffers==23.5.26
 fonttools==4.40.0
+fsspec_xrootd==0.5.0
 gast==0.5.2
 google-pasta==0.2.0
 grpcio==1.56.2
@@ -66,6 +69,7 @@ scikit-learn==1.2.2
 scipy==1.11.3
 six==1.16.0
 tensorboard==2.13.0
+tensorflow==2.18.0
 tensorboard-data-server==0.7.2
 tensorflow-io-gcs-filesystem==0.34.0
 termcolor==1.1.0
