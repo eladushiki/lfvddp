@@ -33,10 +33,14 @@ echo "Job completed at: $(date)"
 exit $?
 """
 
+# Singularity exec command. A few comments:
+# --no-mount tmp: relieves pressure on file descriptors when running many jobs in parallel
+# --cleanenv: avoids messing with host environment, i.e. python stuff
+
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} exec --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sif_path} {command}
+{singularity_executable} --no-mount tmp exec --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sandbox_path} {command}
 """
 
 
@@ -57,7 +61,6 @@ def format_qsub_execution_script(
         for local_path, container_path in context.config.config__bind_directories.items()
     ] + [f"{context.unique_out_dir.absolute()}:{path_as_in_container(Path(config.config__out_dir).absolute())}"])
 
-    # Pass command directly without quoting for Singularity
     return format_qsub_script(
         config=config,
         core_script_lines=SINGULARITY_EXECUTION_LINES,
@@ -66,10 +69,16 @@ def format_qsub_execution_script(
         singularity_executable=config.cluster__singularity_executable,
         container_project_root=CONTAINER_PROJECT_ROOT,
         singularity_bindings=singularity_bindings,
-        sif_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
+        sandbox_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}_sandbox",
         command=command,
     )
 
+# Singularity build script. A few comments:
+# Fist build command:
+# --remote: the only option that works on the ATLAS cluster. Produces a SIF file.
+#
+# Second build command:
+# --sandbox: creates a sandbox to prevent file descriptor fatigue when running array jobs.
 
 SINGULARITY_BUILD_LINES = """
 # Build Singularity container with custom repository and branch
@@ -95,11 +104,22 @@ sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
 # Build from the customized definition file
 echo "Building container..."
 {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
-# Copy the built container back to submission directory
+
+# Copy the built SIF back to submission directory
 cp {project_name}.sif $PBS_O_WORKDIR/
 
-# Cleanup
+# Create sandbox from SIF for faster execution
+echo "Creating sandbox from SIF for faster execution..."
 cd $PBS_O_WORKDIR
+{singularity_executable} build --sandbox {project_name}_sandbox {project_name}.sif
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to create sandbox"
+    exit 1
+fi
+echo "Sandbox created successfully at {project_name}_sandbox"
+
+# Cleanup build directory
 rm -rf $BUILD_DIR
 """
 
