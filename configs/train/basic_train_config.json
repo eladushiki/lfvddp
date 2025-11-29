@@ -16,7 +16,5 @@
     "train__nn_weight_clipping": 9,
     "train__nn_input_dimension": 2,
     "train__nn_inner_layer_nodes": 4,
-    "train__nn_output_dimension": 1,
-
-    "train__like_NPLM": true
+    "train__nn_output_dimension": 1
 }

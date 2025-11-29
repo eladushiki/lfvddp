@@ -5,12 +5,17 @@
 **.egg-info/
 **/__pycache__/
 
+# Singularity
+*.sif
+
 # IDE
 .vscode/
 **.code-workspace
 
 # Configuration files
 configs/**/*.json
+configs/**/*.yaml
+configs/**/*.yml
 !configs/cluster/basic_cluster_config.json
 !configs/dataset/basic_dataset_config.json
 !configs/detector/basic_detector_config.json

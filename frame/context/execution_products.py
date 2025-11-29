@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List
 
-from frame.file_structure import JSON_FILE_EXTENSION, PLOT_FILE_EXTENSION, TEXT_FILE_EXTENSION, TRAINING_LOG_FILE_EXTENSION
+from frame.file_structure import BASH_FILE_EXTENSION, JSON_FILE_EXTENSION, PLOT_FILE_EXTENSION, TEXT_FILE_EXTENSION, TRAINING_LOG_FILE_EXTENSION, YAML_FILE_EXTENSIONS
 
 
 @dataclass
@@ -42,7 +42,7 @@ class TextualDataFileProduct(FileProduct):
 
     @classmethod
     def associated_file_extensions(cls) -> List[str]:
-        return [TEXT_FILE_EXTENSION, JSON_FILE_EXTENSION]
+        return [TEXT_FILE_EXTENSION, JSON_FILE_EXTENSION, BASH_FILE_EXTENSION] + YAML_FILE_EXTENSIONS
 
 
 @dataclass

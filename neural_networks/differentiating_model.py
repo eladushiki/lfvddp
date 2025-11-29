@@ -263,7 +263,6 @@ class DifferentiatingModel(keras.models.Model):
                 x, y,
                 prediction,
                 sample_weight=weights,
-                training=True,
             )
 
         # Use tape to update trainable vars. Apply a single step
@@ -299,8 +298,8 @@ class DifferentiatingModel(keras.models.Model):
         with self.binning_context(data):
             return super().predict(data.events, batch_size=data.n_samples, **kwargs)
 
-    def call(self, data_set: tf.Tensor) -> tf.Tensor:
-        naive_prediction = super().call(data_set)
+    def call(self, data_set: tf.Tensor, training: bool = None) -> tf.Tensor:
+        naive_prediction = super().call(data_set, training=training)
         
         # Clip naive prediction to prevent overflow in exp() during loss calculation
         # Max value of ~20 keeps exp(20) ≈ 485 million, which is large but manageable

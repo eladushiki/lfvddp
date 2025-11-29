@@ -2,7 +2,7 @@
 
 > The LFVNN Symmetrized project aims to harness the power of the machine to look for deviations from the Standard Model in existic high energy physics collider data.
 
-This project runs on the WIS's ATLAS cluster, as well as on your computer, to use our machinery on real or simulated physical datasets.
+This project runs on the WIS's ATLAS cluster, as well as on any singularity containing machine, to use our tools on real or simulated physical datasets.
 
 # Contents
 - `configs` directory contain configuraion files necessary to run the project. An example or template for each is included and meant to be copied by the user for modification.
@@ -16,7 +16,10 @@ This project runs on the WIS's ATLAS cluster, as well as on your computer, to us
 - Additional project files such as `.gitignore` and this very file.
 
 # Installation Steps
-## Setup
+
+Can be installed on any python running machine, or as a singularity container.
+
+## Local Setup
 Start by cloning this repository to your desired location, using
 
 > git clone \<url for clone\> [\<desired direcotory name\>]
@@ -58,7 +61,15 @@ Then, it is customary to run
 
 > pip install -e .
 
+> pip install -r requirements.txt
+
 to install the project to run locally with dependecies and being able to run the code locally while editing it in place.
+
+## Singularity
+
+Alternatively, either clone project and use `singularity build` or build it directly from repo (for recent enough versions).
+
+WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
 
 ## Environment Configuration
 
