@@ -269,8 +269,13 @@ class DifferentiatingModel(keras.models.Model):
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
-        # Update and return metrics via the compiled Keras utilities (handles sample weights)
-        return self.compute_metrics(x, y, y_pred=prediction, sample_weight=weights)
+        # Update the compiled loss state so Keras tracks and logs the loss value.
+        self.compiled_loss(y, prediction, sample_weight=weights, regularization_losses=self.losses)
+
+        # return the metric results.
+        for metric in self.metrics:
+            metric.update_state(y, prediction, sample_weight=weights)
+        return {m.name: m.result() for m in self.metrics}
 
     @contextmanager
     def binning_context(self, data: DataSet):
