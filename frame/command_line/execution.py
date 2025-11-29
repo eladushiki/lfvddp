@@ -40,7 +40,7 @@ exit $?
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} --no-mount tmp exec --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sandbox_path} {command}
+{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sandbox_path} {command}
 """
 
 
