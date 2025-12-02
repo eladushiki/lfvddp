@@ -80,16 +80,23 @@ class DifferentiatingModel(keras.models.Model):
     def _build_detector_nuisances(self):
         self._detector_deltas = {}
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
-            nuisance_var = self.add_weight(
-                name=f"detector-bin-nuisances-{i}",
-                shape=(nbins,),
-                dtype=tf.float32,
-                trainable=True,
-                initializer=keras.initializers.RandomNormal(
-                    mean=0.0,
-                    stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
-                ),  # Randomizing initialization to prevent vanishing gradients
-            )
+            if self._config.train__data_is_train_for_nuisances:
+                nuisance_var = self.add_weight(
+                    name=f"detector-bin-nuisances-{i}",
+                    shape=(nbins,),
+                    dtype=tf.float32,
+                    trainable=True,
+                    initializer=keras.initializers.RandomNormal(
+                        mean=0.0,
+                        stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
+                    ),  # Randomizing initialization to prevent vanishing gradients
+                )
+            else:
+                nuisance_var = tf.Variable(
+                    initial_value=tf.zeros(shape=(nbins,)),
+                    dtype=tf.float32,
+                    trainable=False,
+                )
             self._detector_deltas[self._observable_names[i]] = nuisance_var
 
     def _setup_tensorboard(self):
@@ -160,8 +167,11 @@ class DifferentiatingModel(keras.models.Model):
             f__is_sample_prediction,
             y__is_sample_truth,
         )  # Tensor the size of data
-        nuisance_loss = self._total_nuisance_nll() / \
-            tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
+        if self._config.train__data_is_train_for_nuisances:
+            nuisance_loss = self._total_nuisance_nll() / \
+                tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
+        else:
+            nuisance_loss = 0.0
 
         # Total loss is sum of log-likelihoods. Addition by tf is element-wise.
         return tf.math.add(prediction_loss, nuisance_loss)
@@ -216,10 +226,9 @@ class DifferentiatingModel(keras.models.Model):
                 inner_self.__value.assign(0.0)
 
         return [
-            NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
             PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
             NuisanceNegLogLikelihoodMetric(name=HistoryKeys.NUISANCE_LOSS.value),
-        ]
+        ] + ([NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value)] if self._config.train__data_is_train_for_nuisances else [])
 
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
         class TextLoggerCallback(keras.callbacks.Callback):
@@ -231,7 +240,7 @@ class DifferentiatingModel(keras.models.Model):
                 nuisance_values = "\n".join([
                     f"{name}: {var.numpy()}"
                     for name, var in self._detector_deltas.items()
-                ])
+                ]) if self._config.train__data_is_train_for_nuisances else "No nuisance parameters"
                 log_text = inner_self.TEXT_LOG_TEMPLATE.format(
                     epoch=epoch,
                     nuisance_values=nuisance_values,
@@ -269,12 +278,13 @@ class DifferentiatingModel(keras.models.Model):
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
-        # Update the compiled loss state so Keras tracks and logs the loss value.
-        self.compiled_loss(y, prediction, sample_weight=weights, regularization_losses=self.losses)
-
-        # return the metric results.
+        # Update metrics and return results with explicit loss tracking.
         for metric in self.metrics:
-            metric.update_state(y, prediction, sample_weight=weights)
+            if metric.name == HistoryKeys.LOSS.value:
+                metric.update_state(loss)
+            else:
+                metric.update_state(y, prediction, sample_weight=weights)
+                
         return {m.name: m.result() for m in self.metrics}
 
     @contextmanager
@@ -313,13 +323,16 @@ class DifferentiatingModel(keras.models.Model):
         safe_prediction = tf.math.add(naive_prediction, tf.stop_gradient(clipped_naive_prediction - naive_prediction))
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
-        nuisance_skews = [
-            tf.gather(tf.exp(self._detector_deltas[obs]), self._bins_of_events[:, i])
-            for i, obs in enumerate(self._observable_names)
-        ]
+        if self._config.train__data_is_train_for_nuisances:
+            nuisance_skews = [
+                tf.gather(tf.exp(self._detector_deltas[obs]), self._bins_of_events[:, i])
+                for i, obs in enumerate(self._observable_names)
+            ]
 
-        items = tf.stack([tf.squeeze(safe_prediction), *nuisance_skews])
-        return tf.reduce_prod(items, axis=0)
+            items = tf.stack([tf.squeeze(safe_prediction), *nuisance_skews])
+            return tf.reduce_prod(items, axis=0)
+        else:
+            return tf.squeeze(safe_prediction)
 
 
 def calc_t_LFVNN(
