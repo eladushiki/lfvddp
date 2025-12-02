@@ -14,7 +14,7 @@ From \ref{eq:pooled_log_likelihood} and discussions about likelihood in ref (\ci
 
 $$
 \begin{aligned}
-    \likelihood(\dataset{A}, \nu^j) = \likelihood(\dataset{A}| \nu^j) \cdot \likelihood(\nu^j)
+    \likelihood(\dataset{A}, \nu^j_m) = \likelihood(\dataset{A}| \nu^j_m) \cdot \likelihood(\nu^j_m)
 \end{aligned}
 $$
 
@@ -24,7 +24,7 @@ The likelihood of a gaussian distributed parameter is well known, as expressed B
 
 $$
 \begin{aligned} \label{eq:gaussian_likelihood}
-    \likelihood(\nu^j) = \frac{1}{\sqrt{2 \pi \sigma_0^2}} e^{-\frac{(\nu^j)^2}{2 \sigma_0^2}}
+    \likelihood(\nu^j_m) = \frac{1}{\sqrt{2 \pi \sigma_0^2}} e^{-\frac{(\nu^j_m)^2}{2 \sigma_0^2}}
 \end{aligned}
 $$
 
@@ -32,7 +32,7 @@ The logarithm of which is
 
 $$
 \begin{aligned} \label{eq:gaussian_log_likelihood}
-    \llikelihood(\nu^j) = -\frac{1}{2} \log(2 \pi \sigma_0^2) - \frac{(\nu^j)^2}{2 \sigma_0^2} = - \frac{1}{2 \sigma_0^2} (\nu^j)^2 + C
+    \llikelihood(\nu^j_m) = -\frac{1}{2} \log(2 \pi \sigma_0^2) - \frac{(\nu^j_m)^2}{2 \sigma_0^2} = - \frac{1}{2 \sigma_0^2} (\nu^j_m)^2 + C
 \end{aligned}
 $$
 
@@ -40,13 +40,13 @@ Leaving constants out, we incorporate this into the already existing "nuisance-c
 
 $$
 \begin{aligned} \label{eq:def_test_statistic_with_nuisance}
-t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \log \big( \likelihood(\dataset{A}| \nu^j) \cdot \likelihood(\nu^j) \big) = -2 \log \likelihood(\dataset{A}|\nu^j) + \sum_{\nu^j} \log \likelihood(\nu^j) \\
+t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \log \big( \likelihood(\dataset{A}| \nu^j_m) \cdot \likelihood(\nu^j_m) \big) = -2 \log \likelihood(\dataset{A}|\nu^j_m) + \sum_{i=0,j=0}^{N_\reco{A}, k} \log \likelihood(\nu^j_m) \\
  &= -2 \cdot \min_{f(x)}
 \left[
     - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}}
     \sum_{x_i \in \reco{A} \cup \reco{B}} \frac{1}{\theta(x_i)} (e^{f(x_i)} - 1)
     + \sum_{x_i \in \reco{A}} \frac{1}{\theta(x_i)} f(x_i)
-    - \sum_{\nu^j} \frac{1}{2 \sigma_0^2} (\nu^j)^2
+    - \sum_{\nu^j} \frac{1}{2 \sigma_0^2} (\nu^j_m)^2
 \right]
 \end{aligned}
 $$
@@ -67,5 +67,7 @@ L[f, \nu^j] &=
     - \sum_{\nu^j} \frac{1}{2 \sigma_0^2} (\nu^j)^2
 \end{aligned}
 $$
+
+Note that both the weights (through $\theta$'s) and the nuisance likelihood terms depend on the nuisance parameters, in ways that contribute opposingly. Maximizing this value using our NN gradient descent method would find the most probable solution for these constriants.
 
 \end{document}
