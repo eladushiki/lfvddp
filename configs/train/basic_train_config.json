@@ -1,16 +1,5 @@
 {    
-    "train__nuisance_correction_types": "SHAPE",
-    "train__data_is_train_for_nuisances": false,
-    
-    "train__shape_nuisance_std": 0.15,
-    "train__shape_nuisance_mean": 0,
-    "train__shape_nuisance_reference": 0,
-    
-    "train__norm_nuisance_std": 0.15,
-    "train__norm_nuisance_mean": 0,
-    "train__norm_nuisance_reference": 0,
-    
-    "train__epochs": 500000,
+    "train__epochs": 50000,
     "train__number_of_epochs_for_checkpoint": 1000,
 
     "train__nn_weight_clipping": 9,
