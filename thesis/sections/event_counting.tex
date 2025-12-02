@@ -9,13 +9,13 @@
 
 During a HEP experiment, large amount of collision events occur inside the detector. The original number of such events in a dataset is denoted by $\true{N}$.
 
-When detected, some physical attributes of each event are measured, e.g., energy, momentum components, angles. Let each event \( x_i \in \mathbb{R}^k \equiv \{\phi^j_i\}\) be a point in \( k \)-dimensional feature space. Each dataset \(\mathbf{A} \in \mathbb{R}^{\true{N} \times k}\) consists of such events.
+When detected, some $j$ physical attributes of each event are measured, e.g., energy, momentum components and angles. Let each event \( \bar{x_i} \in \mathbb{R}^k \equiv \{\phi^j_i\}\) be a point in \( k \)-dimensional feature space. Each dataset \(\mathbf{A} \in \mathbb{R}^{\true{N} \times k}\) consists of such events.
 
-Due to limited detector efficiency and selection effects, not all events that occur inside the detector are observed. Let $\eta(x)$ be the probability with which an event is detected, and hence appears in the observed dataset.
+Due to limited detector efficiency and selection effects, not all events that occur inside the detector are observed. Let $\eta(\bar{x})$ be the probability with which an event is detected, and hence appears in the observed dataset.
 
-We define the filtering process \(\detector(\eta, n)\) that stochastically removes events:
+We define the filtering process \(\detector(\eta, \{\bar{x_i}\})\) that stochastically removes events:
 \[
-\detector(\eta, n) := \{ x_i \in n \mid x_i \text{ is retained with probability } \eta(x_i) \}.
+\detector(\eta, \{\bar{x_i}\}) \equiv \{ \bar{x_i} \mid \text{each } \bar{x_i} \text{ is retained with probability } \eta(\bar{x_i}) \}.
 \]
 
 The observed (filtered) dataset is then:
@@ -23,25 +23,27 @@ The observed (filtered) dataset is then:
 \meas{A} = \detector(\eta, \dataset{A})
 \]
 
-with $|\meas{A}| = \meas{N}$, the observed number of events.
+with $|\meas{A}| = N_\meas{A}$, the observed number of events.
 
-Our goal is to estimate \( \true{N} \) from the observed \( \meas{N} \), correcting for detector efficiency effects and propagating uncertainties associated with the efficiency estimation.
+Our first goal is to estimate \( \true{N} \) from the observed \( N_\meas{A} \), correcting for detector efficiency effects and propagating uncertainties associated with the efficiency estimation.
 
-\subsection{Adding Binwise Nuisance Parameters}
+\subsection{Modelling our Knowledge of the Detector Efficiency}
 
-Now expressing the efficiency functions as:
+Now expressing the (true) efficiency functions as:
 
 \begin{align*}
-    \eta(x) &: \mathbb{R}^k \to [0,1] \equiv \prod_{j=1}^k \eta^j(\phi^j)
+    \eta(\bar{x_i}) &: \mathbb{R}^k \to [0,1] \equiv \prod_{j=1}^k \eta^j(\phi_i^j)
 \end{align*}
 
 with
 
 \begin{align} \label{eq:efficiency_j_explicit_form}
-    \eta^j(\phi^j) &: \mathbb{R} \to [0,1] \equiv e^{\nu^j}\theta^j(\phi^j)
+    \theta^j(\phi^j) &: \mathbb{R} \to [0,1] \equiv e^{\nu^j_m}\eta^j(\phi^j)
 \end{align}
 
-with $\theta^i$ representing our knowledge of the efficiency of each bin. This means, we allow for an efficiency function that varies from our understanding of it through usage of nuisance parameters $\nu^i$, that are, for the time being, unconstrained.
+with $\theta^i$ representing our knowledge of the efficiency of each bin. This means, we model for an efficiency function that varies from our understanding of it through usage of nuisance parameters $\nu^j_m$. While considered small for our formulation, for the time being - are unconstrained.
+
+Datasets statistics are being binned before they can be analyzed. Given that the detectable range is divided into $m^j$ bins along each dimension, we consider the efficiency of the detector to be a multiplicative constant in each. We further claim and model $\eta$ and $\theta$ to be evaluated at a per-bin basis. This gives taht we need exactly $j \times m$ nuisance parameters, $\nu^j_m$, to fully capture the uncertainty effect.
 
 \subsection{Efficiency Compensation via Event Weights}
 
@@ -60,7 +62,7 @@ This gives rise to the efficiency-compensated reconstructed datasets:
 
 The estimated total event counts become:
 \[
-\reco{N} = \sum_{x_i \in \meas{A}} w_i \approx \true{N}
+N_\reco{A} = \sum_{x_i \in \meas{A}} w_i \approx \true{N}
 \]
 
 Note that this expression includes our knowledge of the efficiency and our error, throught the $\eta$'s in the expression.
@@ -68,7 +70,7 @@ Note that this expression includes our knowledge of the efficiency and our error
 \subsection{Proposition (Unbiasedness of the weighted estimator).} \label{prop:unbiasedness_of_weights}
 Let \(\{x_i\}_{i=1}^{\true{N}}\) be the set of true collected events, each detected independently with probability \(\eta(x_i)\). Then:
 \[
-\mathbb{E}\!\left[ \reco{N} \right] = \true{N}
+\mathbb{E}\!\left[ N_\reco{A} \right] = \true{N}
 \]
 \emph{Proof.}
 For a single event \(x_i\), the contribution to the sum is \(\frac{1}{\theta(x_i)}\) if detected and \(0\) otherwise. Its expectation is:
@@ -80,7 +82,6 @@ For a single event \(x_i\), the contribution to the sum is \(\frac{1}{\theta(x_i
 % If we leave this formulation take the proof from https://statproofbook.github.io/P/norm-mgf.html
 % It says that E(x) = e^(\mu x + 1/2 sigma^2 x^2)
 
-\hl{unfinished}
-Summing over all \(\true{N}\) events yields the result. \(\square\)
+Given that the expectation value of the exponentiated nuisances is 0, summing over all \(\true{N}\) events yields the result. \(\square\)
 
 \end{document}
