@@ -11,8 +11,6 @@ class TrainConfig:
     train__number_of_epochs_for_checkpoint: int
 
     # NN parameters
-    train__nn_weight_clipping: float
-
     train__nn_input_dimension: int
     train__nn_inner_layer_nodes: int
     train__nn_output_dimension: int
@@ -26,6 +24,7 @@ class TrainConfig:
     # DDP train needs no extra parameters.
 
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
+    train__nn_weight_clipping: float = False
     # Correction - what should be taken into account about the nuisance parameters?
     # - "SHAPE" - both normalization and shape uncertainties are considered
     # - "NORM" - only normalization uncertainties are considered

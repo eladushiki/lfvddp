@@ -1,8 +1,7 @@
 {    
-    "train__epochs": 50000,
+    "train__epochs": 40000,
     "train__number_of_epochs_for_checkpoint": 1000,
 
-    "train__nn_weight_clipping": 9,
     "train__nn_input_dimension": 2,
     "train__nn_inner_layer_nodes": 4,
     "train__nn_output_dimension": 1
