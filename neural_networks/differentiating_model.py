@@ -167,9 +167,8 @@ class DifferentiatingModel(keras.models.Model):
             f__is_sample_prediction,
             y__is_sample_truth,
         )  # Tensor the size of data
-        if self._config.train__data_is_train_for_nuisances:
-            nuisance_loss = self._total_nuisance_nll() / \
-                tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
+        if self._config.train__data_is_train_for_nuisances:  # todo: this division by sample size makes no sense. Remove
+            nuisance_loss = self._total_nuisance_nll()  # Scalar
         else:
             nuisance_loss = 0.0
 
@@ -352,8 +351,8 @@ def calc_t_LFVNN(
         axis=0,
     )
     loss_weights = np.concatenate((
-            sample_dataset._weight_mask / sample_dataset.corrected_n_samples,
-            reference_dataset._weight_mask / reference_dataset.corrected_n_samples,
+            sample_dataset._weight_mask,
+            reference_dataset._weight_mask * sample_dataset.corrected_n_samples / reference_dataset.corrected_n_samples,
         ),
         axis=0,
     )
@@ -393,7 +392,11 @@ def calc_t_LFVNN(
 
     info(f'Training time (seconds): {time() - t0}')
 
-    final_loss = calc_t_test_statistic(tau_history[-1])
+    # Keras automatically averages the loss over samples by dividing by sum(sample_weight).
+    # We need to rescale to get the unaveraged loss for the correct t-statistic.
+    total_weight = np.sum(loss_weights)
+    final_loss_unaveraged = tau_history[-1] * total_weight
+    final_loss = calc_t_test_statistic(final_loss_unaveraged)
     info(f'Observed t test statistic: {final_loss}')
     
     save_training_outcomes(
