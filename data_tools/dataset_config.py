@@ -157,7 +157,8 @@ class LoadedDatasetParameters(DatasetParameters):
         signal = self._dataset__signal_distribution.generate_amount(
             amount=self.dataset__number_of_signal_events,
         )
-        signal.observable_names = background.observable_names
+        if not signal.empty:
+            signal.observable_names = background.observable_names
         return background + signal
         
     def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
