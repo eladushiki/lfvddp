@@ -96,7 +96,6 @@ cp $LFVDDP_DEF_PATH ./{project_name}.def
 # The commit hash is added as a comment to bust Singularity's layer cache
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
     -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
-    -e "s|CONTAINER_CONFIGS_DIR=.*|CONTAINER_CONFIGS_DIR=\"{container_configs_dir}\"|" \
     -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
     -e "s|# Cache-busting commit: PLACEHOLDER|# Cache-busting commit: {git_commit_hash}|" \
     {project_name}.def > {project_name}-edit.def

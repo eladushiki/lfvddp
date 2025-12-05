@@ -9,7 +9,6 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp-symmetrized.git}"
     BRANCH="${BRANCH:-main}"
     CONTAINER_PROJECT_ROOT="${CONTAINER_PROJECT_ROOT:-/app}"
-    CONTAINER_CONFIGS_DIR="${CONTAINER_CONFIGS_DIR:-$CONTAINER_PROJECT_ROOT/configs}"
     
     # Install additional system dependencies if needed
     apt-get update && apt-get install -y \
@@ -29,8 +28,6 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     # Install Python dependencies
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
-
-    rm -r $CONTAINER_CONFIGS_DIR
 
 %environment
     export PYTHONUNBUFFERED=1

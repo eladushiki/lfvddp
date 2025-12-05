@@ -18,6 +18,7 @@ from tensorflow.keras.models import Model  # type: ignore
 
 from frame.context.execution_context import ExecutionContext
 from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__get_signal_dataset_parameters, utils__sample_over_background_histograms_sliced
+from train.train_utils import model_degrees_of_freedom
 from train.train_config import TrainConfig
 
 
@@ -68,9 +69,9 @@ def t_train_percentile_progression_plot(
     
     # chi2 reference
     for j in range(percentiles.shape[0]):
-        plt.plot(epochs, chi2.ppf(quantiles[j] / 100., df=config.train__nn_degrees_of_freedom, loc=0, scale=1)*np.ones_like(epochs),
+        plt.plot(epochs, chi2.ppf(quantiles[j] / 100., df=model_degrees_of_freedom(config), loc=0, scale=1)*np.ones_like(epochs),
                 color=colors[j], ls='--', linewidth=1)
-        if j==0: legend.append("Target "+r"$\chi^2($"+str(config.train__nn_degrees_of_freedom)+")")
+        if j==0: legend.append("Target "+r"$\chi^2($"+str(model_degrees_of_freedom(config))+")")
 
     # Labeling
     plt.title(r"$\chi^2$ percentile progression", fontsize=24)
@@ -103,6 +104,8 @@ def t_distribution_plot(
         raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
     if not isinstance(config, TrainConfig):
         raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
+    if not isinstance(config, DetectorConfig):
+        raise ValueError(f"Expected context.config to be of type {DetectorConfig}, got {type(config)}")
     style = config.plot__figure_styling["plot"]
 
     # Figure
@@ -114,7 +117,7 @@ def t_distribution_plot(
     t = agg.all_t_values
 
     # Limits
-    chi2_begin = chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom)
+    chi2_begin = chi2.ppf(0.0001, chi2_dof := model_degrees_of_freedom(config))
     chi2_end = chi2.ppf(0.9999, chi2_dof)
     xmin = max([min([np.min(t), chi2_begin]), 0])
     xmax = max([np.percentile(t, 95), chi2_end])
@@ -170,7 +173,7 @@ def t_distribution_plot(
     
     ax.legend(
         (circ, rect1),
-        (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
+        (label, f'$\chi^{2}_{{{chi2_dof}}}$'),
         handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),
