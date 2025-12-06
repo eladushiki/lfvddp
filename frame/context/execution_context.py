@@ -1,3 +1,4 @@
+from argparse import Namespace
 from contextlib import contextmanager
 from inspect import signature
 from logging import basicConfig, info
@@ -57,6 +58,8 @@ def create_config_from_paramters(
                     if k in signature(config_class).parameters
                 }
                 config_class.__init__(self, **filtered_args)
+                if hasattr(config_class, "__post_init__"):
+                    config_class.__post_init__(self)
             
             # Cross validate configuration
             cross_validate(self)
@@ -81,6 +84,7 @@ class ExecutionContext:
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
+    is_no_build: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
     is_reloaded: bool = False
@@ -133,26 +137,30 @@ class ExecutionContext:
         return stamp_product_path(file_path, self.run_hash)
 
     # todo: export to decorator and add os.makedirs(out_dir, exist_ok=False)
-    def save_and_document_dict(self, dict: dict, file_path: Path):
+    def save_and_document_dict(self, dict: dict, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         save_dict_to_json(dict, file_path)
         self.document_created_product(file_path)
+        return file_path
 
-    def save_and_document_figure(self, figure: Figure, file_path: Path):
+    def save_and_document_figure(self, figure: Figure, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         save_figure(figure, file_path)
         self.document_created_product(file_path)
+        return file_path
 
-    def save_and_document_text(self, text: str, file_path: Path):
+    def save_and_document_text(self, text: str, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         with open(file_path, 'w') as file:
             file.write(text)
         self.document_created_product(file_path)
+        return file_path
 
-    def save_and_document_model_weights(self, model: Model, file_path: Path):
+    def save_and_document_model_weights(self, model: Model, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         model.save_weights(file_path)
         self.document_created_product(file_path)
+        return file_path
 
     def save_and_document_model_history(
             self,
@@ -191,17 +199,27 @@ class ExecutionContext:
 
 
 @contextmanager
-def version_controlled_execution_context(config: UserConfig, command_line_args: List[str], is_debug_mode: bool = False):
+def version_controlled_execution_context(
+    config: UserConfig,
+    command_line_args: List[str],
+    args: Namespace,
+):
     """
     Create a context which should contain any run dependent information.
     The data is later stored in the output_path for documentation.
     """
     # Force run on strict commit
-    if not is_debug_mode and not is_git_head_clean():
+    if not args.debug and not is_git_head_clean():
         raise RuntimeError("Commit changes before running the script.")
 
     # Initialize
-    context = ExecutionContext(get_commit_hash(), config, command_line_args, is_debug_mode=is_debug_mode)
+    context = ExecutionContext(
+        get_commit_hash(),
+        config,
+        command_line_args,
+        is_debug_mode=args.debug,
+        is_no_build=args.no_build,
+    )
 
     # Save in case run terminates prematurely
     context.save_self_to_out_file()

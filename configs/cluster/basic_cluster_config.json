@@ -1,9 +1,7 @@
 {
-    "runtag": "ddp_symmtery",
-
     "cluster__qsub_queue": "N",
     "cluster__qsub_n_jobs": 1000,
-    "cluster__qsub_job_name": "SymmetryDDPPythonjob",
+    "cluster__qsub_job_name": "lfvddp",
     "cluster__qsub_walltime": "12:00:00",
     "cluster__qsub_io": 5,
     "cluster__qsub_mem": 2,
