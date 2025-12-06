@@ -19,6 +19,7 @@ __autograph_generated_file*.py
 *.pdf
 *.out
 *.gz
+*.toc
 
 # IDE
 .vscode/
