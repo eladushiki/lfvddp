@@ -8,12 +8,57 @@
 
 % \geometry{margin=1in}
 
+% Instructions are taken from WIS website @ https://www.weizmann.ac.il/wsos/academics/msc-thesis
 \begin{document}
 
     \maketitle
+
+% Abstract
+% The abstract will briefly summarize the background, results and conclusions of the thesis (up to one page).
+% Theses that are written in Hebrew (in Science Teaching), must include an abstract in English as well.
+
+    % \subfile{sections/abstract.tex}
+
+% Table of Contents
+
+    \tableofcontents
+    \newpage
+
+% ntroduction
+% The Introduction chapter should review and summarize the current state of knowledge in your field in terms of scientific literature, raise questions, and note mistakes or possible gaps in this knowledge.
+    
+    % \subfile{sections/introduction.tex}
+
+% Goals
+% You must present a clear outline of the hypothesis behind your study, as well as a clear and concise statement as to the goals of this project. The scientific importance of the study should also be explained in brief.
+
+    % \subfile{sections/goals.tex}
+
+% Methods
+% This chapter must include a description of the materials and methods used in your study. The information should be written so that a competent researcher can replicate your results based on your protocols. You may describe protocols in detail, or refer to a detailed reference in the literature (while nonetheless providing a brief overview of the protocol).
+
     \subfile{sections/event_counting.tex}
     \subfile{sections/hypothesis_testing.tex}
     \subfile{sections/error_propagation.tex}
+
+% Results
+% This chapter must include a full description of the results obtained in your thesis work including results that you have already published in scientific papers. (The papers themselves, however, must not be included.) Whenever possible, the results should be presented in the form of figures, graphs or tables with appropriate statistical analysis, where relevant
+
+    % \subfile{sections/results.tex}
+
+% Discussion
+% The Discussion section should provide a wide view of the subject matter of your thesis, its conclusions, implications, and potential future developments. The results obtained will be compared with the original hypothesis, and with results and conclusions of other investigators that appear in the scientific literature.
+
+    % \subfile{sections/discussion.tex}
+
+% Literature
+% The literature cited in your thesis must be presented as is customary in scientific publications. Titles of articles must be presented in full.
+
     \subfile{../common/bibliography.tex}
+
+% Acknowledgements
+% It is both customary and appropriate to add to the thesis acknowledgement text.
+
+    % \subfile{sections/acknowledgements.tex}
 
 \end{document}
