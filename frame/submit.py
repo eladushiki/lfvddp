@@ -9,19 +9,14 @@ from frame.file_structure import SINGULARITY_DEFINITION_FILE
 from frame.git_tools import current_git_branch, default_git_branch, get_remote_commit_hash
 
 
-def submit_cluster_job(
+def submit_container_build(
         context: ExecutionContext,
-        command: str,
         max_tries: int = 3,
-        number_of_jobs: int = 1,
-    ):
-    
+) -> str:
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
 
-    # Define job names for build and execution
     build_job_name = f"{context.config.cluster__qsub_job_name}_build"
-    exec_job_name = f"{context.config.cluster__qsub_job_name}_exec"
 
     # Perform container build
     git_branch = default_git_branch() if not context.is_debug_mode else current_git_branch()
@@ -34,23 +29,36 @@ def submit_cluster_job(
     # Save build script using ExecutionContext's save_and_document function
     build_script_filename = context.unique_out_dir / f"{build_job_name}.sh"
     stamped_build_script_filename = context.save_and_document_text(qsub_build_script, build_script_filename)
-    
+
     # Submit build script and capture job ID
     # Pass file paths as environment variables for the script to copy
     build_env_vars = {
         "LFVDDP_DEF_PATH": str(SINGULARITY_DEFINITION_FILE.absolute()),
     }
-    if not context.is_no_build:
-        build_job_id = qsub_a_script(
-            context=context,
-            stamped_script_filename=stamped_build_script_filename,
-            job_name=build_job_name,
-            max_tries=max_tries,
-            env_vars=build_env_vars,
-        )
-    else:
-        build_job_id = None
+    build_job_id = qsub_a_script(
+        context=context,
+        stamped_script_filename=stamped_build_script_filename,
+        job_name=build_job_name,
+        max_tries=max_tries,
+        env_vars=build_env_vars,
+    )
+
+    return build_job_id.split('.')[0]
+
+
+def submit_command(
+        context: ExecutionContext,
+        command: str,
+        max_tries: int = 3,
+        number_of_jobs: int = 1,
+        dependent_on_jobid: Optional[str] = None,
+    ) -> str:
     
+    if not isinstance(context.config, ClusterConfig):
+        raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+
+    exec_job_name = f"{context.config.cluster__qsub_job_name}_exec"
+        
     # Create qsub script from template
     qsub_script_content = format_qsub_execution_script(
         context=context,
@@ -63,13 +71,16 @@ def submit_cluster_job(
     stamped_script_filename = context.save_and_document_text(qsub_script_content, script_filename)
 
     # Submit execution script with dependency on build job
-    qsub_a_script(
+    raw_jobid = qsub_a_script(
         context=context,
         stamped_script_filename=stamped_script_filename,
         job_name=exec_job_name,
         max_tries=max_tries,
-        depends_on_success_of_jobid=build_job_id,
+        depends_on_success_of_jobid=dependent_on_jobid,
     )
+
+    # Return only the numeric part of the job ID
+    return raw_jobid.split('.')[0]
 
 
 def qsub_a_script(
@@ -79,7 +90,7 @@ def qsub_a_script(
     max_tries: int = 3,
     depends_on_success_of_jobid: Optional[str] = None,
     env_vars: Optional[dict] = None,
-):
+) -> str:
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
 
@@ -91,7 +102,7 @@ def qsub_a_script(
         f"-j oe "\
         f"-o {context.unique_out_dir} "
     
-    # Add PBS/Torque dependency if specified (only run if predecessor succeeds)
+    # Add PBS dependency if specified (only run if predecessor succeeds)
     if depends_on_success_of_jobid:
         qsub_command += f"-W depend=afterok:{depends_on_success_of_jobid} "
     
@@ -106,7 +117,7 @@ def qsub_a_script(
         try:
             output = check_output(qsub_command, stderr=STDOUT, shell=True)
             output_str = output.decode('utf-8').strip()
-            # PBS/Torque returns the full job ID (e.g., "12345.pbs.server.domain")
+            # PBS returns the full job ID (e.g., "12345.pbs.server.domain")
             # Return the full ID for proper dependency handling
             return output_str
         
