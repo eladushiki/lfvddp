@@ -21,11 +21,12 @@ def save_training_outcomes(
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
 
     ## Training log
-    os.makedirs(context.training_outcomes_dir, exist_ok=True)
+    model_output_dir = tau_model.tensorboard_log_dir
+    os.makedirs(model_output_dir, exist_ok=True)
 
     # Save training
-    context.save_and_document_model_history(model_history, context.training_outcomes_dir / f"{tau_model.name}.{TRAINING_HISTORY_LOG_FILE_SUFFIX}")
-    context.save_and_document_model_weights(tau_model, context.training_outcomes_dir / f"{tau_model.name}_{WEIGHTS_OUTPUT_FILE_NAME}")
+    context.save_and_document_model_history(model_history, model_output_dir / f"{tau_model.name}.{TRAINING_HISTORY_LOG_FILE_SUFFIX}")
+    context.save_and_document_model_weights(tau_model, model_output_dir / f"{tau_model.name}_{WEIGHTS_OUTPUT_FILE_NAME}")
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:
