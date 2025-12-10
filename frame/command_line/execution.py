@@ -48,12 +48,13 @@ def format_qsub_execution_script(
         context: ExecutionContext,
         command: str,
         array_jobs: Optional[int] = None,
+        use_gpu_if_needed: bool = True,
     ) -> str:
     config: ClusterConfig = context.config
 
     # Handle GPU line
     gpu_line = ""
-    if config.cluster__qsub_ngpus_for_train:
+    if use_gpu_if_needed and config.cluster__qsub_ngpus_for_train:
         gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
     singularity_bindings = ",".join([

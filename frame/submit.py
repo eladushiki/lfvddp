@@ -52,6 +52,7 @@ def submit_command(
         max_tries: int = 3,
         number_of_jobs: int = 1,
         dependent_on_jobid: Optional[str] = None,
+        use_gpu_if_needed: bool = True,
     ) -> str:
     
     if not isinstance(context.config, ClusterConfig):
@@ -64,6 +65,7 @@ def submit_command(
         context=context,
         command=command,
         array_jobs=number_of_jobs if number_of_jobs > 1 else None,
+        use_gpu_if_needed=use_gpu_if_needed,
     )
     
     # Save script using ExecutionContext's save_and_document function
