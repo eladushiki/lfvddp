@@ -5,8 +5,12 @@
 **.egg-info/
 **/__pycache__/
 
+# Keras graphing artifacts
+__autograph_generated_file*.py
+
 # Singularity
 *.sif
+lfvddp_sandbox/**
 
 # IDE
 .vscode/
