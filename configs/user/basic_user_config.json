@@ -1,5 +1,5 @@
 {
-    "config__user": "",
+    "config__user": "basic",
     "config__out_dir": "results",
     "config__log_level": "INFO",
     "config__bind_directories": {

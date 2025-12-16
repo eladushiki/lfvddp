@@ -38,6 +38,9 @@ pillow==11.3.0
 protobuf==6.33.1
 Pygments==2.19.2
 pyparsing==3.2.5
+pytest==9.0.2
+pytest-cov==7.0.0
+pytest-timeout==2.4.0
 python-dateutil==2.9.0.post0
 pytz==2025.2
 PyYAML==6.0.3
