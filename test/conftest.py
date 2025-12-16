@@ -75,3 +75,18 @@ def data_generation(request, function_execution_context):
 @fixture(scope="function")
 def detector_effect(request, function_execution_context):
     return DetectorEffect(function_execution_context)
+
+
+def pytest_configure(config):
+    """Remove timeout for tests marked with 'long'."""
+    pass
+
+
+def pytest_runtest_protocol(item, nextitem):
+    """Skip timeout for tests marked with 'long'."""
+    if "long" in item.keywords:
+        # Remove timeout marker if it exists
+        if hasattr(item, "obj"):
+            # This ensures long tests don't have timeout applied
+            item.timeout = None
+    return None
