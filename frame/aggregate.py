@@ -63,6 +63,7 @@ class ResultAggregator:
         
         # Epochs should be aligned in all files. If you get a 1D array here, they're not of the same length.
         all_epochs = np.array([history[HistoryKeys.EPOCH.value] for history in all_loaded_histories.values()])
+        assert all_epochs.ndim == 2, "Epochs arrays are not of the same length"
         for col in range(all_epochs.shape[1]):
             if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
                 raise ValueError("Epochs are not the same for all files")
