@@ -104,7 +104,9 @@ def qsub_a_script(
     
     # Add PBS dependency if specified (only run if predecessor succeeds)
     if depends_on_success_of_jobid:
-        qsub_command += f"-W depend=afterok:{depends_on_success_of_jobid} "
+        # For array jobs (containing []), use just the base job ID
+        depend_jobid = depends_on_success_of_jobid.replace("[]", "")
+        qsub_command += f"-W depend=afterok:{depend_jobid} "
     
     # Add environment variables if specified
     if env_vars:

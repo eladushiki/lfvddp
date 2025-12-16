@@ -53,8 +53,8 @@ def format_qsub_execution_script(
 
     # Handle GPU line
     gpu_line = ""
-    if config.cluster__qsub_ngpus_for_train:
-        gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
+    if use_gpu_if_needed and config.cluster__qsub_ngpus_for_train:
+        gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
     singularity_bindings = ",".join([
         f"{Path(local_path).absolute()}:{container_path}"
