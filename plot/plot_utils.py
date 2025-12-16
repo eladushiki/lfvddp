@@ -85,8 +85,6 @@ def utils__get_signal_dataset_parameters(
     signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
     for dataset_name in signal_config._dataset__names:
         dataset_parameters: DatasetParameters = signal_config._dataset__parameters(dataset_name)
-        assert isinstance(dataset_parameters, GeneratedDatasetParameters), \
-            f"performance plot possible only for generated datasets, got {dataset_parameters.type}"
 
         # We do validate that there is a signal in at most one dataset
         if (current_number_of_signal_events := dataset_parameters.dataset__number_of_signal_events) != 0:
