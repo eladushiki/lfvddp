@@ -77,10 +77,10 @@ def create_config_from_paramters(
 
 @dataclass
 class ExecutionContext:
-    run_hash: str = field(init=False)
     commit_hash: str
     config: UserConfig
     command_line_args: List[str]
+    run_hash: Optional[str] = None
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
@@ -91,7 +91,8 @@ class ExecutionContext:
 
     def __post_init__(self):
         # Run identification
-        self.run_hash = hash(self._unique_descriptor)
+        if self.run_hash is None:
+            self.run_hash = hash(self._unique_descriptor)
 
         # Initialize once unique output directory
         if not self.is_reloaded:
