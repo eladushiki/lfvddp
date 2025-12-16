@@ -3,6 +3,6 @@
         "param_0"
     ],
     "detector__binning_minima": 0,
-    "detector__binning_maxima": 15,
+    "detector__binning_maxima": 10,
     "detector__binning_number_of_bins": 10
 }

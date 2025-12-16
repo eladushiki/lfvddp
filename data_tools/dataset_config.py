@@ -218,13 +218,15 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
     
+    dataset_generated__number_of_dimensions: int = field(default=1)
+
     @property
     def dataset__number_of_dimensions(self) -> int:
-        return self._dataset__number_of_dimensions
+        return self.dataset_generated__number_of_dimensions
 
     @dataset__number_of_dimensions.setter
     def dataset__number_of_dimensions(self, value: int) -> None:
-        self._dataset__number_of_dimensions = value
+        self.dataset_generated__number_of_dimensions = value
     
     # Additional background parameters
     # This is the defining attribute for the subclass
@@ -241,7 +243,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
 
         distribution_class = _retrieve_from_module(background, class_name)
         
-        return distribution_class(self.dataset__number_of_dimensions, **self.dataset_generated__background_parameters)
+        return distribution_class(self.dataset__number_of_dimensions)
 
     @property
     def dataset_generated__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
@@ -253,6 +255,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def dataset__data(self) -> DataSet:
         background = self.__dataset_generated__background_distribution.generate_amount(
             amount=self.dataset__number_of_background_events,
+            **self.dataset_generated__background_parameters,
         )
         signal = self._dataset__signal_distribution.generate_amount(
             amount=self.dataset__number_of_signal_events,

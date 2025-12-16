@@ -2,6 +2,8 @@
 Pytest configuration and shared fixtures for all tests.
 This file is automatically discovered by pytest.
 """
+from data_tools.data_generation import DataGeneration
+from data_tools.detector.detector_effect import DetectorEffect
 from frame.command_line.handle_args import create_config_from_paths
 from frame.context.execution_context import version_controlled_execution_context
 from test.environment import DEFAULT_CONFIG_PATHS, wrap_with_command_line_args
@@ -63,3 +65,13 @@ def function_execution_context(
         args=args,
     ) as context:
         yield context
+
+
+@fixture(scope="function")
+def data_generation(request, function_execution_context):
+    return DataGeneration(function_execution_context)
+
+
+@fixture(scope="function")
+def detector_effect(request, function_execution_context):
+    return DetectorEffect(function_execution_context)

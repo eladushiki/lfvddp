@@ -100,20 +100,19 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     """
     A wrapper for any entry point in the project, to ensure context control.
     """
-    config_paths, args = parse_config_from_args()
-    config = create_config_from_paths(
-        config_paths,
-        args.plot_config_path,
-        args.out_dir,
-        args.plot_in_place
-    )
-
     @wraps(function)
     def context_controlled_function(*inner_args, **inner_kwargs):
         """
         Run any decorated function in this run with the documentation of the
         configuration file parsed above.
         """
+        config_paths, args = parse_config_from_args()
+        config = create_config_from_paths(
+            config_paths,
+            args.plot_config_path,
+            args.out_dir,
+            args.plot_in_place
+        )
         with version_controlled_execution_context(config, argv, args) as context:
             function(*inner_args, **inner_kwargs, context=context)
 
