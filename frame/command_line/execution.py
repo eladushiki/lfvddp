@@ -48,6 +48,7 @@ def format_qsub_execution_script(
         context: ExecutionContext,
         command: str,
         array_jobs: Optional[int] = None,
+        use_gpu_if_needed: bool = True,
     ) -> str:
     config: ClusterConfig = context.config
 

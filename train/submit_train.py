@@ -8,7 +8,7 @@ from frame.cluster.cluster_config import ClusterConfig
 from train.train_config import TrainConfig
 
 CONTAINER_SINGLE_TRAIN_PATH = path_as_in_container(TRAIN_DIR / "single_train.py")
-CONTAINER_PLOT_PATH = path_as_in_container(PLOT_DIR / "create_plots.py")
+CONTAINER_CREATE_PLOTS_PATH = path_as_in_container(PLOT_DIR / "create_plots.py")
 
 
 @context_controlled_execution
@@ -33,7 +33,7 @@ def submit_process(context: ExecutionContext) -> None:
     
     # Construct the python command to run single_train.py
     train_cmd = f"python {CONTAINER_SINGLE_TRAIN_PATH}"
-    plot_cmd = f"python {CONTAINER_PLOT_PATH}"
+    plot_cmd = f"python {CONTAINER_CREATE_PLOTS_PATH}"
     
     # Add all the current arguments
     for arg in current_args:
@@ -52,6 +52,7 @@ def submit_process(context: ExecutionContext) -> None:
         command=plot_cmd,
         number_of_jobs=1,
         dependent_on_jobid=train_jobid,
+        use_gpu_if_needed=False,
     )
 
 

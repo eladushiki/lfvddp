@@ -89,6 +89,7 @@ class DifferentiatingModel(keras.models.Model):
                     initializer=keras.initializers.RandomNormal(
                         mean=0.0,
                         stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
+                        seed=self._context.random_seed,
                     ),  # Randomizing initialization to prevent vanishing gradients
                 )
             else:
@@ -106,8 +107,8 @@ class DifferentiatingModel(keras.models.Model):
 
         # Create logging directory
         self._current_epoch = tf.Variable(0, trainable=False, dtype=tf.int64)
-        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / self.name
-        self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
+        self.tensorboard_log_dir = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / self.name
+        self._train_summary_writer = tf.summary.create_file_writer(str(self.tensorboard_log_dir))  # type: ignore
         
     @tf.function
     def _gaussian_nuisance_nll(self, nuisance_value: Any) -> tf.Tensor:
@@ -251,7 +252,7 @@ class DifferentiatingModel(keras.models.Model):
                 
         return [
             keras.callbacks.TensorBoard(
-                log_dir=self._tensorboard_log_file, # type: ignore
+                log_dir=self.tensorboard_log_dir, # type: ignore
                 histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
                 update_freq='epoch',
             ),
