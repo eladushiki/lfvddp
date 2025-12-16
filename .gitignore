@@ -1,6 +1,9 @@
 # Python environment
 .venv/
 
+# Python tests
+.coverage
+
 # Python installation artifacts
 **.egg-info/
 **/__pycache__/

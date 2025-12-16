@@ -1,0 +1,30 @@
+{
+    "dataset__definitions": [
+        {
+            "name": "A",
+            "type": "generated",
+            
+            "dataset_generated__number_of_dimensions": 1,
+            "dataset_generated__background_function": "gaussian_background",
+            "dataset_generated__background_parameters": {
+                "domain_min": 0,
+                "domain_max": 5,
+                "mean": 2.5
+            },
+            "dataset__mean_number_of_background_events": 5
+        },
+        {
+            "name": "B",
+            "type": "generated",
+            
+            "dataset_generated__number_of_dimensions": 1,
+            "dataset_generated__background_function": "gaussian_background",
+            "dataset_generated__background_parameters": {
+                "domain_min": 5,
+                "domain_max": 10,
+                "mean": 7.5
+            },
+            "dataset__mean_number_of_background_events": 5
+        }
+    ]
+}

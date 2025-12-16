@@ -7,6 +7,7 @@ from data_tools.dataset_config import DatasetConfig
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME
+import keras
 from neural_networks.NPLM_adapters import calc_t_NPLM
 from neural_networks.differentiating_model import calc_t_LFVNN
 from plot.plots import plot_prediction_process_sliced
@@ -37,21 +38,21 @@ def main(context: ExecutionContext) -> None:
     reference_dataset = detected_A_dataset + detected_B_dataset
 
     # Train symmetrically to obtain the combined loss
-    t_a_loss = follow_instructions_for_t(
+    _, t_a = follow_instructions_for_t(
         context,
         detected_A_dataset,
         reference_dataset,
         detector_effect=det,
         name="A_model",
     )
-    t_b_loss = follow_instructions_for_t(
+    _, t_b = follow_instructions_for_t(
         context,
         detected_B_dataset,
         reference_dataset,
         detector_effect=det,
         name="B_model",
     )
-    final_t = t_a_loss + t_b_loss
+    final_t = t_a + t_b
 
     ## Training log
     makedirs(context.training_outcomes_dir, exist_ok=True)
@@ -67,7 +68,7 @@ def follow_instructions_for_t(
         reference_dataset: DataSet,
         detector_effect: DetectorEffect,
         name: str,
-) -> float:
+) -> tuple[keras.models.Model, float]:
     if not isinstance((config := context.config), TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
 
@@ -98,7 +99,7 @@ def follow_instructions_for_t(
         )
         context.save_and_document_figure(data_process_plot, context.unique_out_dir / f"{name}_data_process_plot.png")
 
-    return final_t
+    return model, final_t
 
 
 if __name__ == "__main__":
