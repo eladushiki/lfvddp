@@ -44,12 +44,14 @@ def submit_process(context: ExecutionContext) -> None:
     train_jobid = submit_command(
         context=context,
         command=train_cmd,
+        command_name="train",
         number_of_jobs=context.config.cluster__qsub_n_jobs,
         dependent_on_jobid=build_job_id,
     )
     plot_jobid = submit_command(
         context=context,
         command=plot_cmd,
+        command_name="plot",
         number_of_jobs=1,
         dependent_on_jobid=train_jobid,
         use_gpu_if_needed=False,
