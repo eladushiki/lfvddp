@@ -5,6 +5,7 @@ from data_tools.data_utils import DataSet
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
+import keras
 from neural_networks.NPLM.src.NPLM.NNutils import imperfect_loss, imperfect_model, np, train_model
 import numpy as np
 from tensorflow.keras import optimizers # type: ignore
@@ -124,7 +125,7 @@ def train_NPML_model(
         feature=np.array(feature_dataset.events, dtype=np.float32),
         target=np.array(target_structure, dtype=np.float32),
         loss=imperfect_loss,  # This is (11) in "Learning New Physics from a Machine", D'Angolo et al.
-        optimizer=optimizers.legacy.Adam(),
+        optimizer=keras.optimizers.Adam(),
         total_epochs=config.train__epochs,
         patience=config.train__number_of_epochs_for_checkpoint,
         clipping=config.train__nn_weight_clipping > 0,
@@ -137,6 +138,7 @@ def train_NPML_model(
     final_loss = calc_t_test_statistic(tau_history[-1])
     info(f'Observed t test statistic: {final_loss}')
     
+    model.tensorboard_log_dir = context.unique_out_dir
     save_training_outcomes(
         context,
         model_history=tau_model_history,
