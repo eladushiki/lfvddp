@@ -111,6 +111,7 @@ cp {project_name}.sif $PBS_O_WORKDIR/
 # Create sandbox from SIF for faster execution
 echo "Creating sandbox from SIF for faster execution..."
 cd $PBS_O_WORKDIR
+rm -r {project_name}_sandbox || true
 {singularity_executable} build --sandbox {project_name}_sandbox {project_name}.sif
 
 if [ $? -ne 0 ]; then

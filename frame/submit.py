@@ -49,6 +49,7 @@ def submit_container_build(
 def submit_command(
         context: ExecutionContext,
         command: str,
+        command_name: Optional[str] = "job",
         max_tries: int = 3,
         number_of_jobs: int = 1,
         dependent_on_jobid: Optional[str] = None,
@@ -58,7 +59,7 @@ def submit_command(
     if not isinstance(context.config, ClusterConfig):
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
 
-    exec_job_name = f"{context.config.cluster__qsub_job_name}_exec"
+    exec_job_name = f"{context.config.cluster__qsub_job_name}_exec_{command_name}"
         
     # Create qsub script from template
     qsub_script_content = format_qsub_execution_script(
