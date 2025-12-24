@@ -164,7 +164,7 @@ def train_NPML_model(
     final_loss = calc_t_test_statistic(tau_history[-1])
     info(f'Observed t test statistic: {final_loss}')
     
-    model.tensorboard_log_dir = context.unique_out_dir
+    model.tensorboard_log_dir = context.training_outcomes_dir
     save_training_outcomes(
         context,
         model_history=tau_model_history,
