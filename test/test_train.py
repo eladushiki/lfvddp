@@ -7,11 +7,16 @@ from train.single_train import follow_instructions_for_t
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{
+    [{  # basic process
         ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
         ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
         ConfigType.TRAIN.value: Path("test/configs/train/short_1D_train_config_with_nuisance.json"),
-    }],
+    }, {
+        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
+        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
+        ConfigType.TRAIN.value: Path("test/configs/train/short_1D_train_config_with_nuisance_like_nplm.json"),
+    }
+    ],
     indirect=True,
 )
 def test_learning(
@@ -35,6 +40,7 @@ def test_learning(
         name="test_model",
     )
 
+    # Train should not yet converge but a value should be given
     assert t_a_loss < 0
 
 
