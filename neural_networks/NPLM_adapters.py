@@ -16,16 +16,70 @@ from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 from train.train_config import TrainConfig
 
 
-def build_NPLM_shape_dictionary_list():
-    # todo: this should be drawn from the config
-    return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model implementation
+class AdaptedImperfectModel(imperfect_model):
+    """
+    An adapted imperfect model that is fit to our framework.
+    """
+    def __init__(
+            self,
+            config,
+            name,
+            is_tau: bool = True,  # else, delta
+            **kwargs,
+        ):
+        ## Treating nuisance parameters
+        # normalization of the nuisance parameters, $\nu_n$ in the text.
+        # Only intact if correction type is "NORM" or "SHAPE"
+        SIGMA_N   = config.train__norm_nuisance_std
+        NU_N      = config.train__norm_nuisance_mean
+        NUR_N     = config.train__norm_nuisance_reference
+        NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
+
+        # shape of the nuisance parameters, $\nu_s$ in the text
+        # Only intact if correction type is "SHAPE"
+        SIGMA_S   = np.array([config.train__shape_nuisance_std])
+        NU_S      = np.array([config.train__shape_nuisance_mean])
+        NUR_S     = np.array([config.train__shape_nuisance_reference])
+        NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
+
+        super().__init__(
+            name=name,
+            input_shape=(None, config.train__nn_input_dimension),
+            NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters for nuisance initial values
+            NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
+            correction = config.train__nuisance_correction_types,  # Which nuisance to compensate for
+            shape_dictionary_list = self._build_NPLM_shape_dictionary_list(),  # This is used in "SHAPE" correction case
+            BSMarchitecture = config.train__nn_architecture,
+            BSMweight_clipping = config.train__nn_weight_clipping,
+            train_f = is_tau,
+            train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
+        )
+
+        self._config = config
+        
+        # Nuisance unused parameters set, later causes train to access unintialized members in these cases:
+        if config.train__nuisance_correction_types != "SHAPE":
+            self.nu_s = 0
+        if config.train__nuisance_correction_types == "":
+            self.nu_n = 0
+
+    def predict(self, x):
+        return super().predict(x.events)[:, 1]
+
+    def fit(self, data, target, **kwargs) -> keras.callbacks.History:
+        return super().fit(data.events, target, **kwargs)
+
+    @staticmethod
+    def _build_NPLM_shape_dictionary_list():
+        # todo: this should be drawn from the config
+        return [parNN_list['scale']]  # todo: this should be of the length of deltas? Look @ imperfect_model implementation
 
 
 def get_NPLM_model(
         config: TrainConfig,
         is_tau: bool = True,  # else, delta
         name: str = "tau_model",
-    ) -> imperfect_model:
+    ) -> AdaptedImperfectModel:
     """
     Generate an NPLM imperfect model according to our configuration
     """
@@ -36,41 +90,13 @@ def get_NPLM_model(
     if config.train__nuisance_correction_types == "" and not is_tau:
         raise ValueError("No Delta term needed when training without nuisances")
 
-    ## Treating nuisance parameters
-    # normalization of the nuisance parameters, $\nu_n$ in the text.
-    # Only intact if correction type is "NORM" or "SHAPE"
-    SIGMA_N   = config.train__norm_nuisance_std
-    NU_N      = config.train__norm_nuisance_mean
-    NUR_N     = config.train__norm_nuisance_reference
-    NU0_N     = np.random.normal(loc=NU_N, scale=SIGMA_N, size=1)[0]
-
-    # shape of the nuisance parameters, $\nu_s$ in the text
-    # Only intact if correction type is "SHAPE"
-    SIGMA_S   = np.array([config.train__shape_nuisance_std])
-    NU_S      = np.array([config.train__shape_nuisance_mean])
-    NUR_S     = np.array([config.train__shape_nuisance_reference])
-    NU0_S     = np.random.normal(loc=NU_S[0], scale=SIGMA_S[0], size=1)[0]
-
     # Get Tau term model
-    tau_model = imperfect_model(
+    tau_model = AdaptedImperfectModel(
+        config=config,
         name=name,
-        input_shape=(None, config.train__nn_input_dimension),
-        NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters for nuisance initial values
-        NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
-        correction = config.train__nuisance_correction_types,  # Which nuisance to compensate for
-        shape_dictionary_list = build_NPLM_shape_dictionary_list(),  # This is used in "SHAPE" correction case
-        BSMarchitecture = config.train__nn_architecture,
-        BSMweight_clipping = config.train__nn_weight_clipping,
-        train_f = is_tau,  # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta as in NPLM paper). We generally want to train for both.
-        train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
+        is_tau=is_tau, # = Should create model.BSMfinderNet = is training also for Tau (else, just Delta as in NPLM paper). We generally want to train for both.
     )
     tau_model.summary(print_fn=lambda x: info(x))  # Otherwise, model.summary() just uses print()
-
-    # Nuisance unused parameters set, later causes train to access unintialized members in these cases:
-    if config.train__nuisance_correction_types != "SHAPE":
-        tau_model.nu_s = 0
-    if config.train__nuisance_correction_types == "":
-        tau_model.nu_n = 0
 
     return tau_model
 
@@ -100,7 +126,7 @@ def build_target_for_NPLM_model_loss(sample_dataset: DataSet, reference_dataset:
 
 def train_NPML_model(
         context: ExecutionContext,
-        model: imperfect_model,
+        model: AdaptedImperfectModel,
         sample_dataset: DataSet,
         reference_dataset: DataSet
     ) -> float:
