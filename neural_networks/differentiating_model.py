@@ -62,17 +62,19 @@ class DifferentiatingModel(keras.models.Model):
         for i, secondary_layer_size in enumerate(self._config.train__nn_architecture[1:]):
             # Use a small positive bias initializer for the output layer to avoid zero initialization
             if i == len(self._config.train__nn_architecture[1:]) - 1:
-                # Final layer: initialize bias to small positive value to avoid all-zero outputs
+                # Final layer: initialize with Glorot (Xavier) initialization
                 layer = keras.layers.Dense(
                     secondary_layer_size,
                     activation=None,  # No activation on final layer
-                    bias_initializer=keras.initializers.Constant(0.1),
-                    kernel_initializer='glorot_uniform',
+                    bias_initializer=keras.initializers.GlorotNormal(),
+                    kernel_initializer=keras.initializers.GlorotNormal(),
                 )(last_layer)
             else:
                 layer = keras.layers.Dense(
                     secondary_layer_size,
-                    activation='relu',
+                    activation=keras.layers.LeakyReLU(alpha=0.01),
+                    kernel_initializer=keras.initializers.HeNormal(),
+                    bias_initializer=keras.initializers.GlorotNormal(),
                 )(last_layer)
             last_layer = layer
         self._last_layer = last_layer
@@ -319,7 +321,7 @@ class DifferentiatingModel(keras.models.Model):
         # Clip naive prediction to prevent overflow in exp() during loss calculation
         # Max value of ~20 keeps exp(20) ≈ 485 million, which is large but manageable
         # To allow for gradient flow, use stop_gradient trick
-        clipped_naive_prediction = tf.clip_by_value(naive_prediction, -20.0, 20.0)
+        clipped_naive_prediction = tf.clip_by_value(naive_prediction, -2000.0, 20)
         safe_prediction = tf.math.add(naive_prediction, tf.stop_gradient(clipped_naive_prediction - naive_prediction))
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
@@ -369,7 +371,7 @@ def calc_t_LFVNN(
         name=name,
     )
     # Use gradient clipping to prevent exploding gradients
-    optimizer = keras.optimizers.Adam(clipnorm=1.0)
+    optimizer = keras.optimizers.SGD(momentum=0.9)
     model.compile(
         loss=model.ddp_symmetrized_loss,
         metrics=model.get_metrics(),

@@ -1,7 +1,7 @@
 {    
     "train__epochs": 100,
     "train__number_of_epochs_for_checkpoint": 10,
-    "train__like_NPLM": true,
+    "train__data_is_train_for_nuisances": false,
 
     "train__nn_input_dimension": 1,
     "train__nn_inner_layer_nodes": 4,
