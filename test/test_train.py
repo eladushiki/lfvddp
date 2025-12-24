@@ -32,7 +32,7 @@ def test_learning(
 
     reference_dataset = affected_A + affected_B
 
-    t_a_loss = follow_instructions_for_t(
+    _, t_a_loss = follow_instructions_for_t(
         function_execution_context,
         affected_A,
         reference_dataset,
