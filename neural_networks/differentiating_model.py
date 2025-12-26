@@ -72,7 +72,7 @@ class DifferentiatingModel(keras.models.Model):
             else:
                 layer = keras.layers.Dense(
                     secondary_layer_size,
-                    activation=keras.layers.LeakyReLU(alpha=0.01),
+                    activation=keras.layers.LeakyReLU(negative_slope=0.01),
                     kernel_initializer=keras.initializers.HeNormal(),
                     bias_initializer=keras.initializers.GlorotNormal(),
                 )(last_layer)
@@ -137,17 +137,17 @@ class DifferentiatingModel(keras.models.Model):
     @tf.function
     def _prediction_nll(
             self,
-            f__is_sample_prediction: tf.Tensor,
-            y__is_sample_mask: tf.Tensor,
+            y__is_sample_truth: tf.Tensor,
+            f__is_sample_pred: tf.Tensor,
         ) -> tf.Tensor:
         """
         The custom negative log-likelihood for the prediction of the NN.
         Rewards correct classification of sample vs. reference events.
         return: tf.Tensor: Tensor of same shape as input tensors with NLL values.
         """
-        is_ref_mask = tf.subtract(1.0, y__is_sample_mask)
-        return is_ref_mask * (tf.exp(f__is_sample_prediction) - 1) \
-            - tf.multiply(y__is_sample_mask, f__is_sample_prediction)
+        is_ref_truth = tf.subtract(1.0, y__is_sample_truth)
+        return is_ref_truth * (tf.exp(f__is_sample_pred) - 1) \
+            - tf.multiply(y__is_sample_truth, f__is_sample_pred)
 
     @property
     def _observable_names(self) -> List[str]:
@@ -157,7 +157,7 @@ class DifferentiatingModel(keras.models.Model):
     def ddp_symmetrized_loss(
             self,
             y__is_sample_truth: tf.Tensor,
-            f__is_sample_prediction: tf.Tensor,
+            f__is_sample_pred: tf.Tensor,
         ) -> tf.Tensor:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
@@ -167,8 +167,8 @@ class DifferentiatingModel(keras.models.Model):
         as this function returns a tf.Tensor of shape (batch_size,).
         """
         prediction_loss = self._prediction_nll(
-            f__is_sample_prediction,
-            y__is_sample_truth,
+            y__is_sample_truth=y__is_sample_truth,
+            f__is_sample_pred=f__is_sample_pred,
         )  # Tensor the size of data
         if self._config.train__data_is_train_for_nuisances:  # todo: this division by sample size makes no sense. Remove
             nuisance_loss = self._total_nuisance_nll()  # Scalar
@@ -269,12 +269,16 @@ class DifferentiatingModel(keras.models.Model):
 
         # Record operations while calling the NN for auto differentiation
         with tf.GradientTape() as tape:
-            prediction = self(x, training=True)
+
+            prediction = self(data=x, training=True)
+            tf.debugging.assert_all_finite(prediction, message="Prediction contains NaN or Inf values")
+
             loss = self.compute_loss(
-                x, y,
-                prediction,
+                x=x, y=y,
+                y_pred=prediction,
                 sample_weight=weights,
             )
+            tf.debugging.assert_all_finite(loss, message="Loss contains NaN or Inf values")
 
         # Use tape to update trainable vars. Apply a single step
         gradients = tape.gradient(loss, self.trainable_variables)
@@ -304,7 +308,7 @@ class DifferentiatingModel(keras.models.Model):
         batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
         """
         with self.binning_context(data):
-            return super().fit(data.events, target, batch_size=data.n_samples, **kwargs)
+            return super().fit(x=data.events, y=target, batch_size=data.n_samples, **kwargs)
 
     def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
         """
@@ -313,16 +317,15 @@ class DifferentiatingModel(keras.models.Model):
         batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
         """
         with self.binning_context(data):
-            return super().predict(data.events, batch_size=data.n_samples, **kwargs)
+            return super().predict(x=data.events, batch_size=data.n_samples, **kwargs)
 
-    def call(self, data_set: tf.Tensor, training: bool = None) -> tf.Tensor:
-        naive_prediction = super().call(data_set, training=training)
+    def call(self, data: tf.Tensor, training: bool = None) -> tf.Tensor:
+        naive_prediction = super().call(data, training=training)
         
         # Clip naive prediction to prevent overflow in exp() during loss calculation
-        # Max value of ~20 keeps exp(20) ≈ 485 million, which is large but manageable
-        # To allow for gradient flow, use stop_gradient trick
-        clipped_naive_prediction = tf.clip_by_value(naive_prediction, -2000.0, 20)
-        safe_prediction = tf.math.add(naive_prediction, tf.stop_gradient(clipped_naive_prediction - naive_prediction))
+        # lower: due to underflow
+        # upper: theoretically the correct reweight is no more than exp(0)
+        safe_prediction = tf.clip_by_value(naive_prediction, -75, 20.0)
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
         if self._config.train__data_is_train_for_nuisances:
@@ -371,15 +374,15 @@ def calc_t_LFVNN(
         name=name,
     )
     # Use gradient clipping to prevent exploding gradients
-    optimizer = keras.optimizers.SGD(momentum=0.9)
+    optimizer = keras.optimizers.Adam()
     model.compile(
         loss=model.ddp_symmetrized_loss,
         metrics=model.get_metrics(),
         optimizer=optimizer,
     )
     tau_model_fit = model.fit(
-        feature_dataset,
-        target_structure,
+        data=feature_dataset,
+        target=target_structure,
         sample_weight=loss_weights,
         epochs=context.config.train__epochs,
         verbose=0,
