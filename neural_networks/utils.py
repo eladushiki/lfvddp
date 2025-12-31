@@ -12,6 +12,10 @@ import os
 from typing import Any, Dict
 
 
+MAX_PREDICTION_CUTOFF = 20.0
+MIN_PREDICTION_CUTOFF = -75.0
+
+
 def save_training_outcomes(
         context: ExecutionContext,
         model_history: Dict[str, Any],
