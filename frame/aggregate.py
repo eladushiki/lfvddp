@@ -71,7 +71,7 @@ class ResultAggregator:
 
         # We assume each run generates each type of test statistic, and that they all should be summed to get a single value
         unique_history_file_stems = np.unique([unstamp_product_stem(Path(history_file)) for history_file in all_history_files])
-        unique_runs_output_dirs = np.unique([str(Path(history_file).parent) for history_file in all_history_files])
+        unique_runs_output_dirs = np.unique([str(Path(history_file).parent.parent) for history_file in all_history_files])
 
         # We assume that we need to sum two types of test statistics for every single value, each with different name
         all_model_t_test_statistics = np.zeros(shape=(len(unique_runs_output_dirs), len(epochs)))
