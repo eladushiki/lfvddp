@@ -79,8 +79,11 @@ class ResultAggregator:
             for history_file_stem in unique_history_file_stems:    
                 history_files = [f for f in products_from_stem(history_file_stem, Path(run_output)) if str(f) in all_history_files]
                 
-                if len(history_files) != 1:
+                if len(history_files) > 1:
                     raise ValueError(f"Found multiple history files for stem {history_file_stem} in directory {run_output}")
+                if len(history_files) == 0:
+                    warning(f"Found dir with no history for stem {history_file_stem}: {run_output}")
+                    continue
                 
                 history_file = all_loaded_histories[str(history_files[0])]
                 all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history_file[HistoryKeys.LOSS.value]))  # type: ignore

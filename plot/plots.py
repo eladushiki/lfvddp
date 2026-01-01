@@ -96,6 +96,7 @@ def t_train_percentile_progression_plot(
 def t_distribution_plot(
         context: ExecutionContext,
         number_of_bins: int,
+        cut_non_converged: bool = True,
     ) -> Figure:
     '''
     Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
@@ -125,7 +126,8 @@ def t_distribution_plot(
     n_std = 6
     did_not_converge = t < (distribution_mean - n_std * distribution_std) \
         + agg.nan_t_values
-    t = t[~did_not_converge]
+    if cut_non_converged:
+        t = t[~did_not_converge]
 
     # Limits
     chi2_begin = chi2.ppf(0.0001, chi2_dof := model_degrees_of_freedom(config))
