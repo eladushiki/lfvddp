@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import gc
-from logging import info
+from logging import info, debug, warning
 from time import time
 from typing import Any, List, Tuple, Union
 import keras
@@ -53,6 +53,9 @@ class DifferentiatingModel(keras.models.Model):
         self._build_detector_nuisances()
         self._bins_of_events = None  # Set in context
 
+        # Initialize weights according to strategy
+        self._initialize_weights()
+
         # Logging setup
         self._setup_tensorboard()
 
@@ -60,20 +63,16 @@ class DifferentiatingModel(keras.models.Model):
         self._input_layer = keras.Input(shape=(self._config.train__nn_input_dimension,))
         last_layer = self._input_layer
         for i, secondary_layer_size in enumerate(self._config.train__nn_architecture[1:]):
-            # Use a small positive bias initializer for the output layer to avoid zero initialization
+            # Create layers with default initializers; actual initialization done in _initialize_weights()
             if i == len(self._config.train__nn_architecture[1:]) - 1:
                 layer = keras.layers.Dense(
                     secondary_layer_size,
                     activation=None,  # No activation on final layer
-                    bias_initializer=keras.initializers.Zeros(),
-                    kernel_initializer=keras.initializers.TruncatedNormal(stddev=0.01),
                 )(last_layer)
             else:
                 layer = keras.layers.Dense(
                     secondary_layer_size,
                     activation=keras.layers.LeakyReLU(negative_slope=0.01),
-                    kernel_initializer=keras.initializers.Zeros(),
-                    bias_initializer=keras.initializers.TruncatedNormal(stddev=0.01),
                 )(last_layer)
             last_layer = layer
         self._last_layer = last_layer
@@ -87,11 +86,6 @@ class DifferentiatingModel(keras.models.Model):
                     shape=(nbins,),
                     dtype=tf.float32,
                     trainable=True,
-                    initializer=keras.initializers.RandomNormal(
-                        mean=0.0,
-                        stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
-                        seed=self._context.random_seed,
-                    ),  # Randomizing initialization to prevent vanishing gradients
                 )
             else:
                 nuisance_var = tf.Variable(
@@ -100,6 +94,39 @@ class DifferentiatingModel(keras.models.Model):
                     trainable=False,
                 )
             self._detector_deltas[self._observable_names[i]] = nuisance_var
+
+    def _create_initial_weights(self) -> List[tf.Tensor]:
+        """
+        Create newly initialized weights matching the training strategy.
+        This is the single source of truth for weight initialization.
+        """
+        new_weights = []
+        for layer in self.layers[1:]:
+            # Kernel: Use HeNormal for hidden layers, GlorotNormal for output layer
+            initializer = keras.initializers.HeNormal() if layer != self.layers[-1] else keras.initializers.GlorotNormal()
+            new_weights.append(
+                initializer(layer.kernel.shape, dtype=layer.kernel.dtype)
+            )
+            # Bias: Use GlorotNormal
+            new_weights.append(
+                keras.initializers.GlorotNormal()(layer.bias.shape, dtype=layer.bias.dtype)
+            )
+
+        # Handle detector nuisances separately
+        if self._config.train__data_is_train_for_nuisances:
+            for var in self._detector_deltas.values():
+                new_weights.append(
+                    keras.initializers.RandomNormal(
+                        mean=0.0,
+                        stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
+                    )(var.shape, dtype=var.dtype)
+                )
+
+        return new_weights
+
+    def _initialize_weights(self):
+        """Initialize weights using the centralized strategy."""
+        self.set_weights(self._create_initial_weights())
 
     def _setup_tensorboard(self):
         # Initialize
@@ -253,10 +280,6 @@ class DifferentiatingModel(keras.models.Model):
             self._initial_weights = None
             self._check_interval = check_interval
 
-        def on_train_begin(self, logs=None):
-            # Store initial weights for reset
-            self._initial_weights = self.model.get_weights()
-
         def on_epoch_end(self, epoch, logs=None):
             # Only check every check_interval epochs
             if epoch % self._check_interval != 0:
@@ -290,7 +313,7 @@ class DifferentiatingModel(keras.models.Model):
                 if self._consecutive_stuck_epochs >= self._max_stuck_epochs:
                     info(f"Resetting model weights after {self._consecutive_stuck_epochs} consecutive stuck epochs")
                     self._consecutive_stuck_epochs = 0
-                    self.model.set_weights(self._initial_weights)
+                    self.model._initialize_weights()
             else:
                 if self._consecutive_stuck_epochs > 0:
                     info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
@@ -315,6 +338,21 @@ class DifferentiatingModel(keras.models.Model):
                     tf.summary.text("nuisance_parameters", log_text, step=epoch)
 
                 self._train_summary_writer.flush()
+        
+        class EarlyStoppingDetectorCallback(keras.callbacks.Callback):
+            """Detects if training was interrupted (e.g., by walltime or OOM)."""
+            def on_train_begin(inner_self, logs=None):
+                self._current_epoch.assign(0)
+            
+            def on_epoch_end(inner_self, epoch, logs=None):
+                self._current_epoch.assign(epoch)
+                if epoch % (self._config.train__number_of_epochs_for_checkpoint * 5) == 0:
+                    debug(f'Completed epoch {epoch}/{self._config.train__epochs}')
+                    if logs:
+                        loss_val = logs.get('loss', 'N/A')
+                        debug(f'  Loss: {loss_val}')
+                        if isinstance(loss_val, float) and (np.isnan(loss_val) or np.isinf(loss_val)):
+                            warning(f'Loss is {loss_val} at epoch {epoch} - training may diverge')
                
         return [
             keras.callbacks.TensorBoard(
@@ -323,6 +361,7 @@ class DifferentiatingModel(keras.models.Model):
                 update_freq='epoch',
             ),
             TextLoggerCallback(),
+            EarlyStoppingDetectorCallback(),
             self.ExtremePredictionResetCallback(),
         ]
 
@@ -442,7 +481,7 @@ def calc_t_LFVNN(
         name=name,
     )
     # Use Adam optimizer with L2 regularization to improve convergence
-    optimizer = keras.optimizers.Adam(learning_rate=0.001)
+    optimizer = keras.optimizers.Adam()
     model.compile(
         loss=model.ddp_symmetrized_loss,
         metrics=model.get_metrics(),
@@ -457,6 +496,21 @@ def calc_t_LFVNN(
         callbacks=model.get_callbacks(),
     )
     tau_model_history = tau_model_fit.history
+    
+    # Log diagnostic information about training completion
+    info(f'Total epochs requested: {context.config.train__epochs}')
+    info(f'Actual epochs completed: {len(tau_model_history[HistoryKeys.LOSS.value])}')
+    info(f'Early stopping occurred: {len(tau_model_history[HistoryKeys.LOSS.value]) < context.config.train__epochs}')
+    
+    # Check for NaN/Inf in loss history
+    loss_array = np.array(tau_model_history[HistoryKeys.LOSS.value])
+    if np.any(np.isnan(loss_array)):
+        nan_idx = np.where(np.isnan(loss_array))[0]
+        info(f'NaN detected in loss at epochs: {nan_idx}')
+    if np.any(np.isinf(loss_array)):
+        inf_idx = np.where(np.isinf(loss_array))[0]
+        info(f'Inf detected in loss at epochs: {inf_idx}')
+    
     tau_model_history[HistoryKeys.EPOCH.value] = np.concatenate([
         np.arange(0, context.config.train__epochs, context.config.train__number_of_epochs_for_checkpoint),
         np.array([context.config.train__epochs - 1]),
