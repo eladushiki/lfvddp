@@ -18,6 +18,8 @@ class TrainConfig:
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
+    train__batch_size: int = 512
+    
     ## Training for nuisance parameters
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's

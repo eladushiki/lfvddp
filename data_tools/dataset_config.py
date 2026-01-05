@@ -27,7 +27,7 @@ class DatasetParameters(ABC):
     type: str
 
     # Background parameters
-    dataset__mean_number_of_background_events: int
+    dataset__mean_number_of_background_events: int = field(default=None)
 
     # Signal parameters
     dataset__signal_data_generation_function: str = field(default="")
@@ -61,6 +61,8 @@ class DatasetParameters(ABC):
     def __post_init__(self):
         # Poisson distribution of event numbers per run given mean
         if not self.dataset__number_of_background_events:
+            assert self.dataset__mean_number_of_background_events is not None, \
+                "Number of background events must be defined in the configuration, either directly or via mean."
             self.dataset__number_of_background_events = np.random.poisson(
                 lam=self.dataset__mean_number_of_background_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,

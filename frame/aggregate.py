@@ -71,7 +71,7 @@ class ResultAggregator:
 
         # We assume each run generates each type of test statistic, and that they all should be summed to get a single value
         unique_history_file_stems = np.unique([unstamp_product_stem(Path(history_file)) for history_file in all_history_files])
-        unique_runs_output_dirs = np.unique([str(Path(history_file).parent) for history_file in all_history_files])
+        unique_runs_output_dirs = np.unique([str(Path(history_file).parent.parent) for history_file in all_history_files])
 
         # We assume that we need to sum two types of test statistics for every single value, each with different name
         all_model_t_test_statistics = np.zeros(shape=(len(unique_runs_output_dirs), len(epochs)))
@@ -79,8 +79,11 @@ class ResultAggregator:
             for history_file_stem in unique_history_file_stems:    
                 history_files = [f for f in products_from_stem(history_file_stem, Path(run_output)) if str(f) in all_history_files]
                 
-                if len(history_files) != 1:
+                if len(history_files) > 1:
                     raise ValueError(f"Found multiple history files for stem {history_file_stem} in directory {run_output}")
+                if len(history_files) == 0:
+                    warning(f"Found dir with no history for stem {history_file_stem}: {run_output}")
+                    continue
                 
                 history_file = all_loaded_histories[str(history_files[0])]
                 all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history_file[HistoryKeys.LOSS.value]))  # type: ignore

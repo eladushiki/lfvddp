@@ -12,6 +12,10 @@ import os
 from typing import Any, Dict
 
 
+MAX_PREDICTION_CUTOFF = 20.0
+MIN_PREDICTION_CUTOFF = -75.0
+
+
 def save_training_outcomes(
         context: ExecutionContext,
         model_history: Dict[str, Any],
@@ -30,6 +34,6 @@ def save_training_outcomes(
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: Model, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:
-    model_prediction = trained_model.predict(reference_ndf_estimation)
+    model_prediction = trained_model.predict(data=reference_ndf_estimation)
     hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
     return predicted_distribution_corrected_size / reference_ndf_estimation.corrected_n_samples * hypothesis_weights

@@ -18,7 +18,7 @@ from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.utils import save_training_outcomes
+from neural_networks.utils import MAX_PREDICTION_CUTOFF, MIN_PREDICTION_CUTOFF, save_training_outcomes
 from train.train_config import TrainConfig
 
 
@@ -62,17 +62,18 @@ class DifferentiatingModel(keras.models.Model):
         for i, secondary_layer_size in enumerate(self._config.train__nn_architecture[1:]):
             # Use a small positive bias initializer for the output layer to avoid zero initialization
             if i == len(self._config.train__nn_architecture[1:]) - 1:
-                # Final layer: initialize bias to small positive value to avoid all-zero outputs
                 layer = keras.layers.Dense(
                     secondary_layer_size,
                     activation=None,  # No activation on final layer
-                    bias_initializer=keras.initializers.Constant(0.1),
-                    kernel_initializer='glorot_uniform',
+                    bias_initializer=keras.initializers.Zeros(),
+                    kernel_initializer=keras.initializers.TruncatedNormal(stddev=0.01),
                 )(last_layer)
             else:
                 layer = keras.layers.Dense(
                     secondary_layer_size,
-                    activation='relu',
+                    activation=keras.layers.LeakyReLU(negative_slope=0.01),
+                    kernel_initializer=keras.initializers.Zeros(),
+                    bias_initializer=keras.initializers.TruncatedNormal(stddev=0.01),
                 )(last_layer)
             last_layer = layer
         self._last_layer = last_layer
@@ -135,17 +136,17 @@ class DifferentiatingModel(keras.models.Model):
     @tf.function
     def _prediction_nll(
             self,
-            f__is_sample_prediction: tf.Tensor,
-            y__is_sample_mask: tf.Tensor,
+            y__is_sample_truth: tf.Tensor,
+            f__is_sample_pred: tf.Tensor,
         ) -> tf.Tensor:
         """
         The custom negative log-likelihood for the prediction of the NN.
         Rewards correct classification of sample vs. reference events.
         return: tf.Tensor: Tensor of same shape as input tensors with NLL values.
         """
-        is_ref_mask = tf.subtract(1.0, y__is_sample_mask)
-        return is_ref_mask * (tf.exp(f__is_sample_prediction) - 1) \
-            - tf.multiply(y__is_sample_mask, f__is_sample_prediction)
+        is_ref_truth = tf.subtract(1.0, y__is_sample_truth)
+        return is_ref_truth * (tf.exp(f__is_sample_pred) - 1) \
+            - tf.multiply(y__is_sample_truth, f__is_sample_pred)
 
     @property
     def _observable_names(self) -> List[str]:
@@ -155,7 +156,7 @@ class DifferentiatingModel(keras.models.Model):
     def ddp_symmetrized_loss(
             self,
             y__is_sample_truth: tf.Tensor,
-            f__is_sample_prediction: tf.Tensor,
+            f__is_sample_pred: tf.Tensor,
         ) -> tf.Tensor:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
@@ -165,8 +166,8 @@ class DifferentiatingModel(keras.models.Model):
         as this function returns a tf.Tensor of shape (batch_size,).
         """
         prediction_loss = self._prediction_nll(
-            f__is_sample_prediction,
-            y__is_sample_truth,
+            y__is_sample_truth=y__is_sample_truth,
+            f__is_sample_pred=f__is_sample_pred,
         )  # Tensor the size of data
         if self._config.train__data_is_train_for_nuisances:  # todo: this division by sample size makes no sense. Remove
             nuisance_loss = self._total_nuisance_nll()  # Scalar
@@ -230,6 +231,71 @@ class DifferentiatingModel(keras.models.Model):
             NuisanceNegLogLikelihoodMetric(name=HistoryKeys.NUISANCE_LOSS.value),
         ] + ([NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value)] if self._config.train__data_is_train_for_nuisances else [])
 
+    
+    class ExtremePredictionResetCallback(keras.callbacks.Callback):
+        """Reset weights if model gets stuck at maximum or minimum predicted values."""
+        sample_data = None
+
+        def __init__(
+                self,
+                max_stuck_epochs=50,
+                max_threshold=MAX_PREDICTION_CUTOFF - 0.5,
+                min_threshold=MIN_PREDICTION_CUTOFF + 0.5,
+                stuck_fraction_threshold=0.5,
+                check_interval=100,
+        ):
+            super().__init__()
+            self._max_stuck_epochs = max_stuck_epochs
+            self._max_threshold = max_threshold
+            self._min_threshold = min_threshold
+            self._stuck_fraction_threshold = stuck_fraction_threshold
+            self._consecutive_stuck_epochs = 0
+            self._initial_weights = None
+            self._check_interval = check_interval
+
+        def on_train_begin(self, logs=None):
+            # Store initial weights for reset
+            self._initial_weights = self.model.get_weights()
+
+        def on_epoch_end(self, epoch, logs=None):
+            # Only check every check_interval epochs
+            if epoch % self._check_interval != 0:
+                return
+            
+            # Get predictions on actual data (without the symbolic tensor issue)
+            sample_predictions = self.model(self.sample_data, training=False)
+            
+            # Ensure predictions are numpy for comparison
+            if hasattr(sample_predictions, 'numpy'):
+                sample_predictions = sample_predictions.numpy()
+            
+            # Check if most predictions are stuck at max or min
+            stuck_at_max = float(tf.reduce_mean(
+                tf.cast(sample_predictions >= self._max_threshold, tf.float32)
+            ).numpy())
+            stuck_at_min = float(tf.reduce_mean(
+                tf.cast(sample_predictions <= self._min_threshold, tf.float32)
+            ).numpy())
+            
+            is_stuck = (stuck_at_max >= self._stuck_fraction_threshold) or \
+                        (stuck_at_min >= self._stuck_fraction_threshold)
+            stuck_type = "max" if stuck_at_max >= stuck_at_min else "min"
+            stuck_fraction = max(stuck_at_max, stuck_at_min)
+            
+            if is_stuck:
+                self._consecutive_stuck_epochs += self._check_interval
+                info(f"Epoch {epoch}: {stuck_fraction:.2%} of predictions stuck at {stuck_type}. " +
+                        f"Consecutive stuck epochs: {self._consecutive_stuck_epochs}/{self._max_stuck_epochs}")
+                
+                if self._consecutive_stuck_epochs >= self._max_stuck_epochs:
+                    info(f"Resetting model weights after {self._consecutive_stuck_epochs} consecutive stuck epochs")
+                    self._consecutive_stuck_epochs = 0
+                    self.model.set_weights(self._initial_weights)
+            else:
+                if self._consecutive_stuck_epochs > 0:
+                    info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
+                self._consecutive_stuck_epochs = 0
+ 
     def get_callbacks(self) -> List[keras.callbacks.Callback]:
         class TextLoggerCallback(keras.callbacks.Callback):
             TEXT_LOG_TEMPLATE = f"""
@@ -249,7 +315,7 @@ class DifferentiatingModel(keras.models.Model):
                     tf.summary.text("nuisance_parameters", log_text, step=epoch)
 
                 self._train_summary_writer.flush()
-                
+               
         return [
             keras.callbacks.TensorBoard(
                 log_dir=self.tensorboard_log_dir, # type: ignore
@@ -257,8 +323,10 @@ class DifferentiatingModel(keras.models.Model):
                 update_freq='epoch',
             ),
             TextLoggerCallback(),
+            self.ExtremePredictionResetCallback(),
         ]
 
+    @tf.function
     def train_step(self, data: Tuple[tf.Tensor, tf.Tensor]):
         """
         A custom loop is implemented in order to learn the nuisance variables as well as the model's weights.
@@ -267,12 +335,16 @@ class DifferentiatingModel(keras.models.Model):
 
         # Record operations while calling the NN for auto differentiation
         with tf.GradientTape() as tape:
-            prediction = self(x, training=True)
+
+            prediction = self(data=x, training=True)
+            tf.debugging.assert_all_finite(prediction, message="Prediction contains NaN or Inf values")
+
             loss = self.compute_loss(
-                x, y,
-                prediction,
+                x=x, y=y,
+                y_pred=prediction,
                 sample_weight=weights,
             )
+            tf.debugging.assert_all_finite(loss, message="Loss contains NaN or Inf values")
 
         # Use tape to update trainable vars. Apply a single step
         gradients = tape.gradient(loss, self.trainable_variables)
@@ -302,7 +374,8 @@ class DifferentiatingModel(keras.models.Model):
         batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
         """
         with self.binning_context(data):
-            return super().fit(data.events, target, batch_size=data.n_samples, **kwargs)
+            self.ExtremePredictionResetCallback.sample_data = data.events
+            return super().fit(x=data.events, y=target, batch_size=self._config.train__batch_size, **kwargs)
 
     def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
         """
@@ -311,16 +384,16 @@ class DifferentiatingModel(keras.models.Model):
         batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
         """
         with self.binning_context(data):
-            return super().predict(data.events, batch_size=data.n_samples, **kwargs)
+            return super().predict(x=data.events, batch_size=data.n_samples, **kwargs)
 
-    def call(self, data_set: tf.Tensor, training: bool = None) -> tf.Tensor:
-        naive_prediction = super().call(data_set, training=training)
+    @tf.function
+    def call(self, data: tf.Tensor, training: bool = None) -> tf.Tensor:
+        naive_prediction = super().call(data, training=training)
         
         # Clip naive prediction to prevent overflow in exp() during loss calculation
-        # Max value of ~20 keeps exp(20) ≈ 485 million, which is large but manageable
-        # To allow for gradient flow, use stop_gradient trick
-        clipped_naive_prediction = tf.clip_by_value(naive_prediction, -20.0, 20.0)
-        safe_prediction = tf.math.add(naive_prediction, tf.stop_gradient(clipped_naive_prediction - naive_prediction))
+        # lower: due to underflow
+        # upper: theoretically the correct reweight is no more than exp(0)
+        safe_prediction = tf.clip_by_value(naive_prediction, MIN_PREDICTION_CUTOFF, MAX_PREDICTION_CUTOFF)
 
         # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
         if self._config.train__data_is_train_for_nuisances:
@@ -368,16 +441,16 @@ def calc_t_LFVNN(
         detector_effect,
         name=name,
     )
-    # Use gradient clipping to prevent exploding gradients
-    optimizer = keras.optimizers.Adam(clipnorm=1.0)
+    # Use Adam optimizer with L2 regularization to improve convergence
+    optimizer = keras.optimizers.Adam(learning_rate=0.001)
     model.compile(
         loss=model.ddp_symmetrized_loss,
         metrics=model.get_metrics(),
         optimizer=optimizer,
     )
     tau_model_fit = model.fit(
-        feature_dataset,
-        target_structure,
+        data=feature_dataset,
+        target=target_structure,
         sample_weight=loss_weights,
         epochs=context.config.train__epochs,
         verbose=0,
