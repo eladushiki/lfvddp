@@ -1,6 +1,5 @@
-import keras
+import torch
 from os import makedirs
-import tensorflow as tf
 
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_generation import DataGeneration
@@ -11,6 +10,7 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME
 from neural_networks.NPLM_adapters import calc_t_NPLM
 from neural_networks.differentiating_model import calc_t_LFVNN
+from neural_networks.utils import ContextedModel
 from plot.plots import plot_prediction_process_sliced
 from train.train_config import TrainConfig
 
@@ -23,9 +23,6 @@ def main(context: ExecutionContext) -> None:
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     if not isinstance(config, DatasetConfig):
         raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
-
-    if context.is_debug_mode:
-        tf.config.run_functions_eagerly(True)
 
     gen = DataGeneration(context)
 
@@ -72,7 +69,7 @@ def follow_instructions_for_t(
         reference_dataset: DataSet,
         detector_effect: DetectorEffect,
         name: str,
-) -> tuple[keras.models.Model, float]:
+) -> tuple[ContextedModel, float]:
     if not isinstance((config := context.config), TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
 

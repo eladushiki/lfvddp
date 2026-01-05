@@ -12,7 +12,7 @@ def test_context_creation(session_execution_context):
     [{
         ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
         ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
-        ConfigType.TRAIN.value: Path("test/configs/train/short_1D_train_config.json"),
+        ConfigType.TRAIN.value: Path("test/configs/train/short_1D_train_config_without_nuisance.json"),
     }],
     indirect=True,
 )

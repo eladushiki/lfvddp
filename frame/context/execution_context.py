@@ -11,6 +11,8 @@ from frame.cluster.cluster_config import ClusterConfig
 from frame.file_system.training_history import save_training_history
 from numpy import random as nprandom
 from matplotlib.figure import Figure
+import torch
+import torch.nn as nn
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
@@ -19,7 +21,6 @@ from frame.context.execution_products import ExecutionProducts, stamp_product_pa
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 from plot.plotting_config import PlottingConfig
-from tensorflow.keras.models import Model # type: ignore
 from tensorflow import random as tfrandom
 
 from dataclasses import dataclass, field
@@ -101,6 +102,7 @@ class ExecutionContext:
         # Random seeding
         random.seed(self.random_seed)
         nprandom.seed(self.random_seed)
+        torch.manual_seed(self.random_seed)
         tfrandom.set_seed(self.random_seed)
 
     @property
@@ -157,7 +159,7 @@ class ExecutionContext:
         self.document_created_product(file_path)
         return file_path
 
-    def save_and_document_model_weights(self, model: Model, file_path: Path) -> Path:
+    def save_and_document_model_weights(self, model, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
         model.save_weights(file_path)
         self.document_created_product(file_path)

@@ -8,15 +8,14 @@ from frame.file_system.training_history import HistoryKeys
 import keras
 from neural_networks.NPLM.src.NPLM.NNutils import imperfect_loss, imperfect_model, np, train_model
 import numpy as np
-from tensorflow.keras import optimizers # type: ignore
 from tensorflow.keras.models import Model # type: ignore
 
-from neural_networks.utils import save_training_outcomes
+from neural_networks.utils import save_training_outcomes, ContextedModel
 from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 from train.train_config import TrainConfig
 
 
-class AdaptedImperfectModel(imperfect_model):
+class AdaptedImperfectModel(imperfect_model, ContextedModel):
     """
     An adapted imperfect model that is fit to our framework.
     """
@@ -55,6 +54,7 @@ class AdaptedImperfectModel(imperfect_model):
             train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
         )
 
+        self._name = name
         self._config = config
         
         # Nuisance unused parameters set, later causes train to access unintialized members in these cases:
@@ -63,11 +63,15 @@ class AdaptedImperfectModel(imperfect_model):
         if config.train__nuisance_correction_types == "":
             self.nu_n = 0
 
-    def predict(self, x):
-        return super().predict(x.events)[:, 1]
+    def predict(self, data: DataSet):
+        return super().predict(data.events)[:, 1]
 
     def fit(self, data, target, **kwargs) -> keras.callbacks.History:
         return super().fit(data.events, target, **kwargs)
+
+    def save_weights(self, file_path) -> None:
+        """Save Keras model weights to file."""
+        super().save_weights(file_path)
 
     @staticmethod
     def _build_NPLM_shape_dictionary_list():
@@ -164,7 +168,6 @@ def train_NPML_model(
     final_loss = calc_t_test_statistic(tau_history[-1])
     info(f'Observed t test statistic: {final_loss}')
     
-    model.tensorboard_log_dir = context.training_outcomes_dir
     save_training_outcomes(
         context,
         model_history=tau_model_history,
