@@ -1,0 +1,12 @@
+{
+    "dataset__definitions": [
+        {
+            "name": "cms_sample",
+            "type": "loaded",
+
+            "dataset_loaded__file_name": "test/configs/dataset/dataset_specs/CMS_mc_RunIISummer20UL16NanoAODv9_VVTo2L2Nu_MLL-1toInf_TuneCP5_13TeV-amcatnloFXFX-pythia8_NANOAODSIM_106X_mcRun2_asymptotic_v17-v1_30000_file_index.json",
+            "dataset_loaded__event_amount_load_limit": 10,
+            "dataset__mean_number_of_background_events": 10
+        }
+    ]
+}

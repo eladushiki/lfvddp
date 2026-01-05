@@ -8,7 +8,6 @@ from frame.command_line.handle_args import create_config_from_paths
 from frame.context.execution_context import version_controlled_execution_context
 from test.environment import DEFAULT_CONFIG_PATHS, wrap_with_command_line_args
 
-from coverage import Coverage
 from pytest import fixture
 
 from argparse import Namespace
@@ -32,11 +31,7 @@ def session_execution_context():
         command_line_args=wrap_with_command_line_args(DEFAULT_CONFIG_PATHS),
         args=args,
     ) as context:
-        cov = Coverage(data_file=context.unique_out_dir / ".coverage.html")
-        cov.start()
         yield context
-        cov.stop()
-        cov.save()
 
 
 @fixture(scope="function")
