@@ -414,7 +414,7 @@ class DifferentiatingModel(keras.models.Model):
         """
         with self.binning_context(data):
             self.ExtremePredictionResetCallback.sample_data = data.events
-            return super().fit(x=data.events, y=target, batch_size=data.n_samples, **kwargs)
+            return super().fit(x=data.events, y=target, batch_size=self._config.train__batch_size, **kwargs)
 
     def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
         """
