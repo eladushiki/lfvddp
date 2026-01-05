@@ -6,7 +6,7 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
-from neural_networks.utils import predict_sample_ndf_hypothesis_weights
+from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel
 import numpy as np
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -15,7 +15,7 @@ from matplotlib import patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2
-from tensorflow.keras.models import Model  # type: ignore
+import torch.nn as nn
 
 from frame.context.execution_context import ExecutionContext
 from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__get_signal_dataset_parameters, utils__sample_over_background_histograms_sliced
@@ -473,8 +473,8 @@ def plot_prediction_process_sliced(
         context: ExecutionContext,
         experiment_sample: DataSet,
         reference_sample: DataSet,
-        trained_tau_model: Model,
-        trained_delta_model: Optional[Model],
+        trained_tau_model: ContextedModel,
+        trained_delta_model: Optional[ContextedModel],
         title="Datasets Along the Process",
         along_observable: Optional[str] = None,
         sample_legend="training sample (det. reconstructed)",

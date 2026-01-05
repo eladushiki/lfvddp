@@ -75,14 +75,14 @@ def test_convergence(
 
     reference_dataset = affected_A + affected_B
 
-    model_a, t_a_loss = follow_instructions_for_t(
+    model_a, t_a = follow_instructions_for_t(
         function_execution_context,
         affected_A,
         reference_dataset,
         detector_effect=detector_effect,
         name="test_model_A",
     )
-    model_b, t_b_loss = follow_instructions_for_t(
+    model_b, t_b = follow_instructions_for_t(
         function_execution_context,
         affected_B,
         reference_dataset,
@@ -91,11 +91,11 @@ def test_convergence(
     )
 
     # Load weights from both models
-    weights_a = [w for w in model_a.get_weights()]
-    weights_b = [w for w in model_b.get_weights()]
+    weights_a = list(model_a.state_dict().values())
+    weights_b = list(model_b.state_dict().values())
 
     # Verify weights are different
     for i, (w_a, w_b) in enumerate(zip(weights_a, weights_b)):
-        assert not np.allclose(w_a, w_b), f"Weight matrix {i} should be different between models"
+        assert not np.allclose(w_a.cpu().detach().numpy(), w_b.cpu().detach().numpy()), f"Weight matrix {i} should be different between models"
 
-    assert t_a_loss + t_b_loss > 0
+    assert t_a + t_b > 0
