@@ -159,9 +159,9 @@ class ExecutionContext:
         self.document_created_product(file_path)
         return file_path
 
-    def save_and_document_model_weights(self, model, file_path: Path) -> Path:
+    def save_and_document_model_parameters(self, model, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
-        model.save_weights(file_path)
+        model.save_parameters(file_path)
         self.document_created_product(file_path)
         return file_path
 

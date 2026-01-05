@@ -1,14 +1,13 @@
 import numpy as np
-import torch.nn as nn
 
 from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TENSORBOARD_LOG_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
-from neural_networks.NPLM.src.NPLM.NNutils import imperfect_model, np
 from train.train_config import TrainConfig
 
 
 import os
+from abc import abstractmethod
 from typing import Any, Dict, Protocol
 from pathlib import Path
 
@@ -20,11 +19,13 @@ class ContextedModel(Protocol):
     """
     _name: str
     
+    @abstractmethod
     def predict(self, data: DataSet) -> np.ndarray:
         """Make predictions on a DataSet."""
         ...
     
-    def save_weights(self, file_path: Path) -> None:
+    @abstractmethod
+    def save_parameters(self, file_path: Path) -> None:
         """Save model weights to a file."""
         ...
 
@@ -52,7 +53,7 @@ def save_training_outcomes(
 
     # Save training
     context.save_and_document_model_history(model_history, model_output_dir / f"{tau_model._name}.{TRAINING_HISTORY_LOG_FILE_SUFFIX}")
-    context.save_and_document_model_weights(tau_model, model_output_dir / f"{tau_model._name}_{WEIGHTS_OUTPUT_FILE_NAME}")
+    context.save_and_document_model_parameters(tau_model, model_output_dir / f"{tau_model._name}_{WEIGHTS_OUTPUT_FILE_NAME}")
 
 
 def predict_sample_ndf_hypothesis_weights(trained_model: ContextedModel, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:

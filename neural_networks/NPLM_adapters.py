@@ -69,7 +69,7 @@ class AdaptedImperfectModel(imperfect_model, ContextedModel):
     def fit(self, data, target, **kwargs) -> keras.callbacks.History:
         return super().fit(data.events, target, **kwargs)
 
-    def save_weights(self, file_path) -> None:
+    def save_parameters(self, file_path) -> None:
         """Save Keras model weights to file."""
         super().save_weights(file_path)
 

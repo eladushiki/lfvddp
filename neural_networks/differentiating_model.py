@@ -51,8 +51,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._build_detector_nuisances()
         self._bins_of_events = None  # Set in context
 
-        # Initialize weights according to strategy
-        self._initialize_weights()
+        # Initialize NN parameters according to strategy
+        self._initialize_parameters()
         
         # Store training data and weights for metrics computation
         self._train_data = None
@@ -88,7 +88,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             for name, var in self._detector_deltas.items():
                 self.register_parameter(f"nuisance_{name}", var)
 
-    def _create_initial_weights(self) -> None:
+    def _create_initial_parameters(self) -> None:
         """
         Create newly initialized weights matching the training strategy.
         This is the single source of truth for weight initialization.
@@ -109,9 +109,9 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             for var in self._detector_deltas.values():
                 nn.init.normal_(var, mean=0.0, std=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD))
 
-    def _initialize_weights(self):
-        """Initialize weights using the centralized strategy."""
-        self._create_initial_weights()
+    def _initialize_parameters(self):
+        """Initialize parameters using the centralized strategy."""
+        self._create_initial_parameters()
 
     def configure_optimizers(self):
         """Configure optimizer for Lightning."""
@@ -183,7 +183,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Clip naive prediction to prevent overflow in exp() during loss calculation
         safe_prediction = torch.clamp(naive_prediction, MIN_PREDICTION_CUTOFF, MAX_PREDICTION_CUTOFF)
 
-        # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
+        # Each event predicted weight is multiplied by the exponentiation multiplication of all affecting nuisances
         if self._config.train__data_is_train_for_nuisances:
             nuisance_skews = [
                 torch.gather(torch.exp(self._detector_deltas[obs]), 0, self._bins_of_events[:, i])
@@ -223,7 +223,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                     warning(f'Loss is {loss_val} at epoch {epoch} - training may diverge')
 
     class ExtremePredictionResetCallback(Callback):
-        """Reset weights if model gets stuck at maximum or minimum predicted values."""
+        """Reset NN if model gets stuck at maximum or minimum predicted values."""
 
         def __init__(
                 self,
@@ -250,33 +250,32 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                 return
             
             # Get predictions on training data
-            if hasattr(pl_module, '_train_data') and pl_module._train_data is not None:
-                with torch.no_grad():
-                    sample_predictions = pl_module(pl_module._train_data)
-                    sample_predictions = sample_predictions.detach().cpu().numpy()
+            with torch.no_grad():
+                sample_predictions = pl_module(pl_module._train_data)
+                sample_predictions = sample_predictions.detach().cpu().numpy()
+            
+            # Check if most predictions are stuck at max or min
+            stuck_at_max = float(np.mean(sample_predictions >= self._max_threshold))
+            stuck_at_min = float(np.mean(sample_predictions <= self._min_threshold))
+            
+            is_stuck = (stuck_at_max >= self._stuck_fraction_threshold) or \
+                        (stuck_at_min >= self._stuck_fraction_threshold)
+            stuck_type = "max" if stuck_at_max >= stuck_at_min else "min"
+            stuck_fraction = max(stuck_at_max, stuck_at_min)
+            
+            if is_stuck:
+                self._consecutive_stuck_epochs += self._check_interval
+                info(f"Epoch {epoch}: {stuck_fraction:.2%} of predictions stuck at {stuck_type}. " +
+                        f"Consecutive stuck epochs: {self._consecutive_stuck_epochs}/{self._max_stuck_epochs}")
                 
-                # Check if most predictions are stuck at max or min
-                stuck_at_max = float(np.mean(sample_predictions >= self._max_threshold))
-                stuck_at_min = float(np.mean(sample_predictions <= self._min_threshold))
-                
-                is_stuck = (stuck_at_max >= self._stuck_fraction_threshold) or \
-                            (stuck_at_min >= self._stuck_fraction_threshold)
-                stuck_type = "max" if stuck_at_max >= stuck_at_min else "min"
-                stuck_fraction = max(stuck_at_max, stuck_at_min)
-                
-                if is_stuck:
-                    self._consecutive_stuck_epochs += self._check_interval
-                    info(f"Epoch {epoch}: {stuck_fraction:.2%} of predictions stuck at {stuck_type}. " +
-                            f"Consecutive stuck epochs: {self._consecutive_stuck_epochs}/{self._max_stuck_epochs}")
-                    
-                    if self._consecutive_stuck_epochs >= self._max_stuck_epochs:
-                        info(f"Resetting model weights after {self._consecutive_stuck_epochs} consecutive stuck epochs")
-                        self._consecutive_stuck_epochs = 0
-                        pl_module._initialize_weights()
-                else:
-                    if self._consecutive_stuck_epochs > 0:
-                        info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
+                if self._consecutive_stuck_epochs >= self._max_stuck_epochs:
+                    warning(f"Resetting model parameters after {self._consecutive_stuck_epochs} consecutive stuck epochs")
                     self._consecutive_stuck_epochs = 0
+                    pl_module._initialize_parameters()
+            else:
+                if self._consecutive_stuck_epochs > 0:
+                    info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
+                self._consecutive_stuck_epochs = 0
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -294,23 +293,23 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self,
         data: DataSet,
         target: npt.NDArray,
-        sample_weights: npt.NDArray,
+        weights: npt.NDArray,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Convert DataSet and target to tensors on the correct device."""
         x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
         y_tensor = torch.tensor(target, dtype=torch.float32, device=self.device)
-        sample_weights_tensor = torch.tensor(sample_weights, dtype=torch.float32, device=self.device)
-        return x_tensor, y_tensor, sample_weights_tensor
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
+        return x_tensor, y_tensor, weights_tensor
 
     def _create_data_loader(
         self,
         x_tensor: torch.Tensor,
         y_tensor: torch.Tensor,
-        sample_weights_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
     ) -> DataLoader:
         """Create a DataLoader for the training data."""
         batch_size = self._config.train__batch_size
-        dataset = TensorDataset(x_tensor, y_tensor, sample_weights_tensor)
+        dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
         return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -322,36 +321,34 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
 
         # Check for NaN/Inf
         if torch.any(~torch.isfinite(predictions)):
-            raise ValueError("Prediction contains NaN or Inf values")
+            raise ValueError(f"Prediction contains NaN or Inf values on epoch {self.current_epoch}")
 
         # Compute loss
-        batch_loss = self.ddp_symmetrized_loss(batch_y, predictions)
+        batch_loss = self.ddp_symmetrized_loss(
+            batch_y,
+            predictions,
+        )
         
         # Apply sample weights
         weighted_loss = (batch_loss * batch_weights).mean()
-
-        if torch.any(~torch.isfinite(weighted_loss)):
-            raise ValueError("Loss contains NaN or Inf values")
-
         self.log("loss", weighted_loss, prog_bar=True)
         return weighted_loss
     
     def on_train_epoch_end(self) -> None:
         """Called at the end of training epoch - compute full metrics."""
-        if self._train_data is not None and self._train_target is not None:
-            with torch.no_grad():
-                full_predictions = self(self._train_data, training=False)
-                metrics = self._calculate_metrics(self._train_target, full_predictions)
-            
-            logs = {'loss': self.trainer.callback_metrics.get('loss', 0.0)}
-            logs.update(metrics)
-            self._on_epoch_end(self.current_epoch, logs)
-            
-            # Store in training history
-            for key, value in logs.items():
-                if key not in self._training_history:
-                    self._training_history[key] = []
-                self._training_history[key].append(value)
+        with torch.no_grad():
+            full_predictions = self(self._train_data, training=False)
+            metrics = self._calculate_metrics(self._train_target, full_predictions)
+        
+        logs = {'loss': self.trainer.callback_metrics.get('loss', 0.0)}
+        logs.update(metrics)
+        self._on_epoch_end(self.current_epoch, logs)
+        
+        # Store in training history
+        for key, value in logs.items():
+            if key not in self._training_history:
+                self._training_history[key] = []
+            self._training_history[key].append(value)
 
     def _calculate_metrics(
         self,
@@ -395,7 +392,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self,
         data: DataSet,
         target: npt.NDArray,
-        sample_weights: npt.NDArray,
+        weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
         """
         Training loop using PyTorch Lightning.
@@ -403,14 +400,14 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         Args:
             data: Training DataSet object
             target: Target labels array
-            sample_weights: Sample weight array
+            weights: Sample weight array
             callbacks: Optional list of Lightning callbacks
         
         Returns:
             Dictionary with training history
         """
         # Store training data for metrics computation
-        self._train_data, self._train_target, self._train_weights = self._prepare_training_data(data, target, sample_weights)
+        self._train_data, self._train_target, self._train_weights = self._prepare_training_data(data, target, weights)
 
         # Prepare data loader
         dataloader = self._create_data_loader(self._train_data, self._train_target, self._train_weights)
@@ -451,8 +448,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                 predictions = self(x_tensor, training=False)
             return predictions.cpu().numpy()
 
-    def save_weights(self, file_path) -> None:
-        """Save PyTorch model weights to file."""
+    def save_parameters(self, file_path) -> None:
+        """Save PyTorch model parameters to file."""
         torch.save(self.state_dict(), file_path)
 
 
@@ -491,7 +488,7 @@ def calc_t_LFVNN(
     tau_model_history = tau_model.fit(
         data=feature_dataset,
         target=target_structure,
-        sample_weights=loss_weights,
+        weights=loss_weights,
     )
     
     info(f'Training time (seconds): {time() - t0}')
