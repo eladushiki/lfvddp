@@ -23,7 +23,7 @@ def submit_process(context: ExecutionContext) -> None:
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
     
     # Step 1: Build (or re-build) a container (if needed)
-    if not context.is_no_build:
+    if not context.is_no_build and not context.is_only_train:
         build_job_id = submit_container_build(context=context)
     else:
         build_job_id = None
@@ -48,6 +48,10 @@ def submit_process(context: ExecutionContext) -> None:
         number_of_jobs=context.config.cluster__qsub_n_jobs,
         dependent_on_jobid=build_job_id,
     )
+
+    if context.is_only_train:
+        return
+    
     plot_jobid = submit_command(
         context=context,
         command=plot_cmd,
