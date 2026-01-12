@@ -53,6 +53,10 @@ def parse_config_from_args() -> tuple[list[Any], Namespace]:
         help="Do not build the container before running. Useful for debug, prone to errors.", dest="no_build"
     )
     parser.add_argument(
+        "--only-train", action="store_true",
+        help="Only run the training step, skipping building and plotting steps.", dest="only_train"
+    )
+    parser.add_argument(
         "--out-dir", type=str,
         help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
@@ -113,7 +117,7 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
             args.out_dir,
             args.plot_in_place
         )
-        with version_controlled_execution_context(config, argv, args) as context:
+        with version_controlled_execution_context(config, config_paths, argv, args) as context:
             function(*inner_args, **inner_kwargs, context=context)
 
     return context_controlled_function
