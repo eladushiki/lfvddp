@@ -103,6 +103,7 @@ sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
 
 # Build from the customized definition file
 echo "Building container..."
+rm -f {project_name}.sif || true
 {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
 
 # Copy the built SIF back to submission directory

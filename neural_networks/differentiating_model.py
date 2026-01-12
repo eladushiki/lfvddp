@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import gc
 from logging import info, debug, warning
+from pathlib import Path
 from time import time
 from typing import Dict, List, Tuple, Union
 import numpy as np
@@ -59,6 +59,10 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._train_target = None
         self._train_weights = None
         self._training_history = {}
+        
+        # Track minimum loss for checkpointing
+        self._min_loss = float('inf')
+        self._best_model_path = None
 
     def _build_layers(self):
         # Fully connected 2-layer network:
@@ -94,15 +98,18 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         This is the single source of truth for weight initialization.
         Assumes 2-layer network (1 hidden layer).
         """
+        # Use Xavier uniform with reduced gain parameter (0.5) for smaller initial values
+        gain = 0.1
+        
         # Layer 0: Input to hidden
         hidden_layer = self.network[0]
-        nn.init.kaiming_normal_(hidden_layer.weight, mode='fan_in', nonlinearity='leaky_relu')
-        nn.init.xavier_uniform_(hidden_layer.bias.view(-1, 1))
+        nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
+        nn.init.xavier_uniform_(hidden_layer.bias.view(-1, 1), gain=gain)
         
         # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
         output_layer = self.network[2]
-        nn.init.xavier_uniform_(output_layer.weight)
-        nn.init.xavier_uniform_(output_layer.bias.view(-1, 1))
+        nn.init.xavier_uniform_(output_layer.weight, gain=gain)
+        nn.init.xavier_uniform_(output_layer.bias.view(-1, 1), gain=gain)
 
         # Handle detector nuisances separately
         if self._config.train__data_is_train_for_nuisances:
@@ -277,6 +284,35 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                     info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
                 self._consecutive_stuck_epochs = 0
 
+    class BestLossCheckpointCallback(Callback):
+        """Save model checkpoint whenever a lower weighted loss is achieved."""
+
+        def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: 'DifferentiatingModel') -> None:
+            """Called at the end of each training epoch."""
+            current_loss = trainer.callback_metrics.get('loss')
+            
+            if current_loss is not None:
+                current_loss = float(current_loss)
+                
+                if current_loss < pl_module._min_loss:
+                    # Delete previous best checkpoint if it exists
+                    if pl_module._best_model_path is not None:
+                        Path(pl_module._best_model_path).unlink()
+                        debug(f"Deleted previous best checkpoint: {pl_module._best_model_path}")
+                    
+                    pl_module._min_loss = current_loss
+                    # Save new best checkpoint
+                    checkpoint_path = pl_module._get_best_checkpoint_path(trainer.current_epoch)
+                    trainer.save_checkpoint(checkpoint_path)
+                    pl_module._best_model_path = checkpoint_path
+                    info(f"New best loss {current_loss:.6f} at epoch {trainer.current_epoch}. "
+                         f"Checkpoint saved: {checkpoint_path}")
+
+    def _get_best_checkpoint_path(self, epoch: int) -> str:
+        """Generate path for best model checkpoint."""
+        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
+        return str(tensorboard_log_dir / f"best_model_epoch_{epoch}.ckpt")
+
     @contextmanager
     def binning_context(self, data: DataSet):
         try:
@@ -308,7 +344,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         weights_tensor: torch.Tensor,
     ) -> DataLoader:
         """Create a DataLoader for the training data."""
-        batch_size = self._config.train__batch_size
+        batch_size = x_tensor.shape[0] if self._config.train__batch_size is None else self._config.train__batch_size
         dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
         return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -385,7 +421,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                 min_threshold=MIN_PREDICTION_CUTOFF + 0.5,
                 stuck_fraction_threshold=0.5,
                 check_interval=100,
-            )
+            ),
+            self.BestLossCheckpointCallback(),
         ]
 
     def fit(
@@ -452,6 +489,15 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         """Save PyTorch model parameters to file."""
         torch.save(self.state_dict(), file_path)
 
+    def load_best_checkpoint(self) -> None:
+        """Load the best checkpoint found during training if one exists."""
+        if self._best_model_path is not None:
+            info(f"Loading best model from checkpoint: {self._best_model_path}")
+            checkpoint = torch.load(self._best_model_path, map_location=self.device, weights_only=False)
+            self.load_state_dict(checkpoint['state_dict'])
+        else:
+            warning("No best checkpoint found. Using current model state.")
+
 
 def calc_t_LFVNN(
         context: ExecutionContext,
@@ -492,12 +538,16 @@ def calc_t_LFVNN(
     )
     
     info(f'Training time (seconds): {time() - t0}')
+    
+    # Load the best checkpoint found during training
+    tau_model.load_best_checkpoint()
 
     # PyTorch Lightning loss is already the sum over batch samples.
-    # We need to rescale to get the correct t-statistic.
+    # We need to rescale to get the correct t-statistic using the minimum loss achieved.
     total_weight = np.sum(loss_weights)
-    final_loss = tau_model_history[HistoryKeys.LOSS.value][-1] * total_weight
-    final_test_statistic = calc_t_test_statistic(final_loss)
+    min_loss = tau_model._min_loss * total_weight
+    final_test_statistic = calc_t_test_statistic(min_loss)
+    info(f'Minimum weighted loss achieved: {min_loss:.6f}')
     info(f'Observed t test statistic: {final_test_statistic}')
     
     save_training_outcomes(
