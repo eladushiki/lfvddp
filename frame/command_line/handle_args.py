@@ -117,7 +117,7 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
             args.out_dir,
             args.plot_in_place
         )
-        with version_controlled_execution_context(config, argv, args) as context:
+        with version_controlled_execution_context(config, config_paths, argv, args) as context:
             function(*inner_args, **inner_kwargs, context=context)
 
     return context_controlled_function
