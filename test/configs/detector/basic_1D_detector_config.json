@@ -1,6 +1,7 @@
 {
     "detector__detect_observable_names": [
-        "param_0"
+        "param_0",
+        "param_1"
     ],
     "detector__binning_minima": 0,
     "detector__binning_maxima": 10,
