@@ -6,7 +6,7 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
-from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel
+from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel, contour_model_prediction
 import numpy as np
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -506,7 +506,7 @@ def plot_prediction_process_sliced(
     
     c = Carpenter(context)
     fig = c.figure()
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
 
     bins, bin_centers = config.observable_bins(along_observable)
 
@@ -545,4 +545,15 @@ def plot_prediction_process_sliced(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.legend()
+    
+    # Add contour model prediction subplot at the bottom
+    ax_bottom = fig.add_subplot(212)
+    x_range, contour = contour_model_prediction(context, trained_tau_model, along_observable)
+    contour *= (experiment_sample.corrected_n_samples / reference_sample.corrected_n_samples)
+    ax_bottom.plot(x_range, contour, color='cyan', linewidth=2, label='tau contour prediction')
+    ax_bottom.set_xlabel(xlabel)
+    ax_bottom.set_ylabel('Model Output')
+    ax_bottom.legend()
+    ax_bottom.axhline(y=1/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    
     return fig
