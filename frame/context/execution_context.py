@@ -79,6 +79,7 @@ def create_config_from_paramters(
 class ExecutionContext:
     commit_hash: str
     config: UserConfig
+    config_paths: List[Path]
     command_line_args: List[str]
     run_hash: Optional[str] = None
     time: str = get_time_and_date_string()
@@ -204,6 +205,7 @@ class ExecutionContext:
 @contextmanager
 def version_controlled_execution_context(
     config: UserConfig,
+    config_paths: List[Path],
     command_line_args: List[str],
     args: Namespace,
 ):
@@ -219,6 +221,7 @@ def version_controlled_execution_context(
     context = ExecutionContext(
         get_commit_hash(),
         config,
+        config_paths,
         command_line_args,
         is_debug_mode=args.debug,
         is_no_build=args.no_build,
