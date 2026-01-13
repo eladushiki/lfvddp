@@ -7,7 +7,7 @@ from frame.context.execution_context import ExecutionContext
 class DataGeneration:
 
     _instance = None
-    _loaded_datasets: Dict[str, DataSet] = {}
+    _loaded_datasets: Dict[str, Tuple[DataSet, DataSet]] = {}
 
     def __new__(cls, context: ExecutionContext):
         if cls._instance is None:
@@ -18,52 +18,53 @@ class DataGeneration:
     def __init__(self, context: ExecutionContext):
         self._context = context
         self._config: DatasetConfig = context.config
-        self._datasets: Dict[str, DataSet] = {}
 
     def __getitem__(self, item: str) -> Tuple[DataSet, DatasetParameters]:
-        # Lazily create datasets
-        try:
-            return self._datasets[item], self._config.get_parameters(item)
-        except KeyError:
-            pass 
-
         try:
             dataset_parameters = self._config.get_parameters(item)
-            self._datasets[item] = self.__create_dataset(dataset_parameters, name=item)
-            return self._datasets[item], dataset_parameters
+            dataset = self.__retrieve_dataset(dataset_parameters, name=item)
+            return dataset, dataset_parameters
 
         except KeyError:
             raise KeyError(f"Dataset '{item}' not found in the configuration.")
 
-    def __create_dataset(self, dataset_parameters: DatasetParameters, name: str) -> DataSet:
+    def __retrieve_dataset(self, dataset_parameters: DatasetParameters, name: str) -> DataSet:
         """
-        Implements mechanisms of different datasets while holding global state for them.
+        Implements loading, generation and resampling of different datasets while holding global
+        state for them.
+        Signal and background numbers of events are kept as specified and are resampled
+        separately if needed.
         """
         # In case of a generated dataset, just generate the data
         if isinstance(dataset_parameters, GeneratedDatasetParameters):
-            loaded_data = dataset_parameters.dataset__data
+            background_data, signal_data = dataset_parameters.dataset__data
             
         # In case of a loaded dataset, we keep track of the remaining data to enable resampling mechanism
         elif isinstance(dataset_parameters, LoadedDatasetParameters):
             try:
-                loaded_data = self._loaded_datasets[dataset_parameters.dataset_loaded__file_name]
+                background_data, signal_data = self._loaded_datasets[dataset_parameters.name]
             except KeyError:
-                loaded_data = dataset_parameters.dataset__data
+                background_data, signal_data = dataset_parameters.dataset__data
+                self._loaded_datasets[dataset_parameters.name] = (background_data, signal_data)
             
-            if loaded_data.n_samples < dataset_parameters.dataset__number_of_background_events:
-                raise ValueError(f"Loaded dataset has only {loaded_data.n_samples} samples, "\
-                    f"but requested {dataset_parameters.dataset__number_of_background_events} samples.")
+            if background_data.n_samples < dataset_parameters.dataset__number_of_background_events:
+                raise ValueError(f"Loaded dataset {dataset_parameters.name} has only {background_data.n_samples} "\
+                    f"samples left, but requested {dataset_parameters.dataset__number_of_background_events} samples.")
             
             if dataset_parameters.dataset_loaded__resample_is_resample:
-                loaded_data, self._loaded_datasets[dataset_parameters.dataset_loaded__file_name] = ddp_resample(
-                    loaded_data,
+                background_data, background_remainder = ddp_resample(
+                    background_data,
                     dataset_parameters.dataset__number_of_background_events,
                     replacement=dataset_parameters.dataset_loaded__resample_is_replacement,
                 )
-            else:
-                self._loaded_datasets[dataset_parameters.dataset_loaded__file_name] = loaded_data
+                signal_data, signal_remainder = ddp_resample(
+                    signal_data,
+                    dataset_parameters.dataset__number_of_signal_events,
+                    replacement=dataset_parameters.dataset_loaded__resample_is_replacement,
+                )
+                self._loaded_datasets[dataset_parameters.name] = (background_remainder, signal_remainder)
             
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
 
-        return loaded_data
+        return background_data + signal_data

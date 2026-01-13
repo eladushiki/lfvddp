@@ -3,9 +3,10 @@ from typing import List, Optional
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from data_tools.detector.detector_config import DetectorConfig
+from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background
 from frame.aggregate import ResultAggregator
 from frame.file_structure import CONTEXT_FILE_NAME
-from neural_networks.utils import predict_sample_ndf_hypothesis_weights
+from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel, contour_model_prediction
 import numpy as np
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -14,10 +15,11 @@ from matplotlib import patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2
-from tensorflow.keras.models import Model  # type: ignore
+import torch.nn as nn
 
 from frame.context.execution_context import ExecutionContext
 from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__get_signal_dataset_parameters, utils__sample_over_background_histograms_sliced
+from train.train_utils import model_degrees_of_freedom
 from train.train_config import TrainConfig
 
 
@@ -68,9 +70,9 @@ def t_train_percentile_progression_plot(
     
     # chi2 reference
     for j in range(percentiles.shape[0]):
-        plt.plot(epochs, chi2.ppf(quantiles[j] / 100., df=config.train__nn_degrees_of_freedom, loc=0, scale=1)*np.ones_like(epochs),
+        plt.plot(epochs, chi2.ppf(quantiles[j] / 100., df=model_degrees_of_freedom(config), loc=0, scale=1)*np.ones_like(epochs),
                 color=colors[j], ls='--', linewidth=1)
-        if j==0: legend.append("Target "+r"$\chi^2($"+str(config.train__nn_degrees_of_freedom)+")")
+        if j==0: legend.append("Target "+r"$\chi^2($"+str(model_degrees_of_freedom(config))+")")
 
     # Labeling
     plt.title(r"$\chi^2$ percentile progression", fontsize=24)
@@ -94,6 +96,7 @@ def t_train_percentile_progression_plot(
 def t_distribution_plot(
         context: ExecutionContext,
         number_of_bins: int,
+        cut_non_converged: bool = True,
     ) -> Figure:
     '''
     Plot the histogram of a test statistics sample (t) and the target chi2 distribution. 
@@ -103,6 +106,8 @@ def t_distribution_plot(
         raise ValueError(f"Expected context.config to be of type {PlottingConfig}, got {type(config)}")
     if not isinstance(config, TrainConfig):
         raise ValueError(f"Expected context.config to be of type {TrainConfig}, got {type(config)}")
+    if not isinstance(config, DetectorConfig):
+        raise ValueError(f"Expected context.config to be of type {DetectorConfig}, got {type(config)}")
     style = config.plot__figure_styling["plot"]
 
     # Figure
@@ -113,35 +118,46 @@ def t_distribution_plot(
     agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
     t = agg.all_t_values
 
+    # Convergence statistics
+    fifth_percentile = np.percentile(t, 5)
+    critical_mass_t = t > fifth_percentile
+    distribution_std = np.std(t[critical_mass_t])
+    distribution_mean = np.mean(t[critical_mass_t])
+    n_std = 6
+    did_not_converge = t < (distribution_mean - n_std * distribution_std) \
+        + agg.nan_t_values
+    if cut_non_converged:
+        t = t[~did_not_converge]
+
     # Limits
-    chi2_begin = chi2.ppf(0.0001, chi2_dof := config.train__nn_degrees_of_freedom)
+    chi2_begin = chi2.ppf(0.0001, chi2_dof := model_degrees_of_freedom(config))
     chi2_end = chi2.ppf(0.9999, chi2_dof)
-    xmin = max([min([np.min(t), chi2_begin]), 0])
-    xmax = max([np.percentile(t, 95), chi2_end])
+    xmin = min(t)
+    xmax = max(t)
 
     # plot distribution histogram
-    bins      = np.linspace(xmin, xmax, number_of_bins + 1)
-    bin_width = (xmax - xmin) * 1./number_of_bins
+    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
+    histogram_bin_width = (xmax - xmin) * 1./number_of_bins
+    histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label     = f"median: {str(np.around(np.median(t), 2))} \n" \
-                f"std: {str(np.around(np.std(t), 2))}"
-    if (n_nans := agg.nan_t_values) > 0:
-        label += f"\nDid not converge: {n_nans / t.size * 100:.2f}%"
+                f"mean: {str(np.around(distribution_mean, 2))} \n" \
+                f"std: {str(np.around(distribution_std, 2))}"
+    if did_not_converge.sum() > 0:
+        label += f"\ndid not converge: {did_not_converge.sum() / t.size * 100:.2f}%"
         
-    h = ax.hist(
+    h, _, _ = ax.hist(
         t,
-        weights=np.ones_like(t)*1./(t.shape[0]*bin_width),
+        weights=np.ones_like(t)*1./(t.shape[0]),
         color=style["histogram_color"],
         ec=style["edge_color"],
-        bins=bins,
+        bins=histogram_bins,
         label=label,
     )
     
-    y_error     = np.sqrt(h[0] / (t.shape[0] * bin_width))
-    bin_centers = 0.5 * (bins[1:] + bins[:-1])
-    
+    y_error = np.sqrt(h / (t.shape[0] * histogram_bin_width))
     ax.errorbar(
-        bin_centers,
-        h[0],
+        histogram_bin_centers,
+        h,
         yerr=y_error,
         color=style["edge_color"],
         marker='o', 
@@ -149,15 +165,15 @@ def t_distribution_plot(
     )
 
     # plot reference chi2
-    bin_centers  = np.linspace(
+    chi2_bin_centers  = np.linspace(
         chi2_begin,
         chi2_end,
         1000
     )
 
     ax.plot(
-        bin_centers,
-        chi2.pdf(bin_centers, chi2_dof),
+        chi2_bin_centers,
+        chi2.pdf(chi2_bin_centers, chi2_dof),
         style["chi2_color"],
         linewidth=style["linewidth"],
         alpha=style["alpha"],
@@ -170,7 +186,7 @@ def t_distribution_plot(
     
     ax.legend(
         (circ, rect1),
-        (label, f'$\chi^{2}_{{{config.train__nn_degrees_of_freedom}}}$'),
+        (label, f'$\chi^{2}_{{{chi2_dof}}}$'),
         handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),
@@ -183,8 +199,9 @@ def t_distribution_plot(
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel('t', fontsize=22, labelpad=20)
     ax.set_ylabel('Bin Probability', fontsize=22, labelpad=20)
-    ax.set_ylim(0, 0.1)
-    plt.yticks([0.03, 0.06, 0.09])
+    ax.set_ylim(0, top=max(h + y_error))
+    ax.set_xlim(xmin, xmax)
+    plt.yticks()
     plt.xticks()
 
     return fig
@@ -221,8 +238,6 @@ def performance_plot(
     background_config: DatasetConfig = background_context.config
     for background_dataset_name in background_config._dataset__names:
         background_dataset_properties: DatasetParameters = background_config._dataset__parameters(background_dataset_name)
-        assert isinstance(background_dataset_properties, GeneratedDatasetParameters), \
-            f"performance plot possible only for generated datasets, got {background_dataset_properties.type}"
         assert background_dataset_properties.dataset__number_of_signal_events == 0, \
             f"background dataset expected to have only background events, {background_dataset_name} has {background_dataset_properties.dataset__number_of_signal_events} signal events"
 
@@ -234,6 +249,7 @@ def performance_plot(
     ## The analytic calculation of significance based on input parameters, by eq. (33) in the last paper
     mean_injected_significances = []
     injected_significance_stds = []
+    mean_signal_strengths = []
 
     ## The significance by the observed chance to generate an equal or larger t value had this been a 
     ## background only dataset, and confidence bounds
@@ -254,16 +270,20 @@ def performance_plot(
 
         # Calculate the injected significance centers using the mean number of events.
         # Those are before introducting poisson fluctuations.
-        mean_injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
-            background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-            signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-            n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-            n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-            upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
-        ))
-        injected_significance_stds.append(np.std(
-            signal_agg.all_injected_significances
-        ))
+        if isinstance(signal_dataset_parameters, GeneratedDatasetParameters):
+            mean_injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
+                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
+            ))
+            injected_significance_stds.append(np.std(
+                signal_agg.all_injected_significances
+            ))
+        else:
+            mean_signal_strengths.append(signal_dataset_parameters.dataset__number_of_signal_events)
+            injected_significance_stds.append(0.0)
 
         # Calculate observed significance and +-1 sigma confidence interval
         observed_significances.append(
@@ -287,8 +307,15 @@ def performance_plot(
         ))
 
     # Sort all results by injected significance    
-    sort = np.argsort(np.array(mean_injected_significances))
-    mean_injected_significances = np.array(mean_injected_significances)[sort]
+    if mean_injected_significances:
+        sort = np.argsort(np.array(mean_injected_significances))
+        mean_injected_significances = np.array(mean_injected_significances)[sort]
+        plot_x = mean_injected_significances
+        x_label = r'injected $\sqrt{q_0}$'
+    else:
+        sort = np.argsort(np.array(mean_signal_strengths))
+        plot_x = np.array(mean_signal_strengths)[sort]
+        x_label = r'mean signal number of events'
     injected_significance_stds = np.array(injected_significance_stds)[sort]
     observed_significances = np.array(observed_significances)[sort]
     observed_significances_lower_confidence_bounds = np.array(observed_significances_lower_confidence_bounds)[sort]
@@ -308,8 +335,13 @@ def performance_plot(
         observed_significances_upper_confidence_bounds[np.isfinite(observed_significances_upper_confidence_bounds)],
         observed_significances_by_gaussian_fit[np.isfinite(observed_significances_by_gaussian_fit)],
     ])
-    min_x = max(min(mean_injected_significances) - graph_border, 0)
-    max_x = max(mean_injected_significances) + graph_border
+
+    if mean_injected_significances:
+        min_x = max(min(mean_injected_significances) - graph_border, 0)
+        max_x = max(mean_injected_significances) + graph_border
+    else:
+        min_x = max(min(mean_signal_strengths) - graph_border, 0)
+        max_x = max(mean_signal_strengths) + graph_border
     min_y = max(min(clean_y_significances) - graph_border, 0)
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x,max_x)
@@ -318,10 +350,10 @@ def performance_plot(
     # Plots
     colors = plt.get_cmap('cool')
     
-    ax.plot(mean_injected_significances, observed_significances_by_gaussian_fit, color=colors(0.75), linewidth=2, linestyle='--', label="gaussian fit significance")
-    ax.plot(mean_injected_significances, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
+    ax.plot(plot_x, observed_significances_by_gaussian_fit, color=colors(0.75), linewidth=2, linestyle='--', label="gaussian fit significance")
+    ax.plot(plot_x, observed_significances, color=colors(0.5), label="observed significance", linewidth=2)
     ax.fill_between(
-        mean_injected_significances,
+        plot_x,
         np.clip(observed_significances_lower_confidence_bounds, a_min=0, a_max=max_y),
         np.clip(observed_significances_upper_confidence_bounds, a_min=0, a_max=max_y),
         color=colors(1),
@@ -331,13 +363,13 @@ def performance_plot(
 
     # Error bars
     ax.errorbar(
-        mean_injected_significances,
+        plot_x,
         observed_significances,
         xerr=injected_significance_stds,
     )
     
     # Texting
-    ax.set_xlabel(r'injected $\sqrt{q_0}$', fontsize=21)
+    ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel('measured significance', fontsize=21)
     ax.set_title("measured vs injected signal significance", fontsize=24)
     legend = ax.legend(loc='lower right', fontsize=20, fancybox=True, frameon=False)
@@ -441,8 +473,8 @@ def plot_prediction_process_sliced(
         context: ExecutionContext,
         experiment_sample: DataSet,
         reference_sample: DataSet,
-        trained_tau_model: Model,
-        trained_delta_model: Optional[Model],
+        trained_tau_model: ContextedModel,
+        trained_delta_model: Optional[ContextedModel],
         title="Datasets Along the Process",
         along_observable: Optional[str] = None,
         sample_legend="training sample (det. reconstructed)",
@@ -474,7 +506,7 @@ def plot_prediction_process_sliced(
     
     c = Carpenter(context)
     fig = c.figure()
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
 
     bins, bin_centers = config.observable_bins(along_observable)
 
@@ -513,4 +545,15 @@ def plot_prediction_process_sliced(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.legend()
+    
+    # Add contour model prediction subplot at the bottom
+    ax_bottom = fig.add_subplot(212)
+    x_range, contour = contour_model_prediction(context, trained_tau_model, along_observable)
+    contour *= (experiment_sample.corrected_n_samples / reference_sample.corrected_n_samples)
+    ax_bottom.plot(x_range, contour, color='cyan', linewidth=2, label='tau contour prediction')
+    ax_bottom.set_xlabel(xlabel)
+    ax_bottom.set_ylabel('Model Output')
+    ax_bottom.legend()
+    ax_bottom.axhline(y=1/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    
     return fig

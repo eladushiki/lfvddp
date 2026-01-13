@@ -15,7 +15,7 @@ def load_root_events(
     XRootD_url: Union[str, List[str]],
     tree_key: str = "Events",
     branch_names: List[str] = [],
-    observable_renames: Optional[Dict[str, str]] = None,
+    observable_renames: Dict[str, str] = {},
     cut: Optional[str] = None,
     aliases: Optional[Dict[str, str]] = None,
     start: int = 0,

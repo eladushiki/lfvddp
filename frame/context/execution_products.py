@@ -131,4 +131,4 @@ def products_from_stem(stem: str, directory: Path) -> List[Path]:
     """
     Searches all the files whose names start with the given stem in the given directory.
     """
-    return [f for f in directory.iterdir() if f.is_file() and f.stem.startswith(stem)]
+    return [f for f in directory.rglob("*") if f.is_file() and f.stem.startswith(stem)]

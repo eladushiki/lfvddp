@@ -57,3 +57,7 @@ class DetectorConfig:
         )
         bin_centers = 0.5 * (bins_edges[:-1] + bins_edges[1:])
         return bins_edges, bin_centers
+
+    @property
+    def detector__number_of_nuisance_parameters(self) -> int:
+        return sum(self.detector__binning_number_of_bins)

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Type, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
 from urllib.parse import urlparse
 
 from camel_converter import to_pascal
@@ -27,10 +27,11 @@ class DatasetParameters(ABC):
     type: str
 
     # Background parameters
-    dataset__mean_number_of_background_events: int
+    dataset__mean_number_of_background_events: int = field(default=None)
 
     # Signal parameters
     dataset__signal_data_generation_function: str = field(default="")
+    dataset__signal_number_of_events_to_generate: int = field(default=None)
     dataset__mean_number_of_signal_events: int = field(default=0)
     dataset__signal_parameters: Dict[str, Any] = field(default_factory=dict)
     
@@ -55,12 +56,14 @@ class DatasetParameters(ABC):
 
     @property
     @abstractmethod
-    def dataset__data(self) -> DataSet:
+    def dataset__data(self) -> Tuple[DataSet, DataSet]:
         pass
 
     def __post_init__(self):
         # Poisson distribution of event numbers per run given mean
         if not self.dataset__number_of_background_events:
+            assert self.dataset__mean_number_of_background_events is not None, \
+                "Number of background events must be defined in the configuration, either directly or via mean."
             self.dataset__number_of_background_events = np.random.poisson(
                 lam=self.dataset__mean_number_of_background_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
@@ -71,6 +74,11 @@ class DatasetParameters(ABC):
                 lam=self.dataset__mean_number_of_signal_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
+        if self.dataset__signal_number_of_events_to_generate:
+            assert self.dataset__signal_number_of_events_to_generate >= self.dataset__number_of_signal_events, \
+                f"Not sufficient number of signal events to generate for signal with {self.dataset__signal_number_of_events_to_generate} events."
+        else:
+            self.dataset__signal_number_of_events_to_generate = self.dataset__number_of_signal_events
     
     @property
     @abstractmethod
@@ -122,7 +130,7 @@ class LoadedDatasetParameters(DatasetParameters):
     dataset_loaded__event_amount_load_limit: Optional[int] = field(default=None)
 
     # Names of observables to load should be defined by the convension {name_in_dataset: name_in_program}
-    dataset_loaded__observable_naming: Dict[str, str] = field(default=None)
+    dataset_loaded__observable_naming: Dict[str, str] = field(default_factory=dict)
 
     # Tampering mechanics
     dataset_loaded__cut: Optional[str] = field(default=None)
@@ -145,7 +153,7 @@ class LoadedDatasetParameters(DatasetParameters):
         return len(self.dataset_loaded__observable_naming)
 
     @property
-    def dataset__data(self) -> DataSet:
+    def dataset__data(self) -> Tuple[DataSet, DataSet]:
         """
         Load the data from the specified file, and update the internal
         state of loaded data to match resampling settings.
@@ -155,10 +163,11 @@ class LoadedDatasetParameters(DatasetParameters):
             self.dataset_loaded__event_amount_load_limit
         )
         signal = self._dataset__signal_distribution.generate_amount(
-            amount=self.dataset__number_of_signal_events,
+            amount=self.dataset__signal_number_of_events_to_generate,
         )
-        signal.observable_names = background.observable_names
-        return background + signal
+        if not signal.empty:
+            signal.observable_names = background.observable_names
+        return background, signal
         
     def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
         """
@@ -217,13 +226,15 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
     
+    dataset_generated__number_of_dimensions: int = field(default=1)
+
     @property
     def dataset__number_of_dimensions(self) -> int:
-        return self._dataset__number_of_dimensions
+        return self.dataset_generated__number_of_dimensions
 
     @dataset__number_of_dimensions.setter
     def dataset__number_of_dimensions(self, value: int) -> None:
-        self._dataset__number_of_dimensions = value
+        self.dataset_generated__number_of_dimensions = value
     
     # Additional background parameters
     # This is the defining attribute for the subclass
@@ -240,7 +251,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
 
         distribution_class = _retrieve_from_module(background, class_name)
         
-        return distribution_class(self.dataset__number_of_dimensions, **self.dataset_generated__background_parameters)
+        return distribution_class(self.dataset__number_of_dimensions)
 
     @property
     def dataset_generated__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
@@ -249,14 +260,15 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
         )
 
     @property
-    def dataset__data(self) -> DataSet:
+    def dataset__data(self) -> Tuple[DataSet, DataSet]:
         background = self.__dataset_generated__background_distribution.generate_amount(
             amount=self.dataset__number_of_background_events,
+            **self.dataset_generated__background_parameters,
         )
         signal = self._dataset__signal_distribution.generate_amount(
-            amount=self.dataset__number_of_signal_events,
+            amount=self.dataset__signal_number_of_events_to_generate,
         )
-        return background + signal
+        return background, signal
     
     def __post_init__(self):
         super().__post_init__()

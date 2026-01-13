@@ -2,6 +2,7 @@ from data_tools.data_utils import DataSet
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 import numpy as np
+from scipy import stats
 
 # Namespace for background generating functions
 # classes defined here that inherit from DataDistribution
@@ -38,13 +39,27 @@ class GaussianBackground(DataDistribution):
             self, amount: int,
             domain_min: float = 0,
             domain_max: float = 100,
-            domain_granularity: int = 100000
+            domain_granularity: int = 100000,
+            mean: float = 0,
     ) -> DataSet:
-        return DataSet(np.random.multivariate_normal(
-            mean=np.zeros(self._number_of_dimensions),
-            cov=self._covariance_matrix,
-            size=amount,
-        ))
+        samples = []
+        for dim in range(self._number_of_dimensions):
+            # Create truncated normal distribution for each dimension
+            std_dev = np.sqrt(self._covariance_matrix[dim, dim])
+            a = (domain_min - mean) / std_dev
+            b = (domain_max - mean) / std_dev
+            
+            # Generate samples using truncated normal
+            dim_samples = stats.truncnorm.rvs(
+                a=a, b=b,
+                loc=mean,
+                scale=self._covariance_matrix[dim, dim]**0.5,
+                size=amount,
+            )
+            
+            samples.append(dim_samples)
+        
+        return DataSet(np.column_stack(samples))
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         k = self._number_of_dimensions

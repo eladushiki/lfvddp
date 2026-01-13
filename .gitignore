@@ -1,6 +1,9 @@
 # Python environment
 .venv/
 
+# Python tests
+.coverage
+
 # Python installation artifacts
 **.egg-info/
 **/__pycache__/
@@ -12,8 +15,12 @@
 *.gz
 *.toc
 
-# Singularity outputs
+# Keras graphing artifacts
+__autograph_generated_file*.py
+
+# Singularity
 *.sif
+lfvddp_sandbox/**
 
 # IDE
 .vscode/

@@ -48,13 +48,14 @@ def format_qsub_execution_script(
         context: ExecutionContext,
         command: str,
         array_jobs: Optional[int] = None,
+        use_gpu_if_needed: bool = True,
     ) -> str:
     config: ClusterConfig = context.config
 
     # Handle GPU line
     gpu_line = ""
-    if config.cluster__qsub_ngpus_for_train:
-        gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
+    if use_gpu_if_needed and config.cluster__qsub_ngpus_for_train:
+        gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
     singularity_bindings = ",".join([
         f"{Path(local_path).absolute()}:{container_path}"
@@ -96,13 +97,13 @@ cp $LFVDDP_DEF_PATH ./{project_name}.def
 # The commit hash is added as a comment to bust Singularity's layer cache
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
     -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
-    -e "s|CONTAINER_CONFIGS_DIR=.*|CONTAINER_CONFIGS_DIR=\"{container_configs_dir}\"|" \
     -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
     -e "s|# Cache-busting commit: PLACEHOLDER|# Cache-busting commit: {git_commit_hash}|" \
     {project_name}.def > {project_name}-edit.def
 
 # Build from the customized definition file
 echo "Building container..."
+rm -f {project_name}.sif || true
 {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
 
 # Copy the built SIF back to submission directory
@@ -111,6 +112,7 @@ cp {project_name}.sif $PBS_O_WORKDIR/
 # Create sandbox from SIF for faster execution
 echo "Creating sandbox from SIF for faster execution..."
 cd $PBS_O_WORKDIR
+rm -r {project_name}_sandbox || true
 {singularity_executable} build --sandbox {project_name}_sandbox {project_name}.sif
 
 if [ $? -ne 0 ]; then
