@@ -436,7 +436,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         return [
             EarlyStopping(
                 monitor=HistoryKeys.LOSS.value,
-                patience=100,
+                patience=10000,
                 verbose=True,
                 mode='min',
                 min_delta=1e-10,  # Detects improvements as small as 1e-10 for loss ~1e-7 scale
