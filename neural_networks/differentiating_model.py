@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.callbacks import Callback, EarlyStopping
 
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
@@ -121,8 +121,24 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._create_initial_parameters()
 
     def configure_optimizers(self):
-        """Configure optimizer for Lightning."""
-        return optim.Adam(self.parameters())
+        """Configure optimizer for Lightning with learning rate scheduling."""
+        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        
+        # Learning rate scheduler: reduce LR when loss plateaus
+        scheduler = {
+            'scheduler': optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode='min',
+                factor=0.5,
+                patience=50,
+                threshold=1e-6,
+                min_lr=1e-6
+            ),
+            'monitor': HistoryKeys.LOSS.value,
+            'interval': 'epoch',
+            'frequency': 1,
+        }
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
     def _gaussian_nuisance_nll(self, nuisance_value: torch.Tensor) -> torch.Tensor:
         """
@@ -337,14 +353,17 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
         return x_tensor, y_tensor, weights_tensor
 
+    def _get_batch_size(self, n_samples: int) -> int:
+        """Determine batch size - use config value or default to full dataset."""
+        return self._config.train__batch_size or n_samples
+
     def _create_data_loader(
         self,
         x_tensor: torch.Tensor,
         y_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
+        batch_size: int,
     ) -> DataLoader:
-        """Create a DataLoader for the training data."""
-        batch_size = x_tensor.shape[0] if self._config.train__batch_size is None else self._config.train__batch_size
         dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
         return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -415,6 +434,14 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def _get_callbacks(self) -> List[Callback]:
         """Get callbacks list, creating defaults if none provided."""
         return [
+            EarlyStopping(
+                monitor=HistoryKeys.LOSS.value,
+                patience=10000,
+                verbose=True,
+                mode='min',
+                min_delta=1e-10,  # Detects improvements as small as 1e-10 for loss ~1e-7 scale
+                check_finite=True,
+            ),
             self.ExtremePredictionResetCallback(
                 max_stuck_epochs=50,
                 max_threshold=MAX_PREDICTION_CUTOFF - 0.5,
@@ -446,8 +473,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Store training data for metrics computation
         self._train_data, self._train_target, self._train_weights = self._prepare_training_data(data, target, weights)
 
-        # Prepare data loader
-        dataloader = self._create_data_loader(self._train_data, self._train_target, self._train_weights)
+        # Calculate batch size and gradient accumulation
+        batch_size = self._get_batch_size(data.n_samples)
+        accumulate_grad_batches = (data.n_samples + batch_size - 1) // batch_size
+
+        # Prepare data loader with pre-calculated batch size
+        dataloader = self._create_data_loader(self._train_data, self._train_target, self._train_weights, batch_size)
 
         # Get callbacks
         callbacks_list = self._get_callbacks()
@@ -456,6 +487,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
         tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
 
+        # Use mixed precision (automatic fp16 casting) and optimized trainer settings
         trainer = pl.Trainer(
             max_epochs=self._config.train__epochs,
             callbacks=callbacks_list,
@@ -465,6 +497,11 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             ),
             enable_progress_bar=True,
             enable_model_summary=False,
+            precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
+            gradient_clip_val=1.0,  # Prevent gradient explosion
+            accumulate_grad_batches=accumulate_grad_batches,  # Accumulate over all batches per epoch
+            num_sanity_val_steps=0,  # Skip validation sanity check
+            log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
         )
 
         # Training with binning context
