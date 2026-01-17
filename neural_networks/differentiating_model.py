@@ -98,8 +98,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         This is the single source of truth for weight initialization.
         Assumes 2-layer network (1 hidden layer).
         """
-        # Use Xavier uniform with reduced gain parameter (0.5) for smaller initial values
-        gain = 0.1
+        # Use Xavier uniform with standard gain for better exploration of parameter space
+        gain = 1.0
         
         # Layer 0: Input to hidden
         hidden_layer = self.network[0]
@@ -122,19 +122,17 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
 
     def configure_optimizers(self):
         """Configure optimizer for Lightning with learning rate scheduling."""
-        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        # Use slightly higher initial learning rate to enable better exploration
+        optimizer = optim.Adam(self.parameters(), lr=1e-2, weight_decay=1e-5)
         
-        # Learning rate scheduler: reduce LR when loss plateaus
+        # Learning rate scheduler with warm restarts for periodically exploring new regions
         scheduler = {
-            'scheduler': optim.lr_scheduler.ReduceLROnPlateau(
+            'scheduler': optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 optimizer,
-                mode='min',
-                factor=0.5,
-                patience=50,
-                threshold=1e-6,
-                min_lr=1e-6
+                T_0=100,  # Initial period
+                T_mult=1.5,  # Multiply period after each restart
+                eta_min=1e-6,  # Minimum learning rate
             ),
-            'monitor': HistoryKeys.LOSS.value,
             'interval': 'epoch',
             'frequency': 1,
         }
@@ -399,6 +397,9 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         logs.update(metrics)
         self._on_epoch_end(self.current_epoch, logs)
         
+        # Log gradient diagnostics for loss landscape inspection
+        self._log_gradient_diagnostics()
+        
         # Store in training history
         for key, value in logs.items():
             if key not in self._training_history:
@@ -431,16 +432,55 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         
         return metrics
 
+    def _log_gradient_diagnostics(self) -> None:
+        """
+        Log gradient statistics to TensorBoard for loss landscape inspection.
+        Helps diagnose whether model is exploiting degrees of freedom effectively.
+        """
+        total_norm = 0.0
+        param_norms = {}
+        
+        for name, param in self.named_parameters():
+            if param.grad is not None:
+                param_grad_norm = torch.norm(param.grad).item()
+                param_norms[name] = param_grad_norm
+                total_norm += param_grad_norm ** 2
+        
+        total_norm = np.sqrt(total_norm)
+        
+        # Log aggregate gradient norm
+        self.log("gradient/total_norm", total_norm, prog_bar=False)
+        
+        # Log per-layer gradient norms
+        for name, norm in param_norms.items():
+            safe_name = name.replace(".", "/")
+            self.log(f"gradient/layer_{safe_name}", norm, prog_bar=False)
+        
+        # Log maximum and minimum gradient values
+        all_grads = torch.cat([param.grad.flatten() for param in self.parameters() if param.grad is not None])
+        self.log("gradient/max_value", torch.max(all_grads).item(), prog_bar=False)
+        self.log("gradient/min_value", torch.min(all_grads).item(), prog_bar=False)
+        self.log("gradient/mean_abs", torch.mean(torch.abs(all_grads)).item(), prog_bar=False)
+        self.log("gradient/std", torch.std(all_grads).item(), prog_bar=False)
+        
+        # Calculate gradient SNR (signal-to-noise ratio approximation)
+        # High SNR = making consistent progress, Low SNR = noise-dominated
+        mean_grad = torch.mean(all_grads).item()
+        std_grad = torch.std(all_grads).item()
+        snr = abs(mean_grad) / (std_grad + 1e-10)
+        self.log("gradient/snr", snr, prog_bar=False)
+
     def _get_callbacks(self) -> List[Callback]:
         """Get callbacks list, creating defaults if none provided."""
         return [
             EarlyStopping(
                 monitor=HistoryKeys.LOSS.value,
-                patience=100,
+                patience=10000,  # Allow very long training
                 verbose=True,
                 mode='min',
-                min_delta=1e-10,  # Detects improvements as small as 1e-10 for loss ~1e-7 scale
+                min_delta=1e-8,  # Loss could be in the order of 1e-8
                 check_finite=True,
+                stopping_threshold=None,  # No hard loss threshold
             ),
             self.ExtremePredictionResetCallback(
                 max_stuck_epochs=50,
@@ -498,8 +538,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             enable_progress_bar=True,
             enable_model_summary=False,
             precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
-            gradient_clip_val=1.0,  # Prevent gradient explosion
-            accumulate_grad_batches=accumulate_grad_batches,  # Accumulate over all batches per epoch
+            gradient_clip_val=5.0,  # More permissive gradient clipping to allow larger updates
+            accumulate_grad_batches=accumulate_grad_batches // 3,  # Process each batch individually for stochastic noise
             num_sanity_val_steps=0,  # Skip validation sanity check
             log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
         )
