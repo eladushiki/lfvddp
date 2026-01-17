@@ -14,6 +14,13 @@ __autograph_generated_file*.py
 # Singularity
 *.sif
 
+# TeX Processing artifacts
+*.aux
+*.pdf
+*.out
+*.gz
+*.toc
+
 # IDE
 .vscode/
 **.code-workspace

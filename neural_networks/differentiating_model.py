@@ -20,7 +20,6 @@ from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import MAX_PREDICTION_CUTOFF, MIN_PREDICTION_CUTOFF, ContextedModel, save_training_outcomes, get_model_logging_dir
 from train.train_config import TrainConfig
@@ -478,7 +477,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                 patience=10000,  # Allow very long training
                 verbose=True,
                 mode='min',
-                min_delta=1e-8,  # Loss could be in the order of 1e-8
+                min_delta=1e-9,  # Loss could be in the order of 1e-8
                 check_finite=True,
                 stopping_threshold=None,  # No hard loss threshold
             ),
