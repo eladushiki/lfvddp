@@ -1,4 +1,5 @@
 from os import mkdir
+from pathlib import Path
 from shutil import copy2
 from sys import argv
 
@@ -30,7 +31,10 @@ def submit_process(context: ExecutionContext) -> None:
     for config_path in context.config_paths:
         dest_path = context.unique_out_dir / "configs" / config_path.name
         copy2(config_path, dest_path)
-        config_path_mapping[str(config_path)] = str(dest_path)
+
+        # Generate copied config paths as would appear in container
+        bound_dest_path = Path(context.config.config__out_dir) / "configs" / config_path.name 
+        config_path_mapping[str(config_path)] = str(path_as_in_container(bound_dest_path.absolute()))
 
     # Step 1: Build (or re-build) a container (if needed)
     if not context.is_no_build and not context.is_only_train:

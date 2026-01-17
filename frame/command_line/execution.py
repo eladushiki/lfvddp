@@ -40,7 +40,15 @@ exit $?
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sandbox_path} {command}
+
+# Stagger container extraction across parallel jobs to avoid file descriptor exhaustion
+# Extract numeric job ID from PBS_JOBID (handles array job format like "3559993[25].pbs")
+BASE_JOBID=$(echo $PBS_JOBID | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
+DELAY=$((BASE_JOBID * 5))
+echo "Waiting $DELAY seconds before container extraction..."
+sleep $DELAY
+
+{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {container_path} {command}
 """
 
 
@@ -70,16 +78,13 @@ def format_qsub_execution_script(
         singularity_executable=config.cluster__singularity_executable,
         container_project_root=CONTAINER_PROJECT_ROOT,
         singularity_bindings=singularity_bindings,
-        sandbox_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}_sandbox",
+        container_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
     )
 
 # Singularity build script. A few comments:
-# Fist build command:
+# Build command flags:
 # --remote: the only option that works on the ATLAS cluster. Produces a SIF file.
-#
-# Second build command:
-# --sandbox: creates a sandbox to prevent file descriptor fatigue when running array jobs.
 
 SINGULARITY_BUILD_LINES = """
 # Build Singularity container with custom repository and branch
@@ -109,19 +114,8 @@ rm -f {project_name}.sif || true
 # Copy the built SIF back to submission directory
 cp {project_name}.sif $PBS_O_WORKDIR/
 
-# Create sandbox from SIF for faster execution
-echo "Creating sandbox from SIF for faster execution..."
-cd $PBS_O_WORKDIR
-rm -r {project_name}_sandbox || true
-{singularity_executable} build --sandbox {project_name}_sandbox {project_name}.sif
-
-if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to create sandbox"
-    exit 1
-fi
-echo "Sandbox created successfully at {project_name}_sandbox"
-
 # Cleanup build directory
+cd $PBS_O_WORKDIR
 rm -rf $BUILD_DIR
 """
 
