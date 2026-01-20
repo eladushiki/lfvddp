@@ -71,7 +71,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         
         self.network = nn.Sequential(
             nn.Linear(input_dim, hidden_size),
-            nn.LeakyReLU(negative_slope=0.01),
+            nn.LeakyReLU(negative_slope=self._config.train__nn_leaky_relu_negative_slope),
             nn.Linear(hidden_size, output_size),
         )
 
@@ -97,8 +97,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         This is the single source of truth for weight initialization.
         Assumes 2-layer network (1 hidden layer).
         """
-        # Use Xavier uniform with standard gain for better exploration of parameter space
-        gain = 1.0
+        # Use Xavier uniform with configurable gain for weight initialization
+        gain = self._config.train__nn_xavier_gain
         
         # Layer 0: Input to hidden
         hidden_layer = self.network[0]
@@ -121,15 +121,19 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
 
     def configure_optimizers(self):
         """Configure optimizer for Lightning with learning rate scheduling."""
-        # Use slightly higher initial learning rate to enable better exploration
-        optimizer = optim.Adam(self.parameters(), lr=1e-2, weight_decay=1e-5)
+        # Adam optimizer with configurable learning rate and weight decay
+        optimizer = optim.Adam(
+            self.parameters(),
+            lr=self._config.train__adam_learning_rate,
+            weight_decay=self._config.train__adam_weight_decay
+        )
         
         # Learning rate scheduler with warm restarts for periodically exploring new regions
         scheduler = {
             'scheduler': optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 optimizer,
                 T_0=100,  # Initial period
-                T_mult=1.5,  # Multiply period after each restart
+                T_mult=2,  # Multiply period after each restart
                 eta_min=1e-6,  # Minimum learning rate
             ),
             'interval': 'epoch',
@@ -236,8 +240,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Log diagnostic information
         if epoch % (self._config.train__number_of_epochs_for_checkpoint * 5) == 0:
             debug(f'Completed epoch {epoch}/{self._config.train__epochs}')
-            if 'loss' in logs:
-                loss_val = logs.get('loss')
+            if HistoryKeys.LOSS.value in logs:
+                loss_val = logs.get(HistoryKeys.LOSS.value)
                 debug(f'  Loss: {loss_val}')
                 if isinstance(loss_val, float) and (np.isnan(loss_val) or np.isinf(loss_val)):
                     warning(f'Loss is {loss_val} at epoch {epoch} - training may diverge')
@@ -311,15 +315,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                     # Delete previous best checkpoint if it exists
                     if pl_module._best_model_path is not None:
                         Path(pl_module._best_model_path).unlink()
-                        debug(f"Deleted previous best checkpoint: {pl_module._best_model_path}")
                     
                     pl_module._min_loss = current_loss
                     # Save new best checkpoint
                     checkpoint_path = pl_module._get_best_checkpoint_path(trainer.current_epoch)
                     trainer.save_checkpoint(checkpoint_path)
                     pl_module._best_model_path = checkpoint_path
-                    info(f"New best loss {current_loss:.6f} at epoch {trainer.current_epoch}. "
-                         f"Checkpoint saved: {checkpoint_path}")
 
     def _get_best_checkpoint_path(self, epoch: int) -> str:
         """Generate path for best model checkpoint."""
@@ -383,7 +384,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         
         # Apply sample weights
         weighted_loss = (batch_loss * batch_weights).mean()
-        self.log("loss", weighted_loss, prog_bar=True)
+        self.log(HistoryKeys.LOSS.value, weighted_loss, prog_bar=True)
         return weighted_loss
     
     def on_train_epoch_end(self) -> None:
@@ -392,14 +393,15 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             full_predictions = self(self._train_data, training=False)
             metrics = self._calculate_metrics(self._train_target, full_predictions)
         
-        logs = {'loss': self.trainer.callback_metrics.get('loss', 0.0)}
+        logs = {HistoryKeys.LOSS.value: self.trainer.callback_metrics.get(HistoryKeys.LOSS.value, 0.0)}
         logs.update(metrics)
         self._on_epoch_end(self.current_epoch, logs)
         
         # Log gradient diagnostics for loss landscape inspection
         self._log_gradient_diagnostics()
         
-        # Store in training history
+        # Store in training history (include epoch number)
+        logs[HistoryKeys.EPOCH.value] = self.current_epoch
         for key, value in logs.items():
             if key not in self._training_history:
                 self._training_history[key] = []
@@ -474,15 +476,15 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         return [
             EarlyStopping(
                 monitor=HistoryKeys.LOSS.value,
-                patience=10000,  # Allow very long training
+                patience=self._config.train__early_stopping_patience,  # Configurable patience
                 verbose=True,
                 mode='min',
-                min_delta=1e-9,  # Loss could be in the order of 1e-8
+                min_delta=1e-9,  # Loss could be in the order of 1e-9
                 check_finite=True,
                 stopping_threshold=None,  # No hard loss threshold
             ),
             self.ExtremePredictionResetCallback(
-                max_stuck_epochs=50,
+                max_stuck_epochs=self._config.train__extreme_prediction_reset_max_stuck_epochs,  # Configurable
                 max_threshold=MAX_PREDICTION_CUTOFF - 0.5,
                 min_threshold=MIN_PREDICTION_CUTOFF + 0.5,
                 stuck_fraction_threshold=0.5,
@@ -517,7 +519,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         accumulate_grad_batches = (data.n_samples + batch_size - 1) // batch_size
 
         # Prepare data loader with pre-calculated batch size
-        dataloader = self._create_data_loader(self._train_data, self._train_target, self._train_weights, batch_size)
+        dataloader = self._create_data_loader(
+            x_tensor=self._train_data,
+            y_tensor=self._train_target,
+            weights_tensor=self._train_weights,
+            batch_size=batch_size
+        )
 
         # Get callbacks
         callbacks_list = self._get_callbacks()
@@ -537,8 +544,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             enable_progress_bar=True,
             enable_model_summary=False,
             precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
-            gradient_clip_val=5.0,  # More permissive gradient clipping to allow larger updates
-            accumulate_grad_batches=accumulate_grad_batches // 3,  # Process each batch individually for stochastic noise
+            gradient_clip_val=self._config.train__gradient_clip_val,  # Configurable gradient clipping
+            accumulate_grad_batches=max(accumulate_grad_batches, 1),  # Process each batch individually for stochastic noise
             num_sanity_val_steps=0,  # Skip validation sanity check
             log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
         )

@@ -37,14 +37,14 @@ exit $?
 # --no-mount tmp: relieves pressure on file descriptors when running many jobs in parallel
 # --cleanenv: avoids messing with host environment, i.e. python stuff
 
-SINGULARITY_EXECUTION_LINES = """
+SINGULARITY_EXECUTION_LINES = r"""
 # Main command execution
 echo "Executing command on Singularity: {command}"
 
 # Stagger container extraction across parallel jobs to avoid file descriptor exhaustion
 # Extract numeric job ID from PBS_JOBID (handles array job format like "3559993[25].pbs")
 BASE_JOBID=$(echo $PBS_JOBID | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
-DELAY=$((BASE_JOBID * 5))
+DELAY=$((BASE_JOBID * 20))
 echo "Waiting $DELAY seconds before container extraction..."
 sleep $DELAY
 

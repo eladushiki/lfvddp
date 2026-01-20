@@ -18,6 +18,14 @@ class TrainConfig:
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
+    train__nn_leaky_relu_negative_slope: float = 0.1
+    train__nn_xavier_gain: float = 1.41421356  # sqrt(2.0) for ReLU-family activations
+    train__gradient_clip_val: float = 5.0  # Gradient clipping threshold for stable training
+    train__adam_learning_rate: float = 1e-2  # Adam optimizer learning rate
+    train__adam_weight_decay: float = 1e-4  # Adam optimizer L2 regularization
+    train__early_stopping_patience: int = 20000  # Patience for early stopping callback
+    train__extreme_prediction_reset_max_stuck_epochs: int = 50  # Max stuck epochs before resetting model parameters
+    
     train__batch_size: int = None
     
     ## Training for nuisance parameters
