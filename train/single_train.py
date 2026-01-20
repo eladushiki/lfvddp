@@ -38,18 +38,22 @@ def main(context: ExecutionContext) -> None:
     # For reference, we combine both datasets
     reference_dataset = detected_A_dataset + detected_B_dataset
 
+    normalized_ref, norm_factor_ref = reference_dataset.get_normalized()
+    normalized_A = detected_A_dataset * norm_factor_ref
+    normalized_B = detected_B_dataset * norm_factor_ref
+
     # Train symmetrically to obtain the combined loss
     _, t_a = follow_instructions_for_t(
         context,
-        detected_A_dataset,
-        reference_dataset,
+        normalized_A,
+        normalized_ref,
         detector_effect=det,
         name="A_model",
     )
     _, t_b = follow_instructions_for_t(
         context,
-        detected_B_dataset,
-        reference_dataset,
+        normalized_B,
+        normalized_ref,
         detector_effect=det,
         name="B_model",
     )

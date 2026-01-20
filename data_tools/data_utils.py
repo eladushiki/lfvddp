@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Iterable, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -53,6 +54,23 @@ class DataSet:
         result = DataSet(_data, observable_names=self.observable_names)
         result._weight_mask = _weight_mask
         return result
+    
+    def __mul__(self, other: DatasetNormalizationFactor) -> DataSet:
+        assert isinstance(other, DatasetNormalizationFactor), \
+            f"Dataset multiplication is only allowed by a DatasetNormalizationFactor, not {type(other)}"
+
+        result = self.create_copy()        
+        for obs in self.observable_names:
+            try:
+                result._data[:, obs] += other.get_offset(obs)
+                result._data[:, obs] *= other.get_factor(obs)
+            except KeyError:
+                raise ArithmeticError(f"No factor for observable {obs} in multiplication")
+            
+        return result
+
+    def __rmul__(self, other: DatasetNormalizationFactor) -> DataSet:
+        return self.__mul__(other)
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
         result = DataSet(
@@ -114,6 +132,21 @@ class DataSet:
         except KeyError as e:
             raise KeyError(f"One or more observable names not found in dataset: {observables}") from e
     
+    def get_normalized(self) -> Tuple[DataSet, DatasetNormalizationFactor]:
+        offsets = {}
+        factors = {}
+        result = self.create_copy()
+        for obs in result.observable_names:
+            obs_slice = result.slice_along_observable_names(obs)
+            
+            offsets[obs] = min(obs_slice)
+            result._data[:, obs] -= offsets[obs]
+
+            factors[obs] = max(obs_slice) - offsets[obs]
+            result._data[:, obs] /= factors[obs]
+
+        return result, DatasetNormalizationFactor(factors, offsets)
+
     def filter(self, filter: np.ndarray) -> DataSet:
         """
         Filter the dataset according to a boolean mask.
@@ -164,3 +197,25 @@ def resample(
         remainder = source_dataset[rest_idx]
 
     return sample, remainder
+
+
+@dataclass
+class DatasetNormalizationFactor:
+    """
+    Normalization factor to be applied to datasets for training and fitting.
+    """
+    _factors: Dict[str, float]
+    _offsets: Dict[str, float]
+
+    def __post_init__(self, **kwargs):
+        assert all(key in self._offsets for key in self._factors)
+
+    @property
+    def n_dim(self) -> int:
+        return len(self._factors)
+    
+    def get_offset(self, key: str) -> float:
+        return self._offsets[key]
+
+    def get_factor(self, key: str) -> float:
+        return self._factors[key]
