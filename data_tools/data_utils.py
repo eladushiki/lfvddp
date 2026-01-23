@@ -62,8 +62,8 @@ class DataSet:
         result = self.create_copy()        
         for obs in self.observable_names:
             try:
-                result._data[:, obs] += other.get_offset(obs)
-                result._data[:, obs] *= other.get_factor(obs)
+                result._data[obs] *= other.get_factor(obs)
+                result._data[obs] += other.get_offset(obs)
             except KeyError:
                 raise ArithmeticError(f"No factor for observable {obs} in multiplication")
             
@@ -71,6 +71,20 @@ class DataSet:
 
     def __rmul__(self, other: DatasetNormalizationFactor) -> DataSet:
         return self.__mul__(other)
+
+    def __truediv__(self, other: DatasetNormalizationFactor) -> DataSet:
+        assert isinstance(other, DatasetNormalizationFactor), \
+            f"Dataset division is only allowed by a DatasetNormalizationFactor, not {type(other)}"
+        
+        result = self.create_copy()
+        for obs in self.observable_names:
+            try:
+                result._data[obs] -= other.get_offset(obs)
+                result._data[obs] /= other.get_factor(obs)
+            except KeyError:
+                raise ArithmeticError(f"No factor for observable {obs} in division")
+            
+        return result
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
         result = DataSet(
@@ -140,12 +154,10 @@ class DataSet:
             obs_slice = result.slice_along_observable_names(obs)
             
             offsets[obs] = min(obs_slice)
-            result._data[:, obs] -= offsets[obs]
-
             factors[obs] = max(obs_slice) - offsets[obs]
-            result._data[:, obs] /= factors[obs]
 
-        return result, DatasetNormalizationFactor(factors, offsets)
+        normalization_factor = DatasetNormalizationFactor(factors, offsets)
+        return result / normalization_factor, normalization_factor
 
     def filter(self, filter: np.ndarray) -> DataSet:
         """
