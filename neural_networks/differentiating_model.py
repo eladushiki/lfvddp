@@ -154,8 +154,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         Rewards correct classification of sample vs. reference events.
         return: torch.Tensor: Tensor of same shape as input tensors with NLL values.
         """
-        is_ref_truth = 1.0 - is_sample_classifier
-        return is_ref_truth * (e_to_the_f_prediction - 1) \
+        is_ref_classifier = 1.0 - is_sample_classifier
+        return is_ref_classifier * (e_to_the_f_prediction - 1) \
             - is_sample_classifier * torch.log(e_to_the_f_prediction)
 
     @property
@@ -197,27 +197,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             items = torch.stack([e_to_the_f_prediction.squeeze(), *nuisance_skews])
             return torch.sum(items, dim=0)
         else:
-            result = e_to_the_f_prediction.squeeze()
-
-            return result
-
-    def _on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
-        """Log metrics for end of epoch."""
-        if logs is None:
-            logs = {}
-        
-        # Log scalar metrics with Lightning
-        for metric_name, metric_value in logs.items():
-            self.log(metric_name, metric_value, prog_bar=True)
-        
-        # Log nuisance parameters as text if trainable
-        if self._config.train__data_is_train_for_nuisances:
-            nuisance_values = "\n".join([
-                f"{name}: {var.detach().cpu().numpy()}"
-                for name, var in self._detector_deltas.items()
-            ])
-            log_text = f"Nuisance parameters at epoch {epoch}:\n{nuisance_values}"
-            self.logger.experiment.add_text("nuisance_parameters", log_text, epoch)
+            return e_to_the_f_prediction.squeeze()
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -260,32 +240,30 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Forward pass
         e_to_the_f_predictions = self(batch_x, training=True)
 
-        # Compute loss
-        batch_loss = self.ddp_symmetrized_loss(
+        # Compute per-sample loss
+        per_sample_loss = self.ddp_symmetrized_loss(
             batch_y,
             e_to_the_f_predictions,
         )
         
-        # Apply sample weights
-        weighted_loss = (batch_loss * batch_weights).mean()
-        self.log(HistoryKeys.LOSS.value, weighted_loss, prog_bar=True)
-        return weighted_loss
+        # Apply weights and aggregate to scalar
+        weighted_loss = per_sample_loss * batch_weights
+        return torch.mean(weighted_loss)
     
     def on_train_epoch_end(self) -> None:
         """Called at the end of training epoch - compute full metrics."""
         with torch.no_grad():
             e_to_the_f_prediction = self(self._train_data, training=False)
-            metrics = self._calculate_metrics(
+            logs = self._calculate_metrics(
                 self._train_target_classifier,
                 e_to_the_f_prediction,
             )
         
-        logs = {HistoryKeys.LOSS.value: self.trainer.callback_metrics.get(HistoryKeys.LOSS.value)}
-        logs.update(metrics)
-        self._on_epoch_end(self.current_epoch, logs)
+        # Log scalar metrics with Lightning
+        for metric_name, metric_value in logs.items():
+            self.log(metric_name, metric_value, prog_bar=True)
         
         # Store in training history (include epoch number)
-        logs[HistoryKeys.EPOCH.value] = self.current_epoch
         for key, value in logs.items():
             if key not in self._training_history:
                 self._training_history[key] = []
@@ -301,14 +279,17 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         Returns a dict with all relevant metric values.
         """
         metrics = {}
-        
+        metrics[HistoryKeys.EPOCH.value] = self.current_epoch
+
         # Prediction loss
         prediction_nll = self._prediction_nll(
             is_sample_classifier,
             e_to_the_f_prediction,
         )
-        metrics[HistoryKeys.PREDICTION_LOSS.value] = torch.sum(prediction_nll).item()
-        
+        weighted_prediction_nll = prediction_nll * self._train_weights
+        metrics[HistoryKeys.MEAN_LOSS.value] = torch.mean(weighted_prediction_nll).item()
+        metrics[HistoryKeys.LOSS.value] = torch.sum(weighted_prediction_nll).item()
+
         # Nuisance loss and absolute sum
         if self._config.train__data_is_train_for_nuisances:
             metrics[HistoryKeys.NUISANCE_LOSS.value] = self._total_nuisance_nll().item()
@@ -317,6 +298,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             )
         else:
             metrics[HistoryKeys.NUISANCE_LOSS.value] = 0.0
+            metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = 0.0
         
         return metrics
 
@@ -389,7 +371,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             self.eval()
             with torch.no_grad():
                 e_to_the_f_predictions = self(x_tensor, training=False)
-            return torch.log(e_to_the_f_predictions).cpu().numpy()
+            return torch.log(e_to_the_f_predictions).detach().cpu().numpy()
 
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""
@@ -437,10 +419,9 @@ def calc_t_LFVNN(
     info(f'Training time (seconds): {time() - t0}')
     
     # Calculate minimum loss from training history
-    total_weight = np.sum(loss_weights)
-    min_loss = tau_model_history[HistoryKeys.LOSS.value][-1] * total_weight
-    final_test_statistic = calc_t_test_statistic(min_loss)
-    info(f'Minimum weighted loss achieved: {min_loss:.6f}')
+    final_loss = tau_model_history[HistoryKeys.LOSS.value][-1]
+    final_test_statistic = calc_t_test_statistic(final_loss)
+    info(f'Minimum weighted loss achieved: {final_loss:.6f}')
     info(f'Observed t test statistic: {final_test_statistic}')
     
     save_training_outcomes(
