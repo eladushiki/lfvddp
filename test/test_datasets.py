@@ -1,3 +1,16 @@
+from pathlib import Path
+import numpy as np
+import pytest
+
+from test.environment import ConfigType
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{
+        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
+    }],
+    indirect=True,
+)
 def test_dataset_normalization(
     function_execution_context,
     data_generation,
