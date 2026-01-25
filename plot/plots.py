@@ -124,8 +124,7 @@ def t_distribution_plot(
     distribution_std = np.std(t[critical_mass_t])
     distribution_mean = np.mean(t[critical_mass_t])
     n_std = 6
-    did_not_converge = t < (distribution_mean - n_std * distribution_std) \
-        + agg.nan_t_values
+    did_not_converge = t < (distribution_mean - n_std * distribution_std)
     if cut_non_converged:
         t = t[~did_not_converge]
 
@@ -142,8 +141,10 @@ def t_distribution_plot(
     label     = f"median: {str(np.around(np.median(t), 2))} \n" \
                 f"mean: {str(np.around(distribution_mean, 2))} \n" \
                 f"std: {str(np.around(distribution_std, 2))}"
-    if did_not_converge.sum() > 0:
-        label += f"\ndid not converge: {did_not_converge.sum() / t.size * 100:.2f}%"
+    
+    invalid_t_num = did_not_converge.sum() + agg.nan_t_values
+    if invalid_t_num > 0:
+        label += f"\ndid not converge: {invalid_t_num / t.size * 100:.2f}%"
         
     h, _, _ = ax.hist(
         t,
