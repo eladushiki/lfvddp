@@ -99,12 +99,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Layer 0: Input to hidden
         hidden_layer = self.network[0]
         nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
-        nn.init.xavier_uniform_(hidden_layer.bias.view(-1, 1), gain=gain)
+        nn.init.uniform_(hidden_layer.bias, a=-0.5, b=0.5)
         
         # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
         output_layer = self.network[2]
         nn.init.xavier_uniform_(output_layer.weight, gain=gain)
-        nn.init.xavier_uniform_(output_layer.bias.view(-1, 1), gain=gain)
+        nn.init.uniform_(output_layer.bias, a=-0.5, b=0.5)
 
         # Handle detector nuisances separately
         if self._config.train__data_is_train_for_nuisances:

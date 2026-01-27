@@ -18,7 +18,7 @@ class TrainConfig:
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
-    train__nn_xavier_gain: float = 1.0
+    train__nn_xavier_gain: float = 4
     train__learning_rate: float = 0.01  # LBFGS optimizer learning rate
         
     ## Training for nuisance parameters
