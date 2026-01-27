@@ -12,7 +12,6 @@ from frame.file_system.training_history import save_training_history
 from numpy import random as nprandom
 from matplotlib.figure import Figure
 import torch
-import torch.nn as nn
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
@@ -80,12 +79,14 @@ def create_config_from_paramters(
 class ExecutionContext:
     commit_hash: str
     config: UserConfig
+    config_paths: List[Path]
     command_line_args: List[str]
     run_hash: Optional[str] = None
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
     is_no_build: bool = False
+    is_only_train: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
     is_reloaded: bool = False
@@ -204,6 +205,7 @@ class ExecutionContext:
 @contextmanager
 def version_controlled_execution_context(
     config: UserConfig,
+    config_paths: List[Path],
     command_line_args: List[str],
     args: Namespace,
 ):
@@ -219,9 +221,11 @@ def version_controlled_execution_context(
     context = ExecutionContext(
         get_commit_hash(),
         config,
+        config_paths,
         command_line_args,
         is_debug_mode=args.debug,
         is_no_build=args.no_build,
+        is_only_train=args.only_train,
     )
 
     # Save in case run terminates prematurely
