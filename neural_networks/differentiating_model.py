@@ -68,7 +68,6 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             nn.Linear(input_dim, hidden_size),
             nn.Sigmoid(),
             nn.Linear(hidden_size, output_size),
-            nn.Sigmoid(),
         )
 
     def _build_detector_nuisances(self):
@@ -99,12 +98,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Layer 0: Input to hidden
         hidden_layer = self.network[0]
         nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
-        nn.init.uniform_(hidden_layer.bias, a=-0.5, b=0.5)
+        nn.init.uniform_(hidden_layer.bias, a=-0.3, b=0.3)
         
         # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
         output_layer = self.network[2]
         nn.init.xavier_uniform_(output_layer.weight, gain=gain)
-        nn.init.uniform_(output_layer.bias, a=-0.5, b=0.5)
+        nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
         # Handle detector nuisances separately
         if self._config.train__data_is_train_for_nuisances:
@@ -147,7 +146,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def _prediction_nll(
             self,
             is_sample_classifier: torch.Tensor,
-            e_to_the_f_prediction: torch.Tensor,
+            f_prediction: torch.Tensor,
         ) -> torch.Tensor:
         """
         The custom negative log-likelihood for the prediction of the NN.
@@ -155,8 +154,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         return: torch.Tensor: Tensor of same shape as input tensors with NLL values.
         """
         is_ref_classifier = 1.0 - is_sample_classifier
-        return is_ref_classifier * (e_to_the_f_prediction - 1) \
-            - is_sample_classifier * torch.log(e_to_the_f_prediction)
+        return is_ref_classifier * (torch.exp(f_prediction) - 1) \
+            - is_sample_classifier * f_prediction
 
     @property
     def _observable_names(self) -> List[str]:
@@ -165,7 +164,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def ddp_symmetrized_loss(
             self,
             is_sample_classifier: torch.Tensor,
-            e_to_the_f_prediction: torch.Tensor,
+            f_prediction: torch.Tensor,
         ) -> torch.Tensor:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
@@ -174,7 +173,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         """
         prediction_loss = self._prediction_nll(
             is_sample_classifier=is_sample_classifier,
-            e_to_the_f_prediction=e_to_the_f_prediction,
+            f_prediction=f_prediction,
         )  # Tensor the size of data
         if self._config.train__data_is_train_for_nuisances:
             nuisance_loss = self._total_nuisance_nll()  # Scalar
@@ -185,19 +184,19 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         return prediction_loss + nuisance_loss
 
     def forward(self, data: torch.Tensor, training: bool = True) -> torch.Tensor:
-        e_to_the_f_prediction = self.network(data)
-        
+        f_prdiction = self.network(data)
+
         # Each event predicted weight is multiplied by the exponentiation multiplication of all affecting nuisances
         if self._config.train__data_is_train_for_nuisances:
             nuisance_skews = [
-                torch.gather(torch.exp(self._detector_deltas[obs]), 0, self._bins_of_events[:, i])
+                torch.gather(self._detector_deltas[obs], 0, self._bins_of_events[:, i])
                 for i, obs in enumerate(self._observable_names)
             ]
 
-            items = torch.stack([e_to_the_f_prediction.squeeze(), *nuisance_skews])
-            return torch.sum(items, dim=0)
+            items = torch.stack([f_prdiction.squeeze(), *nuisance_skews])
+            return torch.prod(items, dim=0)
         else:
-            return e_to_the_f_prediction.squeeze()
+            return f_prdiction.squeeze()
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -237,13 +236,17 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         """Lightning training step."""
         batch_x, batch_y, batch_weights = batch
 
+        # Log model architecture on first batch
+        if batch_idx == 0 and self.current_epoch == 0:
+            self.logger.experiment.add_graph(self, batch_x)
+
         # Forward pass
-        e_to_the_f_predictions = self(batch_x, training=True)
+        f_predictions = self(batch_x, training=True)
 
         # Compute per-sample loss
         per_sample_loss = self.ddp_symmetrized_loss(
-            batch_y,
-            e_to_the_f_predictions,
+            is_sample_classifier=batch_y,
+            f_prediction=f_predictions,
         )
         
         # Apply weights and aggregate to scalar
@@ -253,15 +256,19 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def on_train_epoch_end(self) -> None:
         """Called at the end of training epoch - compute full metrics."""
         with torch.no_grad():
-            e_to_the_f_prediction = self(self._train_data, training=False)
+            f_prediction = self(self._train_data, training=False)
             logs = self._calculate_metrics(
-                self._train_target_classifier,
-                e_to_the_f_prediction,
+                is_sample_classifier=self._train_target_classifier,
+                f_prediction=f_prediction,
             )
         
         # Log scalar metrics with Lightning
         for metric_name, metric_value in logs.items():
             self.log(metric_name, metric_value, prog_bar=True)
+        
+        # Log weight histograms to TensorBoard
+        for name, param in self.network.named_parameters():
+            self.logger.experiment.add_histogram(f'weights/{name}', param, self.current_epoch)
         
         # Store in training history (include epoch number)
         for key, value in logs.items():
@@ -272,7 +279,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def _calculate_metrics(
         self,
         is_sample_classifier: torch.Tensor,
-        e_to_the_f_prediction: torch.Tensor,
+        f_prediction: torch.Tensor,
     ) -> Dict[str, float]:
         """
         Calculate all metrics in a structured manner.
@@ -284,7 +291,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Prediction loss
         prediction_nll = self._prediction_nll(
             is_sample_classifier,
-            e_to_the_f_prediction,
+            f_prediction,
         )
         weighted_prediction_nll = prediction_nll * self._train_weights
         metrics[HistoryKeys.MEAN_LOSS.value] = torch.mean(weighted_prediction_nll).item()
@@ -344,6 +351,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             logger=pl.loggers.TensorBoardLogger(
                 save_dir=str(tensorboard_log_dir.parent),
                 name=self._name,
+                log_graph=True,
             ),
             enable_progress_bar=True,
             enable_model_summary=True,
@@ -370,8 +378,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self.device)
             self.eval()
             with torch.no_grad():
-                e_to_the_f_predictions = self(x_tensor, training=False)
-            return torch.log(e_to_the_f_predictions).detach().cpu().numpy()
+                f_predictions = self(x_tensor, training=False)
+            return f_predictions.detach().cpu().numpy()
 
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""
