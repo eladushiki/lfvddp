@@ -55,32 +55,36 @@ class DataSet:
         result._weight_mask = _weight_mask
         return result
     
-    def __mul__(self, other: DatasetNormalizationFactor) -> DataSet:
-        assert isinstance(other, DatasetNormalizationFactor), \
-            f"Dataset multiplication is only allowed by a DatasetNormalizationFactor, not {type(other)}"
+    def __mul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
+        assert isinstance(other, ShiftAndNormalizationFactor), \
+            f"Dataset multiplication is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
 
         result = self.create_copy()        
         for obs in self.observable_names:
             try:
+                native_offset = min(result._data[obs])
+                result._data[obs] -= native_offset
                 result._data[obs] *= other.get_factor(obs)
-                result._data[obs] += other.get_offset(obs)
+                result._data[obs] += other.get_offset(obs) + native_offset
             except KeyError:
                 raise ArithmeticError(f"No factor for observable {obs} in multiplication")
             
         return result
 
-    def __rmul__(self, other: DatasetNormalizationFactor) -> DataSet:
+    def __rmul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
         return self.__mul__(other)
 
-    def __truediv__(self, other: DatasetNormalizationFactor) -> DataSet:
-        assert isinstance(other, DatasetNormalizationFactor), \
-            f"Dataset division is only allowed by a DatasetNormalizationFactor, not {type(other)}"
+    def __truediv__(self, other: ShiftAndNormalizationFactor) -> DataSet:
+        assert isinstance(other, ShiftAndNormalizationFactor), \
+            f"Dataset division is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
         
         result = self.create_copy()
         for obs in self.observable_names:
             try:
-                result._data[obs] -= other.get_offset(obs)
+                native_offset = min(result._data[obs])
+                result._data[obs] -= native_offset
                 result._data[obs] /= other.get_factor(obs)
+                result._data[obs] -= other.get_offset(obs) - native_offset
             except KeyError:
                 raise ArithmeticError(f"No factor for observable {obs} in division")
             
@@ -146,17 +150,19 @@ class DataSet:
         except KeyError as e:
             raise KeyError(f"One or more observable names not found in dataset: {observables}") from e
     
-    def get_normalized(self) -> Tuple[DataSet, DatasetNormalizationFactor]:
+    def get_normalized(self) -> Tuple[DataSet, ShiftAndNormalizationFactor]:
         offsets = {}
         factors = {}
         result = self.create_copy()
         for obs in result.observable_names:
             obs_slice = result.slice_along_observable_names(obs)
             
-            offsets[obs] = min(obs_slice)
-            factors[obs] = max(obs_slice) - offsets[obs]
+            # shift and scale to fit range [-1, 1]
+            offsets[obs] = min(obs_slice) + 1
+            span = max(obs_slice) - min(obs_slice)
+            factors[obs] = span / 2
 
-        normalization_factor = DatasetNormalizationFactor(factors, offsets)
+        normalization_factor = ShiftAndNormalizationFactor(factors, offsets)
         return result / normalization_factor, normalization_factor
 
     def filter(self, filter: np.ndarray) -> DataSet:
@@ -212,7 +218,7 @@ def resample(
 
 
 @dataclass
-class DatasetNormalizationFactor:
+class ShiftAndNormalizationFactor:
     """
     Normalization factor to be applied to datasets for training and fitting.
     """
