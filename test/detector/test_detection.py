@@ -7,7 +7,7 @@ from test.environment import ConfigType
     "function_execution_context",
     [{  # basic process
         ConfigType.DATASET.value: Path("test/detector/configs/detector_perfect_basic_ds.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
     }],
     indirect=True,
 )
@@ -26,10 +26,10 @@ def test_detection_basic(
     "function_execution_context",
     [{
         ConfigType.DATASET.value: Path("test/detector/configs/detector_affected_basic_ds.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
     },{
         ConfigType.DATASET.value: Path("test/detector/configs/detector_affected_basic_ds_2.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
     }],
     indirect=True,
 )

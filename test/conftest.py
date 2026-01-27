@@ -18,7 +18,8 @@ def session_execution_context():
     args = Namespace(
         debug=True,
         no_build=True,
-        out_dir="results"
+        out_dir="results",
+        only_train=False,
     )
     config = create_config_from_paths(
         config_paths=list(DEFAULT_CONFIG_PATHS.values()),
@@ -48,7 +49,7 @@ def function_execution_context(
         debug=session_execution_context.is_debug_mode,
         no_build=session_execution_context.is_no_build,
         out_dir=session_execution_context.unique_out_dir,
-        is_only_train=session_execution_context.is_only_train,
+        only_train=session_execution_context.is_only_train,
     )
     config = create_config_from_paths(
         config_paths=list(config_paths.values()),
