@@ -555,6 +555,8 @@ def plot_prediction_process_sliced(
     ax_bottom.set_xlabel(xlabel)
     ax_bottom.set_ylabel('Model Output')
     ax_bottom.legend()
+    ylim = ax_bottom.get_ylim()
     ax_bottom.axhline(y=1/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    ax_bottom.set_ylim(ylim)
     
     return fig
