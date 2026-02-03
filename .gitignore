@@ -20,7 +20,13 @@ __autograph_generated_file*.py
 
 # Singularity
 *.sif
-lfvddp_sandbox/**
+
+# TeX Processing artifacts
+*.aux
+*.pdf
+*.out
+*.gz
+*.toc
 
 # IDE
 .vscode/
