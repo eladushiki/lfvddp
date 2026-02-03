@@ -31,10 +31,6 @@ class ContextedModel(Protocol):
         ...
 
 
-MAX_PREDICTION_CUTOFF = 20.0
-MIN_PREDICTION_CUTOFF = -75.0
-
-
 def get_model_logging_dir(context: ExecutionContext, model_name: str) -> Path:
     """Get the logging directory for a model."""
     return context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / model_name
@@ -77,6 +73,6 @@ def contour_model_prediction(
     # Span contour
     xmin, xmax = config.observable_bins(along_observable_name)[0][[0, -1]]
     x_range = np.linspace(xmin, xmax, 1000)
-    contour = np.exp(trained_model.predict(DataSet(x_range)))
+    contour = np.exp(trained_model.predict(DataSet(x_range, observable_names=[along_observable_name])))
     
     return x_range, contour
