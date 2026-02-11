@@ -57,6 +57,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._train_weights = None
         self._norm_factor = None
         self._training_history = {}
+        self._cached_f_predictions = None  # Cache for full forward pass
 
     def _build_layers(self):
         # Fully connected 2-layer network:
@@ -230,7 +231,9 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         batch_size: int,
     ) -> DataLoader:
         dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+        # Since we cache predictions and use one batch per epoch tactic, no point in shuffling
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Lightning training step."""
@@ -241,12 +244,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             self.logger.experiment.add_graph(self, batch_x)
 
         # Forward pass
-        f_predictions = self(batch_x, training=True)
+        self._cached_f_predictions = self(batch_x, training=True)
 
         # Compute per-sample loss
         per_sample_loss = self.ddp_symmetrized_loss(
             is_sample_classifier=batch_y,
-            f_prediction=f_predictions,
+            f_prediction=self._cached_f_predictions,
         )
         
         # Apply weights and aggregate to scalar
@@ -256,10 +259,9 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def on_train_epoch_end(self) -> None:
         """Called at the end of training epoch - compute full metrics."""
         with torch.no_grad():
-            f_prediction = self(self._train_data, training=False)
             logs = self._calculate_metrics(
                 is_sample_classifier=self._train_target_classifier,
-                f_prediction=f_prediction,
+                f_prediction=self._cached_f_predictions,
             )
         
         # Log scalar metrics with Lightning
@@ -330,15 +332,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         normalized_data, self._norm_factor = data.get_normalized()
         self._train_data, self._train_target_classifier, self._train_weights = self._prepare_training_data(normalized_data, target, weights)
 
-        # Calculate batch size and gradient accumulation
-        batch_size = data.n_samples
-
         # Prepare data loader with pre-calculated batch size
         dataloader = self._create_data_loader(
             x_tensor=self._train_data,
             y_tensor=self._train_target_classifier,
             weights_tensor=self._train_weights,
-            batch_size=batch_size,
+            batch_size=data.n_samples,
         )
 
         # Set up tensorboard logger
@@ -359,6 +358,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             accumulate_grad_batches=1,  # Process each batch individually for stochastic noise
             num_sanity_val_steps=0,  # Skip validation sanity check
             log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
+            enable_checkpointing=False,  # Disable all auto-checkpointing
         )
 
         # Training with binning context
