@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Iterable, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -52,6 +53,41 @@ class DataSet:
 
         result = DataSet(_data, observable_names=self.observable_names)
         result._weight_mask = _weight_mask
+        return result
+    
+    def __mul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
+        assert isinstance(other, ShiftAndNormalizationFactor), \
+            f"Dataset multiplication is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
+
+        result = self.create_copy()        
+        for obs in self.observable_names:
+            try:
+                native_offset = min(result._data[obs])
+                result._data[obs] -= native_offset
+                result._data[obs] *= other.get_factor(obs)
+                result._data[obs] += other.get_offset(obs) + native_offset
+            except KeyError:
+                raise ArithmeticError(f"No factor for observable {obs} in multiplication")
+            
+        return result
+
+    def __rmul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
+        return self.__mul__(other)
+
+    def __truediv__(self, other: ShiftAndNormalizationFactor) -> DataSet:
+        assert isinstance(other, ShiftAndNormalizationFactor), \
+            f"Dataset division is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
+        
+        result = self.create_copy()
+        for obs in self.observable_names:
+            try:
+                native_offset = min(result._data[obs])
+                result._data[obs] -= native_offset
+                result._data[obs] /= other.get_factor(obs)
+                result._data[obs] -= other.get_offset(obs) - native_offset
+            except KeyError:
+                raise ArithmeticError(f"No factor for observable {obs} in division")
+            
         return result
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
@@ -114,6 +150,21 @@ class DataSet:
         except KeyError as e:
             raise KeyError(f"One or more observable names not found in dataset: {observables}") from e
     
+    def get_normalized(self) -> Tuple[DataSet, ShiftAndNormalizationFactor]:
+        offsets = {}
+        factors = {}
+        result = self.create_copy()
+        for obs in result.observable_names:
+            obs_slice = result.slice_along_observable_names(obs)
+            
+            # shift and scale to fit range [-1, 1]
+            offsets[obs] = min(obs_slice) + 1
+            span = max(obs_slice) - min(obs_slice)
+            factors[obs] = span / 2
+
+        normalization_factor = ShiftAndNormalizationFactor(factors, offsets)
+        return result / normalization_factor, normalization_factor
+
     def filter(self, filter: np.ndarray) -> DataSet:
         """
         Filter the dataset according to a boolean mask.
@@ -164,3 +215,25 @@ def resample(
         remainder = source_dataset[rest_idx]
 
     return sample, remainder
+
+
+@dataclass
+class ShiftAndNormalizationFactor:
+    """
+    Normalization factor to be applied to datasets for training and fitting.
+    """
+    _factors: Dict[str, float]
+    _offsets: Dict[str, float]
+
+    def __post_init__(self, **kwargs):
+        assert all(key in self._offsets for key in self._factors)
+
+    @property
+    def n_dim(self) -> int:
+        return len(self._factors)
+    
+    def get_offset(self, key: str) -> float:
+        return self._offsets[key]
+
+    def get_factor(self, key: str) -> float:
+        return self._factors[key]
