@@ -11,6 +11,7 @@ from frame.cluster.cluster_config import ClusterConfig
 from frame.file_system.training_history import save_training_history
 from numpy import random as nprandom
 from matplotlib.figure import Figure
+import torch
 from frame.config_handle import UserConfig
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
@@ -19,7 +20,6 @@ from frame.context.execution_products import ExecutionProducts, stamp_product_pa
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 from plot.plotting_config import PlottingConfig
-from tensorflow.keras.models import Model # type: ignore
 from tensorflow import random as tfrandom
 
 from dataclasses import dataclass, field
@@ -77,21 +77,24 @@ def create_config_from_paramters(
 
 @dataclass
 class ExecutionContext:
-    run_hash: str = field(init=False)
     commit_hash: str
     config: UserConfig
+    config_paths: List[Path]
     command_line_args: List[str]
+    run_hash: Optional[str] = None
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
     is_no_build: bool = False
+    is_only_train: bool = False
     run_successful: bool = False
     products: ExecutionProducts = field(default=ExecutionProducts())
     is_reloaded: bool = False
 
     def __post_init__(self):
         # Run identification
-        self.run_hash = hash(self._unique_descriptor)
+        if self.run_hash is None:
+            self.run_hash = hash(self._unique_descriptor)
 
         # Initialize once unique output directory
         if not self.is_reloaded:
@@ -100,6 +103,7 @@ class ExecutionContext:
         # Random seeding
         random.seed(self.random_seed)
         nprandom.seed(self.random_seed)
+        torch.manual_seed(self.random_seed)
         tfrandom.set_seed(self.random_seed)
 
     @property
@@ -156,9 +160,9 @@ class ExecutionContext:
         self.document_created_product(file_path)
         return file_path
 
-    def save_and_document_model_weights(self, model: Model, file_path: Path) -> Path:
+    def save_and_document_model_parameters(self, model, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
-        model.save_weights(file_path)
+        model.save_parameters(file_path)
         self.document_created_product(file_path)
         return file_path
 
@@ -201,6 +205,7 @@ class ExecutionContext:
 @contextmanager
 def version_controlled_execution_context(
     config: UserConfig,
+    config_paths: List[Path],
     command_line_args: List[str],
     args: Namespace,
 ):
@@ -216,9 +221,11 @@ def version_controlled_execution_context(
     context = ExecutionContext(
         get_commit_hash(),
         config,
+        config_paths,
         command_line_args,
         is_debug_mode=args.debug,
         is_no_build=args.no_build,
+        is_only_train=args.only_train,
     )
 
     # Save in case run terminates prematurely

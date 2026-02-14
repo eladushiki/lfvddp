@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import gc
-from logging import info
+from logging import info, debug, warning
+from pathlib import Path
 from time import time
-from typing import Any, List, Tuple, Union
-import keras
+from typing import Dict, List, Tuple, Union
 import numpy as np
 import numpy.typing as npt
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import Callback, EarlyStopping
 
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
@@ -16,15 +20,14 @@ from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.utils import save_training_outcomes
+from neural_networks.utils import MAX_PREDICTION_CUTOFF, MIN_PREDICTION_CUTOFF, ContextedModel, save_training_outcomes, get_model_logging_dir
 from train.train_config import TrainConfig
 
 
-class DifferentiatingModel(keras.models.Model):
+class DifferentiatingModel(pl.LightningModule, ContextedModel):
     """
-    Symmetrized DDP's model used to estimate the test statistic.
+    Symmetrized DDP's model used to estimate the test statistic using PyTorch Lightning.
     A custom loss function is used to find the maximizing parameters for hypothesis.
     """
     def __init__(
@@ -34,287 +37,542 @@ class DifferentiatingModel(keras.models.Model):
         name: str,
         **kwargs
     ):
+        super().__init__()
+        self._name = name
         self._context = context
         self._config: Union[TrainConfig, DetectorConfig] = context.config
 
         # Add layers by spec
         self._build_layers()
         
-        # Build model
-        super(DifferentiatingModel, self).__init__(
-            name=name,
-            inputs=self._input_layer,
-            outputs=self._last_layer,
-            **kwargs
-        )
-
         # Add detector uncertainty nuisance parameters
         self._detector_effect = detector_effect
         self._build_detector_nuisances()
         self._bins_of_events = None  # Set in context
 
-        # Logging setup
-        self._setup_tensorboard()
+        # Initialize NN parameters according to strategy
+        self._initialize_parameters()
+        
+        # Store training data and weights for metrics computation
+        self._train_data = None
+        self._train_target = None
+        self._train_weights = None
+        self._training_history = {}
+        
+        # Track minimum loss for checkpointing
+        self._min_loss = float('inf')
+        self._best_model_path = None
 
     def _build_layers(self):
-        self._input_layer = keras.Input(shape=(self._config.train__nn_input_dimension,))
-        last_layer = self._input_layer
-        for i, secondary_layer_size in enumerate(self._config.train__nn_architecture[1:]):
-            # Use a small positive bias initializer for the output layer to avoid zero initialization
-            if i == len(self._config.train__nn_architecture[1:]) - 1:
-                # Final layer: initialize bias to small positive value to avoid all-zero outputs
-                layer = keras.layers.Dense(
-                    secondary_layer_size,
-                    activation=None,  # No activation on final layer
-                    bias_initializer=keras.initializers.Constant(0.1),
-                    kernel_initializer='glorot_uniform',
-                )(last_layer)
-            else:
-                layer = keras.layers.Dense(
-                    secondary_layer_size,
-                    activation='relu',
-                )(last_layer)
-            last_layer = layer
-        self._last_layer = last_layer
+        # Fully connected 2-layer network:
+        input_dim = self._config.train__nn_input_dimension
+        hidden_size = self._config.train__nn_inner_layer_nodes
+        output_size = self._config.train__nn_output_dimension
+        
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, hidden_size),
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Linear(hidden_size, output_size),
+        )
 
     def _build_detector_nuisances(self):
         self._detector_deltas = {}
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
-            nuisance_var = self.add_weight(
-                name=f"detector-bin-nuisances-{i}",
-                shape=(nbins,),
-                dtype=tf.float32,
-                trainable=True,
-                initializer=keras.initializers.RandomNormal(
-                    mean=0.0,
-                    stddev=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD),
-                ),  # Randomizing initialization to prevent vanishing gradients
-            )
+            if self._config.train__data_is_train_for_nuisances:
+                nuisance_var = nn.Parameter(
+                    torch.zeros(nbins, dtype=torch.float32, device=self.device)
+                )
+            else:
+                nuisance_var = torch.zeros(nbins, dtype=torch.float32, device=self.device)
             self._detector_deltas[self._observable_names[i]] = nuisance_var
-
-    def _setup_tensorboard(self):
-        # Initialize
-        tf.keras.backend.clear_session()
-        gc.collect()
-
-        # Create logging directory
-        self._current_epoch = tf.Variable(0, trainable=False, dtype=tf.int64)
-        self._tensorboard_log_file = self._context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / self.name
-        self._train_summary_writer = tf.summary.create_file_writer(str(self._tensorboard_log_file))  # type: ignore
         
-    @tf.function
-    def _gaussian_nuisance_nll(self, nuisance_value: Any) -> tf.Tensor:
+        # Register parameters if trainable
+        if self._config.train__data_is_train_for_nuisances:
+            for name, var in self._detector_deltas.items():
+                self.register_parameter(f"nuisance_{name}", var)
+
+    def _create_initial_parameters(self) -> None:
+        """
+        Create newly initialized weights matching the training strategy.
+        This is the single source of truth for weight initialization.
+        Assumes 2-layer network (1 hidden layer).
+        """
+        # Use Xavier uniform with standard gain for better exploration of parameter space
+        gain = 1.0
+        
+        # Layer 0: Input to hidden
+        hidden_layer = self.network[0]
+        nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
+        nn.init.xavier_uniform_(hidden_layer.bias.view(-1, 1), gain=gain)
+        
+        # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
+        output_layer = self.network[2]
+        nn.init.xavier_uniform_(output_layer.weight, gain=gain)
+        nn.init.xavier_uniform_(output_layer.bias.view(-1, 1), gain=gain)
+
+        # Handle detector nuisances separately
+        if self._config.train__data_is_train_for_nuisances:
+            for var in self._detector_deltas.values():
+                nn.init.normal_(var, mean=0.0, std=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD))
+
+    def _initialize_parameters(self):
+        """Initialize parameters using the centralized strategy."""
+        self._create_initial_parameters()
+
+    def configure_optimizers(self):
+        """Configure optimizer for Lightning with learning rate scheduling."""
+        # Use slightly higher initial learning rate to enable better exploration
+        optimizer = optim.Adam(self.parameters(), lr=1e-2, weight_decay=1e-5)
+        
+        # Learning rate scheduler with warm restarts for periodically exploring new regions
+        scheduler = {
+            'scheduler': optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                optimizer,
+                T_0=100,  # Initial period
+                T_mult=1.5,  # Multiply period after each restart
+                eta_min=1e-6,  # Minimum learning rate
+            ),
+            'interval': 'epoch',
+            'frequency': 1,
+        }
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
+
+    def _gaussian_nuisance_nll(self, nuisance_value: torch.Tensor) -> torch.Tensor:
         """
         Negative log-likelihood of a single (or vector of) nuisance parameter(s) under
         Gaussian constraint.
         - log(x) = 0.5 * (x/σ)² + log(σ√(2π))
         Constant term is dropped.
-        return: tf.Tensor: Tensor of same shape as nuisance_value with NLL values.
+        return: torch.Tensor: Tensor of same shape as nuisance_value with NLL values.
         """
-        std = tf.cast(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, tf.float32)
-        return 0.5 * tf.square(nuisance_value / std)
+        std = torch.tensor(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, dtype=torch.float32, device=self.device)
+        return 0.5 * torch.square(nuisance_value / std)
 
-    @tf.function
-    def _total_nuisance_nll(self) -> tf.Tensor:
+    def _total_nuisance_nll(self) -> torch.Tensor:
         """
         Total negative log-likelihood for all nuisance parameters, summed over observables.
         Calculated directly as a sum after taking the individual NLLs.
-        return: tf.Tensor: Scalar tensor of total nuisance NLL.
+        return: torch.Tensor: Scalar tensor of total nuisance NLL.
         """
-        nuisances = tf.concat([tf.reshape(var, [-1]) for var in self._detector_deltas.values()], axis=0)
-        return tf.reduce_sum(self._gaussian_nuisance_nll(nuisances))
+        nuisances = torch.cat([var.reshape(-1) for var in self._detector_deltas.values()])
+        return torch.sum(self._gaussian_nuisance_nll(nuisances))
     
-    @tf.function
     def _prediction_nll(
             self,
-            f__is_sample_prediction: tf.Tensor,
-            y__is_sample_mask: tf.Tensor,
-        ) -> tf.Tensor:
+            y__is_sample_truth: torch.Tensor,
+            f__is_sample_pred: torch.Tensor,
+        ) -> torch.Tensor:
         """
         The custom negative log-likelihood for the prediction of the NN.
         Rewards correct classification of sample vs. reference events.
-        return: tf.Tensor: Tensor of same shape as input tensors with NLL values.
+        return: torch.Tensor: Tensor of same shape as input tensors with NLL values.
         """
-        is_ref_mask = tf.subtract(1.0, y__is_sample_mask)
-        return is_ref_mask * (tf.exp(f__is_sample_prediction) - 1) \
-            - tf.multiply(y__is_sample_mask, f__is_sample_prediction)
+        is_ref_truth = 1.0 - y__is_sample_truth
+        return is_ref_truth * (torch.exp(f__is_sample_pred) - 1) \
+            - y__is_sample_truth * f__is_sample_pred
 
     @property
     def _observable_names(self) -> List[str]:
         return self._detector_effect._observable_names
 
-    @tf.function
     def ddp_symmetrized_loss(
             self,
-            y__is_sample_truth: tf.Tensor,
-            f__is_sample_prediction: tf.Tensor,
-        ) -> tf.Tensor:
+            y__is_sample_truth: torch.Tensor,
+            f__is_sample_pred: torch.Tensor,
+        ) -> torch.Tensor:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
         estimation. Returns negative log-likelihood to be minimized.
-        return: tf.Tensor: Tensor of same shape as input tensors with total NLL values.
-        tf automatically reweights the loss by sample_weight given in fit(), as long
-        as this function returns a tf.Tensor of shape (batch_size,).
+        return: torch.Tensor: Tensor of same shape as input tensors with total NLL values.
         """
         prediction_loss = self._prediction_nll(
-            f__is_sample_prediction,
-            y__is_sample_truth,
+            y__is_sample_truth=y__is_sample_truth,
+            f__is_sample_pred=f__is_sample_pred,
         )  # Tensor the size of data
-        nuisance_loss = self._total_nuisance_nll() / \
-            tf.cast(tf.shape(y__is_sample_truth)[0], tf.float32)  # Scalar
+        if self._config.train__data_is_train_for_nuisances:
+            nuisance_loss = self._total_nuisance_nll()  # Scalar
+        else:
+            nuisance_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
-        # Total loss is sum of log-likelihoods. Addition by tf is element-wise.
-        return tf.math.add(prediction_loss, nuisance_loss)
+        # Total loss is sum of log-likelihoods
+        return prediction_loss + nuisance_loss
 
-    def get_metrics(self) -> List[tf.keras.metrics.Metric]:
+    def forward(self, data: torch.Tensor, training: bool = True) -> torch.Tensor:
+        naive_prediction = self.network(data)
+        
+        # Clip naive prediction to prevent overflow in exp() during loss calculation
+        safe_prediction = torch.clamp(naive_prediction, MIN_PREDICTION_CUTOFF, MAX_PREDICTION_CUTOFF)
 
-        class NuisanceAbsSumMetric(keras.metrics.Metric):
-            def __init__(inner_self, **kwargs):
-                super().__init__(**kwargs)
-                inner_self.__value = inner_self.add_weight(name="nuisance_abs_sum", initializer="zeros")
+        # Each event predicted weight is multiplied by the exponentiation multiplication of all affecting nuisances
+        if self._config.train__data_is_train_for_nuisances:
+            nuisance_skews = [
+                torch.gather(torch.exp(self._detector_deltas[obs]), 0, self._bins_of_events[:, i])
+                for i, obs in enumerate(self._observable_names)
+            ]
 
-            def update_state(inner_self, y_true, y_pred, sample_weight=None):
-                val = tf.reduce_sum(tf.stack([
-                    tf.reduce_sum(tf.abs(var)) for var in self._detector_deltas.values()
-                ]))
-                inner_self.__value.assign(val)
+            items = torch.stack([safe_prediction.squeeze(), *nuisance_skews])
+            return torch.prod(items, dim=0)
+        else:
+            return safe_prediction.squeeze()
+
+    def _on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
+        """Log metrics for end of epoch."""
+        if logs is None:
+            logs = {}
+        
+        # Log scalar metrics with Lightning
+        for metric_name, metric_value in logs.items():
+            self.log(metric_name, metric_value, prog_bar=True)
+        
+        # Log nuisance parameters as text if trainable
+        if self._config.train__data_is_train_for_nuisances:
+            nuisance_values = "\n".join([
+                f"{name}: {var.detach().cpu().numpy()}"
+                for name, var in self._detector_deltas.items()
+            ])
+            log_text = f"Nuisance parameters at epoch {epoch}:\n{nuisance_values}"
+            self.logger.experiment.add_text("nuisance_parameters", log_text, epoch)
+        
+        # Log diagnostic information
+        if epoch % (self._config.train__number_of_epochs_for_checkpoint * 5) == 0:
+            debug(f'Completed epoch {epoch}/{self._config.train__epochs}')
+            if 'loss' in logs:
+                loss_val = logs.get('loss')
+                debug(f'  Loss: {loss_val}')
+                if isinstance(loss_val, float) and (np.isnan(loss_val) or np.isinf(loss_val)):
+                    warning(f'Loss is {loss_val} at epoch {epoch} - training may diverge')
+
+    class ExtremePredictionResetCallback(Callback):
+        """Reset NN if model gets stuck at maximum or minimum predicted values."""
+
+        def __init__(
+                self,
+                max_stuck_epochs: int = 50,
+                max_threshold: float = MAX_PREDICTION_CUTOFF - 0.5,
+                min_threshold: float = MIN_PREDICTION_CUTOFF + 0.5,
+                stuck_fraction_threshold: float = 0.5,
+                check_interval: int = 100,
+        ):
+            super().__init__()
+            self._max_stuck_epochs = max_stuck_epochs
+            self._max_threshold = max_threshold
+            self._min_threshold = min_threshold
+            self._stuck_fraction_threshold = stuck_fraction_threshold
+            self._consecutive_stuck_epochs = 0
+            self._check_interval = check_interval
+
+        def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: 'DifferentiatingModel') -> None:
+            """Called at the end of each training epoch."""
+            epoch = trainer.current_epoch
             
-            def result(inner_self):
-                return inner_self.__value
+            # Only check every check_interval epochs
+            if epoch % self._check_interval != 0:
+                return
             
-            def reset_state(inner_self):
-                inner_self.__value.assign(0.0)
-
-        class PredictionLossMetric(keras.metrics.Metric):
-            def __init__(inner_self, **kwargs):
-                super().__init__(**kwargs)
-                inner_self.__value = inner_self.add_weight(name="prediction_loss", initializer="zeros")
-
-            def update_state(inner_self, y_true, y_pred, sample_weight=None):
-                val = tf.reduce_sum(self._prediction_nll(y_pred, y_true))
-                inner_self.__value.assign(val)
-
-            def result(inner_self):
-                return inner_self.__value
-
-            def reset_state(inner_self):
-                inner_self.__value.assign(0.0)
-
-        class NuisanceNegLogLikelihoodMetric(keras.metrics.Metric):
-            def __init__(inner_self, **kwargs):
-                super().__init__(**kwargs)
-                inner_self.__value = inner_self.add_weight(name="nuisance_loss", initializer="zeros")
-
-            def update_state(inner_self, y_true, y_pred, sample_weight=None):
-                nuisance_loss = self._total_nuisance_nll()
-                inner_self.__value.assign(nuisance_loss)
+            # Get predictions on training data
+            with torch.no_grad():
+                sample_predictions = pl_module(pl_module._train_data)
+                sample_predictions = sample_predictions.detach().cpu().numpy()
             
-            def result(inner_self):
-                return inner_self.__value
+            # Check if most predictions are stuck at max or min
+            stuck_at_max = float(np.mean(sample_predictions >= self._max_threshold))
+            stuck_at_min = float(np.mean(sample_predictions <= self._min_threshold))
             
-            def reset_state(inner_self):
-                inner_self.__value.assign(0.0)
-
-        return [
-            NuisanceAbsSumMetric(name=HistoryKeys.NUISANCE_ABS_SUM.value),
-            PredictionLossMetric(name=HistoryKeys.PREDICTION_LOSS.value),
-            NuisanceNegLogLikelihoodMetric(name=HistoryKeys.NUISANCE_LOSS.value),
-        ]
-
-    def get_callbacks(self) -> List[keras.callbacks.Callback]:
-        class TextLoggerCallback(keras.callbacks.Callback):
-            TEXT_LOG_TEMPLATE = f"""
-            Nuisance parameters at epoch {{epoch}}:
-            {{nuisance_values}}
-            """
-            def on_epoch_end(inner_self, epoch, logs=None):
-                nuisance_values = "\n".join([
-                    f"{name}: {var.numpy()}"
-                    for name, var in self._detector_deltas.items()
-                ])
-                log_text = inner_self.TEXT_LOG_TEMPLATE.format(
-                    epoch=epoch,
-                    nuisance_values=nuisance_values,
-                )
-                with self._train_summary_writer.as_default():
-                    tf.summary.text("nuisance_parameters", log_text, step=epoch)
-
-                self._train_summary_writer.flush()
+            is_stuck = (stuck_at_max >= self._stuck_fraction_threshold) or \
+                        (stuck_at_min >= self._stuck_fraction_threshold)
+            stuck_type = "max" if stuck_at_max >= stuck_at_min else "min"
+            stuck_fraction = max(stuck_at_max, stuck_at_min)
+            
+            if is_stuck:
+                self._consecutive_stuck_epochs += self._check_interval
+                info(f"Epoch {epoch}: {stuck_fraction:.2%} of predictions stuck at {stuck_type}. " +
+                        f"Consecutive stuck epochs: {self._consecutive_stuck_epochs}/{self._max_stuck_epochs}")
                 
-        return [
-            keras.callbacks.TensorBoard(
-                log_dir=self._tensorboard_log_file, # type: ignore
-                histogram_freq=self._config.train__number_of_epochs_for_checkpoint,
-                update_freq='epoch',
-            ),
-            TextLoggerCallback(),
-        ]
+                if self._consecutive_stuck_epochs >= self._max_stuck_epochs:
+                    warning(f"Resetting model parameters after {self._consecutive_stuck_epochs} consecutive stuck epochs")
+                    self._consecutive_stuck_epochs = 0
+                    pl_module._initialize_parameters()
+            else:
+                if self._consecutive_stuck_epochs > 0:
+                    info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
+                self._consecutive_stuck_epochs = 0
 
-    def train_step(self, data: Tuple[tf.Tensor, tf.Tensor]):
-        """
-        A custom loop is implemented in order to learn the nuisance variables as well as the model's weights.
-        """
-        x, y, weights = keras.utils.unpack_x_y_sample_weight(data)
+    class BestLossCheckpointCallback(Callback):
+        """Save model checkpoint whenever a lower weighted loss is achieved."""
 
-        # Record operations while calling the NN for auto differentiation
-        with tf.GradientTape() as tape:
-            prediction = self(x, training=True)
-            loss = self.compute_loss(
-                x, y,
-                prediction,
-                sample_weight=weights,
-            )
+        def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: 'DifferentiatingModel') -> None:
+            """Called at the end of each training epoch."""
+            current_loss = trainer.callback_metrics.get('loss')
+            
+            if current_loss is not None:
+                current_loss = float(current_loss)
+                
+                if current_loss < pl_module._min_loss:
+                    # Delete previous best checkpoint if it exists
+                    if pl_module._best_model_path is not None:
+                        Path(pl_module._best_model_path).unlink()
+                        debug(f"Deleted previous best checkpoint: {pl_module._best_model_path}")
+                    
+                    pl_module._min_loss = current_loss
+                    # Save new best checkpoint
+                    checkpoint_path = pl_module._get_best_checkpoint_path(trainer.current_epoch)
+                    trainer.save_checkpoint(checkpoint_path)
+                    pl_module._best_model_path = checkpoint_path
+                    info(f"New best loss {current_loss:.6f} at epoch {trainer.current_epoch}. "
+                         f"Checkpoint saved: {checkpoint_path}")
 
-        # Use tape to update trainable vars. Apply a single step
-        gradients = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-
-        # Update and return metrics via the compiled Keras utilities (handles sample weights)
-        return self.compute_metrics(x, y, y_pred=prediction, sample_weight=weights)
+    def _get_best_checkpoint_path(self, epoch: int) -> str:
+        """Generate path for best model checkpoint."""
+        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
+        return str(tensorboard_log_dir / f"best_model_epoch_{epoch}.ckpt")
 
     @contextmanager
     def binning_context(self, data: DataSet):
         try:
-            self._bins_of_events = self._detector_effect.get_event_bin_centers(data, indexed=True)
+            self._bins_of_events = torch.tensor(
+                self._detector_effect.get_event_bin_centers(data, indexed=True),
+                dtype=torch.long,
+                device=self.device
+            )
             yield
         finally:
             self._bins_of_events = None
 
-    def fit(self, data: DataSet, target: npt.NDArray, **kwargs) -> keras.callbacks.History:
-        """
-        Overload of the fit method to be used with DataSet objects and one-time calculation of binning.
+    def _prepare_training_data(
+        self,
+        data: DataSet,
+        target: npt.NDArray,
+        weights: npt.NDArray,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Convert DataSet and target to tensors on the correct device."""
+        x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
+        y_tensor = torch.tensor(target, dtype=torch.float32, device=self.device)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
+        return x_tensor, y_tensor, weights_tensor
 
-        batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
-        """
-        with self.binning_context(data):
-            return super().fit(data.events, target, batch_size=data.n_samples, **kwargs)
+    def _get_batch_size(self, n_samples: int) -> int:
+        """Determine batch size - use config value or default to full dataset."""
+        return self._config.train__batch_size or n_samples
 
-    def predict(self, data: DataSet, **kwargs) -> npt.NDArray:
-        """
-        Overload of the predict method to be used with DataSet objects and one-time calculation of binning.
+    def _create_data_loader(
+        self,
+        x_tensor: torch.Tensor,
+        y_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
+        batch_size: int,
+    ) -> DataLoader:
+        dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-        batch_size is hardcoded for the slicing should be done along with the data slicing, and this is not implemented.
-        """
-        with self.binning_context(data):
-            return super().predict(data.events, batch_size=data.n_samples, **kwargs)
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        """Lightning training step."""
+        batch_x, batch_y, batch_weights = batch
 
-    def call(self, data_set: tf.Tensor, training: bool = None) -> tf.Tensor:
-        naive_prediction = super().call(data_set, training=training)
+        # Forward pass
+        predictions = self(batch_x, training=True)
+
+        # Check for NaN/Inf
+        if torch.any(~torch.isfinite(predictions)):
+            raise ValueError(f"Prediction contains NaN or Inf values on epoch {self.current_epoch}")
+
+        # Compute loss
+        batch_loss = self.ddp_symmetrized_loss(
+            batch_y,
+            predictions,
+        )
         
-        # Clip naive prediction to prevent overflow in exp() during loss calculation
-        # Max value of ~20 keeps exp(20) ≈ 485 million, which is large but manageable
-        # To allow for gradient flow, use stop_gradient trick
-        clipped_naive_prediction = tf.clip_by_value(naive_prediction, -20.0, 20.0)
-        safe_prediction = tf.math.add(naive_prediction, tf.stop_gradient(clipped_naive_prediction - naive_prediction))
+        # Apply sample weights
+        weighted_loss = (batch_loss * batch_weights).mean()
+        self.log("loss", weighted_loss, prog_bar=True)
+        return weighted_loss
+    
+    def on_train_epoch_end(self) -> None:
+        """Called at the end of training epoch - compute full metrics."""
+        with torch.no_grad():
+            full_predictions = self(self._train_data, training=False)
+            metrics = self._calculate_metrics(self._train_target, full_predictions)
+        
+        logs = {'loss': self.trainer.callback_metrics.get('loss', 0.0)}
+        logs.update(metrics)
+        self._on_epoch_end(self.current_epoch, logs)
+        
+        # Log gradient diagnostics for loss landscape inspection
+        self._log_gradient_diagnostics()
+        
+        # Store in training history
+        for key, value in logs.items():
+            if key not in self._training_history:
+                self._training_history[key] = []
+            self._training_history[key].append(value)
 
-        # Each event weight is multiplied by the exponentiation multiplication of all affecting nuisances
-        nuisance_skews = [
-            tf.gather(tf.exp(self._detector_deltas[obs]), self._bins_of_events[:, i])
-            for i, obs in enumerate(self._observable_names)
+    def _calculate_metrics(
+        self,
+        y__is_sample_truth: torch.Tensor,
+        f__is_sample_pred: torch.Tensor,
+    ) -> Dict[str, float]:
+        """
+        Calculate all metrics in a structured manner.
+        Returns a dict with all relevant metric values.
+        """
+        metrics = {}
+        
+        # Prediction loss
+        prediction_nll = self._prediction_nll(y__is_sample_truth, f__is_sample_pred)
+        metrics[HistoryKeys.PREDICTION_LOSS.value] = torch.sum(prediction_nll).item()
+        
+        # Nuisance loss and absolute sum
+        if self._config.train__data_is_train_for_nuisances:
+            metrics[HistoryKeys.NUISANCE_LOSS.value] = self._total_nuisance_nll().item()
+            metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = sum(
+                torch.sum(torch.abs(var)).item() for var in self._detector_deltas.values()
+            )
+        else:
+            metrics[HistoryKeys.NUISANCE_LOSS.value] = 0.0
+        
+        return metrics
+
+    def _log_gradient_diagnostics(self) -> None:
+        """
+        Log gradient statistics to TensorBoard for loss landscape inspection.
+        Helps diagnose whether model is exploiting degrees of freedom effectively.
+        """
+        total_norm = 0.0
+        param_norms = {}
+        
+        for name, param in self.named_parameters():
+            if param.grad is not None:
+                param_grad_norm = torch.norm(param.grad).item()
+                param_norms[name] = param_grad_norm
+                total_norm += param_grad_norm ** 2
+        
+        total_norm = np.sqrt(total_norm)
+        
+        # Log aggregate gradient norm
+        self.log("gradient/total_norm", total_norm, prog_bar=False)
+        
+        # Log per-layer gradient norms
+        for name, norm in param_norms.items():
+            safe_name = name.replace(".", "/")
+            self.log(f"gradient/layer_{safe_name}", norm, prog_bar=False)
+        
+        # Log maximum and minimum gradient values
+        all_grads = torch.cat([param.grad.flatten() for param in self.parameters() if param.grad is not None])
+        self.log("gradient/max_value", torch.max(all_grads).item(), prog_bar=False)
+        self.log("gradient/min_value", torch.min(all_grads).item(), prog_bar=False)
+        self.log("gradient/mean_abs", torch.mean(torch.abs(all_grads)).item(), prog_bar=False)
+        self.log("gradient/std", torch.std(all_grads).item(), prog_bar=False)
+        
+        # Calculate gradient SNR (signal-to-noise ratio approximation)
+        # High SNR = making consistent progress, Low SNR = noise-dominated
+        mean_grad = torch.mean(all_grads).item()
+        std_grad = torch.std(all_grads).item()
+        snr = abs(mean_grad) / (std_grad + 1e-10)
+        self.log("gradient/snr", snr, prog_bar=False)
+
+    def _get_callbacks(self) -> List[Callback]:
+        """Get callbacks list, creating defaults if none provided."""
+        return [
+            EarlyStopping(
+                monitor=HistoryKeys.LOSS.value,
+                patience=10000,  # Allow very long training
+                verbose=True,
+                mode='min',
+                min_delta=1e-9,  # Loss could be in the order of 1e-8
+                check_finite=True,
+                stopping_threshold=None,  # No hard loss threshold
+            ),
+            self.ExtremePredictionResetCallback(
+                max_stuck_epochs=50,
+                max_threshold=MAX_PREDICTION_CUTOFF - 0.5,
+                min_threshold=MIN_PREDICTION_CUTOFF + 0.5,
+                stuck_fraction_threshold=0.5,
+                check_interval=100,
+            ),
+            self.BestLossCheckpointCallback(),
         ]
 
-        items = tf.stack([tf.squeeze(safe_prediction), *nuisance_skews])
-        return tf.reduce_prod(items, axis=0)
+    def fit(
+        self,
+        data: DataSet,
+        target: npt.NDArray,
+        weights: npt.NDArray,
+    ) -> Dict[str, List[float]]:
+        """
+        Training loop using PyTorch Lightning.
+        
+        Args:
+            data: Training DataSet object
+            target: Target labels array
+            weights: Sample weight array
+            callbacks: Optional list of Lightning callbacks
+        
+        Returns:
+            Dictionary with training history
+        """
+        # Store training data for metrics computation
+        self._train_data, self._train_target, self._train_weights = self._prepare_training_data(data, target, weights)
+
+        # Calculate batch size and gradient accumulation
+        batch_size = self._get_batch_size(data.n_samples)
+        accumulate_grad_batches = (data.n_samples + batch_size - 1) // batch_size
+
+        # Prepare data loader with pre-calculated batch size
+        dataloader = self._create_data_loader(self._train_data, self._train_target, self._train_weights, batch_size)
+
+        # Get callbacks
+        callbacks_list = self._get_callbacks()
+
+        # Set up tensorboard logger
+        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
+        tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use mixed precision (automatic fp16 casting) and optimized trainer settings
+        trainer = pl.Trainer(
+            max_epochs=self._config.train__epochs,
+            callbacks=callbacks_list,
+            logger=pl.loggers.TensorBoardLogger(
+                save_dir=str(tensorboard_log_dir.parent),
+                name=self._name,
+            ),
+            enable_progress_bar=True,
+            enable_model_summary=False,
+            precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
+            gradient_clip_val=5.0,  # More permissive gradient clipping to allow larger updates
+            accumulate_grad_batches=accumulate_grad_batches // 3,  # Process each batch individually for stochastic noise
+            num_sanity_val_steps=0,  # Skip validation sanity check
+            log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
+        )
+
+        # Training with binning context
+        with self.binning_context(data):
+            trainer.fit(self, dataloader)
+
+        # Collect history from training
+        return self._training_history
+
+    def predict(self, data: DataSet) -> npt.NDArray:
+        """
+        Prediction method to be used with DataSet objects and one-time calculation of binning.
+        """
+        with self.binning_context(data):
+            x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
+            self.eval()
+            with torch.no_grad():
+                predictions = self(x_tensor, training=False)
+            return predictions.cpu().numpy()
+
+    def save_parameters(self, file_path) -> None:
+        """Save PyTorch model parameters to file."""
+        torch.save(self.state_dict(), file_path)
+
+    def load_best_checkpoint(self) -> None:
+        """Load the best checkpoint found during training if one exists."""
+        if self._best_model_path is not None:
+            info(f"Loading best model from checkpoint: {self._best_model_path}")
+            checkpoint = torch.load(self._best_model_path, map_location=self.device, weights_only=False)
+            self.load_state_dict(checkpoint['state_dict'])
+        else:
+            warning("No best checkpoint found. Using current model state.")
 
 
 def calc_t_LFVNN(
@@ -323,9 +581,8 @@ def calc_t_LFVNN(
         reference_dataset: DataSet,
         detector_effect: DetectorEffect,
         name: str,
-) -> Tuple[keras.models.Model, float]:
+) -> Tuple[pl.LightningModule, float]:
     
-    ## Done preparing sample
     feature_dataset = sample_dataset + reference_dataset
     target_structure = np.concatenate((
             np.ones(shape=(sample_dataset.n_samples,)),
@@ -334,8 +591,8 @@ def calc_t_LFVNN(
         axis=0,
     )
     loss_weights = np.concatenate((
-            sample_dataset._weight_mask / sample_dataset.corrected_n_samples,
-            reference_dataset._weight_mask / reference_dataset.corrected_n_samples,
+            sample_dataset._weight_mask,
+            reference_dataset._weight_mask * sample_dataset.corrected_n_samples / reference_dataset.corrected_n_samples,
         ),
         axis=0,
     )
@@ -344,44 +601,35 @@ def calc_t_LFVNN(
     info("Starting training")
     t0 = time()
     
-    # Just fit without any special training, like is done in LFVNN
-    model = DifferentiatingModel(
-        context,
-        detector_effect,
+    tau_model = DifferentiatingModel(
+        context=context,
+        detector_effect=detector_effect,
         name=name,
     )
-    # Use gradient clipping to prevent exploding gradients
-    optimizer = keras.optimizers.Adam(clipnorm=1.0)
-    model.compile(
-        loss=model.ddp_symmetrized_loss,
-        metrics=model.get_metrics(),
-        optimizer=optimizer,
-    )
-    tau_model_fit = model.fit(
-        feature_dataset,
-        target_structure,
-        sample_weight=loss_weights,
-        epochs=context.config.train__epochs,
-        verbose=0,
-        callbacks=model.get_callbacks(),
-    )
-    tau_model_history = tau_model_fit.history
-    tau_model_history[HistoryKeys.EPOCH.value] = np.concatenate([
-        np.arange(0, context.config.train__epochs, context.config.train__number_of_epochs_for_checkpoint),
-        np.array([context.config.train__epochs - 1]),
-    ])
-    tau_history = np.array(tau_model_history[HistoryKeys.LOSS.value])[tau_model_history[HistoryKeys.EPOCH.value]]
-    tau_model_history[HistoryKeys.LOSS.value] = tau_history
 
+    tau_model_history = tau_model.fit(
+        data=feature_dataset,
+        target=target_structure,
+        weights=loss_weights,
+    )
+    
     info(f'Training time (seconds): {time() - t0}')
+    
+    # Load the best checkpoint found during training
+    tau_model.load_best_checkpoint()
 
-    final_loss = calc_t_test_statistic(tau_history[-1])
-    info(f'Observed t test statistic: {final_loss}')
+    # PyTorch Lightning loss is already the sum over batch samples.
+    # We need to rescale to get the correct t-statistic using the minimum loss achieved.
+    total_weight = np.sum(loss_weights)
+    min_loss = tau_model._min_loss * total_weight
+    final_test_statistic = calc_t_test_statistic(min_loss)
+    info(f'Minimum weighted loss achieved: {min_loss:.6f}')
+    info(f'Observed t test statistic: {final_test_statistic}')
     
     save_training_outcomes(
         context,
         model_history=tau_model_history,
-        tau_model=model,
+        tau_model=tau_model,
     )
 
-    return model, final_loss
+    return tau_model, final_test_statistic

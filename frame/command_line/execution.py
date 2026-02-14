@@ -40,7 +40,15 @@ exit $?
 SINGULARITY_EXECUTION_LINES = """
 # Main command execution
 echo "Executing command on Singularity: {command}"
-{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {sandbox_path} {command}
+
+# Stagger container extraction across parallel jobs to avoid file descriptor exhaustion
+# Extract numeric job ID from PBS_JOBID (handles array job format like "3559993[25].pbs")
+BASE_JOBID=$(echo $PBS_JOBID | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
+DELAY=$((BASE_JOBID * 5))
+echo "Waiting $DELAY seconds before container extraction..."
+sleep $DELAY
+
+{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {container_path} {command}
 """
 
 
@@ -48,13 +56,14 @@ def format_qsub_execution_script(
         context: ExecutionContext,
         command: str,
         array_jobs: Optional[int] = None,
+        use_gpu_if_needed: bool = True,
     ) -> str:
     config: ClusterConfig = context.config
 
     # Handle GPU line
     gpu_line = ""
-    if config.cluster__qsub_ngpus_for_train:
-        gpu_line = f"#$ -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
+    if use_gpu_if_needed and config.cluster__qsub_ngpus_for_train:
+        gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
 
     singularity_bindings = ",".join([
         f"{Path(local_path).absolute()}:{container_path}"
@@ -69,16 +78,13 @@ def format_qsub_execution_script(
         singularity_executable=config.cluster__singularity_executable,
         container_project_root=CONTAINER_PROJECT_ROOT,
         singularity_bindings=singularity_bindings,
-        sandbox_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}_sandbox",
+        container_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
     )
 
 # Singularity build script. A few comments:
-# Fist build command:
+# Build command flags:
 # --remote: the only option that works on the ATLAS cluster. Produces a SIF file.
-#
-# Second build command:
-# --sandbox: creates a sandbox to prevent file descriptor fatigue when running array jobs.
 
 SINGULARITY_BUILD_LINES = """
 # Build Singularity container with custom repository and branch
@@ -96,30 +102,20 @@ cp $LFVDDP_DEF_PATH ./{project_name}.def
 # The commit hash is added as a comment to bust Singularity's layer cache
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
     -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
-    -e "s|CONTAINER_CONFIGS_DIR=.*|CONTAINER_CONFIGS_DIR=\"{container_configs_dir}\"|" \
     -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
     -e "s|# Cache-busting commit: PLACEHOLDER|# Cache-busting commit: {git_commit_hash}|" \
     {project_name}.def > {project_name}-edit.def
 
 # Build from the customized definition file
 echo "Building container..."
+rm -f {project_name}.sif || true
 {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
 
 # Copy the built SIF back to submission directory
 cp {project_name}.sif $PBS_O_WORKDIR/
 
-# Create sandbox from SIF for faster execution
-echo "Creating sandbox from SIF for faster execution..."
-cd $PBS_O_WORKDIR
-{singularity_executable} build --sandbox {project_name}_sandbox {project_name}.sif
-
-if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to create sandbox"
-    exit 1
-fi
-echo "Sandbox created successfully at {project_name}_sandbox"
-
 # Cleanup build directory
+cd $PBS_O_WORKDIR
 rm -rf $BUILD_DIR
 """
 
