@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from logging import info, warning
+from logging import info
 from time import time
 from typing import Dict, List, Tuple, Union
 import numpy as np
@@ -58,6 +58,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._norm_factor = None
         self._training_history = {}
         self._cached_f_predictions = None  # Cache for full forward pass
+        self._network_is_compiled = False
 
     def _build_layers(self):
         # Fully connected 2-layer network:
@@ -113,15 +114,12 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
 
     def configure_optimizers(self):
         """Configure optimizer for Lightning with learning rate scheduling."""
-        # LBFGS optimizer for better convergence on smooth loss landscapes
-        optimizer = optim.LBFGS(
+        # Adam optimizer with decoupled weight decay
+        optimizer = optim.Adam(
             self.parameters(),
             lr=self._config.train__learning_rate,
-            max_iter=20,  # Max iterations per step
-            line_search_fn='strong_wolfe',  # Line search strategy
         )
-        
-        # No learning rate scheduler needed for LBFGS
+
         return optimizer
 
     def _gaussian_nuisance_nll(self, nuisance_value: torch.Tensor) -> torch.Tensor:
@@ -233,15 +231,16 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
 
         # Since we cache predictions and use one batch per epoch tactic, no point in shuffling
-        return DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        return DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=1,
+        )
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Lightning training step."""
         batch_x, batch_y, batch_weights = batch
-
-        # Log model architecture on first batch
-        if batch_idx == 0 and self.current_epoch == 0:
-            self.logger.experiment.add_graph(self, batch_x)
 
         # Forward pass
         self._cached_f_predictions = self(batch_x, training=True)
@@ -258,6 +257,15 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     
     def on_train_epoch_end(self) -> None:
         """Called at the end of training epoch - compute full metrics."""
+        checkpoint_interval = self._config.train__number_of_epochs_for_checkpoint
+        is_checkpoint_epoch = (self.current_epoch + 1) % checkpoint_interval == 0
+        is_last_epoch = (
+            self.trainer is not None and
+            (self.current_epoch + 1) >= self.trainer.max_epochs
+        )
+        if not (is_checkpoint_epoch or is_last_epoch):
+            return
+
         with torch.no_grad():
             logs = self._calculate_metrics(
                 is_sample_classifier=self._train_target_classifier,
@@ -311,6 +319,15 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         
         return metrics
 
+    def _compile_network(self) -> None:
+        """Compile the network once before training."""
+        if self._network_is_compiled:
+            return
+
+        self.network = torch.compile(self.network)
+        self._network_is_compiled = True
+        info("Compiled network with torch.compile")
+
     def fit(
         self,
         data: DataSet,
@@ -340,6 +357,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             batch_size=data.n_samples,
         )
 
+        self._compile_network()
+
         # Set up tensorboard logger
         tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
         tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
@@ -350,11 +369,11 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             logger=pl.loggers.TensorBoardLogger(
                 save_dir=str(tensorboard_log_dir.parent),
                 name=self._name,
-                log_graph=True,
+                log_graph=False,
             ),
-            enable_progress_bar=True,
+            enable_progress_bar=self._config.train__enable_progress_bar,
             enable_model_summary=True,
-            precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
+            precision='32',
             accumulate_grad_batches=1,  # Process each batch individually for stochastic noise
             num_sanity_val_steps=0,  # Skip validation sanity check
             log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
