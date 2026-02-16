@@ -1,0 +1,93 @@
+%   This file uses a template that is part of the APS files in the
+%   REVTeX 4.2 distribution.
+%   Version 4.2a of REVTeX, December 2014
+%
+%   Copyright (c) 2014 The American Physical Society.
+%
+%   See the REVTeX 4 README file for restrictions and more information.
+%
+% TeX'ing this file requires that you have AMS-LaTeX 2.0 installed
+% as well as the rest of the prerequisites for REVTeX 4.2
+%
+% See the REVTeX 4 README file
+% It also requires running BibTeX. The commands are as follows:
+%
+%  1)  latex apssamp.tex
+%  2)  bibtex apssamp
+%  3)  latex apssamp.tex
+%  4)  latex apssamp.tex
+
+\documentclass[%
+preprint, linenumbers,
+groupedaddress,
+amsmath,amssymb,
+aps, physrev,
+]{revtex4-2}
+
+\input{../common/preamble}
+	
+\begin{document}
+\preprint{WIS/DDP-01}
+
+% =============================================================================
+% Info
+% =============================================================================
+
+\title{TITLE WORK IN PROGRESS: A Lepton Flavor Violation Search by the Data Directed Paradigm}
+\date{\today}
+
+%% Authors
+\author{Shikma Bressler}
+\email{shikma.bressler@weizmann.ac.il}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\author{Elad Kliger}
+\email{elad.kliger@weizmann.ac.il}
+% \homepage{}
+% \altaffiliation{}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\date{\texorpdfstring{\TODO{Replace date}}{TODO: Replace date}}
+
+% =============================================================================
+% Article headers
+% =============================================================================
+
+\begin{abstract}
+\TODO{Abstract}
+\end{abstract}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =============================================================================
+% Article body
+% =============================================================================
+
+\TODO{main sections here}
+
+\subfile{sections/preface.tex}
+
+% =============================================================================
+% Acknowledgments, appendices, bibliography
+% =============================================================================
+
+\begin{acknowledgments}
+\TODO{acknowledge}
+\end{acknowledgments}
+
+\appendix
+\TODO{appendix sections here}
+
+% Print out all entries in the bibliography, even if they are not cited in the text.
+% Produce the bibliography via BibTeX.
+\nocite{*}
+\bibliographystyle{apsrev4-2}
+\bibliography{../common/bibliography/bibliography}
+
+\end{document}
