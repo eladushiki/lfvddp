@@ -2,7 +2,7 @@ from pathlib import Path
 import pytest
 import numpy as np
 from test.environment import ConfigType
-from train.single_train import follow_instructions_for_t
+from train.multiprocessing_train import follow_instructions_for_t
 
 
 @pytest.mark.parametrize(

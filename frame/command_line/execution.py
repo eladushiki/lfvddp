@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from frame.cluster.cluster_config import ClusterConfig
+from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
@@ -144,7 +145,7 @@ def format_qsub_build_script(
 
 
 def format_qsub_script(
-    config: ClusterConfig,
+    config: Union[ClusterConfig, UserConfig],
     core_script_lines: str,
     array_jobs: Optional[int] = None,
     **additional_template_kwargs,
@@ -159,7 +160,7 @@ def format_qsub_script(
         task_id_line = 'echo "Task ID: $PBS_ARRAY_INDEX"\n'
     
     return script.format(
-        job_name=config.cluster__qsub_job_name,
+        job_name=config.config__dirsafe_runtag,
         queue=config.cluster__qsub_queue,
         walltime=config.cluster__qsub_walltime,
         memory=config.cluster__qsub_mem or 2,
