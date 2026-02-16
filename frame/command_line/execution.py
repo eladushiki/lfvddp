@@ -8,11 +8,13 @@ from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJ
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
+#PBS -m n
 #PBS -S /bin/bash
 #PBS -j oe
 #PBS -N {job_name}
 #PBS -q {queue}
 #PBS -l walltime={walltime}
+#PBS -l ncpus={ncpus}
 #PBS -l mem={memory}g
 {gpu_line}{array_job_line}
 """
@@ -25,13 +27,15 @@ echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
 {task_id_line}{environment_activation_command}
 
+set -eo pipefail
 set -x
 """
 
 QSUB_COMPLETION = """
 # Job completion
+JOB_EXIT_CODE=$?
 echo "Job completed at: $(date)"
-exit $?
+exit $JOB_EXIT_CODE
 """
 
 # Singularity exec command. A few comments:
@@ -42,16 +46,64 @@ SINGULARITY_EXECUTION_LINES = r"""
 # Main command execution
 echo "Executing command on Singularity: {command}"
 
-# Stagger container extraction across parallel jobs to avoid file descriptor exhaustion
-# Extract numeric job ID from PBS_JOBID (handles array job format like "3559993[25].pbs")
-BASE_JOBID=$(echo $PBS_JOBID | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
-if [ "$BASE_JOBID" -le 80 ]; then
-    DELAY=$((BASE_JOBID * 20))
+# Keep unsquashfs parallelism bounded to reduce file-descriptor pressure.
+export SINGULARITY_UNSQUASHFS_PROCS=${{SINGULARITY_UNSQUASHFS_PROCS:-8}}
+# Older Singularity builds may ignore *_UNSQUASHFS_PROCS but honor explicit unsquashfs options.
+export SINGULARITY_UNSQUASHFS_OPTS="${{SINGULARITY_UNSQUASHFS_OPTS:--processors $SINGULARITY_UNSQUASHFS_PROCS}}"
+echo "Unsquashfs config: procs=$SINGULARITY_UNSQUASHFS_PROCS opts='$SINGULARITY_UNSQUASHFS_OPTS'"
+echo "Open-files soft limit: $(ulimit -n)"
+
+# Stagger container extraction across array tasks to avoid synchronized sandbox extraction.
+TASK_ID="${{PBS_ARRAY_INDEX:-}}"
+if [ -z "$TASK_ID" ]; then
+    TASK_ID=$(echo "$PBS_JOBID" | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
+fi
+if [ -n "$TASK_ID" ] && [ "$TASK_ID" -gt 1 ]; then
+    STAGGER_STEP_SEC=${{SINGULARITY_ARRAY_STAGGER_STEP_SEC:-180}}
+    STAGGER_JITTER_SEC=${{SINGULARITY_ARRAY_STAGGER_JITTER_SEC:-30}}
+    DELAY=$(( (TASK_ID - 1) * STAGGER_STEP_SEC + RANDOM % (STAGGER_JITTER_SEC + 1) ))
     echo "Waiting $DELAY seconds before container extraction..."
-    sleep $DELAY
+    sleep "$DELAY"
 fi
 
-{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {container_path} {command}
+SINGULARITY_CMD="{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {container_path} {command}"
+MAX_ATTEMPTS=${{SINGULARITY_EXEC_MAX_ATTEMPTS:-5}}
+ATTEMPT=1
+EXIT_CODE=1
+
+while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+    echo "Singularity attempt $ATTEMPT/$MAX_ATTEMPTS"
+    EXEC_LOG=$(mktemp)
+    set +e
+    eval "$SINGULARITY_CMD" >"$EXEC_LOG" 2>&1
+    EXIT_CODE=$?
+    set -e
+    cat "$EXEC_LOG"
+
+    if [ "$EXIT_CODE" -eq 0 ]; then
+        rm -f "$EXEC_LOG"
+        break
+    fi
+
+    if grep -qi "Too many open files" "$EXEC_LOG" && [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+        RETRY_DELAY_BASE=${{SINGULARITY_RETRY_DELAY_BASE_SEC:-120}}
+        RETRY_DELAY_JITTER=${{SINGULARITY_RETRY_DELAY_JITTER_SEC:-30}}
+        RETRY_DELAY=$((ATTEMPT * RETRY_DELAY_BASE + RANDOM % (RETRY_DELAY_JITTER + 1)))
+        echo "Detected open-file exhaustion, retrying in ${{RETRY_DELAY}}s..."
+        rm -f "$EXEC_LOG"
+        sleep "$RETRY_DELAY"
+        ATTEMPT=$((ATTEMPT + 1))
+        continue
+    fi
+
+    rm -f "$EXEC_LOG"
+    break
+done
+
+if [ "$EXIT_CODE" -ne 0 ]; then
+    echo "Singularity command failed after $ATTEMPT attempt(s) with exit code $EXIT_CODE"
+    exit "$EXIT_CODE"
+fi
 """
 
 
@@ -163,6 +215,7 @@ def format_qsub_script(
         job_name=config.config__dirsafe_runtag,
         queue=config.cluster__qsub_queue,
         walltime=config.cluster__qsub_walltime,
+        ncpus=config.cluster__qsub_ncpus,
         memory=config.cluster__qsub_mem or 2,
         array_job_line=array_job_line,
         task_id_line=task_id_line,

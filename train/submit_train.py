@@ -36,7 +36,7 @@ def submit_process(context: ExecutionContext) -> None:
         bound_dest_path = Path(context.config.config__out_dir) / "configs" / config_path.name 
         config_path_mapping[str(config_path)] = str(path_as_in_container(bound_dest_path.absolute()))
 
-    # Step 1: Build (or re-build) a container (if needed)
+    # Build (or re-build) a container (if needed)
     if not context.is_no_build and not context.is_only_train:
         build_job_id = submit_container_build(context=context)
     else:

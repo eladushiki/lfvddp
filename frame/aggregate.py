@@ -5,7 +5,7 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.context.execution_products import products_from_stem, unstamp_product_stem
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_RESULT_FILE_EXTENSION, RESULTING_T_FILE_NAME, TRAINING_HISTORY_LOG_FILE_SUFFIX
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_RESULT_FILE_EXTENSION, RESULTING_T_FILE_STEM, TRAINING_HISTORY_LOG_FILE_SUFFIX
 from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
 from numpy.typing import NDArray
@@ -28,7 +28,7 @@ class ResultAggregator:
 
     def _load_t_values(self):
         # Find all files
-        _files_in_output_dir = glob(str(self._parent_directory) + f"/**/{RESULTING_T_FILE_NAME}*.{TRAINING_RESULT_FILE_EXTENSION}", recursive=True)
+        _files_in_output_dir = glob(str(self._parent_directory) + f"/**/{RESULTING_T_FILE_STEM}*.{TRAINING_RESULT_FILE_EXTENSION}", recursive=True)
 
         # Read and validate content
         aggregated_results = []

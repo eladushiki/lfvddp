@@ -33,17 +33,37 @@ def main(context: ExecutionContext) -> None:
 
     # For reference, we combine both datasets
     reference_dataset = detected_A_dataset + detected_B_dataset
+    model_a_name = f"A_model_for_{dataset_1_name}"
+    model_b_name = f"B_model_for_{dataset_2_name}"
 
-    # Train symmetrically to obtain the combined loss
-    t_a, t_b = symmetric_train_in_parallel(
-        context=context,
-        detected_A_dataset=detected_A_dataset,
-        detected_B_dataset=detected_B_dataset,
-        reference_dataset=reference_dataset,
-        detector_effect=det,
-        model_a_name=f"A_model_for_{dataset_1_name}",
-        model_b_name=f"B_model_for_{dataset_2_name}",
-    )
+    # Train symmetrically to obtain the combined loss.
+    # Mode is configurable: parallel subprocesses or sequential in-process execution.
+    if config.train__run_symmetric_in_parallel:
+        t_a, t_b = symmetric_train_in_parallel(
+            context=context,
+            detected_A_dataset=detected_A_dataset,
+            detected_B_dataset=detected_B_dataset,
+            reference_dataset=reference_dataset,
+            detector_effect=det,
+            model_a_name=model_a_name,
+            model_b_name=model_b_name,
+        )
+    else:
+        _, t_a = follow_instructions_for_t(
+            context=context,
+            sample_dataset=detected_A_dataset,
+            reference_dataset=reference_dataset,
+            detector_effect=det,
+            name=model_a_name,
+        )
+        _, t_b = follow_instructions_for_t(
+            context=context,
+            sample_dataset=detected_B_dataset,
+            reference_dataset=reference_dataset,
+            detector_effect=det,
+            name=model_b_name,
+        )
+
     final_t = t_a + t_b
 
     ## Training log
