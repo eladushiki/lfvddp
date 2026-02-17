@@ -35,6 +35,8 @@ __autograph_generated_file*.py
 *.out
 *.gz
 *.toc
+*.bib
+*.synctex
 
 # IDE
 .vscode/
