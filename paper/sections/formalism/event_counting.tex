@@ -1,0 +1,88 @@
+\documentclass[../../ddppaper3.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\section{Formalism}
+
+\subsection{Building an Observed Dataset}
+
+During a HEP experiment, large amount of collision events occur inside the detector. The original number of such events in a dataset is denoted by $\true{N}$.
+
+When detected, some $j$ physical attributes of each event are measured, e.g., energy, momentum components and angles. Let each event \( \bar{x_i} \in \mathbb{R}^k \equiv \{\phi^j_i\}\) be a point in \( k \)-dimensional feature space. Each dataset \(\mathbf{A} \in \mathbb{R}^{\true{N} \times k}\) consists of such events.
+
+Due to limited detector efficiency and selection effects, not all events that occur inside the detector are observed. Let $\eta(\bar{x})$ be the probability with which an event is detected, and hence appears in the observed dataset.
+
+We define the filtering process \(\detector(\eta, \{\bar{x_i}\})\) that stochastically removes events:
+\[
+\detector(\eta, \{\bar{x_i}\}) \equiv \{ \bar{x_i} \mid \text{each } \bar{x_i} \text{ is retained with probability } \eta(\bar{x_i}) \}.
+\]
+
+The observed (filtered) dataset is then:
+\[
+\meas{A} = \detector(\eta, \dataset{A})
+\]
+
+with $|\meas{A}| = N_\meas{A}$, the observed number of events.
+
+Our first goal is to estimate \( \true{N} \) from the observed \( N_\meas{A} \), correcting for detector efficiency effects and propagating uncertainties associated with the efficiency estimation.
+
+\subsection{Modelling our Knowledge of the Detector Efficiency}
+
+Now expressing the (true) efficiency functions as:
+
+\begin{align*}
+    \eta(\bar{x_i}) &: \mathbb{R}^k \to [0,1] \equiv \prod_{j=1}^k \eta^j(\phi_i^j)
+\end{align*}
+
+with
+
+\begin{align} \label{eq:efficiency_j_explicit_form}
+    \theta^j(\phi^j) &: \mathbb{R} \to [0,1] \equiv e^{\nu^j_m}\eta^j(\phi^j)
+\end{align}
+
+with $\theta^i$ representing our knowledge of the efficiency of each bin. This means, we model for an efficiency function that varies from our understanding of it through usage of nuisance parameters $\nu^j_m$. While considered small for our formulation, for the time being - are unconstrained.
+
+Datasets statistics are being binned before they can be analyzed. Given that the detectable range is divided into $m^j$ bins along each dimension, we consider the efficiency of the detector to be a multiplicative constant in each. We further claim and model $\eta$ and $\theta$ to be evaluated at a per-bin basis. This gives taht we need exactly $j \times m$ nuisance parameters, $\nu^j_m$, to fully capture the uncertainty effect.
+
+\subsection{Efficiency Compensation via Event Weights}
+
+To reconstruct the statistics of the original datasets, we assign weights:
+
+\begin{equation}
+\label{eq:def_weights}
+\text{for } x_i \in \tilde{\mathbf{A}}, \quad w_i := \frac{1}{\theta(x_i)}
+\end{equation}
+
+This gives rise to the efficiency-compensated reconstructed datasets:
+
+\[
+\dot{\mathbf{A}} := \{ (x_i, w_i) \mid x_i \in \tilde{\mathbf{A}} \}
+\]
+
+The estimated total event counts become:
+\[
+N_\reco{A} = \sum_{x_i \in \meas{A}} w_i \approx \true{N}
+\]
+
+Note that this expression includes our knowledge of the efficiency and our error, throught the $\eta$'s in the expression.
+
+\subsection{Proposition (Unbiasedness of the weighted estimator).} \label{prop:unbiasedness_of_weights}
+Let \(\{x_i\}_{i=1}^{\true{N}}\) be the set of true collected events, each detected independently with probability \(\eta(x_i)\). Then:
+\[
+\mathbb{E}\!\left[ N_\reco{A} \right] = \true{N}
+\]
+\emph{Proof.}
+For a single event \(x_i\), the contribution to the sum is \(\frac{1}{\theta(x_i)}\) if detected and \(0\) otherwise. Its expectation is:
+\begin{align*}
+\eta(x_i) \cdot \frac{1}{\theta(x_i)} + (1-\eta(x_i))\cdot 0 &= \\
+= e^{\nu(x_i)}\theta(x_i) \cdot \frac{1}{\theta(x_i)} &= e^{\nu(x_i)}
+\end{align*}
+
+% If we leave this formulation take the proof from https://statproofbook.github.io/P/norm-mgf.html
+% It says that E(x) = e^(\mu x + 1/2 sigma^2 x^2)
+
+Given that the expectation value of the exponentiated nuisances is 0, summing over all \(\true{N}\) events yields the result. \(\square\)
+
+\end{document}
