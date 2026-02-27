@@ -15,6 +15,15 @@ def cross_validate(config: Union[
     TrainConfig,
     UserConfig,
 ]):
+    # Resolve qsub CPU allocation after merged config is fully constructed.
+    if config.cluster__qsub_ncpus is None:
+        has_parallel_training = (
+            config.train__run_symmetric_in_parallel
+            if isinstance(config, TrainConfig)
+            else False
+        )
+        config.cluster__qsub_ncpus = 2 if has_parallel_training else 1
+
     assert config.train__nn_input_dimension == config.detector__number_of_dimensions, \
         f"Input dimension {config.train__nn_input_dimension} does not match detector dimension " \
         f"{config.detector__number_of_dimensions}"

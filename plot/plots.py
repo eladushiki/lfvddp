@@ -129,13 +129,13 @@ def t_distribution_plot(
         t = t[~did_not_converge]
 
     # Limits
-    chi2_begin = chi2.ppf(0.0001, chi2_dof := model_degrees_of_freedom(config))
-    chi2_end = chi2.ppf(0.9999, chi2_dof)
+    chi2_begin = 0
+    chi2_end = chi2.ppf(0.9999, chi2_dof := model_degrees_of_freedom(config))
     xmin = min(t)
     xmax = max(t)
 
     # plot distribution histogram
-    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
+    histogram_bins = np.linspace(0, xmax, number_of_bins + 1)
     histogram_bin_width = (xmax - xmin) * 1./number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label     = f"median: {str(np.around(np.median(t), 2))} \n" \
@@ -148,7 +148,7 @@ def t_distribution_plot(
         
     h, _, _ = ax.hist(
         t,
-        weights=np.ones_like(t)*1./(t.shape[0]),
+        weights=np.ones_like(t) * (number_of_bins / ((xmax - xmin) * t.shape[0])),
         color=style["histogram_color"],
         ec=style["edge_color"],
         bins=histogram_bins,
@@ -201,7 +201,7 @@ def t_distribution_plot(
     ax.set_xlabel('t', fontsize=22, labelpad=20)
     ax.set_ylabel('Bin Probability', fontsize=22, labelpad=20)
     ax.set_ylim(0, top=max(h + y_error))
-    ax.set_xlim(xmin, xmax)
+    ax.set_xlim(0, xmax)
     plt.yticks()
     plt.xticks()
 
