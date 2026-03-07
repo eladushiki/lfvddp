@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -14,6 +15,7 @@ class ClusterConfig:
     cluster__qsub_io: int
     cluster__qsub_mem: int
     cluster__qsub_ngpus_for_train: int
+    cluster__qsub_ncpus: Optional[int] = None
 
     @property
     def repo_name(self) -> str:

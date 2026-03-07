@@ -4,7 +4,7 @@ from data_tools.dataset_config import DatasetConfig
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
-from train.multiprocessing_train import symmetric_train_in_parallel
+from train.multiprocessing_train import follow_instructions_for_t, symmetric_train_in_parallel
 from train.train_config import TrainConfig
 
 
