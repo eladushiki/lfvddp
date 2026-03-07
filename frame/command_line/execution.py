@@ -28,14 +28,11 @@ echo "Current directory: $(pwd)"
 {task_id_line}{environment_activation_command}
 
 set -eo pipefail
-set -x
 """
 
 QSUB_COMPLETION = """
 # Job completion
-JOB_EXIT_CODE=$?
-echo "Job completed at: $(date)"
-exit $JOB_EXIT_CODE
+exit $?
 """
 
 # Singularity exec command. A few comments:
@@ -44,66 +41,98 @@ exit $JOB_EXIT_CODE
 
 SINGULARITY_EXECUTION_LINES = r"""
 # Main command execution
-echo "Executing command on Singularity: {command}"
-
-# Keep unsquashfs parallelism bounded to reduce file-descriptor pressure.
 export SINGULARITY_UNSQUASHFS_PROCS=${{SINGULARITY_UNSQUASHFS_PROCS:-8}}
-# Older Singularity builds may ignore *_UNSQUASHFS_PROCS but honor explicit unsquashfs options.
 export SINGULARITY_UNSQUASHFS_OPTS="${{SINGULARITY_UNSQUASHFS_OPTS:--processors $SINGULARITY_UNSQUASHFS_PROCS}}"
-echo "Unsquashfs config: procs=$SINGULARITY_UNSQUASHFS_PROCS opts='$SINGULARITY_UNSQUASHFS_OPTS'"
-echo "Open-files soft limit: $(ulimit -n)"
-
-# Stagger container extraction across array tasks to avoid synchronized sandbox extraction.
-TASK_ID="${{PBS_ARRAY_INDEX:-}}"
-if [ -z "$TASK_ID" ]; then
-    TASK_ID=$(echo "$PBS_JOBID" | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
-fi
-if [ -n "$TASK_ID" ] && [ "$TASK_ID" -gt 1 ]; then
-    STAGGER_STEP_SEC=${{SINGULARITY_ARRAY_STAGGER_STEP_SEC:-180}}
-    STAGGER_JITTER_SEC=${{SINGULARITY_ARRAY_STAGGER_JITTER_SEC:-30}}
-    DELAY=$(( (TASK_ID - 1) * STAGGER_STEP_SEC + RANDOM % (STAGGER_JITTER_SEC + 1) ))
-    echo "Waiting $DELAY seconds before container extraction..."
-    sleep "$DELAY"
+CURRENT_NOFILE=$(ulimit -n)
+TARGET_NOFILE=${{SINGULARITY_NOFILE_LIMIT:-65535}}
+if [ "$CURRENT_NOFILE" -lt "$TARGET_NOFILE" ]; then
+    ulimit -n "$TARGET_NOFILE" 2>/dev/null || true
 fi
 
-SINGULARITY_CMD="{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {container_path} {command}"
-MAX_ATTEMPTS=${{SINGULARITY_EXEC_MAX_ATTEMPTS:-5}}
-ATTEMPT=1
-EXIT_CODE=1
+CONTAINER_SIF_PATH="{container_path}"
+CACHE_ROOT="${{SINGULARITY_NODE_CACHE_DIR:-/tmp/$USER/singularity-node-cache}}"
+mkdir -p "$CACHE_ROOT"
 
-while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
-    echo "Singularity attempt $ATTEMPT/$MAX_ATTEMPTS"
-    EXEC_LOG=$(mktemp)
-    set +e
-    eval "$SINGULARITY_CMD" >"$EXEC_LOG" 2>&1
-    EXIT_CODE=$?
-    set -e
-    cat "$EXEC_LOG"
+IMG_BASENAME=$(basename "$CONTAINER_SIF_PATH")
+IMG_MTIME=$(stat -c %Y "$CONTAINER_SIF_PATH" 2>/dev/null || echo 0)
+SANDBOX_KEY="${{IMG_BASENAME}}.${{IMG_MTIME}}"
+SANDBOX_DIR="${{CACHE_ROOT}}/${{SANDBOX_KEY}}.sandbox"
+READY_FILE="${{SANDBOX_DIR}}/.ready"
+LOCK_DIR="${{SANDBOX_DIR}}.lock"
+LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-1800}}"
 
-    if [ "$EXIT_CODE" -eq 0 ]; then
-        rm -f "$EXEC_LOG"
-        break
+RUN_PREFIX=""
+if command -v taskset >/dev/null 2>&1; then
+    CPU_CANDIDATE="${{SINGULARITY_CPUSET:-}}"
+    if [ -z "$CPU_CANDIDATE" ]; then
+        CPU_CANDIDATE=$(awk '/Cpus_allowed_list/ {{print $2}}' /proc/self/status | sed -E 's/,.*$//' | sed -E 's/-.*$//')
     fi
-
-    if grep -qi "Too many open files" "$EXEC_LOG" && [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
-        RETRY_DELAY_BASE=${{SINGULARITY_RETRY_DELAY_BASE_SEC:-120}}
-        RETRY_DELAY_JITTER=${{SINGULARITY_RETRY_DELAY_JITTER_SEC:-30}}
-        RETRY_DELAY=$((ATTEMPT * RETRY_DELAY_BASE + RANDOM % (RETRY_DELAY_JITTER + 1)))
-        echo "Detected open-file exhaustion, retrying in ${{RETRY_DELAY}}s..."
-        rm -f "$EXEC_LOG"
-        sleep "$RETRY_DELAY"
-        ATTEMPT=$((ATTEMPT + 1))
-        continue
+    if [ -n "$CPU_CANDIDATE" ] && taskset --cpu-list "$CPU_CANDIDATE" /bin/true >/dev/null 2>&1; then
+        RUN_PREFIX="taskset --cpu-list $CPU_CANDIDATE"
     fi
-
-    rm -f "$EXEC_LOG"
-    break
-done
-
-if [ "$EXIT_CODE" -ne 0 ]; then
-    echo "Singularity command failed after $ATTEMPT attempt(s) with exit code $EXIT_CODE"
-    exit "$EXIT_CODE"
 fi
+
+run_singularity() {{
+    if [ -n "$RUN_PREFIX" ]; then
+        $RUN_PREFIX {singularity_executable} "$@"
+    else
+        {singularity_executable} "$@"
+    fi
+}}
+
+build_sandbox() {{
+    TMP_SANDBOX="${{SANDBOX_DIR}}.tmp.$$"
+    rm -rf "$TMP_SANDBOX"
+    if run_singularity build --sandbox "$TMP_SANDBOX" "$CONTAINER_SIF_PATH"; then
+        rm -rf "$SANDBOX_DIR"
+        mv "$TMP_SANDBOX" "$SANDBOX_DIR"
+        touch "$READY_FILE"
+        return 0
+    fi
+    rm -rf "$TMP_SANDBOX"
+    return 1
+}}
+
+if [ ! -f "$READY_FILE" ]; then
+    SANDBOX_RETRY_MAX=${{SINGULARITY_SANDBOX_RETRY_MAX:-6}}
+    SANDBOX_RETRY_BASE_SLEEP_SEC=${{SINGULARITY_SANDBOX_RETRY_BASE_SLEEP_SEC:-20}}
+    SANDBOX_RETRY_JITTER_SEC=${{SINGULARITY_SANDBOX_RETRY_JITTER_SEC:-40}}
+    SANDBOX_ATTEMPT=1
+
+    while [ ! -f "$READY_FILE" ] && [ "$SANDBOX_ATTEMPT" -le "$SANDBOX_RETRY_MAX" ]; do
+        if mkdir "$LOCK_DIR" 2>/dev/null; then
+            build_sandbox || true
+            rmdir "$LOCK_DIR" 2>/dev/null || true
+        else
+            START_WAIT=$(date +%s)
+            while [ -d "$LOCK_DIR" ] && [ ! -f "$READY_FILE" ]; do
+                NOW=$(date +%s)
+                if [ $((NOW - START_WAIT)) -ge "$LOCK_TIMEOUT_SEC" ]; then
+                    break
+                fi
+                sleep 2
+            done
+        fi
+
+        if [ -f "$READY_FILE" ]; then
+            break
+        fi
+
+        SLEEP_SEC=$((SANDBOX_RETRY_BASE_SLEEP_SEC + RANDOM % (SANDBOX_RETRY_JITTER_SEC + 1)))
+        echo "Sandbox not ready (attempt $SANDBOX_ATTEMPT/$SANDBOX_RETRY_MAX). Retrying in ${{SLEEP_SEC}}s."
+        sleep "$SLEEP_SEC"
+        SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
+    done
+fi
+
+if [ -f "$READY_FILE" ]; then
+    CONTAINER_RUNTIME_PATH="$SANDBOX_DIR"
+else
+    echo "ERROR: sandbox not available at $SANDBOX_DIR after retries."
+    exit 1
+fi
+
+run_singularity exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} "$CONTAINER_RUNTIME_PATH" {command}
 """
 
 
