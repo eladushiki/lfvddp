@@ -308,7 +308,7 @@ def performance_plot(
         ))
 
     # Sort all results by injected significance    
-    if mean_injected_significances:
+    if not len(mean_injected_significances) == 0:
         sort = np.argsort(np.array(mean_injected_significances))
         mean_injected_significances = np.array(mean_injected_significances)[sort]
         plot_x = mean_injected_significances
@@ -337,7 +337,7 @@ def performance_plot(
         observed_significances_by_gaussian_fit[np.isfinite(observed_significances_by_gaussian_fit)],
     ])
 
-    if mean_injected_significances:
+    if not len(mean_injected_significances) == 0:
         min_x = max(min(mean_injected_significances) - graph_border, 0)
         max_x = max(mean_injected_significances) + graph_border
     else:

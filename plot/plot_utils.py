@@ -80,19 +80,19 @@ def utils__get_signal_dataset_parameters(
     
     # Validate signal configuration
     signal_dataset_parameters = None
-    number_of_signal_events = 0
     
     signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
     for dataset_name in signal_config._dataset__names:
         dataset_parameters: DatasetParameters = signal_config._dataset__parameters(dataset_name)
 
         # We do validate that there is a signal in at most one dataset
-        if (current_number_of_signal_events := dataset_parameters.dataset__number_of_signal_events) != 0:
-            assert number_of_signal_events == 0, \
+        # In low signal counts, de-facto number of signal events might vanish. If so, check intentions
+        # by looking at mean.
+        if dataset_parameters.dataset__number_of_signal_events or \
+               dataset_parameters.dataset__mean_number_of_signal_events:
+            assert signal_dataset_parameters is None, \
                 f"multiple signal datasets found, {dataset_name} being the second"
 
-            # Use de-facto signal and background event amounts to estimate PL
-            number_of_signal_events = current_number_of_signal_events
             signal_dataset_parameters = dataset_parameters
 
     if not signal_dataset_parameters:
