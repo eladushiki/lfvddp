@@ -5,13 +5,16 @@ from readline import read_history_file
 from typing import List, Optional, Union
 
 from data_tools.data_utils import DataSet
-from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
+from data_tools.detector.detector_config import DetectorConfig
+from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 import numpy as np
 import numpy.typing as npt
 from matplotlib import gridspec, patches, pyplot as plt
+from matplotlib.colors import LogNorm
+from neural_networks.utils import ContextedModel
 from plot.plotting_config import PlottingConfig
 from matplotlib.legend_handler import HandlerPatch
 import re
@@ -74,31 +77,17 @@ def t_hist_epoch(epochs_list,t_history,epoch_numbers):
     return t_hist_dict 
 
 
-def utils__get_signal_dataset_parameters(
-        signal_context: ExecutionContext,
-) -> DatasetParameters:
-    
-    # Validate signal configuration
-    signal_dataset_parameters = None
-    
-    signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
-    for dataset_name in signal_config._dataset__names:
-        dataset_parameters: DatasetParameters = signal_config._dataset__parameters(dataset_name)
-
-        # We do validate that there is a signal in at most one dataset
-        # In low signal counts, de-facto number of signal events might vanish. If so, check intentions
-        # by looking at mean.
-        if dataset_parameters.dataset__number_of_signal_events or \
-               dataset_parameters.dataset__mean_number_of_signal_events:
-            assert signal_dataset_parameters is None, \
-                f"multiple signal datasets found, {dataset_name} being the second"
-
-            signal_dataset_parameters = dataset_parameters
-
-    if not signal_dataset_parameters:
-        raise ValueError("No signal dataset found in the configuration")
-    
-    return signal_dataset_parameters
+def utils__get_spanning_dataset(
+        config: DetectorConfig,
+) -> DataSet:
+    bin_centers = []
+    for obs in (observable_names := config.detector__detect_observable_names):
+        bin_centers.append(config.observable_bins(obs)[1])
+    spanning_bin_centers = np.meshgrid(*bin_centers, indexing='ij')
+    return DataSet(
+        data=np.column_stack([b.ravel() for b in spanning_bin_centers]),
+        observable_names=observable_names,
+    )
 
 
 class results:  # todo: deprecate
@@ -294,7 +283,7 @@ def utils__sample_over_background_histograms_sliced(
         sample: DataSet,
         background: DataSet,
         bins: np.ndarray,
-        along_observable: Optional[str] = None,
+        along_observables: Union[List[str], str, None] = None,
         sample_legend: str = "sample",
         background_legend: str = "background",
 ):
@@ -302,16 +291,20 @@ def utils__sample_over_background_histograms_sliced(
         ax=ax,
         bins=bins,
         dataset=background,
-        along_observable=along_observable,
+        along_observables=along_observables,
         label=background_legend,
     )
     utils__datset_histogram_sliced(
         ax=ax,
         bins=bins,
         dataset=sample,
-        along_observable=along_observable,
+        along_observables=along_observables,
         label=sample_legend,
     )
+
+
+def utils__flatten_histogram_values(values: npt.ArrayLike) -> np.ndarray:
+    return np.asarray(values).reshape(-1)
 
 
 def utils__datset_histogram_sliced(
@@ -319,19 +312,124 @@ def utils__datset_histogram_sliced(
         bins: np.ndarray,
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
-        along_observable: Optional[str] = None,
+        along_observables: Union[List, str, None] = None,
         **hist_kwargs,
 ):
-    if along_observable is None:
-        along_observable = dataset.observable_names[0]
-    
-    ax.hist(
-        x=dataset.slice_along_observable_names(along_observable),
-        bins=bins,
-        weights=dataset.histogram_weight_mask if alternative_weights is None else alternative_weights,
-        log=True,
-        **hist_kwargs,
+    if along_observables is None:
+        along_observables = dataset.observable_names[0]
+    if isinstance(along_observables, str):
+        along_observables = [along_observables]
+    elif len(along_observables) > 2:
+        raise ValueError("Can only plot 1D or 2D histograms, got more than 2 observables")
+
+    weights = utils__flatten_histogram_values(
+        dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
     )
+    if weights.shape[0] != dataset.n_samples:
+        raise ValueError(
+            f"Expected one histogram weight per sample, got weights shape {weights.shape} "
+            f"for {dataset.n_samples} samples."
+        )
+
+    if len(along_observables) == 1:
+        x = utils__flatten_histogram_values(
+            dataset.slice_along_observable_names(along_observables[0])
+        )
+        ax.hist(
+            x=x,
+            bins=bins,
+            weights=weights,
+            log=True,
+            **hist_kwargs,
+        )
+    else:
+        xy = np.asarray(dataset.slice_along_observable_names(along_observables)).reshape(
+            dataset.n_samples,
+            len(along_observables),
+        )
+        x = xy[:, 0]
+        y = xy[:, 1]
+        hist2d_kwargs = dict(hist_kwargs)
+        label = hist2d_kwargs.pop("label", None)
+        histtype = hist2d_kwargs.pop("histtype", "stepfilled")
+        log_scale = hist2d_kwargs.pop("log", False)
+        alpha = hist2d_kwargs.pop("alpha", 0.8)
+        linewidth = hist2d_kwargs.pop("lw", hist2d_kwargs.pop("linewidth", 0.8))
+        color = hist2d_kwargs.pop("color", None)
+
+        if getattr(ax, "name", "") == "3d":
+            if color is None:
+                color = ax._get_lines.get_next_color()
+
+            counts, x_edges, y_edges = np.histogram2d(
+                x=x,
+                y=y,
+                bins=bins,
+                weights=weights,
+            )
+            x_pos, y_pos = np.meshgrid(x_edges[:-1], y_edges[:-1], indexing="ij")
+            dx, dy = np.meshgrid(np.diff(x_edges), np.diff(y_edges), indexing="ij")
+            z_pos = np.zeros_like(counts)
+            positive_mask = counts > 0
+
+            bar_kwargs = dict(hist2d_kwargs)
+            bar_kwargs.setdefault("shade", True)
+            if histtype == "step":
+                bar_kwargs.setdefault("color", (0.0, 0.0, 0.0, 0.0))
+                bar_kwargs.setdefault("edgecolor", color)
+                bar_kwargs.setdefault("alpha", 1.0)
+                bar_kwargs.setdefault("linewidth", max(linewidth, 1.2))
+            else:
+                bar_kwargs.setdefault("color", color)
+                bar_kwargs.setdefault("edgecolor", "black")
+                bar_kwargs.setdefault("alpha", alpha)
+                bar_kwargs.setdefault("linewidth", linewidth)
+
+            x_bar = x_pos.ravel()[positive_mask.ravel()]
+            y_bar = y_pos.ravel()[positive_mask.ravel()]
+            z_bar = z_pos.ravel()[positive_mask.ravel()]
+            dx_bar = dx.ravel()[positive_mask.ravel()]
+            dy_bar = dy.ravel()[positive_mask.ravel()]
+            dz_bar = counts.ravel()[positive_mask.ravel()]
+
+            # Slightly offset overlaid histograms so mplot3d does not hide a tall bar
+            # behind a shorter one that shares the same 3D footprint.
+            plot_index = getattr(ax, "_dataset_histogram_sliced_3d_index", 0)
+            offsets = [(-0.18, -0.18), (0.18, 0.18), (-0.18, 0.18), (0.18, -0.18)]
+            x_offset_frac, y_offset_frac = offsets[plot_index % len(offsets)]
+            shrink = 0.64
+            x_bar = x_bar + ((1.0 - shrink) / 2.0 + x_offset_frac) * dx_bar
+            y_bar = y_bar + ((1.0 - shrink) / 2.0 + y_offset_frac) * dy_bar
+            dx_bar = dx_bar * shrink
+            dy_bar = dy_bar * shrink
+            ax._dataset_histogram_sliced_3d_index = plot_index + 1
+
+            draw_order = np.argsort(dz_bar)
+
+            ax.bar3d(
+                x_bar[draw_order],
+                y_bar[draw_order],
+                z_bar[draw_order],
+                dx_bar[draw_order],
+                dy_bar[draw_order],
+                dz_bar[draw_order],
+                zsort="max",
+                **bar_kwargs,
+            )
+            if label is not None:
+                ax.scatter([], [], [], color=color, label=label)
+            if log_scale and np.any(positive_mask):
+                ax.set_zscale("log")
+        else:
+            if log_scale:
+                hist2d_kwargs.setdefault("norm", LogNorm())
+            ax.hist2d(
+                x=x,
+                y=y,
+                bins=bins,
+                weights=weights,
+                **hist2d_kwargs,
+            )
 
 
 def utils__plot_datset_lfv_comparison(
@@ -389,3 +487,41 @@ def utils__plot_datset_lfv_comparison(
     ratio_ax.set_xlabel(xlabel)
     ratio_ax.set_ylabel("ratio")
     plt.suptitle(title)
+
+
+def utils__contour_model_prediction(
+        context: ExecutionContext,
+        detector_effect: DetectorEffect,
+        trained_model: ContextedModel,
+        along_observables: Union[List[str], str, None] = None,
+):
+    """
+    Generate model prediction contour for 1D or 2D observables.
+
+    For 1D: returns (x_range, contour_1d)
+    For 2D: returns (x_range, y_range, contour_2d)
+    """
+    if not isinstance((config := context.config), DetectorConfig):
+        raise TypeError(f"Expected DetectorConfig, got {config.__class__.__name__}")
+
+    # Normalize input to list
+    if along_observables is None:
+        along_observables = [config.detector__detect_observable_names[0]]
+    elif isinstance(along_observables, str):
+        along_observables = [along_observables]
+
+    spanning_dataset = utils__get_spanning_dataset(config)
+    sliced_dataset = spanning_dataset.filter_observable_names(along_observables)
+    model_prediction = trained_model.predict(spanning_dataset)
+    contour = np.exp(model_prediction)
+    
+    # Average over bins across projected dimensions
+    sliced_dataset_bin_centers = detector_effect.get_event_bin_centers(sliced_dataset, indexed=False)
+    spanning_dataset_bin_centers = detector_effect.get_event_bin_centers(spanning_dataset, indexed=False)
+    unique_sliced_bin_centers = np.unique(sliced_dataset_bin_centers, axis=0)
+
+    contour_means = np.array([
+        contour[np.all(spanning_dataset_bin_centers == bin, axis=1)].mean() for bin in unique_sliced_bin_centers
+    ])
+
+    return unique_sliced_bin_centers, contour_means

@@ -42,6 +42,7 @@ def follow_instructions_for_t(
     if context.is_debug_mode:
         data_process_plot = plot_prediction_process_sliced(
             context=context,
+            detector_effect=detector_effect,
             experiment_sample=sample_dataset,
             reference_sample=reference_dataset,
             trained_tau_model=model,
