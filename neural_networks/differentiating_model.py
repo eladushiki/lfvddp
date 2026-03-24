@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from logging import info, debug, warning
-from pathlib import Path
+from logging import info, warning
 from time import time
 from typing import Dict, List, Tuple, Union
 import numpy as np
@@ -12,7 +11,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback, EarlyStopping
 
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
@@ -21,7 +19,7 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.utils import MAX_PREDICTION_CUTOFF, MIN_PREDICTION_CUTOFF, ContextedModel, save_training_outcomes, get_model_logging_dir
+from neural_networks.utils import ContextedModel, save_training_outcomes, get_model_logging_dir
 from train.train_config import TrainConfig
 
 
@@ -51,17 +49,15 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._bins_of_events = None  # Set in context
 
         # Initialize NN parameters according to strategy
-        self._initialize_parameters()
+        self._create_initial_parameters()
         
         # Store training data and weights for metrics computation
         self._train_data = None
-        self._train_target = None
+        self._train_target_classifier = None
         self._train_weights = None
+        self._norm_factor = None
         self._training_history = {}
-        
-        # Track minimum loss for checkpointing
-        self._min_loss = float('inf')
-        self._best_model_path = None
+        self._cached_f_predictions = None  # Cache for full forward pass
 
     def _build_layers(self):
         # Fully connected 2-layer network:
@@ -71,7 +67,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         
         self.network = nn.Sequential(
             nn.Linear(input_dim, hidden_size),
-            nn.LeakyReLU(negative_slope=0.01),
+            nn.Sigmoid(),
             nn.Linear(hidden_size, output_size),
         )
 
@@ -97,45 +93,36 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         This is the single source of truth for weight initialization.
         Assumes 2-layer network (1 hidden layer).
         """
-        # Use Xavier uniform with standard gain for better exploration of parameter space
-        gain = 1.0
+        # Use Xavier uniform with configurable gain for weight initialization
+        gain = self._config.train__nn_xavier_gain
         
         # Layer 0: Input to hidden
         hidden_layer = self.network[0]
         nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
-        nn.init.xavier_uniform_(hidden_layer.bias.view(-1, 1), gain=gain)
+        nn.init.uniform_(hidden_layer.bias, a=-0.3, b=0.3)
         
         # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
         output_layer = self.network[2]
         nn.init.xavier_uniform_(output_layer.weight, gain=gain)
-        nn.init.xavier_uniform_(output_layer.bias.view(-1, 1), gain=gain)
+        nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
         # Handle detector nuisances separately
         if self._config.train__data_is_train_for_nuisances:
             for var in self._detector_deltas.values():
                 nn.init.normal_(var, mean=0.0, std=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD))
 
-    def _initialize_parameters(self):
-        """Initialize parameters using the centralized strategy."""
-        self._create_initial_parameters()
-
     def configure_optimizers(self):
         """Configure optimizer for Lightning with learning rate scheduling."""
-        # Use slightly higher initial learning rate to enable better exploration
-        optimizer = optim.Adam(self.parameters(), lr=1e-2, weight_decay=1e-5)
+        # LBFGS optimizer for better convergence on smooth loss landscapes
+        optimizer = optim.LBFGS(
+            self.parameters(),
+            lr=self._config.train__learning_rate,
+            max_iter=20,  # Max iterations per step
+            line_search_fn='strong_wolfe',  # Line search strategy
+        )
         
-        # Learning rate scheduler with warm restarts for periodically exploring new regions
-        scheduler = {
-            'scheduler': optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer,
-                T_0=100,  # Initial period
-                T_mult=1.5,  # Multiply period after each restart
-                eta_min=1e-6,  # Minimum learning rate
-            ),
-            'interval': 'epoch',
-            'frequency': 1,
-        }
-        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
+        # No learning rate scheduler needed for LBFGS
+        return optimizer
 
     def _gaussian_nuisance_nll(self, nuisance_value: torch.Tensor) -> torch.Tensor:
         """
@@ -159,17 +146,17 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     
     def _prediction_nll(
             self,
-            y__is_sample_truth: torch.Tensor,
-            f__is_sample_pred: torch.Tensor,
+            is_sample_classifier: torch.Tensor,
+            f_prediction: torch.Tensor,
         ) -> torch.Tensor:
         """
         The custom negative log-likelihood for the prediction of the NN.
         Rewards correct classification of sample vs. reference events.
         return: torch.Tensor: Tensor of same shape as input tensors with NLL values.
         """
-        is_ref_truth = 1.0 - y__is_sample_truth
-        return is_ref_truth * (torch.exp(f__is_sample_pred) - 1) \
-            - y__is_sample_truth * f__is_sample_pred
+        is_ref_classifier = 1.0 - is_sample_classifier
+        return is_ref_classifier * (torch.exp(f_prediction) - 1) \
+            - is_sample_classifier * f_prediction
 
     @property
     def _observable_names(self) -> List[str]:
@@ -177,8 +164,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
 
     def ddp_symmetrized_loss(
             self,
-            y__is_sample_truth: torch.Tensor,
-            f__is_sample_pred: torch.Tensor,
+            is_sample_classifier: torch.Tensor,
+            f_prediction: torch.Tensor,
         ) -> torch.Tensor:
         """
         Symmetrized DDP custom loss for optimizing likelihood of the
@@ -186,8 +173,8 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         return: torch.Tensor: Tensor of same shape as input tensors with total NLL values.
         """
         prediction_loss = self._prediction_nll(
-            y__is_sample_truth=y__is_sample_truth,
-            f__is_sample_pred=f__is_sample_pred,
+            is_sample_classifier=is_sample_classifier,
+            f_prediction=f_prediction,
         )  # Tensor the size of data
         if self._config.train__data_is_train_for_nuisances:
             nuisance_loss = self._total_nuisance_nll()  # Scalar
@@ -198,133 +185,19 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         return prediction_loss + nuisance_loss
 
     def forward(self, data: torch.Tensor, training: bool = True) -> torch.Tensor:
-        naive_prediction = self.network(data)
-        
-        # Clip naive prediction to prevent overflow in exp() during loss calculation
-        safe_prediction = torch.clamp(naive_prediction, MIN_PREDICTION_CUTOFF, MAX_PREDICTION_CUTOFF)
+        f_prdiction = self.network(data)
 
         # Each event predicted weight is multiplied by the exponentiation multiplication of all affecting nuisances
         if self._config.train__data_is_train_for_nuisances:
             nuisance_skews = [
-                torch.gather(torch.exp(self._detector_deltas[obs]), 0, self._bins_of_events[:, i])
+                torch.gather(self._detector_deltas[obs], 0, self._bins_of_events[:, i])
                 for i, obs in enumerate(self._observable_names)
             ]
 
-            items = torch.stack([safe_prediction.squeeze(), *nuisance_skews])
+            items = torch.stack([f_prdiction.squeeze(), *nuisance_skews])
             return torch.prod(items, dim=0)
         else:
-            return safe_prediction.squeeze()
-
-    def _on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
-        """Log metrics for end of epoch."""
-        if logs is None:
-            logs = {}
-        
-        # Log scalar metrics with Lightning
-        for metric_name, metric_value in logs.items():
-            self.log(metric_name, metric_value, prog_bar=True)
-        
-        # Log nuisance parameters as text if trainable
-        if self._config.train__data_is_train_for_nuisances:
-            nuisance_values = "\n".join([
-                f"{name}: {var.detach().cpu().numpy()}"
-                for name, var in self._detector_deltas.items()
-            ])
-            log_text = f"Nuisance parameters at epoch {epoch}:\n{nuisance_values}"
-            self.logger.experiment.add_text("nuisance_parameters", log_text, epoch)
-        
-        # Log diagnostic information
-        if epoch % (self._config.train__number_of_epochs_for_checkpoint * 5) == 0:
-            debug(f'Completed epoch {epoch}/{self._config.train__epochs}')
-            if 'loss' in logs:
-                loss_val = logs.get('loss')
-                debug(f'  Loss: {loss_val}')
-                if isinstance(loss_val, float) and (np.isnan(loss_val) or np.isinf(loss_val)):
-                    warning(f'Loss is {loss_val} at epoch {epoch} - training may diverge')
-
-    class ExtremePredictionResetCallback(Callback):
-        """Reset NN if model gets stuck at maximum or minimum predicted values."""
-
-        def __init__(
-                self,
-                max_stuck_epochs: int = 50,
-                max_threshold: float = MAX_PREDICTION_CUTOFF - 0.5,
-                min_threshold: float = MIN_PREDICTION_CUTOFF + 0.5,
-                stuck_fraction_threshold: float = 0.5,
-                check_interval: int = 100,
-        ):
-            super().__init__()
-            self._max_stuck_epochs = max_stuck_epochs
-            self._max_threshold = max_threshold
-            self._min_threshold = min_threshold
-            self._stuck_fraction_threshold = stuck_fraction_threshold
-            self._consecutive_stuck_epochs = 0
-            self._check_interval = check_interval
-
-        def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: 'DifferentiatingModel') -> None:
-            """Called at the end of each training epoch."""
-            epoch = trainer.current_epoch
-            
-            # Only check every check_interval epochs
-            if epoch % self._check_interval != 0:
-                return
-            
-            # Get predictions on training data
-            with torch.no_grad():
-                sample_predictions = pl_module(pl_module._train_data)
-                sample_predictions = sample_predictions.detach().cpu().numpy()
-            
-            # Check if most predictions are stuck at max or min
-            stuck_at_max = float(np.mean(sample_predictions >= self._max_threshold))
-            stuck_at_min = float(np.mean(sample_predictions <= self._min_threshold))
-            
-            is_stuck = (stuck_at_max >= self._stuck_fraction_threshold) or \
-                        (stuck_at_min >= self._stuck_fraction_threshold)
-            stuck_type = "max" if stuck_at_max >= stuck_at_min else "min"
-            stuck_fraction = max(stuck_at_max, stuck_at_min)
-            
-            if is_stuck:
-                self._consecutive_stuck_epochs += self._check_interval
-                info(f"Epoch {epoch}: {stuck_fraction:.2%} of predictions stuck at {stuck_type}. " +
-                        f"Consecutive stuck epochs: {self._consecutive_stuck_epochs}/{self._max_stuck_epochs}")
-                
-                if self._consecutive_stuck_epochs >= self._max_stuck_epochs:
-                    warning(f"Resetting model parameters after {self._consecutive_stuck_epochs} consecutive stuck epochs")
-                    self._consecutive_stuck_epochs = 0
-                    pl_module._initialize_parameters()
-            else:
-                if self._consecutive_stuck_epochs > 0:
-                    info(f"Epoch {epoch}: Model recovered. Resetting stuck epoch counter.")
-                self._consecutive_stuck_epochs = 0
-
-    class BestLossCheckpointCallback(Callback):
-        """Save model checkpoint whenever a lower weighted loss is achieved."""
-
-        def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: 'DifferentiatingModel') -> None:
-            """Called at the end of each training epoch."""
-            current_loss = trainer.callback_metrics.get('loss')
-            
-            if current_loss is not None:
-                current_loss = float(current_loss)
-                
-                if current_loss < pl_module._min_loss:
-                    # Delete previous best checkpoint if it exists
-                    if pl_module._best_model_path is not None:
-                        Path(pl_module._best_model_path).unlink()
-                        debug(f"Deleted previous best checkpoint: {pl_module._best_model_path}")
-                    
-                    pl_module._min_loss = current_loss
-                    # Save new best checkpoint
-                    checkpoint_path = pl_module._get_best_checkpoint_path(trainer.current_epoch)
-                    trainer.save_checkpoint(checkpoint_path)
-                    pl_module._best_model_path = checkpoint_path
-                    info(f"New best loss {current_loss:.6f} at epoch {trainer.current_epoch}. "
-                         f"Checkpoint saved: {checkpoint_path}")
-
-    def _get_best_checkpoint_path(self, epoch: int) -> str:
-        """Generate path for best model checkpoint."""
-        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
-        return str(tensorboard_log_dir / f"best_model_epoch_{epoch}.ckpt")
+            return f_prdiction.squeeze()
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -341,18 +214,14 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def _prepare_training_data(
         self,
         data: DataSet,
-        target: npt.NDArray,
+        target_classifier: npt.NDArray,
         weights: npt.NDArray,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Convert DataSet and target to tensors on the correct device."""
-        x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
-        y_tensor = torch.tensor(target, dtype=torch.float32, device=self.device)
+        data_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
+        target_classifier_tensor = torch.tensor(target_classifier, dtype=torch.float32, device=self.device)
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
-        return x_tensor, y_tensor, weights_tensor
-
-    def _get_batch_size(self, n_samples: int) -> int:
-        """Determine batch size - use config value or default to full dataset."""
-        return self._config.train__batch_size or n_samples
+        return data_tensor, target_classifier_tensor, weights_tensor
 
     def _create_data_loader(
         self,
@@ -362,44 +231,48 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         batch_size: int,
     ) -> DataLoader:
         dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+        # Since we cache predictions and use one batch per epoch tactic, no point in shuffling
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Lightning training step."""
         batch_x, batch_y, batch_weights = batch
 
+        # Log model architecture on first batch
+        if batch_idx == 0 and self.current_epoch == 0:
+            self.logger.experiment.add_graph(self, batch_x)
+
         # Forward pass
-        predictions = self(batch_x, training=True)
+        self._cached_f_predictions = self(batch_x, training=True)
 
-        # Check for NaN/Inf
-        if torch.any(~torch.isfinite(predictions)):
-            raise ValueError(f"Prediction contains NaN or Inf values on epoch {self.current_epoch}")
-
-        # Compute loss
-        batch_loss = self.ddp_symmetrized_loss(
-            batch_y,
-            predictions,
+        # Compute per-sample loss
+        per_sample_loss = self.ddp_symmetrized_loss(
+            is_sample_classifier=batch_y,
+            f_prediction=self._cached_f_predictions,
         )
         
-        # Apply sample weights
-        weighted_loss = (batch_loss * batch_weights).mean()
-        self.log("loss", weighted_loss, prog_bar=True)
-        return weighted_loss
+        # Apply weights and aggregate to scalar
+        weighted_loss = per_sample_loss * batch_weights
+        return torch.mean(weighted_loss)
     
     def on_train_epoch_end(self) -> None:
         """Called at the end of training epoch - compute full metrics."""
         with torch.no_grad():
-            full_predictions = self(self._train_data, training=False)
-            metrics = self._calculate_metrics(self._train_target, full_predictions)
+            logs = self._calculate_metrics(
+                is_sample_classifier=self._train_target_classifier,
+                f_prediction=self._cached_f_predictions,
+            )
         
-        logs = {'loss': self.trainer.callback_metrics.get('loss', 0.0)}
-        logs.update(metrics)
-        self._on_epoch_end(self.current_epoch, logs)
+        # Log scalar metrics with Lightning
+        for metric_name, metric_value in logs.items():
+            self.log(metric_name, metric_value, prog_bar=True)
         
-        # Log gradient diagnostics for loss landscape inspection
-        self._log_gradient_diagnostics()
+        # Log weight histograms to TensorBoard
+        for name, param in self.network.named_parameters():
+            self.logger.experiment.add_histogram(f'weights/{name}', param, self.current_epoch)
         
-        # Store in training history
+        # Store in training history (include epoch number)
         for key, value in logs.items():
             if key not in self._training_history:
                 self._training_history[key] = []
@@ -407,19 +280,25 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
 
     def _calculate_metrics(
         self,
-        y__is_sample_truth: torch.Tensor,
-        f__is_sample_pred: torch.Tensor,
+        is_sample_classifier: torch.Tensor,
+        f_prediction: torch.Tensor,
     ) -> Dict[str, float]:
         """
         Calculate all metrics in a structured manner.
         Returns a dict with all relevant metric values.
         """
         metrics = {}
-        
+        metrics[HistoryKeys.EPOCH.value] = self.current_epoch
+
         # Prediction loss
-        prediction_nll = self._prediction_nll(y__is_sample_truth, f__is_sample_pred)
-        metrics[HistoryKeys.PREDICTION_LOSS.value] = torch.sum(prediction_nll).item()
-        
+        prediction_nll = self._prediction_nll(
+            is_sample_classifier,
+            f_prediction,
+        )
+        weighted_prediction_nll = prediction_nll * self._train_weights
+        metrics[HistoryKeys.MEAN_LOSS.value] = torch.mean(weighted_prediction_nll).item()
+        metrics[HistoryKeys.LOSS.value] = torch.sum(weighted_prediction_nll).item()
+
         # Nuisance loss and absolute sum
         if self._config.train__data_is_train_for_nuisances:
             metrics[HistoryKeys.NUISANCE_LOSS.value] = self._total_nuisance_nll().item()
@@ -428,68 +307,9 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             )
         else:
             metrics[HistoryKeys.NUISANCE_LOSS.value] = 0.0
+            metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = 0.0
         
         return metrics
-
-    def _log_gradient_diagnostics(self) -> None:
-        """
-        Log gradient statistics to TensorBoard for loss landscape inspection.
-        Helps diagnose whether model is exploiting degrees of freedom effectively.
-        """
-        total_norm = 0.0
-        param_norms = {}
-        
-        for name, param in self.named_parameters():
-            if param.grad is not None:
-                param_grad_norm = torch.norm(param.grad).item()
-                param_norms[name] = param_grad_norm
-                total_norm += param_grad_norm ** 2
-        
-        total_norm = np.sqrt(total_norm)
-        
-        # Log aggregate gradient norm
-        self.log("gradient/total_norm", total_norm, prog_bar=False)
-        
-        # Log per-layer gradient norms
-        for name, norm in param_norms.items():
-            safe_name = name.replace(".", "/")
-            self.log(f"gradient/layer_{safe_name}", norm, prog_bar=False)
-        
-        # Log maximum and minimum gradient values
-        all_grads = torch.cat([param.grad.flatten() for param in self.parameters() if param.grad is not None])
-        self.log("gradient/max_value", torch.max(all_grads).item(), prog_bar=False)
-        self.log("gradient/min_value", torch.min(all_grads).item(), prog_bar=False)
-        self.log("gradient/mean_abs", torch.mean(torch.abs(all_grads)).item(), prog_bar=False)
-        self.log("gradient/std", torch.std(all_grads).item(), prog_bar=False)
-        
-        # Calculate gradient SNR (signal-to-noise ratio approximation)
-        # High SNR = making consistent progress, Low SNR = noise-dominated
-        mean_grad = torch.mean(all_grads).item()
-        std_grad = torch.std(all_grads).item()
-        snr = abs(mean_grad) / (std_grad + 1e-10)
-        self.log("gradient/snr", snr, prog_bar=False)
-
-    def _get_callbacks(self) -> List[Callback]:
-        """Get callbacks list, creating defaults if none provided."""
-        return [
-            EarlyStopping(
-                monitor=HistoryKeys.LOSS.value,
-                patience=10000,  # Allow very long training
-                verbose=True,
-                mode='min',
-                min_delta=1e-9,  # Loss could be in the order of 1e-8
-                check_finite=True,
-                stopping_threshold=None,  # No hard loss threshold
-            ),
-            self.ExtremePredictionResetCallback(
-                max_stuck_epochs=50,
-                max_threshold=MAX_PREDICTION_CUTOFF - 0.5,
-                min_threshold=MIN_PREDICTION_CUTOFF + 0.5,
-                stuck_fraction_threshold=0.5,
-                check_interval=100,
-            ),
-            self.BestLossCheckpointCallback(),
-        ]
 
     def fit(
         self,
@@ -504,23 +324,21 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             data: Training DataSet object
             target: Target labels array
             weights: Sample weight array
-            callbacks: Optional list of Lightning callbacks
         
         Returns:
             Dictionary with training history
         """
         # Store training data for metrics computation
-        self._train_data, self._train_target, self._train_weights = self._prepare_training_data(data, target, weights)
-
-        # Calculate batch size and gradient accumulation
-        batch_size = self._get_batch_size(data.n_samples)
-        accumulate_grad_batches = (data.n_samples + batch_size - 1) // batch_size
+        normalized_data, self._norm_factor = data.get_normalized()
+        self._train_data, self._train_target_classifier, self._train_weights = self._prepare_training_data(normalized_data, target, weights)
 
         # Prepare data loader with pre-calculated batch size
-        dataloader = self._create_data_loader(self._train_data, self._train_target, self._train_weights, batch_size)
-
-        # Get callbacks
-        callbacks_list = self._get_callbacks()
+        dataloader = self._create_data_loader(
+            x_tensor=self._train_data,
+            y_tensor=self._train_target_classifier,
+            weights_tensor=self._train_weights,
+            batch_size=data.n_samples,
+        )
 
         # Set up tensorboard logger
         tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
@@ -529,18 +347,18 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         # Use mixed precision (automatic fp16 casting) and optimized trainer settings
         trainer = pl.Trainer(
             max_epochs=self._config.train__epochs,
-            callbacks=callbacks_list,
             logger=pl.loggers.TensorBoardLogger(
                 save_dir=str(tensorboard_log_dir.parent),
                 name=self._name,
+                log_graph=True,
             ),
             enable_progress_bar=True,
-            enable_model_summary=False,
+            enable_model_summary=True,
             precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
-            gradient_clip_val=5.0,  # More permissive gradient clipping to allow larger updates
-            accumulate_grad_batches=accumulate_grad_batches // 3,  # Process each batch individually for stochastic noise
+            accumulate_grad_batches=1,  # Process each batch individually for stochastic noise
             num_sanity_val_steps=0,  # Skip validation sanity check
             log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
+            enable_checkpointing=False,  # Disable all auto-checkpointing
         )
 
         # Training with binning context
@@ -553,26 +371,19 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
     def predict(self, data: DataSet) -> npt.NDArray:
         """
         Prediction method to be used with DataSet objects and one-time calculation of binning.
+        ALREADY PERFORMING LOG! (until implemented in NPLM)
         """
+        normalized_data = data / self._norm_factor
         with self.binning_context(data):
-            x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
+            x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self.device)
             self.eval()
             with torch.no_grad():
-                predictions = self(x_tensor, training=False)
-            return predictions.cpu().numpy()
+                f_predictions = self(x_tensor, training=False)
+            return f_predictions.detach().cpu().numpy()
 
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""
         torch.save(self.state_dict(), file_path)
-
-    def load_best_checkpoint(self) -> None:
-        """Load the best checkpoint found during training if one exists."""
-        if self._best_model_path is not None:
-            info(f"Loading best model from checkpoint: {self._best_model_path}")
-            checkpoint = torch.load(self._best_model_path, map_location=self.device, weights_only=False)
-            self.load_state_dict(checkpoint['state_dict'])
-        else:
-            warning("No best checkpoint found. Using current model state.")
 
 
 def calc_t_LFVNN(
@@ -583,8 +394,8 @@ def calc_t_LFVNN(
         name: str,
 ) -> Tuple[pl.LightningModule, float]:
     
-    feature_dataset = sample_dataset + reference_dataset
-    target_structure = np.concatenate((
+    feature = sample_dataset + reference_dataset
+    target_classifier = np.concatenate((
             np.ones(shape=(sample_dataset.n_samples,)),
             np.zeros(shape=(reference_dataset.n_samples,)),
         ),
@@ -608,22 +419,17 @@ def calc_t_LFVNN(
     )
 
     tau_model_history = tau_model.fit(
-        data=feature_dataset,
-        target=target_structure,
+        data=feature,
+        target=target_classifier,
         weights=loss_weights,
     )
     
     info(f'Training time (seconds): {time() - t0}')
     
-    # Load the best checkpoint found during training
-    tau_model.load_best_checkpoint()
-
-    # PyTorch Lightning loss is already the sum over batch samples.
-    # We need to rescale to get the correct t-statistic using the minimum loss achieved.
-    total_weight = np.sum(loss_weights)
-    min_loss = tau_model._min_loss * total_weight
-    final_test_statistic = calc_t_test_statistic(min_loss)
-    info(f'Minimum weighted loss achieved: {min_loss:.6f}')
+    # Calculate minimum loss from training history
+    final_loss = tau_model_history[HistoryKeys.LOSS.value][-1]
+    final_test_statistic = calc_t_test_statistic(final_loss)
+    info(f'Minimum weighted loss achieved: {final_loss:.6f}')
     info(f'Observed t test statistic: {final_test_statistic}')
     
     save_training_outcomes(

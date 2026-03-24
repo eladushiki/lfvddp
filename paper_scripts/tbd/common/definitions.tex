@@ -4,6 +4,49 @@
 % This file contains LaTeX function definitions and shortcuts to be included
 % in other tex files. Include with: \input{../common/definitions.tex}
 
+
+% =============================================================================
+% APS recommendattions
+% =============================================================================
+% \mathfrak{#1} % Fraktur
+% \mathbb{#1}   % Blackboard
+
+% single line eq:
+% (\begin{widetext})      % protect from two column mode in release mode
+% (\begin{subequations})  % for multiple equations with a shared number
+% \begin{eqnarray(*)}
+% ...
+% (\nonumber\\)
+% \label{eq:one}.
+% \end{eqnarray(*)}
+% (\end{subequations})
+
+% unnumbered equations
+% \[
+% ...
+% \]
+
+% figures should be put into the text as floats.
+% surround with turnpage environment for landscape figure
+
+% \begin{figure}      % figure* for full page width
+% \includegraphics{}
+% \caption{\label{}}
+% \end{figure}
+
+
+% tables should appear as floats within the text
+
+% \begin{table}%[H] add [H] placement to break table across pages
+% \caption{\label{}}
+% \begin{ruledtabular}
+% \begin{tabular}{}
+% Lines of table here ending with \\
+% \end{tabular}
+% \end{ruledtabular}
+% \end{table}
+
+
 % =============================================================================
 % NOTATIONS
 % =============================================================================
@@ -31,6 +74,38 @@
 
 % Define custom colors for highlighting, etc.
 % \definecolor{...}{RGB}{...}
+
+% =============================================================================
+% DRAFT MARKERS (TODO/FIXME/TBD)
+% =============================================================================
+% Usage:
+%   \TODO{finish this paragraph}
+%   \FIXME{replace placeholder with measured value}
+%   \TBD{insert citation}
+%
+% Release behavior:
+%   - Default is draft mode (markers visible in PDF).
+%   - Set \draftfalse (after loading definitions) to make unresolved markers
+%     fail the build.
+\makeatletter
+\@ifundefined{ifdraft}{\newif\ifdraft\drafttrue}{}
+\makeatother
+
+\ifdraft
+  \newcommand{\draftmarker}[2]{%
+    \begingroup
+    \setlength{\fboxsep}{1pt}%
+    \textcolor{#1}{\fbox{\textbf{#2}}}%
+    \endgroup
+  }
+  \newcommand{\TODO}[1]{\draftmarker{red}{TODO: #1}}
+  \newcommand{\FIXME}[1]{\draftmarker{orange}{FIXME: #1}}
+  \newcommand{\TBD}[1]{\draftmarker{blue}{TBD: #1}}
+\else
+  \newcommand{\TODO}[1]{\errmessage{Unresolved TODO: #1}}
+  \newcommand{\FIXME}[1]{\errmessage{Unresolved FIXME: #1}}
+  \newcommand{\TBD}[1]{\errmessage{Unresolved TBD: #1}}
+\fi
 
 % =============================================================================
 % END OF DEFINITIONS

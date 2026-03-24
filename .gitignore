@@ -10,9 +10,17 @@
 
 # TeX Processing artifacts
 *.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.lov
 *.pdf
 *.out
-*.gz
+*.synctex.gz
 *.toc
 
 # Keras graphing artifacts
@@ -27,6 +35,8 @@ __autograph_generated_file*.py
 *.out
 *.gz
 *.toc
+*.bib
+*.synctex
 
 # IDE
 .vscode/
