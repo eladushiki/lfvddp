@@ -14,7 +14,6 @@ from tqdm.auto import tqdm
 
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
-from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
@@ -143,7 +142,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         Constant term is dropped.
         return: torch.Tensor: Tensor of same shape as nuisance_value with NLL values.
         """
-        std = torch.tensor(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, dtype=torch.float32, device=self._device)
+        std = torch.tensor(self._config.train__nuisance_lfvddp_nuisance_std, dtype=torch.float32, device=self._device)
         return 0.5 * torch.square(nuisance_value / std)
 
     def _total_nuisance_nll(self) -> torch.Tensor:
