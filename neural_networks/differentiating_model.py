@@ -268,6 +268,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = sum(
                 torch.sum(torch.abs(var)).item() for var in self._detector_deltas.values()
             )
+            for obs in self._observable_names:
+                for i in range(len(self._detector_deltas[obs])):
+                    metrics[f"{HistoryKeys.NUISANCE_VALUES.value}_{obs}_{i}"] = \
+                        self._detector_deltas[obs][i].detach().cpu().numpy()
         else:
             metrics[HistoryKeys.NUISANCE_LOSS.value] = 0.0
             metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = 0.0

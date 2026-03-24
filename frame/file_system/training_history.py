@@ -11,6 +11,7 @@ class HistoryKeys(Enum):
     LOSS = "loss"
     NUISANCE_LOSS = "nuisance_loss"
     NUISANCE_ABS_SUM = "nuisance_abs_sum"
+    NUISANCE_VALUES = "nuisance_values"
     EPOCH = "epoch"
 
 

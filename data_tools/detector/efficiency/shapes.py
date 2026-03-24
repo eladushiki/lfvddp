@@ -28,3 +28,6 @@ def detector_efficiency_perfect_efficiency(x: pd.DataFrame) -> np.ndarray:
 def detector_efficiency_tanh(x: pd.DataFrame) -> np.ndarray:
     efficiency = (np.tanh(x[x.columns[0]] / 5) + 1) / 2
     return np.array(efficiency)
+
+def detector_efficiency_10_percent_constant_diminish(x: pd.DataFrame) -> np.ndarray:
+    return np.full((x.shape[0],), 0.9)
