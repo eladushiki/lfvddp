@@ -1,4 +1,3 @@
-import torch
 from os import makedirs
 
 from data_tools.detector.detector_effect import DetectorEffect
