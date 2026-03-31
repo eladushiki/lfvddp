@@ -517,11 +517,15 @@ def utils__contour_model_prediction(
     
     # Average over bins across projected dimensions
     sliced_dataset_bin_centers = detector_effect.get_event_bin_centers(sliced_dataset, indexed=False)
-    spanning_dataset_bin_centers = detector_effect.get_event_bin_centers(spanning_dataset, indexed=False)
-    unique_sliced_bin_centers = np.unique(sliced_dataset_bin_centers, axis=0)
+    unique_sliced_bin_centers, inverse_bin_indices = np.unique(
+        sliced_dataset_bin_centers,
+        axis=0,
+        return_inverse=True,
+    )
 
     contour_means = np.array([
-        contour[np.all(spanning_dataset_bin_centers == bin, axis=1)].mean() for bin in unique_sliced_bin_centers
+        contour[inverse_bin_indices == bin_index].mean()
+        for bin_index in range(len(unique_sliced_bin_centers))
     ])
 
     return unique_sliced_bin_centers, contour_means
