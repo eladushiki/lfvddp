@@ -14,7 +14,6 @@ from data_tools.detector.efficiency.uncertainty import DETECTOR_EFFICIENCY_UNCER
 from data_tools.detector.error import DETECTOR_ERROR_TYPE
 from frame.context.execution_context import ExecutionContext
 from frame.module_retriever import retrieve_from_module
-from plot.plots import plot_data_generation_sliced
 
 
 class DetectorEffect:
@@ -122,12 +121,12 @@ class DetectorEffect:
 
         bin_centered_events = []
         bin_center_indices = []
-        for obs in self._observable_names:
+        for obs in events.observable_names:
             max_bin_index = len(self._dimensional_bin_centers[obs]) - 1  # last bin is open-ended
             dim_bin_indices = np.clip(np.expand_dims(np.digitize(
                 events.slice_along_observable_names(obs),
                 self._dimensional_bin_edges[obs],
-            ), axis=1), a_min=0, a_max=max_bin_index)
+            ) - 1, axis=1), a_min=0, a_max=max_bin_index)
             bin_center_indices.append(dim_bin_indices)
             bin_centered_events.append(np.array(
                 self._dimensional_bin_centers[obs][dim_bin_indices]
@@ -167,6 +166,7 @@ class DetectorEffect:
         affected_dataset._weight_mask *= compensating_weights
 
         if is_display:
+            from plot.plots import plot_data_generation_sliced  # This breaks import hierarchy
             figure = plot_data_generation_sliced(
                 context=self._context,
                 original_sample=original_dataset,
