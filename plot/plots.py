@@ -1,12 +1,13 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from data_tools.detector.detector_config import DetectorConfig
+from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background
-from frame.aggregate import ResultAggregator
+from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.file_structure import CONTEXT_FILE_NAME
-from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel, contour_model_prediction
+from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel
 import numpy as np
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -15,10 +16,9 @@ from matplotlib import patches
 from plot.plotting_config import PlottingConfig
 from plot.carpenter import Carpenter
 from scipy.stats import chi2
-import torch.nn as nn
 
 from frame.context.execution_context import ExecutionContext
-from plot.plot_utils import HandlerCircle, HandlerRect, utils__datset_histogram_sliced, utils__get_signal_dataset_parameters, utils__sample_over_background_histograms_sliced
+from plot.plot_utils import HandlerCircle, HandlerRect, utils__contour_model_prediction, utils__datset_histogram_sliced, utils__flatten_histogram_values, utils__sample_over_background_histograms_sliced
 from train.train_utils import model_degrees_of_freedom
 from train.train_config import TrainConfig
 
@@ -129,13 +129,13 @@ def t_distribution_plot(
         t = t[~did_not_converge]
 
     # Limits
-    chi2_begin = chi2.ppf(0.0001, chi2_dof := model_degrees_of_freedom(config))
-    chi2_end = chi2.ppf(0.9999, chi2_dof)
+    chi2_begin = 0
+    chi2_end = chi2.ppf(0.9999, chi2_dof := model_degrees_of_freedom(config))
     xmin = min(t)
     xmax = max(t)
 
     # plot distribution histogram
-    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
+    histogram_bins = np.linspace(0, xmax, number_of_bins + 1)
     histogram_bin_width = (xmax - xmin) * 1./number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label     = f"median: {str(np.around(np.median(t), 2))} \n" \
@@ -148,7 +148,7 @@ def t_distribution_plot(
         
     h, _, _ = ax.hist(
         t,
-        weights=np.ones_like(t)*1./(t.shape[0]),
+        weights=np.ones_like(t) * (number_of_bins / ((xmax - xmin) * t.shape[0])),
         color=style["histogram_color"],
         ec=style["edge_color"],
         bins=histogram_bins,
@@ -201,7 +201,7 @@ def t_distribution_plot(
     ax.set_xlabel('t', fontsize=22, labelpad=20)
     ax.set_ylabel('Bin Probability', fontsize=22, labelpad=20)
     ax.set_ylim(0, top=max(h + y_error))
-    ax.set_xlim(xmin, xmax)
+    ax.set_xlim(0, xmax)
     plt.yticks()
     plt.xticks()
 
@@ -308,7 +308,7 @@ def performance_plot(
         ))
 
     # Sort all results by injected significance    
-    if mean_injected_significances:
+    if not len(mean_injected_significances) == 0:
         sort = np.argsort(np.array(mean_injected_significances))
         mean_injected_significances = np.array(mean_injected_significances)[sort]
         plot_x = mean_injected_significances
@@ -337,7 +337,7 @@ def performance_plot(
         observed_significances_by_gaussian_fit[np.isfinite(observed_significances_by_gaussian_fit)],
     ])
 
-    if mean_injected_significances:
+    if not len(mean_injected_significances) == 0:
         min_x = max(min(mean_injected_significances) - graph_border, 0)
         max_x = max(mean_injected_significances) + graph_border
     else:
@@ -412,7 +412,7 @@ def plot_samples_over_background_sliced(
             ax=ax,
             bins=bins,
             dataset=background,
-            along_observable=observable,
+            along_observables=observable,
             label=legends[i],
             histtype="stepfilled" if i >= len(sample_hollow_datasets) else "step",
         )
@@ -438,7 +438,7 @@ def plot_data_generation_sliced(
         bins=bins,
         dataset=original_sample,
         # the usual weights
-        along_observable=observable,
+        along_observables=observable,
         label="original sample",
         histtype="stepfilled",
         alpha=0.6,
@@ -448,7 +448,7 @@ def plot_data_generation_sliced(
         bins=bins,
         dataset=processed_sample,
         alternative_weights=np.ones(shape=(processed_sample.n_samples, 1)),
-        along_observable=observable,
+        along_observables=observable,
         label="detector affected sample",
         histtype="stepfilled",
         alpha=0.6,
@@ -458,7 +458,7 @@ def plot_data_generation_sliced(
         bins=bins,
         dataset=processed_sample,
         # the usual weights
-        along_observable=observable,
+        along_observables=observable,
         label="detector affected sample (weight adjusted)",
         histtype="step",
     )
@@ -472,12 +472,13 @@ def plot_data_generation_sliced(
 
 def plot_prediction_process_sliced(
         context: ExecutionContext,
+        detector_effect: DetectorEffect,
         experiment_sample: DataSet,
         reference_sample: DataSet,
         trained_tau_model: ContextedModel,
         trained_delta_model: Optional[ContextedModel],
         title="Datasets Along the Process",
-        along_observable: Optional[str] = None,
+        along_observables: Union[List[str], str, None] = None,
         sample_legend="training sample (det. reconstructed)",
         background_legend="reference sample (det. reconstructed)",
         tau_prediction_legend="tau model prediction",
@@ -486,6 +487,7 @@ def plot_prediction_process_sliced(
         delta_prediction_color="magenta",
         xlabel: str = "mass",
         ylabel: str = "number of events",
+        ax: Optional[plt.Axes] = None,
     ):
     """
     Give a single histogram featuring:
@@ -502,24 +504,44 @@ def plot_prediction_process_sliced(
     if not isinstance(config, DetectorConfig):
         raise ValueError("The context config is not a DetectorConfig.")
 
-    if along_observable is None:
-        along_observable = config.detector__detect_observable_names[0]
+    if along_observables is None:
+        along_observables = config.detector__detect_observable_names[0]
+    if isinstance(along_observables, str):
+        along_observables = [along_observables]
+    if len(along_observables) > 2:
+        raise ValueError("Cannot plot more than 2 observables in a single plot.")
     
     c = Carpenter(context)
     fig = c.figure()
-    ax = fig.add_subplot(211)
+    fig.subplots_adjust(left=0.05, right=0.98, top=0.94, bottom=0.08, hspace=0.18)
+    ndim = len(along_observables)
+    if ndim == 1:
+        ax = fig.add_subplot(211)
+    else:
+        ax = fig.add_subplot(211, projection="3d")
+        ax.view_init(elev=28, azim=-58)
+        ax.set_box_aspect((1.8, 1.8, 1.2))
 
-    bins, bin_centers = config.observable_bins(along_observable)
+    if len(along_observables) == 1:
+        bins, bin_centers = config.observable_bins(along_observables[0])
+    else:
+        bins, bin_centers = [], []
+        for observable in along_observables:
+            obs_bins, obs_centers = config.observable_bins(observable)
+            bins.append(obs_bins)
+            bin_centers.append(obs_centers)
 
     utils__sample_over_background_histograms_sliced(
         ax=ax,
         sample=experiment_sample,
         background=reference_sample,
         bins=bins,
-        along_observable=along_observable,
+        along_observables=along_observables,
         sample_legend=sample_legend,
         background_legend=background_legend,
     )
+    if ndim == 2:
+        ax.set_zscale("log")
 
     prediction_hist_kwargs = {
         "histtype": "step",
@@ -531,32 +553,117 @@ def plot_prediction_process_sliced(
         "edgecolor": "black",
     }
 
-    _reference_data = reference_sample.slice_along_observable_names(along_observable)
+    _reference_data = np.asarray(reference_sample.slice_along_observable_names(along_observables))
     tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
-    predicted_tau_ndf = plt.hist(_reference_data, weights=tau_hypothesis_weights, bins=list(bins), **prediction_hist_kwargs)
-    ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
+
+    if ndim == 1:
+        reference_values = utils__flatten_histogram_values(_reference_data)
+        predicted_tau_ndf = ax.hist(
+            reference_values,
+            weights=utils__flatten_histogram_values(tau_hypothesis_weights),
+            bins=list(bins),
+            **prediction_hist_kwargs,
+        )
+        ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
+
+    else:
+        predicted_tau_ndf, x_edges, y_edges = np.histogram2d(
+            _reference_data[:, 0],
+            _reference_data[:, 1],
+            weights=utils__flatten_histogram_values(tau_hypothesis_weights),
+            bins=bins,
+        )
+        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
+        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+        xx, yy = np.meshgrid(x_centers, y_centers, indexing="ij")
+        ax.scatter(
+            xx.ravel(),
+            yy.ravel(),
+            predicted_tau_ndf.ravel(),
+            label=tau_prediction_legend,
+            color=tau_prediction_color,
+            **prediction_scatter_kwargs,
+        )
 
     if trained_delta_model is not None:
         delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
-        predicted_delta_ndf = plt.hist(_reference_data, weights=delta_hypothesis_weights, bins=list(bins), **prediction_hist_kwargs)
-        ax.scatter(bin_centers, predicted_delta_ndf[0], label=delta_prediction_legend, color=delta_prediction_color, **prediction_scatter_kwargs)
+        if ndim == 1:
+            predicted_delta_ndf = ax.hist(
+                reference_values,
+                weights=utils__flatten_histogram_values(delta_hypothesis_weights),
+                bins=list(bins),
+                **prediction_hist_kwargs,
+            )
+            ax.scatter(bin_centers, predicted_delta_ndf[0], label=delta_prediction_legend, color=delta_prediction_color, **prediction_scatter_kwargs)
+        else:
+            predicted_delta_ndf, _, _ = np.histogram2d(
+                _reference_data[:, 0],
+                _reference_data[:, 1],
+                weights=utils__flatten_histogram_values(delta_hypothesis_weights),
+                bins=bins,
+            )
+            ax.scatter(
+                xx.ravel(),
+                yy.ravel(),
+                predicted_delta_ndf.ravel(),
+                label=delta_prediction_legend,
+                color=delta_prediction_color,
+                **prediction_scatter_kwargs,
+            )
 
     ax.set_title(title, fontsize=30, pad=20)
-    ax.set_xlim(bins[0], bins[-1])
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.legend()
-    
+    if ndim == 1:
+        ax.set_xlim(bins[0], bins[-1])
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+    else:
+        ax.set_xlim(bins[0][0], bins[0][-1])
+        ax.set_ylim(bins[1][0], bins[1][-1])
+        ax.set_xlabel(along_observables[0])
+        ax.set_ylabel(along_observables[1])
+        ax.set_zlabel(ylabel)
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend()
+
     # Add contour model prediction subplot at the bottom
-    ax_bottom = fig.add_subplot(212)
-    x_range, contour = contour_model_prediction(context, trained_tau_model, along_observable)
+    if ndim == 1:
+        ax_bottom = fig.add_subplot(212)
+    else:
+        ax_bottom = fig.add_subplot(212, projection="3d")
+        ax_bottom.view_init(elev=28, azim=-58)
+        ax_bottom.set_box_aspect((1.8, 1.8, 1.0))
+    sliced_dataset, contour = utils__contour_model_prediction(
+        context=context,
+        detector_effect=detector_effect,
+        trained_model=trained_tau_model,
+        along_observables=along_observables,
+    )
     contour *= (experiment_sample.corrected_n_samples / reference_sample.corrected_n_samples)
-    ax_bottom.plot(x_range, contour, color='cyan', linewidth=2, label='tau contour prediction')
-    ax_bottom.set_xlabel(xlabel)
-    ax_bottom.set_ylabel('Model Output')
-    ax_bottom.legend()
-    ylim = ax_bottom.get_ylim()
-    ax_bottom.axhline(y=1/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
-    ax_bottom.set_ylim(ylim)
+    if ndim == 1:
+        ax_bottom.plot(utils__flatten_histogram_values(sliced_dataset), contour, color='cyan', linewidth=2, label='tau contour prediction')
+    else:
+        x_range = np.unique(sliced_dataset[:, 0])
+        y_range = np.unique(sliced_dataset[:, 1])
+        xx, yy = np.meshgrid(x_range, y_range, indexing="ij")
+        contour_grid = contour.reshape(len(x_range), len(y_range))
+        threshold_plane = np.full_like(contour_grid, 0.5)
+        ax_bottom.plot_surface(xx, yy, threshold_plane, color='gray', linewidth=0, antialiased=False, alpha=0.18, shade=False)
+        ax_bottom.plot_surface(xx, yy, contour_grid, cmap='viridis', linewidth=0, antialiased=True, alpha=0.92)
+        ax_bottom.contour3D(xx, yy, contour_grid, levels=12, colors='black', linewidths=1.0)
+        ax_bottom.set_xlim(x_range[0], x_range[-1])
+        ax_bottom.set_ylim(y_range[0], y_range[-1])
+        ax_bottom.set_zlim(0.0, np.max(contour_grid) * 1.05 if np.max(contour_grid) > 0 else 1.0)
+    ax_bottom.set_xlabel(xlabel if ndim == 1 else along_observables[0])
+    ax_bottom.set_ylabel('Model Output' if ndim == 1 else along_observables[1])
+    if ndim == 1:
+        handles, labels = ax_bottom.get_legend_handles_labels()
+        if handles:
+            ax_bottom.legend()
+        ylim = ax_bottom.get_ylim()
+        ax_bottom.axhline(y=1/2, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+        ax_bottom.set_ylim(ylim)
+    else:
+        ax_bottom.set_zlabel('Model Output')
     
     return fig

@@ -1,15 +1,43 @@
 from glob import glob
 from logging import warning
 from pathlib import Path
+from data_tools.dataset_config import DatasetConfig, DatasetParameters
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.context.execution_products import products_from_stem, unstamp_product_stem
-from frame.file_structure import CONTEXT_FILE_NAME, SINGLE_TRAINING_RESULT_FILE_EXTENSION, TRAINING_HISTORY_LOG_FILE_SUFFIX
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_RESULT_FILE_EXTENSION, RESULTING_T_FILE_STEM, TRAINING_HISTORY_LOG_FILE_SUFFIX
 from frame.file_system.training_history import HistoryKeys, load_training_history
 import numpy as np
 from numpy.typing import NDArray
-from plot.plot_utils import utils__get_signal_dataset_parameters
+
+from train.train_config import TrainConfig
+
+def utils__get_signal_dataset_parameters(
+        signal_context: ExecutionContext,
+) -> DatasetParameters:
+
+    # Validate signal configuration
+    signal_dataset_parameters = None
+
+    signal_config: Union[DatasetConfig, TrainConfig] = signal_context.config
+    for dataset_name in signal_config._dataset__names:
+        dataset_parameters: DatasetParameters = signal_config._dataset__parameters(dataset_name)
+
+        # We do validate that there is a signal in at most one dataset
+        # In low signal counts, de-facto number of signal events might vanish. If so, check intentions
+        # by looking at mean.
+        if dataset_parameters.dataset__number_of_signal_events or \
+               dataset_parameters.dataset__mean_number_of_signal_events:
+            assert signal_dataset_parameters is None, \
+                f"multiple signal datasets found, {dataset_name} being the second"
+
+            signal_dataset_parameters = dataset_parameters
+
+    if not signal_dataset_parameters:
+        raise ValueError("No signal dataset found in the configuration")
+
+    return signal_dataset_parameters
 
 
 class ResultAggregator:
@@ -28,7 +56,7 @@ class ResultAggregator:
 
     def _load_t_values(self):
         # Find all files
-        _files_in_output_dir = glob(str(self._parent_directory) + f"/**/*.{SINGLE_TRAINING_RESULT_FILE_EXTENSION}", recursive=True)
+        _files_in_output_dir = glob(str(self._parent_directory) + f"/**/{RESULTING_T_FILE_STEM}*.{TRAINING_RESULT_FILE_EXTENSION}", recursive=True)
 
         # Read and validate content
         aggregated_results = []

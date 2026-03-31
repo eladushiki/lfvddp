@@ -1,17 +1,20 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from frame.cluster.cluster_config import ClusterConfig
+from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
+#PBS -m n
 #PBS -S /bin/bash
 #PBS -j oe
 #PBS -N {job_name}
 #PBS -q {queue}
 #PBS -l walltime={walltime}
+#PBS -l ncpus={ncpus}
 #PBS -l mem={memory}g
 {gpu_line}{array_job_line}
 """
@@ -24,12 +27,11 @@ echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
 {task_id_line}{environment_activation_command}
 
-set -x
+set -eo pipefail
 """
 
 QSUB_COMPLETION = """
 # Job completion
-echo "Job completed at: $(date)"
 exit $?
 """
 
@@ -39,18 +41,98 @@ exit $?
 
 SINGULARITY_EXECUTION_LINES = r"""
 # Main command execution
-echo "Executing command on Singularity: {command}"
-
-# Stagger container extraction across parallel jobs to avoid file descriptor exhaustion
-# Extract numeric job ID from PBS_JOBID (handles array job format like "3559993[25].pbs")
-BASE_JOBID=$(echo $PBS_JOBID | sed -n 's/.*\[\([0-9]*\)\].*/\1/p')
-if [ "$BASE_JOBID" -le 80 ]; then
-    DELAY=$((BASE_JOBID * 20))
-    echo "Waiting $DELAY seconds before container extraction..."
-    sleep $DELAY
+export SINGULARITY_UNSQUASHFS_PROCS=${{SINGULARITY_UNSQUASHFS_PROCS:-8}}
+export SINGULARITY_UNSQUASHFS_OPTS="${{SINGULARITY_UNSQUASHFS_OPTS:--processors $SINGULARITY_UNSQUASHFS_PROCS}}"
+CURRENT_NOFILE=$(ulimit -n)
+TARGET_NOFILE=${{SINGULARITY_NOFILE_LIMIT:-65535}}
+if [ "$CURRENT_NOFILE" -lt "$TARGET_NOFILE" ]; then
+    ulimit -n "$TARGET_NOFILE" 2>/dev/null || true
 fi
 
-{singularity_executable} exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} {container_path} {command}
+CONTAINER_SIF_PATH="{container_path}"
+CACHE_ROOT="${{SINGULARITY_NODE_CACHE_DIR:-/tmp/$USER/singularity-node-cache}}"
+mkdir -p "$CACHE_ROOT"
+
+IMG_BASENAME=$(basename "$CONTAINER_SIF_PATH")
+IMG_MTIME=$(stat -c %Y "$CONTAINER_SIF_PATH" 2>/dev/null || echo 0)
+SANDBOX_KEY="${{IMG_BASENAME}}.${{IMG_MTIME}}"
+SANDBOX_DIR="${{CACHE_ROOT}}/${{SANDBOX_KEY}}.sandbox"
+READY_FILE="${{SANDBOX_DIR}}/.ready"
+LOCK_DIR="${{SANDBOX_DIR}}.lock"
+LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-1800}}"
+
+RUN_PREFIX=""
+if command -v taskset >/dev/null 2>&1; then
+    CPU_CANDIDATE="${{SINGULARITY_CPUSET:-}}"
+    if [ -z "$CPU_CANDIDATE" ]; then
+        CPU_CANDIDATE=$(awk '/Cpus_allowed_list/ {{print $2}}' /proc/self/status | sed -E 's/,.*$//' | sed -E 's/-.*$//')
+    fi
+    if [ -n "$CPU_CANDIDATE" ] && taskset --cpu-list "$CPU_CANDIDATE" /bin/true >/dev/null 2>&1; then
+        RUN_PREFIX="taskset --cpu-list $CPU_CANDIDATE"
+    fi
+fi
+
+run_singularity() {{
+    if [ -n "$RUN_PREFIX" ]; then
+        $RUN_PREFIX {singularity_executable} "$@"
+    else
+        {singularity_executable} "$@"
+    fi
+}}
+
+build_sandbox() {{
+    TMP_SANDBOX="${{SANDBOX_DIR}}.tmp.$$"
+    rm -rf "$TMP_SANDBOX"
+    if run_singularity build --sandbox "$TMP_SANDBOX" "$CONTAINER_SIF_PATH"; then
+        rm -rf "$SANDBOX_DIR"
+        mv "$TMP_SANDBOX" "$SANDBOX_DIR"
+        touch "$READY_FILE"
+        return 0
+    fi
+    rm -rf "$TMP_SANDBOX"
+    return 1
+}}
+
+if [ ! -f "$READY_FILE" ]; then
+    SANDBOX_RETRY_MAX=${{SINGULARITY_SANDBOX_RETRY_MAX:-6}}
+    SANDBOX_RETRY_BASE_SLEEP_SEC=${{SINGULARITY_SANDBOX_RETRY_BASE_SLEEP_SEC:-20}}
+    SANDBOX_RETRY_JITTER_SEC=${{SINGULARITY_SANDBOX_RETRY_JITTER_SEC:-40}}
+    SANDBOX_ATTEMPT=1
+
+    while [ ! -f "$READY_FILE" ] && [ "$SANDBOX_ATTEMPT" -le "$SANDBOX_RETRY_MAX" ]; do
+        if mkdir "$LOCK_DIR" 2>/dev/null; then
+            build_sandbox || true
+            rmdir "$LOCK_DIR" 2>/dev/null || true
+        else
+            START_WAIT=$(date +%s)
+            while [ -d "$LOCK_DIR" ] && [ ! -f "$READY_FILE" ]; do
+                NOW=$(date +%s)
+                if [ $((NOW - START_WAIT)) -ge "$LOCK_TIMEOUT_SEC" ]; then
+                    break
+                fi
+                sleep 2
+            done
+        fi
+
+        if [ -f "$READY_FILE" ]; then
+            break
+        fi
+
+        SLEEP_SEC=$((SANDBOX_RETRY_BASE_SLEEP_SEC + RANDOM % (SANDBOX_RETRY_JITTER_SEC + 1)))
+        echo "Sandbox not ready (attempt $SANDBOX_ATTEMPT/$SANDBOX_RETRY_MAX). Retrying in ${{SLEEP_SEC}}s."
+        sleep "$SLEEP_SEC"
+        SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
+    done
+fi
+
+if [ -f "$READY_FILE" ]; then
+    CONTAINER_RUNTIME_PATH="$SANDBOX_DIR"
+else
+    echo "ERROR: sandbox not available at $SANDBOX_DIR after retries."
+    exit 1
+fi
+
+run_singularity exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} "$CONTAINER_RUNTIME_PATH" {command}
 """
 
 
@@ -144,7 +226,7 @@ def format_qsub_build_script(
 
 
 def format_qsub_script(
-    config: ClusterConfig,
+    config: Union[ClusterConfig, UserConfig],
     core_script_lines: str,
     array_jobs: Optional[int] = None,
     **additional_template_kwargs,
@@ -159,9 +241,10 @@ def format_qsub_script(
         task_id_line = 'echo "Task ID: $PBS_ARRAY_INDEX"\n'
     
     return script.format(
-        job_name=config.cluster__qsub_job_name,
+        job_name=config.config__dirsafe_runtag,
         queue=config.cluster__qsub_queue,
         walltime=config.cluster__qsub_walltime,
+        ncpus=config.cluster__qsub_ncpus,
         memory=config.cluster__qsub_mem or 2,
         array_job_line=array_job_line,
         task_id_line=task_id_line,

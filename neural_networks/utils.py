@@ -1,4 +1,3 @@
-from data_tools.detector.detector_config import DetectorConfig
 import numpy as np
 
 from data_tools.data_utils import DataSet
@@ -9,7 +8,7 @@ from train.train_config import TrainConfig
 
 import os
 from abc import abstractmethod
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Protocol
 from pathlib import Path
 
 
@@ -33,7 +32,7 @@ class ContextedModel(Protocol):
 
 def get_model_logging_dir(context: ExecutionContext, model_name: str) -> Path:
     """Get the logging directory for a model."""
-    return context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / model_name
+    return context.training_outcomes_dir
 
 
 def save_training_outcomes(
@@ -57,22 +56,3 @@ def predict_sample_ndf_hypothesis_weights(trained_model: ContextedModel, predict
     model_prediction = trained_model.predict(data=reference_ndf_estimation)
     hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
     return predicted_distribution_corrected_size / reference_ndf_estimation.corrected_n_samples * hypothesis_weights
-
-
-def contour_model_prediction(
-        context: ExecutionContext,
-        trained_model: ContextedModel,
-        along_observable_name: Optional[str] = None,
-):
-    if not isinstance((config := context.config), DetectorConfig):
-        raise TypeError(f"Expected DetectorConfig, got {config.__class__.__name__}")
-    
-    if along_observable_name is None:
-        along_observable_name = config.detector__detect_observable_names[0]
-    
-    # Span contour
-    xmin, xmax = config.observable_bins(along_observable_name)[0][[0, -1]]
-    x_range = np.linspace(xmin, xmax, 1000)
-    contour = np.exp(trained_model.predict(DataSet(x_range, observable_names=[along_observable_name])))
-    
-    return x_range, contour

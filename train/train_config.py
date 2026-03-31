@@ -19,12 +19,16 @@ class TrainConfig:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
     train__nn_xavier_gain: float = 4
-    train__learning_rate: float = 0.01  # LBFGS optimizer learning rate
-        
+    train__learning_rate: float = 0.001  # optimizer learning rate
+    train__enable_progress_bar: bool = True
+    train__run_symmetric_in_parallel: bool = False
+    
     ## Training for nuisance parameters
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
-    # DDP train needs no extra parameters.
+    
+    # LFVDDP PARAMETERS -- only relevant if train__like_NPLM is False
+    train__nuisance_lfvddp_nuisance_std: float = 0.1
 
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
     train__nn_weight_clipping: float = False

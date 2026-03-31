@@ -1,16 +1,10 @@
-from os import makedirs
-
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_generation import DataGeneration
-from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import SINGLE_TRAINING_RESULT_FILE_NAME
-from neural_networks.NPLM_adapters import calc_t_NPLM
-from neural_networks.differentiating_model import calc_t_LFVNN
-from neural_networks.utils import ContextedModel
-from plot.plots import plot_prediction_process_sliced
+from frame.file_structure import RESULTING_T_FILE_NAME
+from train.multiprocessing_train import follow_instructions_for_t, symmetric_train_in_parallel
 from train.train_config import TrainConfig
 
 
@@ -23,11 +17,14 @@ def main(context: ExecutionContext) -> None:
     if not isinstance(config, DatasetConfig):
         raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
 
+    dataset_1_name = "TauMuon"
+    dataset_2_name = "TauElectron"
+
     gen = DataGeneration(context)
 
     # Generate data
-    A_dataset, A_params = gen["TauMuon"]
-    B_dataset, B_params = gen["TauElectron"]
+    A_dataset, A_params = gen[dataset_1_name]
+    B_dataset, B_params = gen[dataset_2_name]
 
     # Simulate detector
     det = DetectorEffect(context)
@@ -36,70 +33,44 @@ def main(context: ExecutionContext) -> None:
 
     # For reference, we combine both datasets
     reference_dataset = detected_A_dataset + detected_B_dataset
+    model_a_name = f"A_model_for_{dataset_1_name}"
+    model_b_name = f"B_model_for_{dataset_2_name}"
 
-    # Train symmetrically to obtain the combined loss
-    _, t_a = follow_instructions_for_t(
-        context,
-        detected_A_dataset,
-        reference_dataset,
-        detector_effect=det,
-        name="A_model",
-    )
-    _, t_b = follow_instructions_for_t(
-        context,
-        detected_B_dataset,
-        reference_dataset,
-        detector_effect=det,
-        name="B_model",
-    )
+    # Train symmetrically to obtain the combined loss.
+    # Mode is configurable: parallel subprocesses or sequential in-process execution.
+    if config.train__run_symmetric_in_parallel:
+        t_a, t_b = symmetric_train_in_parallel(
+            context=context,
+            detected_A_dataset=detected_A_dataset,
+            detected_B_dataset=detected_B_dataset,
+            reference_dataset=reference_dataset,
+            detector_effect=det,
+            model_a_name=model_a_name,
+            model_b_name=model_b_name,
+        )
+    else:
+        _, t_a = follow_instructions_for_t(
+            context=context,
+            sample_dataset=detected_A_dataset,
+            reference_dataset=reference_dataset,
+            detector_effect=det,
+            name=model_a_name,
+        )
+        _, t_b = follow_instructions_for_t(
+            context=context,
+            sample_dataset=detected_B_dataset,
+            reference_dataset=reference_dataset,
+            detector_effect=det,
+            name=model_b_name,
+        )
+
     final_t = t_a + t_b
 
     ## Training log
-    makedirs(context.training_outcomes_dir, exist_ok=True)
     context.save_and_document_text(
         f"{final_t}\n",
-        file_path=context.training_outcomes_dir / SINGLE_TRAINING_RESULT_FILE_NAME
+        file_path=context.unique_out_dir / RESULTING_T_FILE_NAME
     )
-
-
-def follow_instructions_for_t(
-        context: ExecutionContext,
-        sample_dataset: DataSet,
-        reference_dataset: DataSet,
-        detector_effect: DetectorEffect,
-        name: str,
-) -> tuple[ContextedModel, float]:
-    if not isinstance((config := context.config), TrainConfig):
-        raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
-
-    if config.train__like_NPLM:
-        model, final_t = calc_t_NPLM(
-            context,
-            sample_dataset,
-            reference_dataset,
-            name,
-        )
-    else:
-        model, final_t = calc_t_LFVNN(
-            context,
-            sample_dataset,
-            reference_dataset,
-            detector_effect,
-            name,
-        )
-
-    if context.is_debug_mode:
-        data_process_plot = plot_prediction_process_sliced(
-            context=context,
-            experiment_sample=sample_dataset,
-            reference_sample=reference_dataset,
-            trained_tau_model=model,
-            trained_delta_model=None,
-            title=name + " prediction process",
-        )
-        context.save_and_document_figure(data_process_plot, context.unique_out_dir / f"{name}_data_process_plot.png")
-
-    return model, final_t
 
 
 if __name__ == "__main__":

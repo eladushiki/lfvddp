@@ -70,7 +70,13 @@ class NonlocalSignal(SignalDistribution):
     ) -> DataSet:
         return super().generate_amount(amount, domain_min, domain_max, domain_granularity)
 
+    def __init__(self, number_of_dimensions: int, param_scale: float = 1):
+        super().__init__(number_of_dimensions, location=0)
+        self._param_scale = param_scale
+
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
+        x = x * self._param_scale
         dist = x**2 * np.exp(-x)
         normalization = 2  # Definite integral in [0, inf) is 2
-        return dist / normalization
+        jacobian = self._param_scale
+        return dist / normalization * jacobian

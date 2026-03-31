@@ -26,6 +26,9 @@
 # Keras graphing artifacts
 __autograph_generated_file*.py
 
+# Torch compilation artifacts
+torchinductor_*/
+
 # Singularity
 *.sif
 
