@@ -5,7 +5,7 @@ from data_tools.data_utils import DataSet
 from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-import keras
+from tensorflow import keras
 from neural_networks.NPLM.src.NPLM.NNutils import imperfect_loss, imperfect_model, np, train_model
 import numpy as np
 from tensorflow.keras.models import Model # type: ignore
