@@ -3,6 +3,7 @@ from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Optional
 from frame.command_line.execution import format_qsub_build_script, format_qsub_execution_script
+from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
 from frame.file_structure import SINGULARITY_DEFINITION_FILE
@@ -13,10 +14,10 @@ def submit_container_build(
         context: ExecutionContext,
         max_tries: int = 3,
 ) -> str:
-    if not isinstance(context.config, ClusterConfig):
-        raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+    if not isinstance(context.config, UserConfig):
+        raise ValueError(f"Expected UserConfig, got {context.config.__class__.__name__}")
 
-    build_job_name = f"{context.config.cluster__qsub_job_name}_build"
+    build_job_name = f"{context.config.config__dirsafe_runtag}_build"
 
     # Perform container build
     git_branch = default_git_branch() if not context.is_debug_mode else current_git_branch()
@@ -56,10 +57,10 @@ def submit_command(
         use_gpu_if_needed: bool = True,
     ) -> str:
     
-    if not isinstance(context.config, ClusterConfig):
-        raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
+    if not isinstance(context.config, UserConfig):
+        raise ValueError(f"Expected UserConfig, got {context.config.__class__.__name__}")
 
-    exec_job_name = f"{context.config.cluster__qsub_job_name}_exec_{command_name}"
+    exec_job_name = f"{context.config.config__dirsafe_runtag}_exec_{command_name}"
         
     # Create qsub script from template
     qsub_script_content = format_qsub_execution_script(

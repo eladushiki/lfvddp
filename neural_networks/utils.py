@@ -33,7 +33,7 @@ class ContextedModel(Protocol):
 
 def get_model_logging_dir(context: ExecutionContext, model_name: str) -> Path:
     """Get the logging directory for a model."""
-    return context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME / model_name
+    return context.training_outcomes_dir
 
 
 def save_training_outcomes(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from logging import info, warning
+from logging import info
 from time import time
 from typing import Dict, List, Tuple, Union
 import numpy as np
@@ -9,8 +9,8 @@ import numpy.typing as npt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import pytorch_lightning as pl
+from torch.utils.tensorboard import SummaryWriter
+from tqdm.auto import tqdm
 
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
@@ -23,7 +23,7 @@ from neural_networks.utils import ContextedModel, save_training_outcomes, get_mo
 from train.train_config import TrainConfig
 
 
-class DifferentiatingModel(pl.LightningModule, ContextedModel):
+class DifferentiatingModel(nn.Module, ContextedModel):
     """
     Symmetrized DDP's model used to estimate the test statistic using PyTorch Lightning.
     A custom loss function is used to find the maximizing parameters for hypothesis.
@@ -57,6 +57,11 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         self._train_weights = None
         self._norm_factor = None
         self._training_history = {}
+        self._tensorboard_writer = None
+
+    @property
+    def _device(self) -> torch.device:
+        return torch.device("cpu")
 
     def _build_layers(self):
         # Fully connected 2-layer network:
@@ -70,15 +75,27 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             nn.Linear(hidden_size, output_size),
         )
 
+    def _initialize_tensorboard_writer(self) -> None:
+        """Initialize TensorBoard writer for this model instance."""
+        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
+        tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
+        self._tensorboard_writer = SummaryWriter(log_dir=str(tensorboard_log_dir))
+
+    def _close_tensorboard_writer(self) -> None:
+        """Close and clear TensorBoard writer if initialized."""
+        if self._tensorboard_writer is not None:
+            self._tensorboard_writer.close()
+            self._tensorboard_writer = None
+
     def _build_detector_nuisances(self):
         self._detector_deltas = {}
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             if self._config.train__data_is_train_for_nuisances:
                 nuisance_var = nn.Parameter(
-                    torch.zeros(nbins, dtype=torch.float32, device=self.device)
+                    torch.zeros(nbins, dtype=torch.float32, device=self._device)
                 )
             else:
-                nuisance_var = torch.zeros(nbins, dtype=torch.float32, device=self.device)
+                nuisance_var = torch.zeros(nbins, dtype=torch.float32, device=self._device)
             self._detector_deltas[self._observable_names[i]] = nuisance_var
         
         # Register parameters if trainable
@@ -111,16 +128,11 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
                 nn.init.normal_(var, mean=0.0, std=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD))
 
     def configure_optimizers(self):
-        """Configure optimizer for Lightning with learning rate scheduling."""
-        # LBFGS optimizer for better convergence on smooth loss landscapes
-        optimizer = optim.LBFGS(
+        optimizer = optim.Adam(
             self.parameters(),
             lr=self._config.train__learning_rate,
-            max_iter=20,  # Max iterations per step
-            line_search_fn='strong_wolfe',  # Line search strategy
         )
-        
-        # No learning rate scheduler needed for LBFGS
+
         return optimizer
 
     def _gaussian_nuisance_nll(self, nuisance_value: torch.Tensor) -> torch.Tensor:
@@ -131,7 +143,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         Constant term is dropped.
         return: torch.Tensor: Tensor of same shape as nuisance_value with NLL values.
         """
-        std = torch.tensor(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, dtype=torch.float32, device=self.device)
+        std = torch.tensor(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD, dtype=torch.float32, device=self._device)
         return 0.5 * torch.square(nuisance_value / std)
 
     def _total_nuisance_nll(self) -> torch.Tensor:
@@ -178,7 +190,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         if self._config.train__data_is_train_for_nuisances:
             nuisance_loss = self._total_nuisance_nll()  # Scalar
         else:
-            nuisance_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+            nuisance_loss = torch.tensor(0.0, device=self._device, dtype=torch.float32)
 
         # Total loss is sum of log-likelihoods
         return prediction_loss + nuisance_loss
@@ -204,7 +216,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
             self._bins_of_events = torch.tensor(
                 self._detector_effect.get_event_bin_centers(data, indexed=True),
                 dtype=torch.long,
-                device=self.device
+                device=self._device
             )
             yield
         finally:
@@ -217,76 +229,29 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         weights: npt.NDArray,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Convert DataSet and target to tensors on the correct device."""
-        data_tensor = torch.tensor(data.events, dtype=torch.float32, device=self.device)
-        target_classifier_tensor = torch.tensor(target_classifier, dtype=torch.float32, device=self.device)
-        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
+        data_tensor = torch.tensor(data.events, dtype=torch.float32, device=self._device)
+        target_classifier_tensor = torch.tensor(target_classifier, dtype=torch.float32, device=self._device)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self._device)
         return data_tensor, target_classifier_tensor, weights_tensor
 
-    def _create_data_loader(
-        self,
-        x_tensor: torch.Tensor,
-        y_tensor: torch.Tensor,
-        weights_tensor: torch.Tensor,
-        batch_size: int,
-    ) -> DataLoader:
-        dataset = TensorDataset(x_tensor, y_tensor, weights_tensor)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        """Lightning training step."""
-        batch_x, batch_y, batch_weights = batch
-
-        # Log model architecture on first batch
-        if batch_idx == 0 and self.current_epoch == 0:
-            self.logger.experiment.add_graph(self, batch_x)
-
-        # Forward pass
-        f_predictions = self(batch_x, training=True)
-
-        # Compute per-sample loss
-        per_sample_loss = self.ddp_symmetrized_loss(
-            is_sample_classifier=batch_y,
-            f_prediction=f_predictions,
-        )
-        
-        # Apply weights and aggregate to scalar
-        weighted_loss = per_sample_loss * batch_weights
-        return torch.mean(weighted_loss)
-    
-    def on_train_epoch_end(self) -> None:
-        """Called at the end of training epoch - compute full metrics."""
-        with torch.no_grad():
-            f_prediction = self(self._train_data, training=False)
-            logs = self._calculate_metrics(
-                is_sample_classifier=self._train_target_classifier,
-                f_prediction=f_prediction,
-            )
-        
-        # Log scalar metrics with Lightning
-        for metric_name, metric_value in logs.items():
-            self.log(metric_name, metric_value, prog_bar=True)
-        
-        # Log weight histograms to TensorBoard
-        for name, param in self.network.named_parameters():
-            self.logger.experiment.add_histogram(f'weights/{name}', param, self.current_epoch)
-        
-        # Store in training history (include epoch number)
-        for key, value in logs.items():
-            if key not in self._training_history:
-                self._training_history[key] = []
-            self._training_history[key].append(value)
+    def _should_log_epoch(self, epoch: int, max_epochs: int) -> bool:
+        checkpoint_interval = self._config.train__number_of_epochs_for_checkpoint
+        is_checkpoint_epoch = (epoch + 1) % checkpoint_interval == 0
+        is_last_epoch = (epoch + 1) >= max_epochs
+        return is_checkpoint_epoch or is_last_epoch
 
     def _calculate_metrics(
         self,
         is_sample_classifier: torch.Tensor,
         f_prediction: torch.Tensor,
+        epoch: int,
     ) -> Dict[str, float]:
         """
         Calculate all metrics in a structured manner.
         Returns a dict with all relevant metric values.
         """
         metrics = {}
-        metrics[HistoryKeys.EPOCH.value] = self.current_epoch
+        metrics[HistoryKeys.EPOCH.value] = epoch
 
         # Prediction loss
         prediction_nll = self._prediction_nll(
@@ -309,61 +274,92 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         
         return metrics
 
+    def _log_epoch_metrics(self, epoch: int, f_prediction: torch.Tensor | None = None) -> None:
+        """Compute metrics and persist scalar/histogram logs for a given epoch."""
+        if f_prediction is None:
+            with torch.no_grad():
+                f_prediction = self(self._train_data, training=False)
+
+        logs = self._calculate_metrics(
+            is_sample_classifier=self._train_target_classifier,
+            f_prediction=f_prediction,
+            epoch=epoch,
+        )
+
+        for metric_name, metric_value in logs.items():
+            self._tensorboard_writer.add_scalar(metric_name, metric_value, epoch)
+            if metric_name not in self._training_history:
+                self._training_history[metric_name] = []
+            self._training_history[metric_name].append(metric_value)
+
+        if self._context.is_debug_mode:
+            for name, param in self.network.named_parameters():
+                self._tensorboard_writer.add_histogram(f'weights/{name}', param, epoch)
+
+    def _train_step(
+        self,
+        optimizer: optim.Optimizer,
+        batch_x: torch.Tensor,
+        batch_y: torch.Tensor,
+        batch_weights: torch.Tensor,
+    ) -> torch.Tensor:
+        """Run one optimization step and return detached predictions for this batch."""
+        batch_f_predictions = self(batch_x, training=True)
+        per_sample_loss = self.ddp_symmetrized_loss(
+            is_sample_classifier=batch_y,
+            f_prediction=batch_f_predictions,
+        )
+        weighted_loss = per_sample_loss * batch_weights
+        loss = torch.mean(weighted_loss)
+
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+
+        return self(batch_x, training=False).detach()
+
     def fit(
         self,
         data: DataSet,
         target: npt.NDArray,
         weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
-        """
-        Training loop using PyTorch Lightning.
-        
-        Args:
-            data: Training DataSet object
-            target: Target labels array
-            weights: Sample weight array
-        
-        Returns:
-            Dictionary with training history
-        """
+        """Pure PyTorch training loop."""
         # Store training data for metrics computation
         normalized_data, self._norm_factor = data.get_normalized()
         self._train_data, self._train_target_classifier, self._train_weights = self._prepare_training_data(normalized_data, target, weights)
 
-        # Calculate batch size and gradient accumulation
-        batch_size = data.n_samples
+        # Full-batch mode only: use direct tensors to avoid DataLoader/collate overhead.
+        batch_x = self._train_data
+        batch_y = self._train_target_classifier
+        batch_weights = self._train_weights
 
-        # Prepare data loader with pre-calculated batch size
-        dataloader = self._create_data_loader(
-            x_tensor=self._train_data,
-            y_tensor=self._train_target_classifier,
-            weights_tensor=self._train_weights,
-            batch_size=batch_size,
-        )
+        self.train()
+        self._initialize_tensorboard_writer()
+        optimizer = self.configure_optimizers()
 
-        # Set up tensorboard logger
-        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
-        tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
-
-        # Use mixed precision (automatic fp16 casting) and optimized trainer settings
-        trainer = pl.Trainer(
-            max_epochs=self._config.train__epochs,
-            logger=pl.loggers.TensorBoardLogger(
-                save_dir=str(tensorboard_log_dir.parent),
-                name=self._name,
-                log_graph=True,
-            ),
-            enable_progress_bar=True,
-            enable_model_summary=True,
-            precision='16-mixed' if torch.cuda.is_available() else '32',  # Auto mixed precision
-            accumulate_grad_batches=1,  # Process each batch individually for stochastic noise
-            num_sanity_val_steps=0,  # Skip validation sanity check
-            log_every_n_steps=self._config.train__number_of_epochs_for_checkpoint,  # Logging frequency from config
-        )
+        max_epochs = self._config.train__epochs
+        epoch_iterator = range(max_epochs)
+        if self._config.train__enable_progress_bar:
+            epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
         # Training with binning context
         with self.binning_context(data):
-            trainer.fit(self, dataloader)
+            for epoch in epoch_iterator:
+                epoch_last_predictions = self._train_step(
+                    optimizer=optimizer,
+                    batch_x=batch_x,
+                    batch_y=batch_y,
+                    batch_weights=batch_weights,
+                )
+
+                if self._should_log_epoch(epoch=epoch, max_epochs=max_epochs):
+                    self._log_epoch_metrics(
+                        epoch=epoch,
+                        f_prediction=epoch_last_predictions,
+                    )
+
+        self._close_tensorboard_writer()
 
         # Collect history from training
         return self._training_history
@@ -375,7 +371,7 @@ class DifferentiatingModel(pl.LightningModule, ContextedModel):
         """
         normalized_data = data / self._norm_factor
         with self.binning_context(data):
-            x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self.device)
+            x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self._device)
             self.eval()
             with torch.no_grad():
                 f_predictions = self(x_tensor, training=False)
@@ -392,7 +388,7 @@ def calc_t_LFVNN(
         reference_dataset: DataSet,
         detector_effect: DetectorEffect,
         name: str,
-) -> Tuple[pl.LightningModule, float]:
+) -> Tuple[ContextedModel, float]:
     
     feature = sample_dataset + reference_dataset
     target_classifier = np.concatenate((
