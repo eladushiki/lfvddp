@@ -6,11 +6,21 @@ def get_commit_hash() -> str:
 
 
 def is_git_head_clean() -> bool:
-    # Run `git update-index --assume-unchanged` for the unignored NPLM pycache
+    # Run `git update-index --assume-unchanged` for the unignored NPLM pycache and paper progress
     subprocess.run(['git', 'update-index', '--assume-unchanged', 'neural_networks/NPLM/src/NPLM/__pycache__/'], check=True)
     
+    changes = subprocess.check_output(['git', 'status', '--porcelain']).decode('utf-8')
+    for line in changes.splitlines():
+        change_path = line.split(' ')[-1]
+        if change_path.startswith('neural_networks/NPLM'):
+            continue
+        elif change_path.startswith('paper_scripts/'):
+            continue
+        else:
+            return False
+    
     # Check if the Git working directory is clean
-    return subprocess.check_output(['git', 'status', '--porcelain']).strip() == b''
+    return True
 
 
 def current_git_branch() -> str:
