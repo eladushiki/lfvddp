@@ -146,7 +146,7 @@ with \(\alpha=\dfrac{N_\reco{A}}{N_\reco{A}+N_\reco{B}}\).
 The steps above are algebraic and exact up to the choice of baseline parametrization (we set \(g\equiv 0\) for the baseline without loss of generality) and the unbiased substitution of integrals by weighted sums (which is exact in expectation and valid as an estimating equation). The resulting functional is convex in the pointwise values \(f(x_i)\) because the map \(f\mapsto e^{f}-1\) is convex; this justifies numerical minimization via deterministic optimization or training a neural network with the corresponding loss.
 
 \section{Loss Function for Neural Network Training}
-To learn the optimal \( f(x) \), we train a classifier using the following efficiency-weighted loss:
+To learn the optimal \( f(x) \) under the constraints stated so far, we train a classifier using the following efficiency-weighted loss:
 \[
 L[f] = \sum_{x_i \in \reco{A} \cup \reco{B}} 
 \left[
