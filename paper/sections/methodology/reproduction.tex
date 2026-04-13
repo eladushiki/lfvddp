@@ -6,6 +6,28 @@
 
 \section{Reproducing Previous Results}
 
-The following results are generated using the new, improved codebase, with a subset of parameters that mimic the conditions for the previous paper \cite{LastDDPPaper}.
+The following results are generated using the new, improved codebase, with a subset of parameters that mimic the conditions for the previous paper \cite{LastDDPPaper}. As can be seen in \ref{fig:t_distribution_plot_reproduction}, using the same parameters, we achieved a similar convergence of the $t$ values distribution to a $\chi^2_{13}$ distribution.
+
+\begin{figure*}      % figure* for full page width
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth, trim=0 10bp 0 0, clip]
+{"plots/t_distribution_plot_4933926613049338320.png"}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth, trim=0 10bp 0 0, clip]
+{"plots/t_train_percentile_progression_plot_4933926613049338320.png"}
+\end{minipage}
+\label{fig:t_distribution_plot_reproduction}
+\caption{Training results of two equivalent datasets, drawn from an exponentially decaying pdf. Each dataset contains a number of events drawn from a poissonian distribution with a mean of $1e5$. Left: the resulting distribution of $t$ values. Right: the progression of the $t$ value percentiles during $5e5$ epochs of training.}
+\end{figure*}
+
+We further investigate the correlation between the significance of an injected signal and its significance as detected by our machinery. Again, similarly as what was done before.
+
+\TODO{run and bring here the results of significance plots}
+% We settled on a single curve from each of the 3 graphs in the original paper, one for each signal type, all with 1e5 events
 
 \end{document}
