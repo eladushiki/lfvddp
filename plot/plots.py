@@ -505,7 +505,10 @@ def plot_prediction_process_sliced(
         raise ValueError("The context config is not a DetectorConfig.")
 
     if along_observables is None:
-        along_observables = config.detector__detect_observable_names[0]
+        if len(detector_effect._observable_names) > 1:
+            along_observables = config.detector__detect_observable_names[:2]
+        else:
+            along_observables = config.detector__detect_observable_names[0]
     if isinstance(along_observables, str):
         along_observables = [along_observables]
     if len(along_observables) > 2:

@@ -28,6 +28,7 @@ __autograph_generated_file*.py
 
 # Torch compilation artifacts
 torchinductor_*/
+tmp*/
 
 # Singularity
 *.sif

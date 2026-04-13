@@ -40,15 +40,6 @@ exit $?
 # --cleanenv: avoids messing with host environment, i.e. python stuff
 
 SINGULARITY_EXECUTION_LINES = r"""
-# Main command execution
-export SINGULARITY_UNSQUASHFS_PROCS=${{SINGULARITY_UNSQUASHFS_PROCS:-8}}
-export SINGULARITY_UNSQUASHFS_OPTS="${{SINGULARITY_UNSQUASHFS_OPTS:--processors $SINGULARITY_UNSQUASHFS_PROCS}}"
-CURRENT_NOFILE=$(ulimit -n)
-TARGET_NOFILE=${{SINGULARITY_NOFILE_LIMIT:-65535}}
-if [ "$CURRENT_NOFILE" -lt "$TARGET_NOFILE" ]; then
-    ulimit -n "$TARGET_NOFILE" 2>/dev/null || true
-fi
-
 CONTAINER_SIF_PATH="{container_path}"
 CACHE_ROOT="${{SINGULARITY_NODE_CACHE_DIR:-/tmp/$USER/singularity-node-cache}}"
 mkdir -p "$CACHE_ROOT"
@@ -61,23 +52,8 @@ READY_FILE="${{SANDBOX_DIR}}/.ready"
 LOCK_DIR="${{SANDBOX_DIR}}.lock"
 LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-1800}}"
 
-RUN_PREFIX=""
-if command -v taskset >/dev/null 2>&1; then
-    CPU_CANDIDATE="${{SINGULARITY_CPUSET:-}}"
-    if [ -z "$CPU_CANDIDATE" ]; then
-        CPU_CANDIDATE=$(awk '/Cpus_allowed_list/ {{print $2}}' /proc/self/status | sed -E 's/,.*$//' | sed -E 's/-.*$//')
-    fi
-    if [ -n "$CPU_CANDIDATE" ] && taskset --cpu-list "$CPU_CANDIDATE" /bin/true >/dev/null 2>&1; then
-        RUN_PREFIX="taskset --cpu-list $CPU_CANDIDATE"
-    fi
-fi
-
 run_singularity() {{
-    if [ -n "$RUN_PREFIX" ]; then
-        $RUN_PREFIX {singularity_executable} "$@"
-    else
-        {singularity_executable} "$@"
-    fi
+    {singularity_executable} "$@"
 }}
 
 build_sandbox() {{
@@ -124,6 +100,11 @@ if [ ! -f "$READY_FILE" ]; then
         SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
     done
 fi
+
+echo "Singularity executable: {singularity_executable}"
+run_singularity --version || true
+echo "Container SIF path: $CONTAINER_SIF_PATH"
+echo "Sandbox cache root: $CACHE_ROOT"
 
 if [ -f "$READY_FILE" ]; then
     CONTAINER_RUNTIME_PATH="$SANDBOX_DIR"
