@@ -1,10 +1,8 @@
 from typing import Callable
 import pandas as pd
-from regex import D
 from scipy.stats import truncnorm
 import numpy as np
 
-from data_tools.detector.constants import TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
 from data_tools.detector.efficiency.shapes import DETECTOR_EFFICIENCY_TYPE
 
 # Uncertainty variations for detector effect efficiencies
@@ -53,7 +51,7 @@ def detector_uncertainty_gaussian_noise(
         unique_efficiency = detector_efficiency(unique_bins)
         
         relative_error_magnitude_max = 0.5
-        relative_error_std = TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD
+        relative_error_std = 0.1
         relative_errors = truncnorm.rvs(
             -relative_error_magnitude_max,
             relative_error_magnitude_max,
