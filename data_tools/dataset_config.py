@@ -68,12 +68,17 @@ class DatasetParameters(ABC):
                 lam=self.dataset__mean_number_of_background_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_background_events > 0 else 0
+        else:
+            self.dataset__number_of_background_events = int(self.dataset__number_of_background_events)
         
         if not self.dataset__number_of_signal_events:
             self.dataset__number_of_signal_events = np.random.poisson(
                 lam=self.dataset__mean_number_of_signal_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
+        else:
+            self.dataset__number_of_signal_events = int(self.dataset__number_of_signal_events)
+            
         if self.dataset__signal_number_of_events_to_generate:
             assert self.dataset__signal_number_of_events_to_generate >= self.dataset__number_of_signal_events, \
                 f"Not sufficient number of signal events to generate for signal with {self.dataset__signal_number_of_events_to_generate} events."
