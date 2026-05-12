@@ -6,11 +6,9 @@
 
 \section{Adding Nuisance Parameters to Account for Imperfect knowledge}
 
-We would now formulate our confrontation with the finite accuracy with which we know to model the detector. In theory, we can formulate in the same manner how our theory depends on imperfections of all sorts, but modeling this method in further parameters is left for future work. This being said, the method with which we account for detector efficiency imperfection is easily translatable to any other parameter in the model.
+We now formulate our approach to the finite accuracy the detector. We can of course formulate how our theory depends on many different types of imperfections within our model, yet due to their complexity we leave these for future work. That being said, the method in which we take into account detector efficiency imperfections is easily translatable to any other parameter in the model.
 
-We would now elaborate on the structure of the likelihood. Having added nuisance parameters, with the expectance for them to be small, add another layer to how likely we think a certain hypothesis is. This is, we would consider a hypothesis in which the nuisance parameters are small more likely than one in which they are large. Of course, there is a tradeoff here to fitting the data well that we should address.
-
-From \ref{eq:pooled_log_likelihood} and discussions about likelihood in ref (\cite{Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine}), we claim %eq 3 there
+We now elaborate on the structure of the likelihood, having added nuisance parameters (with the assumption of them being small), which adds an additional layer of complexity to the verification of the hypothesis. Of course, there is a tradeoff here to fitting the data well that one must consider. From \ref{eq:pooled_log_likelihood} and discussions about likelihood presented in~\cite{Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine}, we claim that %eq 3 there
 
 $$
 \begin{aligned}
@@ -18,9 +16,7 @@ $$
 \end{aligned}
 $$
 
-To estimate likelihood of a value of a nuisance parameter, we should assume something about the way it behaves. For simplicity and for stating the foundations of our method, let us assume a normal disribution with some $\sigma_0$ that is centered around 0, w.l.o.g. 
-
-The likelihood of a gaussian distributed parameter is well known, as expressed By
+To estimate likelihood of a value of nuisance parameter, we must assume a certain behavioral pattern that it follows. For the sake of simplicity, we assume that it follows a normal distribution with some $\sigma_0$ that is centered around $0$. In this case, the likelihood of a gaussian distributed parameter is well known, and can be expressed By
 
 $$
 \begin{aligned} \label{eq:gaussian_likelihood}
