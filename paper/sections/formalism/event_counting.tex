@@ -72,12 +72,14 @@ N_\reco{A} = \sum_{\event \in \meas{A}} w_i \approx \true{N}
 
 Note that this expression includes our knowledge of the efficiency and our error, throught the $\eta$'s in the expression.
 
-\subsection{Proposition (Unbiasedness of the weighted estimator).} \label{prop:unbiasedness_of_weights}
+\begin{proposition}[Unbiasedness of the weighted estimator] \label{prop:unbiasedness_of_weights}
 Let \(\{\event\}_{i=1}^{\true{N}}\) be the set of true collected events, each detected independently with probability \(\eta(\event)\). Then:
 \[
 \mathbb{E}\!\left[ N_\reco{A} \right] = \true{N}
 \]
-\emph{Proof.}
+\end{proposition}
+
+\begin{proof}
 For a single event \(\event\), the contribution to the sum is \(\frac{1}{\theta(\event)}\) if detected and \(0\) otherwise. Its expectation is:
 \begin{align*}
 \eta(\event) \cdot \frac{1}{\theta(\event)} + (1-\eta(\event))\cdot 0 &= \\
@@ -86,7 +88,7 @@ For a single event \(\event\), the contribution to the sum is \(\frac{1}{\theta(
 
 % If we leave this formulation take the proof from https://statproofbook.github.io/P/norm-mgf.html
 % It says that E(e^tx) = e^(\mu t + 1/2 sigma^2 t^2)
-
+\end{proof}
 Given that the expectation value of the exponentiated nuisances is 0, summing over all \(\true{N}\) events yields the result. \(\square\)
 
 \end{document}
