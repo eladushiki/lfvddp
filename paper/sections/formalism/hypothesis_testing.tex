@@ -10,13 +10,13 @@ We now define the null and alternative hypotheses using reweighted densities:
 \begin{aligned}
 \mathcal{H}_0 &: \quad
 \begin{cases}
-    {\dist{A}} = \dfrac{N_\reco{A}}{Z} e^{h(x)} \refdist \\
-    {\dist{B}} = \dfrac{N_\reco{B}}{Z} e^{h(x) + r} \refdist
+    {\dist{A}} = \dfrac{N_\reco{A}}{Z} e^{h(\bar{x})} \refdist \\
+    {\dist{B}} = \dfrac{N_\reco{B}}{Z} e^{h(\bar{x}) + r} \refdist
 \end{cases} \\
 \mathcal{H}_1 &: \quad
 \begin{cases}
-    {\dist{A}} = \dfrac{N_\reco{A}}{Z} e^{f(x)} \refdist \\
-    {\dist{B}} = \dfrac{N_\reco{B}}{Z} e^{g(x)} \refdist
+    {\dist{A}} = \dfrac{N_\reco{A}}{Z} e^{f(\bar{x})} \refdist \\
+    {\dist{B}} = \dfrac{N_\reco{B}}{Z} e^{g(\bar{x})} \refdist
 \end{cases}
 \end{aligned}
 \]
@@ -30,14 +30,14 @@ Following the logic in \cite{LastDDPpaper}, the symmetrized test statistic becom
 t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \cdot \min_{f(x)}
 \left[
     - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}}
-    \sum_{x_i \in \reco{A} \cup \reco{B}} w_i (e^{f(x_i)} - 1)
-    + \sum_{x_i \in \reco{A}} w_i f(x_i)
+    \sum_{\event \in \reco{A} \cup \reco{B}} w_i (e^{f(\event)} - 1)
+    + \sum_{\event \in \reco{A}} w_i f(\event)
 \right] \\
  t_{\dataset{A}+\dataset{B}}(\dataset{B}) &= -2 \cdot \min_{g(x)}
 \left[
     - \frac{N_{\reco{B}}}{N_{\reco{A}} + N_{\reco{B}}}
-    \sum_{x_i \in \reco{A} \cup \reco{B}} w_i (e^{g(x_i)} - 1)
-    + \sum_{x_i \in \reco{B}} w_i g(x_i)
+    \sum_{\event \in \reco{A} \cup \reco{B}} w_i (e^{g(\event)} - 1)
+    + \sum_{\event \in \reco{B}} w_i g(\event)
 \right].
 \end{aligned}
 \]
@@ -61,29 +61,29 @@ with
 \(Z_\dataset{A}=\int e^{f(x)} \refdist dx\) and \(Z_\dataset{B}=\int e^{g(x)} \refdist dx\) ensuring normalization. (We keep \(Z_\dataset{A},Z_\dataset{B}\) explicit; later they cancel or become irrelevant for the test statistic.)
 
 \paragraph{2. Extended log-likelihood for each sample.}
-For an inhomogeneous Poisson process with intensity \(\lambda(x)\), the log-likelihood for observed points \(\{x_i\}\) is
+For an inhomogeneous Poisson process with intensity \(\lambda(x)\), the log-likelihood for observed points \(\{\event\}\) is
 \[
-\llikelihood(\lambda) = -\int \lambda(x)\,dx + \sum_i \log\lambda(x_i) + C
+\llikelihood(\lambda) = -\int \lambda(x)\,dx + \sum_i \log\lambda(\event) + C
 \]
 where \(C\) collects terms not depending on \(\lambda\). For sample $\meas{A}$ (observed events) this gives
 \[
-\llikelihood_{\dataset{A}}(f) = -{N}_{\dataset{A}} + \sum_{x_i \in \dataset{A}} \log\big({N}_{\dataset{A}}\tfrac{1}{Z_\dataset{A}} e^{f(x_i)} \refdist[x_i]\big) + C_\dataset{A}
+\llikelihood_{\dataset{A}}(f) = -{N}_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}}\tfrac{1}{Z_\dataset{A}} e^{f(\event)} \refdist[\event]\big) + C_\dataset{A}
 \]
 Collect the \(f\)-dependent pieces:
 \[
-\llikelihood_{\dataset{A}}(f) = -N_{\dataset{A}} + \sum_{x_i \in \dataset{A}} f(x_i) + N_{\dataset{A}}\log{N_{\dataset{A}}} - N_{\dataset{A}}\log Z_\dataset{A} + \sum_{x_i \in \dataset{A}} \log \refdist[x_i] + C_A
+\llikelihood_{\dataset{A}}(f) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} f(\event) + N_{\dataset{A}}\log{N_{\dataset{A}}} - N_{\dataset{A}}\log Z_\dataset{A} + \sum_{\event \in \dataset{A}} \log \refdist[\event] + C_A
 \]
 Analogous expression holds for sample $\dataset{B}$.
 
 \paragraph{3. Passing to detected (filtered) data using weights.}
 We do not observe the unfiltered lists, but instead the detected subsets \(\meas{A}\) and \(\meas{B}\). By the construction of weights as in (\ref{eq:def_weights}), we convert our formulation to use the reconstructed datasets \(\reco{A}\) and \(\reco{B}\). Integrals and sums over the unfiltered process are unbiasedly estimated by weighted sums over detected events (Proposition \ref{prop:unbiasedness_of_weights}). In particular,
 \[
-\sum_{x_i \in \dataset{A}} f(x_i) \quad\longrightarrow\quad \sum_{x_i \in \reco{A}} w_i f(x_i)
+\sum_{\event \in \dataset{A}} f(\event) \quad\longrightarrow\quad \sum_{\event \in \reco{A}} w_i f(\event)
 \]
 
 while the integral term \(-\int \lambda_{\dataset{A}} = -N_{\reco{A}}\) remains explicit. Thus, working with reconstructed data, the log-likelihood for sample $\reco{A}$ (keeping only terms that may depend on \(f\)) is represented by
 \[
-\llikelihood_{\reco{A}}(f) \propto -N_{\reco{A}} + \sum_{x_i \in \reco{A}} w_i f(x_i) - N_\reco{A}\log Z_\reco{A} + N_\reco{A}\log N_\reco{A} + \sum_{x_i \in \reco{A}} w_i\log \refdist[x_i]
+\llikelihood_{\reco{A}}(f) \propto -N_{\reco{A}} + \sum_{\event \in \reco{A}} w_i f(\event) - N_\reco{A}\log Z_\reco{A} + N_\reco{A}\log N_\reco{A} + \sum_{\event \in \reco{A}} w_i\log \refdist[\event]
 \]
 The analogous expression holds for $\reco{B}$ with \(g\) and \(Z_\reco{B}\).
 
@@ -100,10 +100,10 @@ For the pooled model one can write the pooled intensity (per unit \(x\)) as
 \lambda_{P}(x) = N_\reco{P}\,\Big[\alpha \frac{1}{Z_\reco{A}}e^{f(x)} + (1-\alpha)\frac{1}{Z_\reco{B}}e^{g(x)}\Big] \refdist
 \]
 
-The pooled log-likelihood (for observed pooled points \(x_i\in\reco{P}\)) is
+The pooled log-likelihood (for observed pooled points \(\event\in\reco{P}\)) is
 
 \[ \label{eq:pooled_log_likelihood}
-\log\mathcal{L}_{\reco{P}}(f,g) = -N_\reco{P} + \sum_{x_i\in\reco{P}} w_i \log\Big(N_\reco{P}\big[\alpha \tfrac{1}{Z_\reco{A}}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}e^{g(x_i)}\big] \refdist[x_i] \Big) + C_{\reco{P}}
+\log\mathcal{L}_{\reco{P}}(f,g) = -N_\reco{P} + \sum_{\event\in\reco{P}} w_i \log\Big(N_\reco{P}\big[\alpha \tfrac{1}{Z_\reco{A}}e^{f(\event)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}e^{g(\event)}\big] \refdist[\event] \Big) + C_{\reco{P}}
 \]
 
 Drop terms that do not depend on \(f,g\) (constants and \(\log \refdist\) terms).
@@ -112,7 +112,7 @@ Drop terms that do not depend on \(f,g\) (constants and \(\log \refdist\) terms)
 To obtain the test statistic that assesses whether sample A differs from the pooled reference in the manner parametrized by \(f\), set the alternative for B to be the pooled baseline. For simplicity and without loss of generality we now take the parametrization where the B-component is the baseline with \(g(x)\equiv 0\) (equivalently measure \(f\) relative to the B baseline). With this choice
 
 \[
-\log\mathcal{L}_{\reco{P}}(f) \propto -N_\reco{P} + \sum_{x_i\in\reco{P}} w_i \log\Big(\alpha \tfrac{1}{Z_\reco{A}}e^{f(x_i)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}\Big).
+\log\mathcal{L}_{\reco{P}}(f) \propto -N_\reco{P} + \sum_{\event\in\reco{P}} w_i \log\Big(\alpha \tfrac{1}{Z_\reco{A}}e^{f(\event)} + (1-\alpha)\tfrac{1}{Z_\reco{B}}\Big).
 \]
 
 Expand the logarithm by factoring \(\tfrac{1}{Z_\reco{B}}\) out of the argument:
@@ -126,34 +126,34 @@ The constant \(\log(1/Z_\reco{B})\) does not depend on \(f\), so discard it. Def
 \]
 Now form the log-likelihood ratio (or equivalently the difference between the pooled log-likelihood and the product of the separate log-likelihoods under the null) and collect terms that depend on \(f\). The algebraic manipulations (expand and regroup the pooled-sum and the individual sums) produce two types of contributions:
 \begin{enumerate}
-    \item A term proportional to \(\int \alpha (\rho e^{f}-1) \refdist dx\), which, after replacing integrals with weighted sums, yields \(-\alpha\sum_{\reco{P}} w_i (e^{f(x_i)}-1)\) up to multiplicative constants and absorbed \(\rho\) factors. The appearance of \(e^{f}-1\) is a consequence of subtracting the baseline intensity.
-    \item A sum over events in sample A giving \(\sum_{x_i \in \reco{A}} w_i f(x_i)\) originating from the \(\sum\log e^{f}=\sum f\) contribution of labeled-A events when comparing labeled likelihood terms.
+    \item A term proportional to \(\int \alpha (\rho e^{f}-1) \refdist dx\), which, after replacing integrals with weighted sums, yields \(-\alpha\sum_{\reco{P}} w_i (e^{f(\event)}-1)\) up to multiplicative constants and absorbed \(\rho\) factors. The appearance of \(e^{f}-1\) is a consequence of subtracting the baseline intensity.
+    \item A sum over events in sample A giving \(\sum_{\event \in \reco{A}} w_i f(\event)\) originating from the \(\sum\log e^{f}=\sum f\) contribution of labeled-A events when comparing labeled likelihood terms.
 \end{enumerate}
 These two pieces are the ones that appear in the convex functional minimized to obtain the profile likelihood.
 
 \paragraph{6. Profiling and simplification to the displayed functional.}
 Carrying out the algebra carefully (expand the pooled log, subtract the baseline contributions, cancel constants and terms involving \(\log Z_A,\log Z_B\) that do not depend on \(f\) after profiling), and using the unbiased replacement of integrals by weighted sums, one obtains the functional
 \[
-\mathcal{F}(f) = -\alpha \sum_{x_i\in\reco{P}} w_i\big(e^{f(x_i)}-1\big) + \sum_{x_i\in\reco{A}} w_i f(x_i) + \text{(constants independent of $f$)}.
+\mathcal{F}(f) = -\alpha \sum_{\event\in\reco{P}} w_i\big(e^{f(\event)}-1\big) + \sum_{\event\in\reco{A}} w_i f(\event) + \text{(constants independent of $f$)}.
 \]
 The test statistic is the negative twice the maximized log-likelihood ratio (or, equivalently, \(-2\) times the minimum of \(\mathcal{F}(f)\) over allowable functions \(f\)), which yields the stated expression:
 \[
-t_{\dataset{A}+\dataset{B}}(\dataset{A}) = -2 \min_f \Big[ -\alpha \sum_{x_i\in\reco{P}} w_i (e^{f(x_i)}-1) + \sum_{x_i\in\reco{A}} w_i f(x_i) \Big],
+t_{\dataset{A}+\dataset{B}}(\dataset{A}) = -2 \min_f \Big[ -\alpha \sum_{\event\in\reco{P}} w_i (e^{f(\event)}-1) + \sum_{\event\in\reco{A}} w_i f(\event) \Big],
 \]
 with \(\alpha=\dfrac{N_\reco{A}}{N_\reco{A}+N_\reco{B}}\).
 
 \paragraph{7. Remarks on exactness and convexity.}
-The steps above are algebraic and exact up to the choice of baseline parametrization (we set \(g\equiv 0\) for the baseline without loss of generality) and the unbiased substitution of integrals by weighted sums (which is exact in expectation and valid as an estimating equation). The resulting functional is convex in the pointwise values \(f(x_i)\) because the map \(f\mapsto e^{f}-1\) is convex; this justifies numerical minimization via deterministic optimization or training a neural network with the corresponding loss.
+The steps above are algebraic and exact up to the choice of baseline parametrization (we set \(g\equiv 0\) for the baseline without loss of generality) and the unbiased substitution of integrals by weighted sums (which is exact in expectation and valid as an estimating equation). The resulting functional is convex in the pointwise values \(f(\event)\) because the map \(f\mapsto e^{f}-1\) is convex; this justifies numerical minimization via deterministic optimization or training a neural network with the corresponding loss.
 
 \section{Loss Function for Neural Network Training}
 To learn the optimal \( f(x) \) under the constraints stated so far, we train a classifier using the following efficiency-weighted loss:
 \[
-L[f] = \sum_{x_i \in \reco{A} \cup \reco{B}} 
+L[f] = \sum_{\event \in \reco{A} \cup \reco{B}} 
 \left[
-    (1 - y_i) \cdot \frac{N_\reco{A} w_i}{N_\reco{A} + N_\reco{B}} (e^{f(x_i)} - 1)
-    - y_i w_i f(x_i)
+    (1 - y_i) \cdot \frac{N_\reco{A} w_i}{N_\reco{A} + N_\reco{B}} (e^{f(\event)} - 1)
+    - y_i w_i f(\event)
 \right]
 \]
-where \( y_i = 1 \) if \( x_i \in \reco{A} \), and \( y_i = 0 \) otherwise.
+where \( y_i = 1 \) if \( \event \in \reco{A} \), and \( y_i = 0 \) otherwise.
 
 \end{document}
