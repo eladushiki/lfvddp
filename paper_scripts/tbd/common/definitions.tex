@@ -52,6 +52,8 @@
 % =============================================================================
 
 %% Data sets
+\newcommand{\anyevent}{\bar{x}}
+\newcommand{\event}{{\bar{x_i}}}
 \newcommand{\dataset}[1]{{\mathbf{#1}}}         % A dataset
 \newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
 \newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}   % A measured dataset
@@ -62,7 +64,7 @@
 
 %% Hypotheses
 %%% Distributions
-\newcommand{\dist}[1]{{n_{\dataset{#1}}(x)}}    % Any distribution of x
+\newcommand{\dist}[1]{{n_{\dataset{#1}}(\anyevent)}}   % Any distribution of x
 \newcommand{\refdist}[1][x]{n_{\mathcal{R}}({#1})}  % Reference distribution
 %% Likelihood
 \newcommand{\likelihood}{\mathcal{L}}           % Likelihood function
