@@ -51,7 +51,13 @@ aps, physrev,
   Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
 }
 
-\date{\texorpdfstring{\TODO{Replace date}}{TODO: Replace date}}
+\author{Yotam Svoray}
+\email{svoray@math.utah.edu}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\date{\today}
 
 % =============================================================================
 % Article headers
@@ -69,13 +75,21 @@ aps, physrev,
 % Article body
 % =============================================================================
 
-\TODO{main sections here}
-
 \subfile{sections/introduction.tex}
+
+\section{Formalism}
+
 \subfile{sections/formalism/event_counting.tex}
-\subfile{sections/formalism/hypothesis_testing.tex}
+\subfile{paper/sections/formalism/learnable_distributions}
+\subfile{paper/sections/formalism/distribution_likelihood}
 \subfile{sections/formalism/adding_nuisances.tex}
+\subfile{sections/formalism/hypothesis_testing.tex}
+\subfile{paper/sections/formalism/constructing_test_statistic}
+\subfile{paper/sections/formalism/loss_for_learnable_statistic}
 \subfile{sections/formalism/error_propagation.tex}
+\TODO{do we need pooled likelihood anywhere?}
+
+\section{Methodology}
 
 \subfile{sections/methodology/reproduction.tex}
 \TODO{show the effect of efficiency model nuisance in 1D}
@@ -100,6 +114,6 @@ aps, physrev,
 % Produce the bibliography via BibTeX.
 \nocite{*}
 \bibliographystyle{apsrev4-2}
-\bibliography{../common/bibliography/bibliography}
+\bibliography{common/bibliography/bibliography}
 
 \end{document}

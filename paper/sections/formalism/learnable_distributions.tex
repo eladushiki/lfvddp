@@ -1,0 +1,28 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Model and Parametrization}
+We model the true events for our sample set $\dataset{A}$ as an inhomogeneous Poisson process with intensity
+\[
+\lambda(\anyevent)={N_{\true{A}}} p(\anyevent),
+\]
+where \(p_{\dataset{A}}\) is a probability density. In addition, we introduce a common reference density \(n_{\mathcal{R}}(x)\) and parametrize
+\[
+p(\anyevent)=\frac{1}{Z_f} e^{f(\anyevent)} \refdist[\anyevent],
+\]
+with
+\(Z_f = \int e^{f(\anyevent)} \refdist[\anyevent] d\anyevent\) being the ensuring normalization (based upon $\refdist[\anyevent], f$). Note that even though we keep \(Z_f\) explicit here, later in our computations $Z_f$ might cancel or become irrelevant for the test statistic.
+
+Drawing from our probability density \(p_{\dataset{A}}\), the number density of our samples is given by
+
+\begin{eqnarray}
+\label{eq:learnable_distribution}
+\dist{\meas{A}} = \dfrac{N_\meas{A}}{Z_f} e^{f(\anyevent)} \refdist[\anyevent].
+\end{eqnarray}
+
+Eventually, we show how to estimate the underlying distribution given such a sample. In addition, we grant some arbitrary $\refdist[\anyevent]$ and try to find a learnable function that best explains the sample based upon measures of likelihood.
+
+\end{document}

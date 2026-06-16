@@ -1,0 +1,29 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Symmetrized Test Statistic with Efficiency Weights}
+
+\begin{proposition}\label{sec:full-proof-t}
+    Following the logic in \cite{LastDDPPaper}, the symmetrized test statistic becomes:
+\[
+\begin{aligned} \label{eq:symmetrized_test_statistics}
+t_{\dataset{A}+\dataset{B}}(\dataset{A}) &= -2 \cdot \min_{f(x)}
+\left[
+    - \frac{N_{\reco{A}}}{N_{\reco{A}} + N_{\reco{B}}}
+    \sum_{\event \in \reco{A} \cup \reco{B}} w_i (e^{f(\event)} - 1)
+    + \sum_{\event \in \reco{A}} w_i f(\event)
+\right] \\
+ t_{\dataset{A}+\dataset{B}}(\dataset{B}) &= -2 \cdot \min_{g(x)}
+\left[
+    - \frac{N_{\reco{B}}}{N_{\reco{A}} + N_{\reco{B}}}
+    \sum_{\event \in \reco{A} \cup \reco{B}} w_i (e^{g(\event)} - 1)
+    + \sum_{\event \in \reco{B}} w_i g(\event)
+\right].
+\end{aligned}
+\]
+\end{proposition}
+
+\end{document}
