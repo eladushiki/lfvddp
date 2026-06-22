@@ -57,6 +57,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._norm_factor = None
         self._training_history = {}
         self._tensorboard_writer = None
+        self._compiled_training_loss = torch.compile(
+            self._training_loss,
+            mode="reduce-overhead",
+        )
 
     @property
     def _device(self) -> torch.device:
@@ -279,15 +283,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _log_epoch_metrics(self, epoch: int, f_prediction: torch.Tensor | None = None) -> None:
         """Compute metrics and persist scalar/histogram logs for a given epoch."""
-        if f_prediction is None:
-            with torch.no_grad():
+        with torch.no_grad():
+            if f_prediction is None:
                 f_prediction = self(self._train_data, training=False)
 
-        logs = self._calculate_metrics(
-            is_sample_classifier=self._train_target_classifier,
-            f_prediction=f_prediction,
-            epoch=epoch,
-        )
+            logs = self._calculate_metrics(
+                is_sample_classifier=self._train_target_classifier,
+                f_prediction=f_prediction,
+                epoch=epoch,
+            )
 
         for metric_name, metric_value in logs.items():
             self._tensorboard_writer.add_scalar(metric_name, metric_value, epoch)
@@ -299,27 +303,43 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             for name, param in self.network.named_parameters():
                 self._tensorboard_writer.add_histogram(f'weights/{name}', param, epoch)
 
-    def _train_step(
+    def _training_loss(
         self,
-        optimizer: optim.Optimizer,
         batch_x: torch.Tensor,
         batch_y: torch.Tensor,
         batch_weights: torch.Tensor,
     ) -> torch.Tensor:
-        """Run one optimization step and return detached predictions for this batch."""
         batch_f_predictions = self(batch_x, training=True)
         per_sample_loss = self.ddp_symmetrized_loss(
             is_sample_classifier=batch_y,
             f_prediction=batch_f_predictions,
         )
         weighted_loss = per_sample_loss * batch_weights
-        loss = torch.mean(weighted_loss)
+        return torch.mean(weighted_loss)
+
+    def _train_step(
+        self,
+        optimizer: optim.Optimizer,
+        batch_x: torch.Tensor,
+        batch_y: torch.Tensor,
+        batch_weights: torch.Tensor,
+        return_predictions: bool = False,
+    ) -> torch.Tensor | None:
+        """Run one optimization step.
+
+        Returns post-update predictions only when metrics need them.
+        """
+        loss = self._compiled_training_loss(batch_x, batch_y, batch_weights)
 
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+        
+        if return_predictions:
+            with torch.no_grad():
+                return self(batch_x, training=False).detach()
 
-        return self(batch_x, training=False).detach()
+        return None
 
     def fit(
         self,
@@ -328,9 +348,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
         """Pure PyTorch training loop."""
+        info(f'Starting fit for {self._name}')
+
         # Store training data for metrics computation
         normalized_data, self._norm_factor = data.get_normalized()
         self._train_data, self._train_target_classifier, self._train_weights = self._prepare_training_data(normalized_data, target, weights)
+        info('Prepared tensors for training and moved them to device')
 
         # Full-batch mode only: use direct tensors to avoid DataLoader/collate overhead.
         batch_x = self._train_data
@@ -346,23 +369,28 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if self._config.train__enable_progress_bar:
             epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
+        info(f'Beginning training loop for {max_epochs} epochs')
+        
         # Training with binning context
         with self.binning_context(data):
             for epoch in epoch_iterator:
+                should_log = self._should_log_epoch(epoch=epoch, max_epochs=max_epochs)
                 epoch_last_predictions = self._train_step(
                     optimizer=optimizer,
                     batch_x=batch_x,
                     batch_y=batch_y,
                     batch_weights=batch_weights,
+                    return_predictions=should_log,
                 )
 
-                if self._should_log_epoch(epoch=epoch, max_epochs=max_epochs):
+                if should_log:
                     self._log_epoch_metrics(
                         epoch=epoch,
                         f_prediction=epoch_last_predictions,
                     )
 
         self._close_tensorboard_writer()
+        info('Training loop finished and TensorBoard writer closed')
 
         # Collect history from training
         return self._training_history
@@ -392,7 +420,6 @@ def calc_t_LFVNN(
         detector_effect: DetectorEffect,
         name: str,
 ) -> Tuple[ContextedModel, float]:
-    
     feature = sample_dataset + reference_dataset
     target_classifier = np.concatenate((
             np.ones(shape=(sample_dataset.n_samples,)),
@@ -424,8 +451,7 @@ def calc_t_LFVNN(
     )
     
     info(f'Training time (seconds): {time() - t0}')
-    
-    # Calculate minimum loss from training history
+
     final_loss = tau_model_history[HistoryKeys.LOSS.value][-1]
     final_test_statistic = calc_t_test_statistic(final_loss)
     info(f'Minimum weighted loss achieved: {final_loss:.6f}')

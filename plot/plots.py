@@ -135,7 +135,7 @@ def t_distribution_plot(
     xmax = max(t)
 
     # plot distribution histogram
-    histogram_bins = np.linspace(0, xmax, number_of_bins + 1)
+    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
     histogram_bin_width = (xmax - xmin) * 1./number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label     = f"median: {str(np.around(np.median(t), 2))} \n" \

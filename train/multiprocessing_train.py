@@ -2,6 +2,7 @@ from multiprocessing import get_context
 from pathlib import Path
 import traceback
 import os
+import re
 import time
 from logging import info
 
@@ -36,6 +37,18 @@ def _limit_worker_internal_parallelism(name: str) -> None:
     except RuntimeError as e:
         info(f"[{name}] Could not set PyTorch inter-op threads: {e}")
     info(f"[{name}] Limited internal parallelism: NumPy/PyTorch set to 1 thread")
+
+
+def _configure_worker_torchinductor_cache(name: str, worker_pid: int) -> None:
+    cache_root = os.environ.get("TORCHINDUCTOR_CACHE_DIR")
+    if not cache_root:
+        return
+
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._-") or "worker"
+    worker_cache_dir = Path(cache_root) / f"{safe_name}_{worker_pid}"
+    worker_cache_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["TORCHINDUCTOR_CACHE_DIR"] = str(worker_cache_dir)
+    info(f"[{name}] TorchInductor cache directory: {worker_cache_dir}")
 
 
 def follow_instructions_for_t(
@@ -94,6 +107,7 @@ def _parallel_training_worker(
 ) -> None:
     worker_pid = os.getpid()
     worker_start_time = time.time()
+    _configure_worker_torchinductor_cache(name, worker_pid)
     
     # Get initial CPU affinity
     initial_cores = "N/A"
