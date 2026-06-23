@@ -20,6 +20,8 @@ def session_execution_context():
         no_build=True,
         out_dir="results",
         only_train=False,
+        continue_training=False,
+        continue_from=None,
     )
     config = create_config_from_paths(
         config_paths=list(DEFAULT_CONFIG_PATHS.values()),
@@ -50,6 +52,8 @@ def function_execution_context(
         no_build=session_execution_context.is_no_build,
         out_dir=session_execution_context.unique_out_dir,
         only_train=session_execution_context.is_only_train,
+        continue_training=False,
+        continue_from=None,
     )
     config = create_config_from_paths(
         config_paths=list(config_paths.values()),

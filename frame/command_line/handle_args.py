@@ -64,6 +64,14 @@ def parse_config_from_args() -> tuple[list[Any], Namespace]:
         "--plot-in-place", action="store_true",
         help="Should create plots in the output directory? Else, in a dedicated one", dest="plot_in_place"
     )
+    parser.add_argument(
+        "--continue", action="store_true",
+        help="Continue a previously submitted training run from its latest checkpoints.", dest="continue_training"
+    )
+    parser.add_argument(
+        "--continue-from", type=Path, required=False,
+        help="Submit-run directory to continue from. Defaults to the stamped submit run in the output directory.", dest="continue_from"
+    )
 
     args, unknown = parser.parse_known_args()  # Using this instead of parse_args() to enable calling from jupyter
     if unknown:

@@ -19,6 +19,7 @@ from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import ContextedModel, save_training_outcomes, get_model_logging_dir
+from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
 from train.train_config import TrainConfig
 
 
@@ -303,6 +304,24 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             for name, param in self.network.named_parameters():
                 self._tensorboard_writer.add_histogram(f'weights/{name}', param, epoch)
 
+    def _load_training_checkpoint_if_requested(self, optimizer: optim.Optimizer) -> int:
+        checkpoint_result = find_latest_training_checkpoint(self._context, self._name)
+        if checkpoint_result is None:
+            if self._context.is_continue:
+                raise RuntimeError(f"No checkpoint found for continuation model {self._name}")
+            return 0
+
+        checkpoint_path, checkpoint = checkpoint_result
+        self.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self._training_history = {
+            key: list(value)
+            for key, value in checkpoint.get("training_history", {}).items()
+        }
+        start_epoch = int(checkpoint.get("epoch", -1)) + 1
+        info(f"Loaded checkpoint for {self._name} from {checkpoint_path}; resuming at epoch {start_epoch}")
+        return start_epoch
+
     def _training_loss(
         self,
         batch_x: torch.Tensor,
@@ -365,7 +384,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         optimizer = self.configure_optimizers()
 
         max_epochs = self._config.train__epochs
-        epoch_iterator = range(max_epochs)
+        start_epoch = self._load_training_checkpoint_if_requested(optimizer)
+        if start_epoch >= max_epochs:
+            self._close_tensorboard_writer()
+            return self._training_history
+
+        epoch_iterator = range(start_epoch, max_epochs)
         if self._config.train__enable_progress_bar:
             epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
@@ -387,6 +411,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     self._log_epoch_metrics(
                         epoch=epoch,
                         f_prediction=epoch_last_predictions,
+                    )
+                    save_training_checkpoint(
+                        context=self._context,
+                        model_name=self._name,
+                        model=self,
+                        optimizer=optimizer,
+                        epoch=epoch,
+                        training_history=self._training_history,
                     )
 
         self._close_tensorboard_writer()
