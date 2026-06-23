@@ -22,7 +22,7 @@ from frame.time_tools import get_time_and_date_string, get_unix_timestamp
 from plot.plotting_config import PlottingConfig
 
 from dataclasses import dataclass, field
-from os import getpid, makedirs, sep
+from os import environ, getpid, makedirs, sep
 from pathlib import Path
 from sys import argv
 from typing import Any, Dict, List, Optional
@@ -81,19 +81,30 @@ class ExecutionContext:
     config_paths: List[Path]
     command_line_args: List[str]
     run_hash: Optional[str] = None
+    run_descriptor: Optional[str] = None
     time: str = get_time_and_date_string()
     random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
     is_debug_mode: bool = False
     is_no_build: bool = False
     is_only_train: bool = False
+    is_continue: bool = False
+    continue_from: Optional[Path] = None
+    array_index: Optional[int] = None
+    qsub_submissions: List[Dict[str, Any]] = field(default_factory=list)
     run_successful: bool = False
     products: ExecutionProducts = field(default_factory=ExecutionProducts)
     is_reloaded: bool = False
 
     def __post_init__(self):
         # Run identification
+        if self.run_descriptor is None:
+            self.run_descriptor = self._make_unique_descriptor()
         if self.run_hash is None:
             self.run_hash = hash(self._unique_descriptor)
+
+        if self.array_index is None:
+            pbs_array_index = environ.get("PBS_ARRAY_INDEX")
+            self.array_index = int(pbs_array_index) if pbs_array_index else None
 
         # Initialize once unique output directory
         if not self.is_reloaded:
@@ -109,11 +120,16 @@ class ExecutionContext:
         else:
             torch.manual_seed(self.random_seed)
 
-    @property
-    def _unique_descriptor(self) -> str:
+    def _make_unique_descriptor(self) -> str:
         running_file = argv[0].split(sep)[-1]
         process_id = getpid()
         return f"{self.time}_{self.config.config__dirsafe_runtag}_run_of_{running_file}_pid_{process_id}"
+
+    @property
+    def _unique_descriptor(self) -> str:
+        if self.run_descriptor is None:
+            self.run_descriptor = self._make_unique_descriptor()
+        return self.run_descriptor
 
     @property
     def unique_out_dir(self) -> Path:
@@ -130,6 +146,11 @@ class ExecutionContext:
     @staticmethod
     def serialize(object) -> dict:
         series = object.__dict__.copy()
+        if isinstance(object, ClusterConfig):
+            if object.cluster__qsub_total_walltime is not None:
+                series["cluster__qsub_walltime"] = object.cluster__qsub_total_walltime
+            series.pop("cluster__qsub_total_walltime", None)
+            series.pop("cluster__qsub_walltime_chunks", None)
 
         # Convert non-serializable objects
         for key, value in series.items():
@@ -190,6 +211,66 @@ class ExecutionContext:
     def save_self_to_out_file(self) -> None:
         save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
 
+    @property
+    def qsub_submitted_chunk_count(self) -> int:
+        return len(self.qsub_submissions)
+
+    def next_qsub_walltime_chunk(self) -> Optional[str]:
+        if not isinstance(self.config, ClusterConfig):
+            raise TypeError(f"Expected ClusterConfig, got {self.config.__class__.__name__}")
+        return self.config.next_walltime_chunk(self.qsub_submitted_chunk_count)
+
+    def record_qsub_submission(self, walltime: str, job_id: str, submit_run_dir: Path) -> None:
+        self.qsub_submissions.append({
+            "chunk_index": self.qsub_submitted_chunk_count + 1,
+            "walltime": walltime,
+            "job_id": job_id,
+            "submitted_at": get_time_and_date_string(),
+            "submit_run_dir": str(submit_run_dir),
+        })
+
+    @classmethod
+    def load_from_run_dir(cls, run_dir: Path) -> 'ExecutionContext':
+        run_dir = Path(run_dir)
+        context_path = run_dir if run_dir.name == CONTEXT_FILE_NAME else run_dir / CONTEXT_FILE_NAME
+        return cls.naive_load_from_file(context_path)
+
+    @classmethod
+    def find_stamped_submit_context(
+        cls,
+        out_dir: Path,
+        dirsafe_runtag: str,
+    ) -> Optional['ExecutionContext']:
+        out_dir = Path(out_dir)
+        if (out_dir / CONTEXT_FILE_NAME).exists():
+            return cls.load_from_run_dir(out_dir)
+        if not out_dir.exists():
+            return None
+
+        candidates = list(out_dir.glob(
+            f"*_{dirsafe_runtag}_run_of_submit_train.py_pid_*/{CONTEXT_FILE_NAME}"
+        ))
+        if not candidates:
+            return None
+
+        loaded_candidates = [
+            (cls.naive_load_from_file(candidate), candidate)
+            for candidate in candidates
+        ]
+        loaded_candidates = [
+            (context, candidate)
+            for context, candidate in loaded_candidates
+            if isinstance(context.config, ClusterConfig) and context.config.cluster__qsub_needs_continuation
+        ]
+        if not loaded_candidates:
+            return None
+
+        context, _ = max(
+            loaded_candidates,
+            key=lambda item: (len(item[0].qsub_submissions), item[1].stat().st_mtime),
+        )
+        return context
+
     @classmethod
     def naive_load_from_file(cls, file_path: Path) -> 'ExecutionContext':
         """
@@ -199,6 +280,9 @@ class ExecutionContext:
         """
         data = load_dict_from_json(file_path)
         data["config"] = create_config_from_paramters(data["config"])
+        data["config_paths"] = [Path(path) for path in data.get("config_paths", [])]
+        if data.get("continue_from") is not None:
+            data["continue_from"] = Path(data["continue_from"])
         data["is_reloaded"] = True
         context = cls(**data)
 
@@ -229,6 +313,8 @@ def version_controlled_execution_context(
         is_debug_mode=args.debug,
         is_no_build=args.no_build,
         is_only_train=args.only_train,
+        is_continue=args.continue_training,
+        continue_from=args.continue_from,
     )
 
     # Save in case run terminates prematurely

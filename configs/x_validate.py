@@ -24,6 +24,9 @@ def cross_validate(config: Union[
         )
         config.cluster__qsub_ncpus = 2 if has_parallel_training else 1
 
+    if config.cluster__qsub_needs_continuation and config.train__like_NPLM:
+        raise NotImplementedError("Long-walltime continuation is only implemented for LFVNN/PyTorch training.")
+
     assert config.train__nn_input_dimension == config.detector__number_of_dimensions, \
         f"Input dimension {config.train__nn_input_dimension} does not match detector dimension " \
         f"{config.detector__number_of_dimensions}"

@@ -70,11 +70,13 @@ def train_for_t(
         data_batch=data_batch,
         detector_effect=detector_effect,
         is_numerator=True,
+        name=f"{name}_numerator",
     )
     denominator_train_idx = train_launcer.add_training(
         data_batch=data_batch,
         detector_effect=detector_effect,
         is_numerator=False,
+        name=f"{name}_denominator",
     )
 
     train_launcer.execute_trainings()
