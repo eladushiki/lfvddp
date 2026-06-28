@@ -15,8 +15,9 @@ def cross_validate(config: Union[
     TrainConfig,
     UserConfig,
 ]):
-    # Resolve qsub CPU allocation from the training mode after the merged config is fully constructed.
-    config.cluster__qsub_ncpus = 2 if config.train__run_symmetric_in_parallel else 1
+    # Resolve qsub CPU allocation after merged config is fully constructed.
+    if config.cluster__qsub_ncpus is None:
+        config.cluster__qsub_ncpus = 2 if config.train__run_symmetric_in_parallel else 1
 
     if config.cluster__qsub_needs_continuation and config.train__like_NPLM:
         raise NotImplementedError("Long-walltime continuation is only implemented for LFVNN/PyTorch training.")

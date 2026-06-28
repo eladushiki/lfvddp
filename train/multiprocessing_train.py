@@ -2,7 +2,6 @@ from multiprocessing import get_context
 from pathlib import Path
 import traceback
 import os
-import re
 import time
 from logging import info
 
@@ -23,32 +22,14 @@ def _available_cpu_cores() -> list[int]:
 
 
 def _limit_worker_internal_parallelism(name: str) -> None:
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-
-    import numpy as np
     import torch
 
-    np.seterr(all="ignore")
     torch.set_num_threads(1)
     try:
         torch.set_num_interop_threads(1)
     except RuntimeError as e:
         info(f"[{name}] Could not set PyTorch inter-op threads: {e}")
-    info(f"[{name}] Limited internal parallelism: NumPy/PyTorch set to 1 thread")
-
-
-def _configure_worker_torchinductor_cache(name: str, worker_pid: int) -> None:
-    cache_root = os.environ.get("TORCHINDUCTOR_CACHE_DIR")
-    if not cache_root:
-        return
-
-    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._-") or "worker"
-    worker_cache_dir = Path(cache_root) / f"{safe_name}_{worker_pid}"
-    worker_cache_dir.mkdir(parents=True, exist_ok=True)
-    os.environ["TORCHINDUCTOR_CACHE_DIR"] = str(worker_cache_dir)
-    info(f"[{name}] TorchInductor cache directory: {worker_cache_dir}")
+    info(f"[{name}] Limited PyTorch internal parallelism to 1 thread")
 
 
 def follow_instructions_for_t(
@@ -107,7 +88,6 @@ def _parallel_training_worker(
 ) -> None:
     worker_pid = os.getpid()
     worker_start_time = time.time()
-    _configure_worker_torchinductor_cache(name, worker_pid)
     
     # Get initial CPU affinity
     initial_cores = "N/A"
