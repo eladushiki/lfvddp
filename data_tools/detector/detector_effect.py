@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetParameters
 from data_tools.detector import error
@@ -16,7 +17,7 @@ from frame.context.execution_context import ExecutionContext
 from frame.module_retriever import retrieve_from_module
 
 
-class DetectorEffect:
+class DetectorEffect:  # TODO: binning functionality should be separated from the detector
     """
     Responsible for the interaction between the data and the detector.
     Exported functions are divided into 2 parts:
@@ -136,6 +137,19 @@ class DetectorEffect:
             return np.column_stack(bin_center_indices)
         else:
             return np.column_stack(bin_centered_events)
+
+    def affect_and_compensate_batch(
+        self,
+        batch: DataBatch,
+    ) -> DataBatch:
+        """
+        Apply the detector effect to a batch of datasets and compensate for the efficiency.
+        """
+        affected_datasets = []
+        for dataset, dataset_parameters in batch:
+            affected_dataset = self.affect_and_compensate(dataset, dataset_parameters)
+            affected_datasets.append((affected_dataset, dataset_parameters))
+        return DataBatch(affected_datasets)
 
     def affect_and_compensate(
             self,

@@ -87,7 +87,7 @@ class ExecutionContext:
     is_no_build: bool = False
     is_only_train: bool = False
     run_successful: bool = False
-    products: ExecutionProducts = field(default=ExecutionProducts())
+    products: ExecutionProducts = field(default_factory=ExecutionProducts)
     is_reloaded: bool = False
 
     def __post_init__(self):

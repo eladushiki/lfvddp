@@ -12,6 +12,7 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 
+from data_tools.data_generation import DataBatch
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
@@ -31,24 +32,26 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         context: ExecutionContext,
         detector_effect: DetectorEffect,
+        is_numerator: bool,
         name: str,
-        **kwargs
     ):
         super().__init__()
         self._name = name
+        self._is_numerator = is_numerator
         self._context = context
         self._config: Union[TrainConfig, DetectorConfig] = context.config
 
-        # Add layers by spec
-        self._build_layers()
+        # Add layers by spec. We would add two NNs to express f, g separately.
+        if self._is_numerator:
+            self._build_layers()
         
         # Add detector uncertainty nuisance parameters
         self._detector_effect = detector_effect
-        self._build_detector_nuisances()
+        self._build_eta()
         self._bins_of_events = None  # Set in context
 
         # Initialize NN parameters according to strategy
-        self._create_initial_parameters()
+        self._initialize_parameters()
         
         # Store training data and weights for metrics computation
         self._train_data = None
@@ -68,7 +71,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         hidden_size = self._config.train__nn_inner_layer_nodes
         output_size = self._config.train__nn_output_dimension
         
-        self.network = nn.Sequential(
+        self.f_network = nn.Sequential(
+            nn.Linear(input_dim, hidden_size),
+            nn.Sigmoid(),
+            nn.Linear(hidden_size, output_size),
+        )
+        self.g_network = nn.Sequential(
             nn.Linear(input_dim, hidden_size),
             nn.Sigmoid(),
             nn.Linear(hidden_size, output_size),
@@ -86,23 +94,29 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             self._tensorboard_writer.close()
             self._tensorboard_writer = None
 
-    def _build_detector_nuisances(self):
+    def _build_eta(self):
         self._detector_deltas = {}
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             if self._config.train__data_is_train_for_nuisances:
                 nuisance_var = nn.Parameter(
-                    torch.zeros(nbins, dtype=torch.float32, device=self._device)
+                    torch.full((nbins,), 1e-3, dtype=torch.float32, device=self._device)
                 )
+                self.register_parameter(f"nuisance_{self._observable_names[i]}", nuisance_var)        
             else:
                 nuisance_var = torch.zeros(nbins, dtype=torch.float32, device=self._device)
             self._detector_deltas[self._observable_names[i]] = nuisance_var
         
-        # Register parameters if trainable
-        if self._config.train__data_is_train_for_nuisances:
-            for name, var in self._detector_deltas.items():
-                self.register_parameter(f"nuisance_{name}", var)
+        def eta(events: torch.Tensor) -> torch.Tensor:
+            if self._bins_of_events is None:
+                raise RuntimeError("eta can only be evaluated inside a binning_context.")
+            dimensional_deltas = []
+            for i, obs in enumerate(self._observable_names):
+                dimensional_deltas.append(self._detector_deltas[obs][self._bins_of_events[:, i]])
+            return torch.stack(dimensional_deltas, dim=1).prod(dim=1, keepdim=True)
+        self.eta = eta
+                
 
-    def _create_initial_parameters(self) -> None:
+    def _initialize_parameters(self) -> None:
         """
         Create newly initialized weights matching the training strategy.
         This is the single source of truth for weight initialization.
@@ -111,103 +125,140 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__nn_xavier_gain
         
-        # Layer 0: Input to hidden
-        hidden_layer = self.network[0]
-        nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
-        nn.init.uniform_(hidden_layer.bias, a=-0.3, b=0.3)
-        
-        # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
-        output_layer = self.network[2]
-        nn.init.xavier_uniform_(output_layer.weight, gain=gain)
-        nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
+        if self._is_numerator:
+            for network in self.f_network, self.g_network:
+                
+                # Layer 0: Input to hidden
+                hidden_layer = network[0]
+                nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
+                nn.init.uniform_(hidden_layer.bias, a=-0.3, b=0.3)
+                
+                # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
+                output_layer = network[2]
+                nn.init.xavier_uniform_(output_layer.weight, gain=gain)
+                nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
         # Handle detector nuisances separately
         if self._config.train__data_is_train_for_nuisances:
             for var in self._detector_deltas.values():
-                nn.init.normal_(var, mean=0.0, std=float(TYPICAL_DETECTOR_BIN_UNCERTAINTY_STD))
+                nn.init.constant_(var, 1e-3)
+
+    def _clamp_nuisance_parameters(self) -> None:
+        if not self._config.train__data_is_train_for_nuisances:
+            return
+        with torch.no_grad():
+            for var in self._detector_deltas.values():
+                var.clamp_(min=-1.0 + 1e-6, max=1.0 - 1e-6)
 
     def configure_optimizers(self):
         optimizer = optim.Adam(
             self.parameters(),
             lr=self._config.train__learning_rate,
         )
-
         return optimizer
-
-    def _gaussian_nuisance_nll(self, nuisance_value: torch.Tensor) -> torch.Tensor:
-        """
-        Negative log-likelihood of a single (or vector of) nuisance parameter(s) under
-        Gaussian constraint.
-        - log(x) = 0.5 * (x/σ)² + log(σ√(2π))
-        Constant term is dropped.
-        return: torch.Tensor: Tensor of same shape as nuisance_value with NLL values.
-        """
-        std = torch.tensor(self._config.train__nuisance_lfvddp_nuisance_std, dtype=torch.float32, device=self._device)
-        return 0.5 * torch.square(nuisance_value / std)
-
-    def _total_nuisance_nll(self) -> torch.Tensor:
-        """
-        Total negative log-likelihood for all nuisance parameters, summed over observables.
-        Calculated directly as a sum after taking the individual NLLs.
-        return: torch.Tensor: Scalar tensor of total nuisance NLL.
-        """
-        nuisances = torch.cat([var.reshape(-1) for var in self._detector_deltas.values()])
-        return torch.sum(self._gaussian_nuisance_nll(nuisances))
-    
-    def _prediction_nll(
-            self,
-            is_sample_classifier: torch.Tensor,
-            f_prediction: torch.Tensor,
-        ) -> torch.Tensor:
-        """
-        The custom negative log-likelihood for the prediction of the NN.
-        Rewards correct classification of sample vs. reference events.
-        return: torch.Tensor: Tensor of same shape as input tensors with NLL values.
-        """
-        is_ref_classifier = 1.0 - is_sample_classifier
-        return is_ref_classifier * (torch.exp(f_prediction) - 1) \
-            - is_sample_classifier * f_prediction
 
     @property
     def _observable_names(self) -> List[str]:
         return self._detector_effect._observable_names
 
-    def ddp_symmetrized_loss(
+    def ddp_minimization_loss(
             self,
-            is_sample_classifier: torch.Tensor,
-            f_prediction: torch.Tensor,
+            f_a_sr: torch.Tensor,
+            f_b_sr: torch.Tensor,
+            g_a_sr: torch.Tensor,
+            g_b_sr: torch.Tensor,
+            eta_a_sr: torch.Tensor,
+            eta_a_cr: torch.Tensor,
+            eta_b_sr: torch.Tensor,
+            eta_b_cr: torch.Tensor,
+            z_eta: torch.Tensor,
         ) -> torch.Tensor:
         """
-        Symmetrized DDP custom loss for optimizing likelihood of the
-        estimation. Returns negative log-likelihood to be minimized.
-        return: torch.Tensor: Tensor of same shape as input tensors with total NLL values.
+        The loss function for minimizing any expression in lfvddp.
+
+        From the t values expression in the paper, use:
+        - with or without f, g for numerator or denominator expression.
+        - with or without nuisance parameters at will.
+        Enter a zeros vector for each for it not to be use. This is the default
+        behavior of DifferentiatingModel fit.
+
+        Returns torch.Tensor of the same shape as the input tensors with NLL values to be minimized.
         """
-        prediction_loss = self._prediction_nll(
-            is_sample_classifier=is_sample_classifier,
-            f_prediction=f_prediction,
-        )  # Tensor the size of data
-        if self._config.train__data_is_train_for_nuisances:
-            nuisance_loss = self._total_nuisance_nll()  # Scalar
-        else:
-            nuisance_loss = torch.tensor(0.0, device=self._device, dtype=torch.float32)
+        # SR sum term
+        eta_sr = torch.cat([eta_a_sr, eta_b_sr])
+        
+        N_A_SR = len(eta_a_sr)
+        e_to_the_f_sr = torch.exp(torch.cat([f_a_sr, f_b_sr]))
+        eta_plus_term_sr = 1 + eta_sr
+        N_B_SR = len(eta_b_sr)
+        e_to_the_g_sr = torch.exp(torch.cat([g_a_sr, g_b_sr]))
+        eta_minus_term_sr = 1 - eta_sr
+        sr_sum_term = torch.sum(N_A_SR * e_to_the_f_sr * eta_plus_term_sr \
+            + N_B_SR * e_to_the_g_sr * eta_minus_term_sr)
+        
+        # CR sum term
+        eta_cr = torch.cat([eta_a_cr, eta_b_cr])
+        N_A_CR = len(eta_a_cr)
+        eta_plus_term_cr = 1 + eta_cr
+        N_B_CR = len(eta_b_cr)
+        eta_minus_term_cr = 1 - eta_cr
+        cr_sum_term = torch.sum(N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr)
 
+        # z_eta log term
+        z_eta_term = N_B_SR * torch.log(z_eta)
+
+        # Optional f and g sum terms
+        f_a_sr_sum_term = torch.sum(f_a_sr)
+        g_b_sr_sum_term = torch.sum(g_b_sr)
+
+        # eta log terms
+        eta_a = torch.cat([eta_a_sr, eta_a_cr])
+        eta_plus_a_sum_term = torch.sum(torch.log(1 + eta_a))
+        
+        eta_b = torch.cat([eta_b_sr, eta_b_cr])
+        eta_minus_b_sum_term = torch.sum(torch.log(1 - eta_b))
+        
         # Total loss is sum of log-likelihoods
-        return prediction_loss + nuisance_loss
+        return sr_sum_term + cr_sum_term \
+            - z_eta_term \
+            - f_a_sr_sum_term - g_b_sr_sum_term \
+            - eta_plus_a_sum_term - eta_minus_b_sum_term
 
-    def forward(self, data: torch.Tensor, training: bool = True) -> torch.Tensor:
-        f_prdiction = self.network(data)
-
-        # Each event predicted weight is multiplied by the exponentiation multiplication of all affecting nuisances
-        if self._config.train__data_is_train_for_nuisances:
-            nuisance_skews = [
-                torch.gather(self._detector_deltas[obs], 0, self._bins_of_events[:, i])
-                for i, obs in enumerate(self._observable_names)
-            ]
-
-            items = torch.stack([f_prdiction.squeeze(), *nuisance_skews])
-            return torch.prod(items, dim=0)
+    def forward(
+            self,
+            data: torch.Tensor,
+            region_mask: torch.Tensor,
+        ) -> torch.Tensor:
+        a_sr_mask = (region_mask == DataSet.DataSetCategory.A_SR.value)
+        b_sr_mask = (region_mask == DataSet.DataSetCategory.B_SR.value)
+        sr_map = region_mask[a_sr_mask | b_sr_mask]
+        sr_data = data[a_sr_mask | b_sr_mask]
+        if self._is_numerator:
+            f_x_sr_est = self.f_network(sr_data)
+            g_x_sr_est = self.g_network(sr_data)
         else:
-            return f_prdiction.squeeze()
+            output_shape = (sr_data.shape[0], self._config.train__nn_output_dimension)
+            f_x_sr_est = torch.zeros(output_shape, dtype=sr_data.dtype, device=sr_data.device)
+            g_x_sr_est = torch.zeros(output_shape, dtype=sr_data.dtype, device=sr_data.device)
+        eta_x_est = self.eta(data)
+
+        # Z_eta norm term
+        z_eta = torch.clamp(
+            torch.mean(1 - eta_x_est[region_mask == DataSet.DataSetCategory.B_SR.value]),
+            min=1e-6,
+        )
+
+        return self.ddp_minimization_loss(
+            f_a_sr=f_x_sr_est[sr_map == DataSet.DataSetCategory.A_SR.value],
+            f_b_sr=f_x_sr_est[sr_map == DataSet.DataSetCategory.B_SR.value],
+            g_a_sr=g_x_sr_est[sr_map == DataSet.DataSetCategory.A_SR.value],
+            g_b_sr=g_x_sr_est[sr_map == DataSet.DataSetCategory.B_SR.value],
+            eta_a_sr=eta_x_est[region_mask == DataSet.DataSetCategory.A_SR.value],
+            eta_a_cr=eta_x_est[region_mask == DataSet.DataSetCategory.A_CR.value],
+            eta_b_sr=eta_x_est[region_mask == DataSet.DataSetCategory.B_SR.value],
+            eta_b_cr=eta_x_est[region_mask == DataSet.DataSetCategory.B_CR.value],
+            z_eta = z_eta,
+        )
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -223,119 +274,47 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _prepare_training_data(
         self,
-        data: DataSet,
-        target_classifier: npt.NDArray,
+        data: DataBatch,
         weights: npt.NDArray,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Convert DataSet and target to tensors on the correct device."""
-        data_tensor = torch.tensor(data.events, dtype=torch.float32, device=self._device)
-        target_classifier_tensor = torch.tensor(target_classifier, dtype=torch.float32, device=self._device)
-        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self._device)
-        return data_tensor, target_classifier_tensor, weights_tensor
-
-    def _should_log_epoch(self, epoch: int, max_epochs: int) -> bool:
-        checkpoint_interval = self._config.train__number_of_epochs_for_checkpoint
-        is_checkpoint_epoch = (epoch + 1) % checkpoint_interval == 0
-        is_last_epoch = (epoch + 1) >= max_epochs
-        return is_checkpoint_epoch or is_last_epoch
-
-    def _calculate_metrics(
-        self,
-        is_sample_classifier: torch.Tensor,
-        f_prediction: torch.Tensor,
-        epoch: int,
-    ) -> Dict[str, float]:
-        """
-        Calculate all metrics in a structured manner.
-        Returns a dict with all relevant metric values.
-        """
-        metrics = {}
-        metrics[HistoryKeys.EPOCH.value] = epoch
-
-        # Prediction loss
-        prediction_nll = self._prediction_nll(
-            is_sample_classifier,
-            f_prediction,
-        )
-        weighted_prediction_nll = prediction_nll * self._train_weights
-        metrics[HistoryKeys.MEAN_LOSS.value] = torch.mean(weighted_prediction_nll).item()
-        metrics[HistoryKeys.LOSS.value] = torch.sum(weighted_prediction_nll).item()
-
-        # Nuisance loss and absolute sum
-        if self._config.train__data_is_train_for_nuisances:
-            metrics[HistoryKeys.NUISANCE_LOSS.value] = self._total_nuisance_nll().item()
-            metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = sum(
-                torch.sum(torch.abs(var)).item() for var in self._detector_deltas.values()
-            )
-            for obs in self._observable_names:
-                for i in range(len(self._detector_deltas[obs])):
-                    metrics[f"{HistoryKeys.NUISANCE_VALUES.value}_{obs}_{i}"] = \
-                        self._detector_deltas[obs][i].detach().cpu().numpy()
-        else:
-            metrics[HistoryKeys.NUISANCE_LOSS.value] = 0.0
-            metrics[HistoryKeys.NUISANCE_ABS_SUM.value] = 0.0
+        data_parts = []
+        mask_parts = []
+        for ds, params in data:
+            data_parts.append(ds.events)
+            mask_parts.append(np.full(ds.n_samples, params.category.value, dtype=np.int64))
         
-        return metrics
-
-    def _log_epoch_metrics(self, epoch: int, f_prediction: torch.Tensor | None = None) -> None:
-        """Compute metrics and persist scalar/histogram logs for a given epoch."""
-        if f_prediction is None:
-            with torch.no_grad():
-                f_prediction = self(self._train_data, training=False)
-
-        logs = self._calculate_metrics(
-            is_sample_classifier=self._train_target_classifier,
-            f_prediction=f_prediction,
-            epoch=epoch,
-        )
-
-        for metric_name, metric_value in logs.items():
-            self._tensorboard_writer.add_scalar(metric_name, metric_value, epoch)
-            if metric_name not in self._training_history:
-                self._training_history[metric_name] = []
-            self._training_history[metric_name].append(metric_value)
-
-        if self._context.is_debug_mode:
-            for name, param in self.network.named_parameters():
-                self._tensorboard_writer.add_histogram(f'weights/{name}', param, epoch)
+        data_tensor = torch.tensor(np.concatenate(data_parts), dtype=torch.float32, device=self._device)
+        mask_tensor = torch.from_numpy(np.concatenate(mask_parts)).to(self._device)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self._device)
+        return data_tensor, mask_tensor, weights_tensor
 
     def _train_step(
         self,
         optimizer: optim.Optimizer,
-        batch_x: torch.Tensor,
-        batch_y: torch.Tensor,
+        data: torch.Tensor,
+        region_mask: torch.Tensor,
         batch_weights: torch.Tensor,
     ) -> torch.Tensor:
         """Run one optimization step and return detached predictions for this batch."""
-        batch_f_predictions = self(batch_x, training=True)
-        per_sample_loss = self.ddp_symmetrized_loss(
-            is_sample_classifier=batch_y,
-            f_prediction=batch_f_predictions,
-        )
-        weighted_loss = per_sample_loss * batch_weights
-        loss = torch.mean(weighted_loss)
+        loss = self(data=data, region_mask=region_mask)
 
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+        self._clamp_nuisance_parameters()
 
-        return self(batch_x, training=False).detach()
+        return loss
 
     def fit(
         self,
-        data: DataSet,
-        target: npt.NDArray,
+        data: DataBatch,
         weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
         """Pure PyTorch training loop."""
         # Store training data for metrics computation
         normalized_data, self._norm_factor = data.get_normalized()
-        self._train_data, self._train_target_classifier, self._train_weights = self._prepare_training_data(normalized_data, target, weights)
-
-        # Full-batch mode only: use direct tensors to avoid DataLoader/collate overhead.
-        batch_x = self._train_data
-        batch_y = self._train_target_classifier
-        batch_weights = self._train_weights
+        data_tensor, region_mask_tensor, weights_tensor = self._prepare_training_data(normalized_data, weights)
 
         self.train()
         self._initialize_tensorboard_writer()
@@ -347,27 +326,24 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
         # Training with binning context
-        with self.binning_context(data):
-            for epoch in epoch_iterator:
+        with self.binning_context(data.unified_data):
+            for _ in epoch_iterator:
                 epoch_last_predictions = self._train_step(
                     optimizer=optimizer,
-                    batch_x=batch_x,
-                    batch_y=batch_y,
-                    batch_weights=batch_weights,
+                    data=data_tensor,
+                    region_mask=region_mask_tensor,
+                    batch_weights=weights_tensor,
                 )
-
-                if self._should_log_epoch(epoch=epoch, max_epochs=max_epochs):
-                    self._log_epoch_metrics(
-                        epoch=epoch,
-                        f_prediction=epoch_last_predictions,
-                    )
+                self._training_history.setdefault(HistoryKeys.LOSS.value, []).append(
+                    float(epoch_last_predictions.detach().cpu())
+                )
 
         self._close_tensorboard_writer()
 
         # Collect history from training
         return self._training_history
 
-    def predict(self, data: DataSet) -> npt.NDArray:
+    def predict(self, data: DataSet, is_f: bool = True) -> npt.NDArray:
         """
         Prediction method to be used with DataSet objects and one-time calculation of binning.
         ALREADY PERFORMING LOG! (until implemented in NPLM)
@@ -377,33 +353,28 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self._device)
             self.eval()
             with torch.no_grad():
-                f_predictions = self(x_tensor, training=False)
-            return f_predictions.detach().cpu().numpy()
+                if is_f:
+                    predictions = self.f_network(x_tensor)
+                else:
+                    predictions = self.g_network(x_tensor)
+            return predictions.detach().cpu().numpy()
 
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""
         torch.save(self.state_dict(), file_path)
 
 
-def calc_t_LFVNN(
+def calc_min_LFVNN(
         context: ExecutionContext,
-        sample_dataset: DataSet,
-        reference_dataset: DataSet,
+        data: DataBatch,
         detector_effect: DetectorEffect,
+        is_numerator: bool,
         name: str,
 ) -> Tuple[ContextedModel, float]:
-    
-    feature = sample_dataset + reference_dataset
-    target_classifier = np.concatenate((
-            np.ones(shape=(sample_dataset.n_samples,)),
-            np.zeros(shape=(reference_dataset.n_samples,)),
-        ),
-        axis=0,
-    )
-    loss_weights = np.concatenate((
-            sample_dataset._weight_mask,
-            reference_dataset._weight_mask * sample_dataset.corrected_n_samples / reference_dataset.corrected_n_samples,
-        ),
+    loss_weights = np.concatenate([
+            ds._weight_mask * ds.corrected_n_samples / data.unified_data.corrected_n_samples
+            for ds, params in data
+        ],
         axis=0,
     )
 
@@ -411,30 +382,28 @@ def calc_t_LFVNN(
     info("Starting training")
     t0 = time()
     
-    tau_model = DifferentiatingModel(
+    model = DifferentiatingModel(
         context=context,
         detector_effect=detector_effect,
+        is_numerator=is_numerator,
         name=name,
     )
 
-    tau_model_history = tau_model.fit(
-        data=feature,
-        target=target_classifier,
+    model_history = model.fit(
+        data=data,
         weights=loss_weights,
     )
     
     info(f'Training time (seconds): {time() - t0}')
     
     # Calculate minimum loss from training history
-    final_loss = tau_model_history[HistoryKeys.LOSS.value][-1]
-    final_test_statistic = calc_t_test_statistic(final_loss)
+    final_loss = model_history[HistoryKeys.LOSS.value][-1]
     info(f'Minimum weighted loss achieved: {final_loss:.6f}')
-    info(f'Observed t test statistic: {final_test_statistic}')
     
     save_training_outcomes(
         context,
-        model_history=tau_model_history,
-        tau_model=tau_model,
+        model_history=model_history,
+        tau_model=model,
     )
 
-    return tau_model, final_test_statistic
+    return model, final_loss

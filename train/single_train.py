@@ -1,10 +1,10 @@
 from data_tools.detector.detector_effect import DetectorEffect
-from data_tools.data_generation import DataGeneration
+from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.dataset_config import DatasetConfig
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
-from train.multiprocessing_train import follow_instructions_for_t, symmetric_train_in_parallel
+from train.model_trainer import ParallelTrainLauncher, SequentialTrainLauncher
 from train.train_config import TrainConfig
 
 
@@ -17,60 +17,72 @@ def main(context: ExecutionContext) -> None:
     if not isinstance(config, DatasetConfig):
         raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
 
-    dataset_1_name = "TauMuon"
-    dataset_2_name = "TauElectron"
-
-    gen = DataGeneration(context)
-
     # Generate data
-    A_dataset, A_params = gen[dataset_1_name]
-    B_dataset, B_params = gen[dataset_2_name]
+    gen = DataGeneration(context)
+    batch = gen.get_batch()
 
     # Simulate detector
     det = DetectorEffect(context)
-    detected_A_dataset = det.affect_and_compensate(A_dataset, A_params, is_display=context.is_debug_mode)
-    detected_B_dataset = det.affect_and_compensate(B_dataset, B_params, is_display=context.is_debug_mode)
+    detected_batch = det.affect_and_compensate_batch(batch)
 
-    # For reference, we combine both datasets
-    reference_dataset = detected_A_dataset + detected_B_dataset
-    model_a_name = f"A_model_for_{dataset_1_name}"
-    model_b_name = f"B_model_for_{dataset_2_name}"
+    t_a = train_for_t(
+        context=context,
+        data_batch=detected_batch,
+        detector_effect=det,
+        name="A"
+    )
 
-    # Train symmetrically to obtain the combined loss.
-    # Mode is configurable: parallel subprocesses or sequential in-process execution.
-    if config.train__run_symmetric_in_parallel:
-        t_a, t_b = symmetric_train_in_parallel(
-            context=context,
-            detected_A_dataset=detected_A_dataset,
-            detected_B_dataset=detected_B_dataset,
-            reference_dataset=reference_dataset,
-            detector_effect=det,
-            model_a_name=model_a_name,
-            model_b_name=model_b_name,
-        )
-    else:
-        _, t_a = follow_instructions_for_t(
-            context=context,
-            sample_dataset=detected_A_dataset,
-            reference_dataset=reference_dataset,
-            detector_effect=det,
-            name=model_a_name,
-        )
-        _, t_b = follow_instructions_for_t(
-            context=context,
-            sample_dataset=detected_B_dataset,
-            reference_dataset=reference_dataset,
-            detector_effect=det,
-            name=model_b_name,
-        )
+    detected_batch.swap_ab()
 
-    final_t = t_a + t_b
+    t_b = train_for_t(
+        context=context,
+        data_batch=detected_batch,
+        detector_effect=det,
+        name="B"
+    )
+
+    t_result = t_a + t_b
 
     ## Training log
     context.save_and_document_text(
-        f"{final_t}\n",
+        f"{t_result}\n",
         file_path=context.unique_out_dir / RESULTING_T_FILE_NAME
     )
+
+
+def train_for_t(
+        context: ExecutionContext,
+        data_batch: DataBatch,
+        detector_effect: DetectorEffect,
+        name: str,
+) -> float:
+    """
+    Call either a parallel launcher or the sequential training, according to config.
+    """
+    # Train for each max expression in the t value formula to obtain its value.
+    if context.config.train__run_symmetric_in_parallel:
+        raise NotImplementedError("Symmetric training in parallel is not yet implemented.")
+        train_launcer = ParallelTrainLauncher(context, detector_effect)
+    else:
+        train_launcer = SequentialTrainLauncher(context, detector_effect)
+    
+    numerator_train_idx = train_launcer.add_training(
+        data_batch=data_batch,
+        detector_effect=detector_effect,
+        is_numerator=True,
+    )
+    denominator_train_idx = train_launcer.add_training(
+        data_batch=data_batch,
+        detector_effect=detector_effect,
+        is_numerator=False,
+    )
+
+    train_launcer.execute_trainings()
+
+    numerator_result = train_launcer.get_train_result(numerator_train_idx)
+    denominator_result = train_launcer.get_train_result(denominator_train_idx)
+
+    return -2 * numerator_result + 2 * denominator_result
 
 
 if __name__ == "__main__":

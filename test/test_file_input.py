@@ -1,6 +1,7 @@
 from pathlib import Path
 import pytest
 from test.environment import ConfigType
+from data_tools.data_utils import DataSet
 
 
 @pytest.mark.parametrize(
@@ -16,6 +17,6 @@ from test.environment import ConfigType
 def test_input_modes(
     data_generation,
 ):
-    ds, _ = data_generation["cms_sample"]
+    ds, _ = data_generation[DataSet.DataSetCategory.UNDEFINED]
 
     assert ds.n_samples > 5

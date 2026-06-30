@@ -2,7 +2,8 @@ from pathlib import Path
 import pytest
 import numpy as np
 from test.environment import ConfigType
-from train.multiprocessing_train import follow_instructions_for_t
+from train.model_trainer import follow_instructions_for_t
+from data_tools.data_utils import DataSet
 
 
 @pytest.mark.parametrize(
@@ -27,8 +28,8 @@ def test_learning(
     data_generation,
     detector_effect,
 ):
-    A, A_params = data_generation["A"]
-    B, B_params = data_generation["B"]
+    A, A_params = data_generation[DataSet.DataSetCategory.A]
+    B, B_params = data_generation[DataSet.DataSetCategory.B]
 
     affected_A = detector_effect.affect_and_compensate(A, A_params, True)
     affected_B = detector_effect.affect_and_compensate(B, B_params, True)
@@ -67,8 +68,8 @@ def test_convergence(
     data_generation,
     detector_effect,
 ):
-    A, A_params = data_generation["A"]
-    B, B_params = data_generation["B"]
+    A, A_params = data_generation[DataSet.DataSetCategory.A]
+    B, B_params = data_generation[DataSet.DataSetCategory.B]
 
     affected_A = detector_effect.affect_and_compensate(A, A_params, True)
     affected_B = detector_effect.affect_and_compensate(B, B_params, True)
