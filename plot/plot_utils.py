@@ -2,7 +2,7 @@ from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
@@ -14,7 +14,6 @@ import numpy as np
 import numpy.typing as npt
 from matplotlib import gridspec, patches, pyplot as plt
 from matplotlib.colors import LogNorm
-from neural_networks.utils import ContextedModel
 from plot.plotting_config import PlottingConfig
 from matplotlib.legend_handler import HandlerPatch
 import re
@@ -492,7 +491,7 @@ def utils__plot_datset_lfv_comparison(
 def utils__contour_model_prediction(
         context: ExecutionContext,
         detector_effect: DetectorEffect,
-        trained_model: ContextedModel,
+        prediction_function: Callable[[DataSet], npt.NDArray],
         along_observables: Union[List[str], str, None] = None,
 ):
     """
@@ -512,7 +511,7 @@ def utils__contour_model_prediction(
 
     spanning_dataset = utils__get_spanning_dataset(config)
     sliced_dataset = spanning_dataset.filter_observable_names(along_observables)
-    model_prediction = trained_model.predict(spanning_dataset)
+    model_prediction = prediction_function(spanning_dataset)
     contour = np.exp(model_prediction)
     
     # Average over bins across projected dimensions

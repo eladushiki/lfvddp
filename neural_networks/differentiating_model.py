@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from logging import info
 from time import time
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -16,7 +16,6 @@ from data_tools.data_generation import DataBatch
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
-from data_tools.profile_likelihood import calc_t_test_statistic
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import ContextedModel, save_training_outcomes, get_model_logging_dir
@@ -150,9 +149,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             for var in self._detector_deltas.values():
                 var.clamp_(min=-1.0 + 1e-6, max=1.0 - 1e-6)
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Optional[optim.Optimizer]:
+        trainable_parameters = [parameter for parameter in self.parameters() if parameter.requires_grad]
+        if not trainable_parameters:
+            return None
         optimizer = optim.Adam(
-            self.parameters(),
+            trainable_parameters,
             lr=self._config.train__learning_rate,
         )
         return optimizer
@@ -291,18 +293,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _train_step(
         self,
-        optimizer: optim.Optimizer,
+        optimizer: Optional[optim.Optimizer],
         data: torch.Tensor,
         region_mask: torch.Tensor,
         batch_weights: torch.Tensor,
     ) -> torch.Tensor:
-        """Run one optimization step and return detached predictions for this batch."""
+        """Run one optimization step and return the batch loss."""
         loss = self(data=data, region_mask=region_mask)
 
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-        self._clamp_nuisance_parameters()
+        if optimizer is not None:
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+            self._clamp_nuisance_parameters()
 
         return loss
 
@@ -321,7 +324,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         optimizer = self.configure_optimizers()
 
         max_epochs = self._config.train__epochs
-        epoch_iterator = range(max_epochs)
+        epoch_iterator = range(1 if optimizer is None else max_epochs)
         if self._config.train__enable_progress_bar:
             epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
@@ -343,21 +346,29 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Collect history from training
         return self._training_history
 
-    def predict(self, data: DataSet, is_f: bool = True) -> npt.NDArray:
+    def _predict_network(self, data: DataSet, network: Optional[nn.Module]) -> npt.NDArray:
         """
-        Prediction method to be used with DataSet objects and one-time calculation of binning.
+        Prediction method to be used with DataSet objects.
         ALREADY PERFORMING LOG! (until implemented in NPLM)
         """
+        if self._norm_factor is None:
+            raise RuntimeError("Cannot predict before the model has been fitted.")
         normalized_data = data / self._norm_factor
-        with self.binning_context(data):
-            x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self._device)
-            self.eval()
-            with torch.no_grad():
-                if is_f:
-                    predictions = self.f_network(x_tensor)
-                else:
-                    predictions = self.g_network(x_tensor)
-            return predictions.detach().cpu().numpy()
+        x_tensor = torch.tensor(normalized_data.events, dtype=torch.float32, device=self._device)
+        self.eval()
+        with torch.no_grad():
+            if self._is_numerator and network is not None:
+                predictions = network(x_tensor)
+            else:
+                output_shape = (x_tensor.shape[0], self._config.train__nn_output_dimension)
+                predictions = torch.zeros(output_shape, dtype=x_tensor.dtype, device=x_tensor.device)
+        return predictions.detach().cpu().numpy()
+
+    def predict_f(self, data: DataSet) -> npt.NDArray:
+        return self._predict_network(data, self.f_network if self._is_numerator else None)
+
+    def predict_g(self, data: DataSet) -> npt.NDArray:
+        return self._predict_network(data, self.g_network if self._is_numerator else None)
 
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""

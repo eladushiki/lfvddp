@@ -64,9 +64,9 @@ class DataSet:
 
     def __init__(
             self,
-            category: DataSetCategory = DataSetCategory.UNDEFINED,
             data: Optional[Union[npt.NDArray, pd.DataFrame]] = None,
             observable_names: Optional[List[str]] = None,
+            category: DataSetCategory = DataSetCategory.UNDEFINED,
         ):
         self._category = category
         if data is None:
@@ -104,7 +104,7 @@ class DataSet:
 
         category = self.category + other.category
 
-        result = DataSet(category, data=_data, observable_names=self.observable_names)
+        result = DataSet(data=_data, observable_names=self.observable_names, category=category)
         result._weight_mask = _weight_mask
         return result
     
@@ -145,15 +145,15 @@ class DataSet:
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
         result = DataSet(
-            category=self._category,
             data=pd.DataFrame(self._data.iloc[item, :]),
             observable_names=self.observable_names,
+            category=self._category,
         )
         result._weight_mask = self._weight_mask[item]
         return result
 
     def create_copy(self) -> DataSet:
-        copy = DataSet(self._category, data=self._data.copy(), observable_names=self.observable_names)
+        copy = DataSet(data=self._data.copy(), observable_names=self.observable_names, category=self._category)
         copy._weight_mask = self._weight_mask.copy()
         return copy
 
@@ -237,15 +237,15 @@ class DataSet:
         filtered_data = self._data.iloc[filter, :]
         filtered_weight_mask = self._weight_mask[filter]
 
-        result = DataSet(category=self._category, data=filtered_data, observable_names=self.observable_names)
+        result = DataSet(data=filtered_data, observable_names=self.observable_names, category=self._category)
         result._weight_mask = filtered_weight_mask
         return result
 
     def filter_observable_names(self, observables: Union[str, List[str]]) -> DataSet:
         filtered_dataset = DataSet(
-            category=self._category,
             data=self.slice_along_observable_names(observables),
-            observable_names=[observables] if isinstance(observables, str) else observables
+            observable_names=[observables] if isinstance(observables, str) else observables,
+            category=self._category,
         )
         filtered_dataset._weight_mask = deepcopy(self._weight_mask)
         return filtered_dataset
