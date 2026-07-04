@@ -35,16 +35,25 @@ def save_training_outcomes(
         model_history: Dict[str, Any],
         tau_model: ContextedModel,
     ) -> None:
+    save_training_history_outcome(context, model_history, tau_model._name)
+    model_output_dir = get_model_logging_dir(context, tau_model._name)
+    context.save_and_document_model_parameters(tau_model, model_output_dir / f"{tau_model._name}_{WEIGHTS_OUTPUT_FILE_NAME}")
+
+
+def save_training_history_outcome(
+        context: ExecutionContext,
+        model_history: Dict[str, Any],
+        model_name: str,
+    ) -> None:
     if not isinstance(config := context.config, TrainConfig):
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
 
     ## Training log
-    model_output_dir = get_model_logging_dir(context, tau_model._name)
+    model_output_dir = get_model_logging_dir(context, model_name)
     os.makedirs(model_output_dir, exist_ok=True)
 
     # Save training
-    context.save_and_document_model_history(model_history, model_output_dir / f"{tau_model._name}.{TRAINING_HISTORY_LOG_FILE_SUFFIX}")
-    context.save_and_document_model_parameters(tau_model, model_output_dir / f"{tau_model._name}_{WEIGHTS_OUTPUT_FILE_NAME}")
+    context.save_and_document_model_history(model_history, model_output_dir / f"{model_name}.{TRAINING_HISTORY_LOG_FILE_SUFFIX}")
 
 
 def prediction_to_sample_ndf_hypothesis_weights(

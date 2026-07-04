@@ -162,6 +162,9 @@ def train_NPML_model(
         verbose=False,
     )
     tau_history = np.array(tau_model_history[HistoryKeys.LOSS.value])                
+    tau_model_history[HistoryKeys.EPOCH.value] = (
+        config.train__number_of_epochs_for_checkpoint * np.arange(len(tau_history))
+    ).tolist()
     
     info(f'Training time (seconds): {time() - t0}')
 

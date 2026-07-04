@@ -87,7 +87,7 @@ class TrainLauncher:
     def _follow_instructions_for_t(
         self,
         training: Training,
-    ) -> tuple[ContextedModel, float]:
+    ) -> tuple[Optional[ContextedModel], float]:
         
         base_name = training.data_batch.parameters[DataSet.DataSetCategory.A_SR].name
         model_name = self._training_model_name(training)
@@ -104,16 +104,30 @@ class TrainLauncher:
                 f"NPLM train for {model_name}",
             )
         else:
-            from neural_networks.differentiating_model import calc_min_LFVNN
-            model, final_val = calc_min_LFVNN(
-                context=self._context,
-                data=training.data_batch,
-                detector_effect=self._detector_effect,
-                is_numerator=training.is_numerator,
-                name=model_name,
-            )
+            from neural_networks.differentiating_model import DifferentiatingModel, calc_min_LFVNN
+            if DifferentiatingModel.has_configured_trainable_parameters(
+                self._config,
+                training.is_numerator,
+            ):
+                model, final_val = calc_min_LFVNN(
+                    context=self._context,
+                    data=training.data_batch,
+                    detector_effect=self._detector_effect,
+                    is_numerator=training.is_numerator,
+                    name=model_name,
+                )
+            else:
+                model = None
+                final_val = DifferentiatingModel.calculate_loss_statically(
+                    context=self._context,
+                    data=training.data_batch,
+                    detector_effect=self._detector_effect,
+                    is_numerator=training.is_numerator,
+                    name=model_name,
+                )
+                info(f"Calculated static loss for {model_name}: {final_val:.6f}")
 
-        if self._context.is_debug_mode:
+        if self._context.is_debug_mode and model is not None:
             from plot.plots import plot_prediction_process_sliced
 
             data_process_plot = plot_prediction_process_sliced(
