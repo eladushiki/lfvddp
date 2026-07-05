@@ -16,7 +16,7 @@ def test_dataset_normalization(
     function_execution_context,
     data_generation,
 ):
-    A, _ = data_generation[DataSet.DataSetCategory.A]
+    A, _ = data_generation[DataSet.DataSetCategory.A_SR]
     B, _ = data_generation[DataSet.DataSetCategory.B]
 
     normalized_A, norm_factor_A = A.get_normalized()
