@@ -15,12 +15,7 @@ def _train_numerator(function_execution_context, data_batch, detector_effect, na
         is_numerator=True,
         name=name,
     )
-    debug_mode = function_execution_context.is_debug_mode
-    function_execution_context.is_debug_mode = False
-    try:
-        train_launcher.execute_trainings()
-    finally:
-        function_execution_context.is_debug_mode = debug_mode
+    train_launcher.execute_trainings()
     return train_launcher.get_train_result(train_idx)
 
 
