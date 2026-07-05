@@ -29,7 +29,7 @@ def test_learning(
     detector_effect,
 ):
     A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
-    B, B_params = data_generation[DataSet.DataSetCategory.B]
+    B, B_params = data_generation[DataSet.DataSetCategory.B_SR]
 
     affected_A = detector_effect.affect_and_compensate(A, A_params, True)
     affected_B = detector_effect.affect_and_compensate(B, B_params, True)
