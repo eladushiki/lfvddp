@@ -6,6 +6,11 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
 from train.model_trainer import ParallelTrainLauncher, SequentialTrainLauncher
 from train.train_config import TrainConfig
+from train.training_names import (
+    SAMPLE_A_NAME,
+    SAMPLE_B_NAME,
+    training_names_for_sample,
+)
 
 
 @context_controlled_execution
@@ -29,7 +34,7 @@ def main(context: ExecutionContext) -> None:
         context=context,
         data_batch=detected_batch,
         detector_effect=det,
-        name="A"
+        name=SAMPLE_A_NAME
     )
 
     detected_batch.swap_ab()
@@ -38,7 +43,7 @@ def main(context: ExecutionContext) -> None:
         context=context,
         data_batch=detected_batch,
         detector_effect=det,
-        name="B"
+        name=SAMPLE_B_NAME
     )
 
     t_result = t_a + t_b
@@ -65,18 +70,20 @@ def train_for_t(
         train_launcer = ParallelTrainLauncher(context, detector_effect)
     else:
         train_launcer = SequentialTrainLauncher(context, detector_effect)
+
+    training_names = training_names_for_sample(name)
     
     numerator_train_idx = train_launcer.add_training(
         data_batch=data_batch,
         detector_effect=detector_effect,
         is_numerator=True,
-        name=f"{name}_numerator",
+        name=training_names.numerator,
     )
     denominator_train_idx = train_launcer.add_training(
         data_batch=data_batch,
         detector_effect=detector_effect,
         is_numerator=False,
-        name=f"{name}_denominator",
+        name=training_names.denominator,
     )
 
     train_launcer.execute_trainings()

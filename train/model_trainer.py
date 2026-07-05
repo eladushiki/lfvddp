@@ -13,6 +13,7 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAIN_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from train.checkpoints import find_latest_training_checkpoint
+from train.training_names import training_name
 from neural_networks.utils import ContextedModel
 
 
@@ -60,8 +61,7 @@ class TrainLauncher:
         if training.name is not None:
             return training.name
         base_name = training.data_batch.parameters[DataSet.DataSetCategory.A_SR].name
-        kind = "numerator" if training.is_numerator else "denominator"
-        return f"{base_name}_{kind}"
+        return training_name(base_name, training.is_numerator)
 
     def _training_checkpoint(self, training: Training) -> Optional[dict[str, Any]]:
         checkpoint_result = find_latest_training_checkpoint(
