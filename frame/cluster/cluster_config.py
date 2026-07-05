@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from frame.cluster.walltime import split_walltime
+from frame.cluster.walltime import parse_walltime, split_walltime
 
 
 @dataclass
@@ -18,12 +18,16 @@ class ClusterConfig:
     cluster__qsub_mem: int
     cluster__qsub_ngpus_for_train: int
     cluster__qsub_ncpus: Optional[int] = None
+    cluster__qsub_walltime_limit: str = "72:00:00"
     cluster__qsub_total_walltime: Optional[str] = None
     cluster__qsub_walltime_chunks: list[str] = field(init=False)
 
     def __post_init__(self) -> None:
         self.cluster__qsub_total_walltime = self.cluster__qsub_total_walltime or self.cluster__qsub_walltime
-        self.cluster__qsub_walltime_chunks = split_walltime(self.cluster__qsub_total_walltime)
+        self.cluster__qsub_walltime_chunks = split_walltime(
+            self.cluster__qsub_total_walltime,
+            max_seconds=parse_walltime(self.cluster__qsub_walltime_limit),
+        )
         self.cluster__qsub_walltime = self.cluster__qsub_walltime_chunks[0]
 
     @property

@@ -12,6 +12,15 @@ class ConfigType(Enum):
     USER = "user"
 
 
+CONFIG_ARGUMENTS = [
+    (ConfigType.CLUSTER, "--cluster-config"),
+    (ConfigType.DATASET, "--dataset-config"),
+    (ConfigType.DETECTOR, "--detector-config"),
+    (ConfigType.TRAIN, "--train-config"),
+    (ConfigType.USER, "--user-config"),
+]
+
+
 DEFAULT_CONFIG_PATHS = {t.value: Path(s) for t, s in zip(
     ConfigType,
     [

@@ -1,11 +1,12 @@
 from logging import warning
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 import torch
 
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_system.textual_data import load_dict_from_json
 
 
 TRAINING_CHECKPOINT_SUFFIX = "checkpoint.pt"
@@ -24,13 +25,54 @@ def _torch_load(file_path: Path) -> dict[str, Any]:
 
 
 def _checkpoint_dir(context: ExecutionContext) -> Path:
+    return context.training_outcomes_dir
+
+
+def _legacy_continuation_checkpoint_path(
+    context: ExecutionContext,
+    model_name: str,
+) -> Optional[Path]:
     if context.continue_from is None:
-        return context.training_outcomes_dir
+        return None
 
     checkpoint_dir = Path(context.continue_from) / TRAINING_OUTCOMES_DIR_NAME / CHECKPOINTS_DIR_NAME
     if context.array_index is not None:
         checkpoint_dir = checkpoint_dir / f"array_{context.array_index}"
-    return checkpoint_dir
+    return checkpoint_dir / checkpoint_filename(model_name)
+
+
+def _single_train_checkpoint_paths(
+    context: ExecutionContext,
+    model_name: str,
+) -> Iterable[Path]:
+    if context.continue_from is None:
+        return
+
+    continue_from = Path(context.continue_from)
+    for child_context_path in continue_from.glob(f"*/{CONTEXT_FILE_NAME}"):
+        child_context = load_dict_from_json(child_context_path)
+        if child_context.get("array_index") != context.array_index:
+            continue
+        if "single_train.py" not in str(child_context.get("run_descriptor", "")):
+            continue
+
+        checkpoint_path = (
+            child_context_path.parent
+            / TRAINING_OUTCOMES_DIR_NAME
+            / checkpoint_filename(model_name)
+        )
+        if checkpoint_path.exists():
+            yield checkpoint_path
+
+
+def _continuation_checkpoint_paths(
+    context: ExecutionContext,
+    model_name: str,
+) -> Iterable[Path]:
+    legacy_path = _legacy_continuation_checkpoint_path(context, model_name)
+    if legacy_path is not None and legacy_path.exists():
+        yield legacy_path
+    yield from _single_train_checkpoint_paths(context, model_name)
 
 
 def save_training_checkpoint(
@@ -67,22 +109,34 @@ def find_latest_training_checkpoint(
     if not context.is_continue or context.continue_from is None:
         return None
 
-    checkpoint_path = _checkpoint_dir(context) / checkpoint_filename(model_name)
-    if not checkpoint_path.exists():
+    candidates = []
+    for checkpoint_path in _continuation_checkpoint_paths(context, model_name):
+        checkpoint = _torch_load(checkpoint_path)
+        if checkpoint.get("model_name") != model_name:
+            raise RuntimeError(f"Checkpoint {checkpoint_path} belongs to {checkpoint.get('model_name')}, not {model_name}")
+
+        checkpoint_array_index = checkpoint.get("array_index")
+        if checkpoint_array_index != context.array_index:
+            warning(
+                f"Checkpoint {checkpoint_path} belongs to array index {checkpoint_array_index}, "
+                f"not {context.array_index}"
+            )
+            continue
+
+        candidates.append((checkpoint_path, checkpoint))
+
+    if not candidates:
         if warn_missing:
-            warning(f"Continuation checkpoint does not exist: {checkpoint_path}")
+            warning(
+                f"Continuation checkpoint does not exist for {model_name} "
+                f"and array index {context.array_index} in {context.continue_from}"
+            )
         return None
 
-    checkpoint = _torch_load(checkpoint_path)
-    if checkpoint.get("model_name") != model_name:
-        raise RuntimeError(f"Checkpoint {checkpoint_path} belongs to {checkpoint.get('model_name')}, not {model_name}")
-
-    checkpoint_array_index = checkpoint.get("array_index")
-    if checkpoint_array_index != context.array_index:
-        warning(
-            f"Checkpoint {checkpoint_path} belongs to array index {checkpoint_array_index}, "
-            f"not {context.array_index}"
-        )
-        return None
-
-    return checkpoint_path, checkpoint
+    return max(
+        candidates,
+        key=lambda candidate: (
+            int(candidate[1].get("epoch", -1)),
+            candidate[0].stat().st_mtime,
+        ),
+    )

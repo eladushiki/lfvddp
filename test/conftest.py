@@ -12,6 +12,8 @@ from pytest import fixture
 
 from argparse import Namespace
 
+import pytest
+
 
 @fixture(scope="session", autouse=True)
 def session_execution_context():
@@ -36,6 +38,25 @@ def session_execution_context():
         args=args,
     ) as context:
         yield context
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-server-tests",
+        action="store_true",
+        default=False,
+        help="Run tests marked 'server' that submit real scheduler jobs.",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-server-tests"):
+        return
+
+    skip_server = pytest.mark.skip(reason="need --run-server-tests to run server tests")
+    for item in items:
+        if "server" in item.keywords:
+            item.add_marker(skip_server)
 
 
 @fixture(scope="function")
