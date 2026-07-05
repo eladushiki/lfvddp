@@ -16,12 +16,13 @@ CONFIG_ARGUMENTS = [
     (ConfigType.CLUSTER, "--cluster-config"),
     (ConfigType.DATASET, "--dataset-config"),
     (ConfigType.DETECTOR, "--detector-config"),
+    (ConfigType.PLOT, "--plot-config"),
     (ConfigType.TRAIN, "--train-config"),
     (ConfigType.USER, "--user-config"),
 ]
 
 
-DEFAULT_CONFIG_PATHS = {t.value: Path(s) for t, s in zip(
+DEFAULT_CONFIG_PATHS = {t: Path(s) for t, s in zip(
     ConfigType,
     [
         "configs/cluster/basic_cluster_config.json",

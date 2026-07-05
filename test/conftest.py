@@ -88,7 +88,9 @@ def function_execution_context(
         command_line_args=wrap_with_command_line_args(config_paths),
         args=args,
     ) as context:
+        context.typed_config_paths = config_paths  # Attach config_paths to context for test convenience
         yield context
+        del context.typed_config_paths  # Clean up after test
 
 
 @fixture(scope="function")

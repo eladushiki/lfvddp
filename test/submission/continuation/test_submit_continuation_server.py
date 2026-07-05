@@ -7,11 +7,10 @@ import pytest
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME, LOCAL_PROJECT_ROOT, TRAINING_OUTCOMES_DIR_NAME
 from test.submission.submit_test_utils import (
-    create_submit_config,
     load_submit_context,
     require_server_prerequisites,
     run_submit,
-    submit_command,
+    build_submit_command,
     wait_for_job_to_finish,
 )
 from test.environment import ConfigType
@@ -20,14 +19,6 @@ from train.checkpoints import TRAINING_CHECKPOINT_SUFFIX, _torch_load
 
 ARRAY_JOB_COUNT = 5
 PROGRESS_WAIT_TIMEOUT_SECONDS = 2 * 60
-
-CONFIG_PATHS = {
-    ConfigType.CLUSTER: Path("test/configs/continuation/server_cluster_config.json"),
-    ConfigType.DATASET: Path("test/configs/continuation/server_dataset_config.json"),
-    ConfigType.DETECTOR: Path("test/configs/continuation/server_detector_config.json"),
-    ConfigType.TRAIN: Path("test/configs/continuation/server_train_config.json"),
-    ConfigType.USER: Path("test/configs/continuation/server_user_config.json"),
-}
 
 
 def _single_train_context_dirs(submit_run_dir: Path) -> list[tuple[Path, ExecutionContext]]:
@@ -80,13 +71,25 @@ def _wait_for_all_arrays_to_progress(
 
 @pytest.mark.server
 @pytest.mark.long
-def test_submit_continue_advances_all_array_jobs():
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{
+        ConfigType.CLUSTER: Path("test/submission/continuation/configs/continuation_cluster_config.json"),
+        ConfigType.DATASET: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
+        ConfigType.DETECTOR: Path("test/configs/detector/basic_1D_detector_config.json"),
+        ConfigType.TRAIN: Path("test/configs/train/long_1D_train_config_with_nuisance.json"),
+    }],
+    indirect=True,
+)
+def test_submit_continue_advances_all_array_jobs(
+    function_execution_context,
+):
     require_server_prerequisites()
 
     out_dir = Path("results") / f"pytest_server_continuation_{time.time_ns()}"
-    config = create_submit_config(CONFIG_PATHS, out_dir)
+    config = function_execution_context.config
 
-    run_submit(submit_command(CONFIG_PATHS, out_dir))
+    run_submit(build_submit_command(function_execution_context, out_dir))
     submit_context = load_submit_context(out_dir, config.config__dirsafe_runtag)
     submit_run_dir = LOCAL_PROJECT_ROOT / submit_context.unique_out_dir
     first_job_id = submit_context.qsub_submissions[0]["job_id"]
@@ -94,7 +97,7 @@ def test_submit_continue_advances_all_array_jobs():
     wait_for_job_to_finish(first_job_id)
     first_epochs = _wait_for_all_arrays_to_progress(submit_run_dir)
 
-    run_submit(submit_command(CONFIG_PATHS, out_dir, continue_training=True))
+    run_submit(build_submit_command(function_execution_context.config_paths, out_dir, continue_training=True))
     submit_context = ExecutionContext.load_from_run_dir(submit_run_dir)
     second_job_id = submit_context.qsub_submissions[1]["job_id"]
 

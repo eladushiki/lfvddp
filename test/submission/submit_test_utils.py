@@ -8,7 +8,6 @@ from typing import Mapping
 
 import pytest
 
-from frame.command_line.handle_args import create_config_from_paths
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import LOCAL_PROJECT_ROOT, PROJECT_NAME
 from test.environment import CONFIG_ARGUMENTS, ConfigType
@@ -17,19 +16,8 @@ JOB_WAIT_TIMEOUT_SECONDS = 20 * 60
 POLL_SECONDS = 5
 
 
-def create_submit_config(
-    config_paths: Mapping[ConfigType, Path],
-    out_dir: Path,
-):
-    return create_config_from_paths(
-        config_paths=[config_paths[config_type] for config_type, _ in CONFIG_ARGUMENTS],
-        is_plot=False,
-        out_dir=str(out_dir),
-    )
-
-
-def submit_command(
-    config_paths: Mapping[ConfigType, Path],
+def build_submit_command(  # TODO: make configs independent of their type all over the project
+    context: ExecutionContext,
     out_dir: Path,
     continue_training: bool = False,
 ) -> list[str]:
@@ -38,7 +26,7 @@ def submit_command(
         "train/submit_train.py",
     ]
     for config_type, argument in CONFIG_ARGUMENTS:
-        command.extend([argument, str(config_paths[config_type])])
+        command.extend([argument, str(context.typed_config_paths[config_type])])
 
     command.extend(
         [
