@@ -32,4 +32,4 @@ def test_resampling_exhaustion(
 
     # Draws more data than there is left, due to resampling without replacement
     with pytest.raises(ValueError):
-        _, _ = data_generation[DataSet.DataSetCategory.A]
+        _, _ = data_generation[DataSet.DataSetCategory.A_SR]
