@@ -580,6 +580,108 @@ def _model_prediction_specs(
     return predictions
 
 
+def _model_contour_specs(
+    trained_model: ContextedModel,
+    base_legend: str,
+    primary_color: str,
+    secondary_color: str,
+    eta_color: str,
+) -> List[
+    Tuple[Callable[[DataSet], np.ndarray], str, str, Callable[[np.ndarray], np.ndarray]]
+]:
+    predict_f = getattr(trained_model, "predict_f", None)
+    predict_g = getattr(trained_model, "predict_g", None)
+    predict_eta = getattr(trained_model, "predict_eta", None)
+    if callable(predict_f) and callable(predict_g):
+        specs = [
+            (predict_f, f"{base_legend} (f)", primary_color, np.exp),
+            (predict_g, f"{base_legend} (g)", secondary_color, np.exp),
+        ]
+        if callable(predict_eta):
+            specs.append((predict_eta, f"{base_legend} (eta)", eta_color, np.asarray))
+        return specs
+
+    predict = getattr(trained_model, "predict", None)
+    if callable(predict):
+        return [(predict, base_legend, primary_color, np.exp)]
+
+    raise AttributeError(
+        f"{trained_model.__class__.__name__} must expose predict_f/predict_g or predict to be plotted."
+    )
+
+
+def _display_edges_by_observable(
+    datasets: List[DataSet],
+    observable_names: List[str],
+    number_of_bins: int,
+) -> dict[str, np.ndarray]:
+    if number_of_bins <= 0:
+        raise ValueError(
+            f"Expected a positive number of display bins, got {number_of_bins}"
+        )
+
+    edges_by_observable = {}
+    for observable_name in observable_names:
+        values = np.concatenate(
+            [
+                utils__flatten_histogram_values(
+                    dataset.slice_along_observable_names(observable_name)
+                )
+                for dataset in datasets
+            ]
+        )
+        values = values[np.isfinite(values)]
+        if values.size == 0:
+            raise ValueError(
+                f"Cannot define display bins for {observable_name}: no finite values found."
+            )
+
+        minimum = float(np.min(values))
+        maximum = float(np.max(values))
+        if minimum == maximum:
+            padding = max(abs(minimum) * 0.05, 0.5)
+            minimum -= padding
+            maximum += padding
+        edges_by_observable[observable_name] = np.linspace(
+            minimum, maximum, number_of_bins + 1
+        )
+
+    return edges_by_observable
+
+
+def _bins_for_observables(
+    edges_by_observable: dict[str, np.ndarray],
+    observable_names: List[str],
+) -> Tuple[Union[np.ndarray, List[np.ndarray]], Union[np.ndarray, List[np.ndarray]]]:
+    edges = [
+        edges_by_observable[observable_name] for observable_name in observable_names
+    ]
+    centers = [
+        0.5 * (observable_edges[:-1] + observable_edges[1:])
+        for observable_edges in edges
+    ]
+    if len(observable_names) == 1:
+        return edges[0], centers[0]
+    return edges, centers
+
+
+def _spanning_dataset_from_centers(
+    centers_by_observable: dict[str, np.ndarray],
+    observable_names: List[str],
+) -> DataSet:
+    spanning_mesh = np.meshgrid(
+        *[
+            centers_by_observable[observable_name]
+            for observable_name in observable_names
+        ],
+        indexing="ij",
+    )
+    return DataSet(
+        data=np.column_stack([dimension.ravel() for dimension in spanning_mesh]),
+        observable_names=observable_names,
+    )
+
+
 def plot_prediction_process_sliced(
     context: ExecutionContext,
     detector_effect: DetectorEffect,
@@ -595,8 +697,10 @@ def plot_prediction_process_sliced(
     delta_prediction_legend="delta model prediction",
     tau_prediction_color="cyan",
     tau_g_prediction_color="tab:orange",
+    tau_eta_prediction_color="tab:purple",
     delta_prediction_color="magenta",
     delta_g_prediction_color="tab:green",
+    delta_eta_prediction_color="tab:brown",
     xlabel: str = "mass",
     ylabel: str = "number of events",
     ax: Optional[plt.Axes] = None,
@@ -615,6 +719,8 @@ def plot_prediction_process_sliced(
         raise ValueError("The context config is not a DatasetConfig.")
     if not isinstance(config, DetectorConfig):
         raise ValueError("The context config is not a DetectorConfig.")
+    if not isinstance(config, PlottingConfig):
+        raise ValueError("The context config is not a PlottingConfig.")
 
     if along_observables is None:
         if len(detector_effect._observable_names) > 1:
@@ -637,14 +743,22 @@ def plot_prediction_process_sliced(
         ax.view_init(elev=28, azim=-58)
         ax.set_box_aspect((1.8, 1.8, 1.2))
 
-    if len(along_observables) == 1:
-        bins, bin_centers = config.observable_bins(along_observables[0])
-    else:
-        bins, bin_centers = [], []
-        for observable in along_observables:
-            obs_bins, obs_centers = config.observable_bins(observable)
-            bins.append(obs_bins)
-            bin_centers.append(obs_centers)
+    display_edges_by_observable = _display_edges_by_observable(
+        datasets=[experiment_sample, reference_sample],
+        observable_names=config.detector__detect_observable_names,
+        number_of_bins=config.plot__prediction_process_number_of_bins,
+    )
+    display_centers_by_observable = {
+        observable_name: 0.5 * (observable_edges[:-1] + observable_edges[1:])
+        for observable_name, observable_edges in display_edges_by_observable.items()
+    }
+    bins, bin_centers = _bins_for_observables(
+        display_edges_by_observable, along_observables
+    )
+    contour_spanning_dataset = _spanning_dataset_from_centers(
+        centers_by_observable=display_centers_by_observable,
+        observable_names=config.detector__detect_observable_names,
+    )
 
     utils__sample_over_background_histograms_sliced(
         ax=ax,
@@ -763,22 +877,46 @@ def plot_prediction_process_sliced(
         ax_bottom.view_init(elev=28, azim=-58)
         ax_bottom.set_box_aspect((1.8, 1.8, 1.0))
     contour_predictions = []
-    for prediction_function, legend, color in _model_prediction_specs(
+    for prediction_function, legend, color, transform in _model_contour_specs(
         trained_tau_model,
         "tau contour prediction",
         tau_prediction_color,
         tau_g_prediction_color,
+        tau_eta_prediction_color,
     ):
         sliced_dataset, contour = utils__contour_model_prediction(
-            context=context,
-            detector_effect=detector_effect,
             prediction_function=prediction_function,
+            spanning_dataset=contour_spanning_dataset,
             along_observables=along_observables,
+            prediction_transform=transform,
         )
-        contour *= (
-            experiment_sample.corrected_n_samples / reference_sample.corrected_n_samples
-        )
+        if transform is np.exp:
+            contour *= (
+                experiment_sample.corrected_n_samples
+                / reference_sample.corrected_n_samples
+            )
         contour_predictions.append((sliced_dataset, contour, legend, color))
+
+    if trained_delta_model is not None:
+        for prediction_function, legend, color, transform in _model_contour_specs(
+            trained_delta_model,
+            "delta contour prediction",
+            delta_prediction_color,
+            delta_g_prediction_color,
+            delta_eta_prediction_color,
+        ):
+            sliced_dataset, contour = utils__contour_model_prediction(
+                prediction_function=prediction_function,
+                spanning_dataset=contour_spanning_dataset,
+                along_observables=along_observables,
+                prediction_transform=transform,
+            )
+            if transform is np.exp:
+                contour *= (
+                    experiment_sample.corrected_n_samples
+                    / reference_sample.corrected_n_samples
+                )
+            contour_predictions.append((sliced_dataset, contour, legend, color))
 
     if ndim == 1:
         for sliced_dataset, contour, legend, color in contour_predictions:
@@ -806,6 +944,7 @@ def plot_prediction_process_sliced(
             alpha=0.18,
             shade=False,
         )
+        min_contour = float(np.min(contour_grid))
         max_contour = float(np.max(contour_grid))
         if len(contour_predictions) == 1:
             _, _, legend, color = contour_predictions[0]
@@ -828,6 +967,7 @@ def plot_prediction_process_sliced(
                 y_range = np.unique(sliced_dataset[:, 1])
                 xx, yy = np.meshgrid(x_range, y_range, indexing="ij")
                 contour_grid = contour.reshape(len(x_range), len(y_range))
+                min_contour = min(min_contour, float(np.min(contour_grid)))
                 max_contour = max(max_contour, float(np.max(contour_grid)))
                 ax_bottom.plot_surface(
                     xx,
@@ -845,7 +985,10 @@ def plot_prediction_process_sliced(
                 ax_bottom.scatter([], [], [], color=color, label=legend)
         ax_bottom.set_xlim(x_range[0], x_range[-1])
         ax_bottom.set_ylim(y_range[0], y_range[-1])
-        ax_bottom.set_zlim(0.0, max_contour * 1.05 if max_contour > 0 else 1.0)
+        ax_bottom.set_zlim(
+            min(0.0, min_contour * 1.05),
+            max_contour * 1.05 if max_contour > 0 else 1.0,
+        )
     ax_bottom.set_xlabel(xlabel if ndim == 1 else along_observables[0])
     ax_bottom.set_ylabel("Model Output" if ndim == 1 else along_observables[1])
     if ndim == 1:

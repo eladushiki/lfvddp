@@ -6,7 +6,6 @@ from typing import Callable, List, Optional, Union
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
-from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
@@ -489,10 +488,10 @@ def utils__plot_datset_lfv_comparison(
 
 
 def utils__contour_model_prediction(
-        context: ExecutionContext,
-        detector_effect: DetectorEffect,
         prediction_function: Callable[[DataSet], npt.NDArray],
+        spanning_dataset: DataSet,
         along_observables: Union[List[str], str, None] = None,
+        prediction_transform: Callable[[npt.NDArray], npt.NDArray] = np.exp,
 ):
     """
     Generate model prediction contour for 1D or 2D observables.
@@ -500,23 +499,19 @@ def utils__contour_model_prediction(
     For 1D: returns (x_range, contour_1d)
     For 2D: returns (x_range, y_range, contour_2d)
     """
-    if not isinstance((config := context.config), DetectorConfig):
-        raise TypeError(f"Expected DetectorConfig, got {config.__class__.__name__}")
-
     # Normalize input to list
     if along_observables is None:
-        along_observables = [config.detector__detect_observable_names[0]]
+        along_observables = [spanning_dataset.observable_names[0]]
     elif isinstance(along_observables, str):
         along_observables = [along_observables]
 
-    spanning_dataset = utils__get_spanning_dataset(config)
     sliced_dataset = spanning_dataset.filter_observable_names(along_observables)
-    contour = prediction_function(spanning_dataset)
+    model_prediction = prediction_function(spanning_dataset)
+    contour = prediction_transform(model_prediction)
     
     # Average over bins across projected dimensions
-    sliced_dataset_bin_centers = detector_effect.get_event_bin_centers(sliced_dataset, indexed=False)
     unique_sliced_bin_centers, inverse_bin_indices = np.unique(
-        sliced_dataset_bin_centers,
+        sliced_dataset.events,
         axis=0,
         return_inverse=True,
     )
