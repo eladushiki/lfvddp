@@ -17,6 +17,6 @@ from data_tools.data_utils import DataSet
 def test_input_modes(
     data_generation,
 ):
-    ds, _ = data_generation[DataSet.DataSetCategory.UNDEFINED]
+    ds, _ = data_generation[DataSet.DataSetCategory.A_SR]
 
     assert ds.n_samples > 5
