@@ -28,7 +28,7 @@ def test_illegal_data_request(
 def test_resampling_exhaustion(
         data_generation,
 ):
-    _, _ = data_generation[DataSet.DataSetCategory.A]
+    _, _ = data_generation[DataSet.DataSetCategory.A_SR]
 
     # Draws more data than there is left, due to resampling without replacement
     with pytest.raises(ValueError):
