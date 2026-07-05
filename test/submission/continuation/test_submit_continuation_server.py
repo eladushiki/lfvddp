@@ -4,8 +4,13 @@ from typing import Optional
 
 import pytest
 
+from frame.cluster.walltime import parse_walltime
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONTEXT_FILE_NAME, LOCAL_PROJECT_ROOT, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import (
+    CONTEXT_FILE_NAME,
+    LOCAL_PROJECT_ROOT,
+    TRAINING_OUTCOMES_DIR_NAME,
+)
 from test.submission.submit_test_utils import (
     load_submit_context,
     require_server_prerequisites,
@@ -17,11 +22,9 @@ from test.environment import ConfigType
 from train.checkpoints import TRAINING_CHECKPOINT_SUFFIX, _torch_load
 
 
-ARRAY_JOB_COUNT = 5
-PROGRESS_WAIT_TIMEOUT_SECONDS = 2 * 60
-
-
-def _single_train_context_dirs(submit_run_dir: Path) -> list[tuple[Path, ExecutionContext]]:
+def _single_train_context_dirs(
+    submit_run_dir: Path,
+) -> list[tuple[Path, ExecutionContext]]:
     contexts = []
     for context_path in submit_run_dir.glob(f"*/{CONTEXT_FILE_NAME}"):
         context = ExecutionContext.load_from_run_dir(context_path.parent)
@@ -44,22 +47,28 @@ def _checkpoint_epochs_by_array(submit_run_dir: Path) -> dict[int, int]:
         if epochs:
             current_epoch = epochs_by_array.get(context.array_index, -1)
             epochs_by_array[context.array_index] = max(current_epoch, max(epochs))
+    print(f"Detected checkpoint epochs by array: {epochs_by_array}")
     return epochs_by_array
 
 
 def _wait_for_all_arrays_to_progress(
     submit_run_dir: Path,
+    submitted_walltime: str,
+    n_jobs: int,
     previous_epochs: Optional[dict[int, int]] = None,
 ) -> dict[int, int]:
-    deadline = time.monotonic() + PROGRESS_WAIT_TIMEOUT_SECONDS
-    expected_arrays = set(range(1, ARRAY_JOB_COUNT + 1))
+    deadline = time.monotonic() + parse_walltime(submitted_walltime)
+    expected_arrays = set(range(1, n_jobs + 1))
 
     while time.monotonic() < deadline:
         epochs = _checkpoint_epochs_by_array(submit_run_dir)
         if previous_epochs is None:
             if set(epochs) == expected_arrays:
                 return epochs
-        elif all(epochs.get(array_index, -1) > previous_epochs[array_index] for array_index in expected_arrays):
+        elif all(
+            epochs.get(array_index, -1) > previous_epochs[array_index]
+            for array_index in expected_arrays
+        ):
             return epochs
         time.sleep(2)
 
@@ -95,13 +104,26 @@ def test_submit_continue_advances_all_array_jobs(
     first_job_id = submit_context.qsub_submissions[0]["job_id"]
 
     wait_for_job_to_finish(first_job_id)
-    first_epochs = _wait_for_all_arrays_to_progress(submit_run_dir)
+    first_epochs = _wait_for_all_arrays_to_progress(
+        submit_run_dir,
+        config.cluster__qsub_walltime_chunks[0],
+        n_jobs=config.cluster__qsub_n_jobs,
+    )
 
-    run_submit(build_submit_command(function_execution_context.config_paths, out_dir, continue_training=True))
+    run_submit(
+        build_submit_command(
+            function_execution_context, out_dir, continue_training=True
+        )
+    )
     submit_context = ExecutionContext.load_from_run_dir(submit_run_dir)
     second_job_id = submit_context.qsub_submissions[1]["job_id"]
 
     wait_for_job_to_finish(second_job_id)
-    second_epochs = _wait_for_all_arrays_to_progress(submit_run_dir, previous_epochs=first_epochs)
+    second_epochs = _wait_for_all_arrays_to_progress(
+        submit_run_dir,
+        config.cluster__qsub_walltime_chunks[1],
+        n_jobs=config.cluster__qsub_n_jobs,
+        previous_epochs=first_epochs,
+    )
 
-    assert set(second_epochs) == set(range(1, ARRAY_JOB_COUNT + 1))
+    assert set(second_epochs) == set(range(1, config.cluster__qsub_n_jobs + 1))
