@@ -18,12 +18,7 @@ class ContextedModel(Protocol):
     Defines the minimal contract that all models in this framework must fulfill.
     """
     _name: str
-    
-    @abstractmethod
-    def predict(self, data: DataSet) -> np.ndarray:
-        """Make predictions on a DataSet."""
-        ...
-    
+
     @abstractmethod
     def save_parameters(self, file_path: Path) -> None:
         """Save model weights to a file."""
@@ -52,7 +47,15 @@ def save_training_outcomes(
     context.save_and_document_model_parameters(tau_model, model_output_dir / f"{tau_model._name}_{WEIGHTS_OUTPUT_FILE_NAME}")
 
 
-def predict_sample_ndf_hypothesis_weights(trained_model: ContextedModel, predicted_distribution_corrected_size: float, reference_ndf_estimation: DataSet) -> np.ndarray:
-    model_prediction = trained_model.predict(data=reference_ndf_estimation)
-    hypothesis_weights = np.expand_dims(np.exp(model_prediction), axis=1) * reference_ndf_estimation.histogram_weight_mask
-    return predicted_distribution_corrected_size / reference_ndf_estimation.corrected_n_samples * hypothesis_weights
+def prediction_to_sample_ndf_hypothesis_weights(
+    model_prediction: np.ndarray,
+    predicted_distribution_corrected_size: float,
+    reference_ndf_estimation: DataSet,
+) -> np.ndarray:
+    model_prediction = np.asarray(model_prediction).reshape(-1)
+    hypothesis_weights = np.exp(model_prediction)[:, None] * reference_ndf_estimation.histogram_weight_mask
+    return (
+        predicted_distribution_corrected_size
+        / reference_ndf_estimation.corrected_n_samples
+        * hypothesis_weights
+    )

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+import enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
 from urllib.parse import urlparse
@@ -25,6 +26,7 @@ class DatasetParameters(ABC):
     # For documentation purposes
     name: str
     type: str
+    category: DataSet.DataSetCategory
 
     # Background parameters
     dataset__mean_number_of_background_events: int = field(default=None)
@@ -79,6 +81,9 @@ class DatasetParameters(ABC):
                 f"Not sufficient number of signal events to generate for signal with {self.dataset__signal_number_of_events_to_generate} events."
         else:
             self.dataset__signal_number_of_events_to_generate = self.dataset__number_of_signal_events
+
+        if isinstance(self.category, str):
+            self.category = DataSet.DataSetCategory.from_string(self.category)
     
     @property
     @abstractmethod
@@ -285,7 +290,7 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
 class DatasetConfig:
     
     dataset__definitions: List[Dict[str, Any]]
-    
+
     # Properties to avoid being documented in context
     @property
     def _dataset__types(self) -> Dict[str, Type[DatasetParameters]]:
@@ -297,19 +302,22 @@ class DatasetConfig:
     def _dataset__type_property(self) -> str:
         return "type"
     @property
+    def _dataset__category_property(self) -> str:
+        return "category"
+    @property
     def _dataset__names(self) -> List[str]:
         return [user_dataset_definitions[self._dataset__name_property] for user_dataset_definitions in self.dataset__definitions]
 
-    def _dataset__parameters(self, name: str) -> DatasetParameters:
+    def _dataset__parameters(self, category: DataSet.DataSetCategory) -> DatasetParameters:
         # Create datasets definitions from the input arguments
         for user_dataset_definitions in self.dataset__definitions:
             try:
-                dataset_name = user_dataset_definitions[self._dataset__name_property]
                 dataset_type = user_dataset_definitions[self._dataset__type_property]
+                dataset_category = user_dataset_definitions[self._dataset__category_property]
             except KeyError:
                 raise KeyError(f"Dataset definition must contain '{self._dataset__name_property}' and '{self._dataset__type_property}' keys")
         
-            if dataset_name == name:
+            if DataSet.DataSetCategory.from_string(dataset_category) == category:
                 try:
                     dataset_class = self._dataset__types[dataset_type]
                 except KeyError:
@@ -320,10 +328,10 @@ class DatasetConfig:
                 )
                 return set
 
-        raise KeyError(f"Dataset '{name}' not defined")
+        raise KeyError(f"Dataset with category '{category}' not defined")
 
-    def get_parameters(self, item: str) -> DatasetParameters:
+    def get_parameters(self, item: DataSet.DataSetCategory) -> DatasetParameters:
         try:
-            return self._dataset__parameters(item)
+            return self._dataset__parameters(category=item)
         except KeyError:
             raise KeyError(f"Dataset '{item}' not defined")

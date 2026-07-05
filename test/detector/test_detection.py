@@ -1,6 +1,7 @@
 from pathlib import Path
 import pytest
 from test.environment import ConfigType
+from data_tools.data_utils import DataSet
 
 
 @pytest.mark.parametrize(
@@ -16,7 +17,7 @@ def test_detection_basic(
     data_generation,
     detector_effect,
 ):
-    A, A_params = data_generation["A"]
+    A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
     A_affected = detector_effect.affect_and_compensate(A, A_params, False)
 
     # Expect data to remain unchanged
@@ -38,7 +39,7 @@ def test_detection_effect(
     data_generation,
     detector_effect,
 ):
-    A, A_params = data_generation["A"]
+    A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
     A_affected = detector_effect.affect_and_compensate(A, A_params, False)
 
     # Affected dataset should differ from the original one

@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 from test.environment import ConfigType
+from data_tools.data_utils import DataSet
 
 
 @pytest.mark.parametrize(
@@ -14,7 +15,7 @@ def test_illegal_data_request(
         data_generation,
 ):
     with pytest.raises(KeyError):
-        _, _ = data_generation["non_existing_dataset"]
+        _, _ = data_generation[DataSet.DataSetCategory.SR]
 
 @pytest.mark.parametrize(
         "function_execution_context",
@@ -27,8 +28,8 @@ def test_illegal_data_request(
 def test_resampling_exhaustion(
         data_generation,
 ):
-    _, _ = data_generation["A"]
+    _, _ = data_generation[DataSet.DataSetCategory.A_SR]
 
     # Draws more data than there is left, due to resampling without replacement
     with pytest.raises(ValueError):
-        _, _ = data_generation["A"]
+        _, _ = data_generation[DataSet.DataSetCategory.A_SR]

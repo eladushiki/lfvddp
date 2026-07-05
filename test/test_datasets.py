@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from test.environment import ConfigType
+from data_tools.data_utils import DataSet
 
 @pytest.mark.parametrize(
     "function_execution_context",
@@ -15,8 +16,8 @@ def test_dataset_normalization(
     function_execution_context,
     data_generation,
 ):
-    A, _ = data_generation["A"]
-    B, _ = data_generation["B"]
+    A, _ = data_generation[DataSet.DataSetCategory.A_SR]
+    B, _ = data_generation[DataSet.DataSetCategory.B_SR]
 
     normalized_A, norm_factor_A = A.get_normalized()
     normalized_B, norm_factor_B = B.get_normalized()

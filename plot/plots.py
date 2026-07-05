@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters
 from data_tools.detector.detector_config import DetectorConfig
@@ -7,7 +7,7 @@ from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_median_t_significance_relative_to_background, calc_t_significance_by_gaussian_fit_percentile, calc_t_significance_relative_to_background
 from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.file_structure import CONTEXT_FILE_NAME
-from neural_networks.utils import predict_sample_ndf_hypothesis_weights, ContextedModel
+from neural_networks.utils import prediction_to_sample_ndf_hypothesis_weights, ContextedModel
 import numpy as np
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -470,6 +470,29 @@ def plot_data_generation_sliced(
     return fig
 
 
+def _model_prediction_specs(
+        trained_model: ContextedModel,
+        base_legend: str,
+        primary_color: str,
+        secondary_color: str,
+) -> List[Tuple[Callable[[DataSet], np.ndarray], str, str]]:
+    predict_f = getattr(trained_model, "predict_f", None)
+    predict_g = getattr(trained_model, "predict_g", None)
+    if callable(predict_f) and callable(predict_g):
+        return [
+            (predict_f, f"{base_legend} (f)", primary_color),
+            (predict_g, f"{base_legend} (g)", secondary_color),
+        ]
+
+    predict = getattr(trained_model, "predict", None)
+    if callable(predict):
+        return [(predict, base_legend, primary_color)]
+
+    raise AttributeError(
+        f"{trained_model.__class__.__name__} must expose predict_f/predict_g or predict to be plotted."
+    )
+
+
 def plot_prediction_process_sliced(
         context: ExecutionContext,
         detector_effect: DetectorEffect,
@@ -484,7 +507,9 @@ def plot_prediction_process_sliced(
         tau_prediction_legend="tau model prediction",
         delta_prediction_legend="delta model prediction",
         tau_prediction_color="cyan",
+        tau_g_prediction_color="tab:orange",
         delta_prediction_color="magenta",
+        delta_g_prediction_color="tab:green",
         xlabel: str = "mass",
         ylabel: str = "number of events",
         ax: Optional[plt.Axes] = None,
@@ -557,62 +582,68 @@ def plot_prediction_process_sliced(
     }
 
     _reference_data = np.asarray(reference_sample.slice_along_observable_names(along_observables))
-    tau_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_tau_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
-
     if ndim == 1:
         reference_values = utils__flatten_histogram_values(_reference_data)
-        predicted_tau_ndf = ax.hist(
-            reference_values,
-            weights=utils__flatten_histogram_values(tau_hypothesis_weights),
-            bins=list(bins),
-            **prediction_hist_kwargs,
-        )
-        ax.scatter(bin_centers, predicted_tau_ndf[0], label=tau_prediction_legend, color=tau_prediction_color, **prediction_scatter_kwargs)
-
     else:
-        predicted_tau_ndf, x_edges, y_edges = np.histogram2d(
-            _reference_data[:, 0],
-            _reference_data[:, 1],
-            weights=utils__flatten_histogram_values(tau_hypothesis_weights),
-            bins=bins,
-        )
-        x_centers = (x_edges[:-1] + x_edges[1:]) / 2
-        y_centers = (y_edges[:-1] + y_edges[1:]) / 2
+        x_centers = (bins[0][:-1] + bins[0][1:]) / 2
+        y_centers = (bins[1][:-1] + bins[1][1:]) / 2
         xx, yy = np.meshgrid(x_centers, y_centers, indexing="ij")
-        ax.scatter(
-            xx.ravel(),
-            yy.ravel(),
-            predicted_tau_ndf.ravel(),
-            label=tau_prediction_legend,
-            color=tau_prediction_color,
-            **prediction_scatter_kwargs,
-        )
+
+    def plot_model_predictions(
+            trained_model: ContextedModel,
+            prediction_legend: str,
+            primary_color: str,
+            secondary_color: str,
+    ) -> None:
+        for prediction_function, legend, color in _model_prediction_specs(
+                trained_model,
+                prediction_legend,
+                primary_color,
+                secondary_color,
+        ):
+            hypothesis_weights = prediction_to_sample_ndf_hypothesis_weights(
+                model_prediction=prediction_function(reference_sample),
+                predicted_distribution_corrected_size=experiment_sample.corrected_n_samples,
+                reference_ndf_estimation=reference_sample,
+            )
+            if ndim == 1:
+                predicted_ndf = ax.hist(
+                    reference_values,
+                    weights=utils__flatten_histogram_values(hypothesis_weights),
+                    bins=list(bins),
+                    **prediction_hist_kwargs,
+                )
+                ax.scatter(bin_centers, predicted_ndf[0], label=legend, color=color, **prediction_scatter_kwargs)
+            else:
+                predicted_ndf, _, _ = np.histogram2d(
+                    _reference_data[:, 0],
+                    _reference_data[:, 1],
+                    weights=utils__flatten_histogram_values(hypothesis_weights),
+                    bins=bins,
+                )
+                ax.scatter(
+                    xx.ravel(),
+                    yy.ravel(),
+                    predicted_ndf.ravel(),
+                    label=legend,
+                    color=color,
+                    **prediction_scatter_kwargs,
+                )
+
+    plot_model_predictions(
+        trained_model=trained_tau_model,
+        prediction_legend=tau_prediction_legend,
+        primary_color=tau_prediction_color,
+        secondary_color=tau_g_prediction_color,
+    )
 
     if trained_delta_model is not None:
-        delta_hypothesis_weights = predict_sample_ndf_hypothesis_weights(trained_model=trained_delta_model, predicted_distribution_corrected_size=experiment_sample.corrected_n_samples, reference_ndf_estimation=reference_sample)
-        if ndim == 1:
-            predicted_delta_ndf = ax.hist(
-                reference_values,
-                weights=utils__flatten_histogram_values(delta_hypothesis_weights),
-                bins=list(bins),
-                **prediction_hist_kwargs,
-            )
-            ax.scatter(bin_centers, predicted_delta_ndf[0], label=delta_prediction_legend, color=delta_prediction_color, **prediction_scatter_kwargs)
-        else:
-            predicted_delta_ndf, _, _ = np.histogram2d(
-                _reference_data[:, 0],
-                _reference_data[:, 1],
-                weights=utils__flatten_histogram_values(delta_hypothesis_weights),
-                bins=bins,
-            )
-            ax.scatter(
-                xx.ravel(),
-                yy.ravel(),
-                predicted_delta_ndf.ravel(),
-                label=delta_prediction_legend,
-                color=delta_prediction_color,
-                **prediction_scatter_kwargs,
-            )
+        plot_model_predictions(
+            trained_model=trained_delta_model,
+            prediction_legend=delta_prediction_legend,
+            primary_color=delta_prediction_color,
+            secondary_color=delta_g_prediction_color,
+        )
 
     ax.set_title(title, fontsize=30, pad=20)
     if ndim == 1:
@@ -636,27 +667,67 @@ def plot_prediction_process_sliced(
         ax_bottom = fig.add_subplot(212, projection="3d")
         ax_bottom.view_init(elev=28, azim=-58)
         ax_bottom.set_box_aspect((1.8, 1.8, 1.0))
-    sliced_dataset, contour = utils__contour_model_prediction(
-        context=context,
-        detector_effect=detector_effect,
-        trained_model=trained_tau_model,
-        along_observables=along_observables,
-    )
-    contour *= (experiment_sample.corrected_n_samples / reference_sample.corrected_n_samples)
+    contour_predictions = []
+    for prediction_function, legend, color in _model_prediction_specs(
+            trained_tau_model,
+            "tau contour prediction",
+            tau_prediction_color,
+            tau_g_prediction_color,
+    ):
+        sliced_dataset, contour = utils__contour_model_prediction(
+            context=context,
+            detector_effect=detector_effect,
+            prediction_function=prediction_function,
+            along_observables=along_observables,
+        )
+        contour *= (experiment_sample.corrected_n_samples / reference_sample.corrected_n_samples)
+        contour_predictions.append((sliced_dataset, contour, legend, color))
+
     if ndim == 1:
-        ax_bottom.plot(utils__flatten_histogram_values(sliced_dataset), contour, color='cyan', linewidth=2, label='tau contour prediction')
+        for sliced_dataset, contour, legend, color in contour_predictions:
+            ax_bottom.plot(
+                utils__flatten_histogram_values(sliced_dataset),
+                contour,
+                color=color,
+                linewidth=2,
+                label=legend,
+            )
     else:
-        x_range = np.unique(sliced_dataset[:, 0])
-        y_range = np.unique(sliced_dataset[:, 1])
+        first_sliced_dataset, first_contour, _, _ = contour_predictions[0]
+        x_range = np.unique(first_sliced_dataset[:, 0])
+        y_range = np.unique(first_sliced_dataset[:, 1])
         xx, yy = np.meshgrid(x_range, y_range, indexing="ij")
-        contour_grid = contour.reshape(len(x_range), len(y_range))
+        contour_grid = first_contour.reshape(len(x_range), len(y_range))
         threshold_plane = np.full_like(contour_grid, 0.5)
         ax_bottom.plot_surface(xx, yy, threshold_plane, color='gray', linewidth=0, antialiased=False, alpha=0.18, shade=False)
-        ax_bottom.plot_surface(xx, yy, contour_grid, cmap='viridis', linewidth=0, antialiased=True, alpha=0.92)
-        ax_bottom.contour3D(xx, yy, contour_grid, levels=12, colors='black', linewidths=1.0)
+        max_contour = float(np.max(contour_grid))
+        if len(contour_predictions) == 1:
+            _, _, legend, color = contour_predictions[0]
+            ax_bottom.plot_surface(xx, yy, contour_grid, cmap='viridis', linewidth=0, antialiased=True, alpha=0.92)
+            ax_bottom.contour3D(xx, yy, contour_grid, levels=12, colors='black', linewidths=1.0)
+            ax_bottom.scatter([], [], [], color=color, label=legend)
+        else:
+            for sliced_dataset, contour, legend, color in contour_predictions:
+                x_range = np.unique(sliced_dataset[:, 0])
+                y_range = np.unique(sliced_dataset[:, 1])
+                xx, yy = np.meshgrid(x_range, y_range, indexing="ij")
+                contour_grid = contour.reshape(len(x_range), len(y_range))
+                max_contour = max(max_contour, float(np.max(contour_grid)))
+                ax_bottom.plot_surface(
+                    xx,
+                    yy,
+                    contour_grid,
+                    color=color,
+                    linewidth=0,
+                    antialiased=True,
+                    alpha=0.48,
+                    shade=False,
+                )
+                ax_bottom.plot_wireframe(xx, yy, contour_grid, color=color, linewidth=0.6, alpha=0.9)
+                ax_bottom.scatter([], [], [], color=color, label=legend)
         ax_bottom.set_xlim(x_range[0], x_range[-1])
         ax_bottom.set_ylim(y_range[0], y_range[-1])
-        ax_bottom.set_zlim(0.0, np.max(contour_grid) * 1.05 if np.max(contour_grid) > 0 else 1.0)
+        ax_bottom.set_zlim(0.0, max_contour * 1.05 if max_contour > 0 else 1.0)
     ax_bottom.set_xlabel(xlabel if ndim == 1 else along_observables[0])
     ax_bottom.set_ylabel('Model Output' if ndim == 1 else along_observables[1])
     if ndim == 1:
@@ -668,5 +739,8 @@ def plot_prediction_process_sliced(
         ax_bottom.set_ylim(ylim)
     else:
         ax_bottom.set_zlabel('Model Output')
+        handles, labels = ax_bottom.get_legend_handles_labels()
+        if handles:
+            ax_bottom.legend()
     
     return fig

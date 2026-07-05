@@ -179,10 +179,11 @@ def train_NPML_model(
 
 def calc_t_NPLM(
         context: ExecutionContext,
-        sample_dataset: DataSet,
-        reference_dataset: DataSet,
+        sample_a_dataset: DataSet,
+        sample_b_dataset: DataSet,
         name: str,
     ) -> Tuple[Model, float]:
+    reference_dataset = sample_a_dataset + sample_b_dataset
     tau_model = get_NPLM_model(
         context.config,
         name=name + "_tau",
@@ -190,7 +191,7 @@ def calc_t_NPLM(
     tau = train_NPML_model(
         context=context,
         model=tau_model,
-        sample_dataset=sample_dataset,
+        sample_dataset=sample_a_dataset,
         reference_dataset=reference_dataset,
     )
 
@@ -203,7 +204,7 @@ def calc_t_NPLM(
         delta = train_NPML_model(
             context=context,
             model=delta_model,
-            sample_dataset=sample_dataset,
+            sample_dataset=sample_a_dataset,
             reference_dataset=reference_dataset,
         )
     else:

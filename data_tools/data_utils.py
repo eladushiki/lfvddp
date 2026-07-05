@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+import enum
+import re
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -19,9 +21,58 @@ class DataSet:
     collection of them.
     """
     
-    def __init__(self, data: Optional[Union[npt.NDArray, pd.DataFrame]] = None, observable_names: Optional[List[str]] = None):
-        if isinstance(data, np.ndarray):
-            if data is None or len(data) == 0:
+    class DataSetCategory(enum.Enum):
+        A_SR = 1
+        A_CR = 2
+        B_SR = 3
+        B_CR = 4
+        A = 5
+        B = 6
+        SR = 7
+        CR = 8
+        UNDEFINED = 99
+
+        @staticmethod
+        def from_string(category_str: str) -> DataSet.DataSetCategory:
+            key_map = {
+                DataSet.DataSetCategory.A_SR: ("a", "sr"),
+                DataSet.DataSetCategory.A_CR: ("a", "cr"),
+                DataSet.DataSetCategory.B_SR: ("b", "sr"),
+                DataSet.DataSetCategory.B_CR: ("b", "cr"),
+            }
+            for category, strings in key_map.items():
+                if all(s in re.split(r"[_\- ]", category_str.lower()) for s in strings):
+                    return category
+            return DataSet.DataSetCategory.UNDEFINED
+
+        def __add__(self, other: DataSet.DataSetCategory) -> DataSet.DataSetCategory:
+            if self == other:
+                return self
+            if (self in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.A_CR] and
+                    other in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.A_CR]):
+                return DataSet.DataSetCategory.A
+            if (self in [DataSet.DataSetCategory.B_SR, DataSet.DataSetCategory.B_CR] and
+                    other in [DataSet.DataSetCategory.B_SR, DataSet.DataSetCategory.B_CR]):
+                return DataSet.DataSetCategory.B
+            if (self in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR] and
+                    other in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR]):
+                return DataSet.DataSetCategory.SR
+            if (self in [DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR] and
+                    other in [DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR]):
+                return DataSet.DataSetCategory.CR
+            return DataSet.DataSetCategory.UNDEFINED
+
+    def __init__(
+            self,
+            data: Optional[Union[npt.NDArray, pd.DataFrame]] = None,
+            observable_names: Optional[List[str]] = None,
+            category: DataSetCategory = DataSetCategory.UNDEFINED,
+        ):
+        self._category = category
+        if data is None:
+            self._data = pd.DataFrame()
+        elif isinstance(data, np.ndarray):
+            if len(data) == 0:
                 self._data = pd.DataFrame()
             elif data.ndim == 1 or data.ndim == 2:
                 self._data = pd.DataFrame(data)
@@ -51,7 +102,9 @@ class DataSet:
         _data.reset_index(level=0, drop=True, inplace=True)
         _weight_mask = np.concatenate((self._weight_mask, other._weight_mask), axis=0)
 
-        result = DataSet(_data, observable_names=self.observable_names)
+        category = self.category + other.category
+
+        result = DataSet(data=_data, observable_names=self.observable_names, category=category)
         result._weight_mask = _weight_mask
         return result
     
@@ -92,16 +145,28 @@ class DataSet:
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
         result = DataSet(
-            pd.DataFrame(self._data.iloc[item, :]),
+            data=pd.DataFrame(self._data.iloc[item, :]),
             observable_names=self.observable_names,
+            category=self._category,
         )
         result._weight_mask = self._weight_mask[item]
         return result
 
     def create_copy(self) -> DataSet:
-        copy = DataSet(self._data.copy(), observable_names=self.observable_names)
+        copy = DataSet(data=self._data.copy(), observable_names=self.observable_names, category=self._category)
         copy._weight_mask = self._weight_mask.copy()
         return copy
+
+    @property
+    def category(self) -> DataSetCategory:
+        return self._category
+    
+    @category.setter
+    def category(self, new_category: DataSetCategory):
+        self._category = new_category
+
+    def __radd__(self, other: DataSet) -> DataSet:
+        return self.__add__(other)
 
     @property
     def observable_names(self) -> List[str]:
@@ -172,14 +237,15 @@ class DataSet:
         filtered_data = self._data.iloc[filter, :]
         filtered_weight_mask = self._weight_mask[filter]
 
-        result = DataSet(filtered_data, observable_names=self.observable_names)
+        result = DataSet(data=filtered_data, observable_names=self.observable_names, category=self._category)
         result._weight_mask = filtered_weight_mask
         return result
 
     def filter_observable_names(self, observables: Union[str, List[str]]) -> DataSet:
         filtered_dataset = DataSet(
-            self.slice_along_observable_names(observables),
-            observable_names=[observables] if isinstance(observables, str) else observables
+            data=self.slice_along_observable_names(observables),
+            observable_names=[observables] if isinstance(observables, str) else observables,
+            category=self._category,
         )
         filtered_dataset._weight_mask = deepcopy(self._weight_mask)
         return filtered_dataset
