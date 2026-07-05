@@ -6,7 +6,7 @@ import pytest
 
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME, LOCAL_PROJECT_ROOT, TRAINING_OUTCOMES_DIR_NAME
-from test.continuation.submit_utils import (
+from test.submission.submit_test_utils import (
     create_submit_config,
     load_submit_context,
     require_server_prerequisites,

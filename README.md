@@ -42,6 +42,10 @@ todo: this name is hardcoded in `parameters.py`, to be improved in the future.
 
 installation instructions for the filesystem can be found in [this link](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html).
 
+Then, create a controllable `.venv` as in:
+
+> python -m venv --system-site-packages .venv
+
 WSL: I found it also necessary to use
 
 > sudo apt-get update
