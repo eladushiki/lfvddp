@@ -1,40 +1,40 @@
-from argparse import Namespace
-from contextlib import contextmanager
-from inspect import signature
-from logging import basicConfig, info
 import logging
 import random
-from configs.x_validate import cross_validate
-from data_tools.dataset_config import DatasetConfig
-from data_tools.detector.detector_config import DetectorConfig
-from frame.cluster.cluster_config import ClusterConfig
-from frame.file_system.training_history import save_training_history
-from numpy import random as nprandom
-from matplotlib.figure import Figure
-import torch
-from frame.config_handle import UserConfig
-from frame.file_system.image_storage import save_figure
-from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
-from frame.context.execution_products import ExecutionProducts, stamp_product_path
-from frame.git_tools import get_commit_hash, is_git_head_clean
-from frame.time_tools import get_time_and_date_string, get_unix_timestamp
-from plot.plotting_config import PlottingConfig
-
+from argparse import Namespace
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from inspect import signature
+from logging import basicConfig, info
 from os import environ, getpid, makedirs, sep
 from pathlib import Path
 from sys import argv
 from typing import Any, Dict, List, Optional
 
+import torch
+from matplotlib.figure import Figure
+from numpy import random as nprandom
+
+from configs.x_validate import cross_validate
+from data_tools.dataset_config import DatasetConfig
+from data_tools.detector.detector_config import DetectorConfig
+from frame.cluster.cluster_config import ClusterConfig
+from frame.config_handle import UserConfig
+from frame.context.execution_products import ExecutionProducts, stamp_product_path
+from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_system.image_storage import save_figure
+from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
+from frame.file_system.training_history import save_training_history
+from frame.git_tools import get_commit_hash, is_git_head_clean
+from frame.time_tools import get_time_and_date_string, get_unix_timestamp
+from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
 
 
 def create_config_from_paramters(
-        config_params: dict,
-        is_plot: bool = True,
-        out_dir: Optional[str] = None,
-        plot_in_place: bool = False,
+    config_params: dict,
+    is_plot: bool = True,
+    out_dir: Optional[str] = None,
+    plot_in_place: bool = False,
 ):
 
     # Resolve config typing according to deepest hierarchy:
@@ -53,13 +53,14 @@ def create_config_from_paramters(
         def __init__(self, **kwargs):
             for config_class in config_classes:
                 filtered_args = {
-                    k: v for k, v in kwargs.items()
+                    k: v
+                    for k, v in kwargs.items()
                     if k in signature(config_class).parameters
                 }
                 config_class.__init__(self, **filtered_args)
                 if hasattr(config_class, "__post_init__"):
                     config_class.__post_init__(self)
-            
+
             # Cross validate configuration
             cross_validate(self)
 
@@ -67,7 +68,9 @@ def create_config_from_paramters(
     if out_dir:
         config_params["config__out_dir"] = out_dir
     if plot_in_place:
-        config_params["plot__target_run_parent_directory"] = config_params["config__out_dir"]
+        config_params["plot__target_run_parent_directory"] = config_params[
+            "config__out_dir"
+        ]
 
     config = DynamicConfig(**config_params)
 
@@ -116,6 +119,7 @@ class ExecutionContext:
         if self.config.train__like_NPLM:
             # NPLM's train_model uses tf, so we set its seed as well
             from tensorflow import random as tfrandom
+
             tfrandom.set_seed(self.random_seed)
         else:
             torch.manual_seed(self.random_seed)
@@ -179,7 +183,7 @@ class ExecutionContext:
 
     def save_and_document_text(self, text: str, file_path: Path) -> Path:
         file_path = self._run_stamp_product_path(file_path)
-        with open(file_path, 'w') as file:
+        with open(file_path, "w") as file:
             file.write(text)
         self.document_created_product(file_path)
         return file_path
@@ -191,10 +195,10 @@ class ExecutionContext:
         return file_path
 
     def save_and_document_model_history(
-            self,
-            model_history: Dict[str, Any],
-            file_path: Path,
-        ):
+        self,
+        model_history: Dict[str, Any],
+        file_path: Path,
+    ):
         file_path = self._run_stamp_product_path(file_path)
         save_training_history(
             model_history,
@@ -209,7 +213,9 @@ class ExecutionContext:
         self.save_self_to_out_file()
 
     def save_self_to_out_file(self) -> None:
-        save_dict_to_json(ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME)
+        save_dict_to_json(
+            ExecutionContext.serialize(self), self.unique_out_dir / CONTEXT_FILE_NAME
+        )
 
     @property
     def qsub_submitted_chunk_count(self) -> int:
@@ -217,10 +223,14 @@ class ExecutionContext:
 
     def next_qsub_walltime_chunk(self) -> Optional[str]:
         if not isinstance(self.config, ClusterConfig):
-            raise TypeError(f"Expected ClusterConfig, got {self.config.__class__.__name__}")
+            raise TypeError(
+                f"Expected ClusterConfig, got {self.config.__class__.__name__}"
+            )
         return self.config.next_walltime_chunk(self.qsub_submitted_chunk_count)
 
-    def record_qsub_submission(self, walltime: str, job_id: str, submit_run_dir: Path) -> None:
+    def record_qsub_submission(
+        self, walltime: str, job_id: str, submit_run_dir: Path
+    ) -> None:
         self.qsub_submissions.append({
             "chunk_index": self.qsub_submitted_chunk_count + 1,
             "walltime": walltime,
@@ -230,9 +240,13 @@ class ExecutionContext:
         })
 
     @classmethod
-    def load_from_run_dir(cls, run_dir: Path) -> 'ExecutionContext':
+    def load_from_run_dir(cls, run_dir: Path) -> "ExecutionContext":
         run_dir = Path(run_dir)
-        context_path = run_dir if run_dir.name == CONTEXT_FILE_NAME else run_dir / CONTEXT_FILE_NAME
+        context_path = (
+            run_dir
+            if run_dir.name == CONTEXT_FILE_NAME
+            else run_dir / CONTEXT_FILE_NAME
+        )
         return cls.naive_load_from_file(context_path)
 
     @classmethod
@@ -240,27 +254,29 @@ class ExecutionContext:
         cls,
         out_dir: Path,
         dirsafe_runtag: str,
-    ) -> Optional['ExecutionContext']:
+    ) -> Optional["ExecutionContext"]:
         out_dir = Path(out_dir)
         if (out_dir / CONTEXT_FILE_NAME).exists():
             return cls.load_from_run_dir(out_dir)
         if not out_dir.exists():
             return None
 
-        candidates = list(out_dir.glob(
-            f"*_{dirsafe_runtag}_run_of_submit_train.py_pid_*/{CONTEXT_FILE_NAME}"
-        ))
+        candidates = list(
+            out_dir.glob(
+                f"*_{dirsafe_runtag}_run_of_submit_train.py_pid_*/{CONTEXT_FILE_NAME}"
+            )
+        )
         if not candidates:
             return None
 
         loaded_candidates = [
-            (cls.naive_load_from_file(candidate), candidate)
-            for candidate in candidates
+            (cls.naive_load_from_file(candidate), candidate) for candidate in candidates
         ]
         loaded_candidates = [
             (context, candidate)
             for context, candidate in loaded_candidates
-            if isinstance(context.config, ClusterConfig) and context.config.cluster__qsub_needs_continuation
+            if isinstance(context.config, ClusterConfig)
+            and context.config.cluster__qsub_needs_continuation
         ]
         if not loaded_candidates:
             return None
@@ -272,7 +288,7 @@ class ExecutionContext:
         return context
 
     @classmethod
-    def naive_load_from_file(cls, file_path: Path) -> 'ExecutionContext':
+    def naive_load_from_file(cls, file_path: Path) -> "ExecutionContext":
         """
         Load the context from a file. Does not create classes
         from data, and currently only allows probing saved
