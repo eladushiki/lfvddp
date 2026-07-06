@@ -283,6 +283,7 @@ class ExecutionContext:
         data["config_paths"] = [Path(path) for path in data.get("config_paths", [])]
         if data.get("continue_from") is not None:
             data["continue_from"] = Path(data["continue_from"])
+        data["products"] = ExecutionProducts.from_serialized(data.get("products", {}))
         data["is_reloaded"] = True
         context = cls(**data)
 
