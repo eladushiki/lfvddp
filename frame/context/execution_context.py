@@ -5,10 +5,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from inspect import signature
 from logging import basicConfig, info
-from os import environ, getpid, makedirs, sep
+from os import environ, getpid, makedirs
 from pathlib import Path
 from sys import argv
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from matplotlib.figure import Figure
@@ -20,12 +20,21 @@ from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
 from frame.config_handle import UserConfig
 from frame.context.execution_products import ExecutionProducts, stamp_product_path
+from frame.context.run_descriptor import (
+    build_run_descriptor,
+    context_glob_for_run,
+    run_descriptor_matches,
+)
 from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
 from frame.file_system.image_storage import save_figure
 from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
 from frame.file_system.training_history import save_training_history
 from frame.git_tools import get_commit_hash, is_git_head_clean
-from frame.time_tools import get_time_and_date_string, get_unix_timestamp
+from frame.time_tools import (
+    get_time_and_date_string,
+    get_unique_run_dir_name,
+    get_unix_timestamp,
+)
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
 
@@ -85,8 +94,10 @@ class ExecutionContext:
     command_line_args: List[str]
     run_hash: Optional[str] = None
     run_descriptor: Optional[str] = None
-    time: str = get_time_and_date_string()
-    random_seed: int = get_unix_timestamp() ^ (getpid() << 5)
+    time: str = field(default_factory=get_unique_run_dir_name)
+    random_seed: int = field(
+        default_factory=lambda: get_unix_timestamp() ^ (getpid() << 5)
+    )
     is_debug_mode: bool = False
     is_no_build: bool = False
     is_only_train: bool = False
@@ -125,9 +136,12 @@ class ExecutionContext:
             torch.manual_seed(self.random_seed)
 
     def _make_unique_descriptor(self) -> str:
-        running_file = argv[0].split(sep)[-1]
-        process_id = getpid()
-        return f"{self.time}_{self.config.config__dirsafe_runtag}_run_of_{running_file}_pid_{process_id}"
+        return build_run_descriptor(
+            stamp=self.time,
+            dirsafe_runtag=self.config.config__dirsafe_runtag,
+            entrypoint=Path(argv[0]).name,
+            pid=getpid(),
+        )
 
     @property
     def _unique_descriptor(self) -> str:
@@ -250,39 +264,92 @@ class ExecutionContext:
         return cls.naive_load_from_file(context_path)
 
     @classmethod
-    def find_stamped_submit_context(
+    def discover_run_contexts(
+        cls,
+        parent_directory: Path,
+        entrypoint: Optional[str] = None,
+        dirsafe_runtag: Optional[str] = None,
+        require_continuation: bool = False,
+    ) -> List[Tuple["ExecutionContext", Path]]:
+        parent_directory = Path(parent_directory)
+        if not parent_directory.exists():
+            return []
+
+        if parent_directory.name == CONTEXT_FILE_NAME:
+            context_paths = [parent_directory]
+        elif parent_directory.is_file():
+            return []
+        else:
+            context_paths = list(parent_directory.rglob(CONTEXT_FILE_NAME))
+
+        contexts = []
+        for context_path in context_paths:
+            context = cls.naive_load_from_file(context_path)
+            if not run_descriptor_matches(
+                context.run_descriptor,
+                entrypoint=entrypoint,
+                dirsafe_runtag=dirsafe_runtag,
+            ):
+                continue
+            if require_continuation and not (
+                isinstance(context.config, ClusterConfig)
+                and context.config.cluster__qsub_needs_continuation
+            ):
+                continue
+            contexts.append((context, context_path))
+
+        return contexts
+
+    @classmethod
+    def find_stamped_run_context(
         cls,
         out_dir: Path,
         dirsafe_runtag: str,
+        entrypoint: str,
+        require_continuation: bool = False,
     ) -> Optional["ExecutionContext"]:
         out_dir = Path(out_dir)
-        if (out_dir / CONTEXT_FILE_NAME).exists():
-            return cls.load_from_run_dir(out_dir)
         if not out_dir.exists():
             return None
 
-        candidates = list(
-            out_dir.glob(
-                f"*_{dirsafe_runtag}_run_of_submit_train.py_pid_*/{CONTEXT_FILE_NAME}"
-            )
+        direct_context_path = (
+            out_dir
+            if out_dir.name == CONTEXT_FILE_NAME
+            else out_dir / CONTEXT_FILE_NAME
         )
+        candidate_paths = []
+        if direct_context_path.exists():
+            candidate_paths.append(direct_context_path)
+        if out_dir.is_dir():
+            candidate_paths.extend(
+                out_dir.glob(context_glob_for_run(dirsafe_runtag, entrypoint))
+            )
+
+        candidates = []
+        seen_paths = set()
+        for context_path in candidate_paths:
+            if context_path in seen_paths:
+                continue
+            seen_paths.add(context_path)
+            context = cls.naive_load_from_file(context_path)
+            if not run_descriptor_matches(
+                context.run_descriptor,
+                entrypoint=entrypoint,
+                dirsafe_runtag=dirsafe_runtag,
+            ):
+                continue
+            if require_continuation and not (
+                isinstance(context.config, ClusterConfig)
+                and context.config.cluster__qsub_needs_continuation
+            ):
+                continue
+            candidates.append((context, context_path))
+
         if not candidates:
             return None
 
-        loaded_candidates = [
-            (cls.naive_load_from_file(candidate), candidate) for candidate in candidates
-        ]
-        loaded_candidates = [
-            (context, candidate)
-            for context, candidate in loaded_candidates
-            if isinstance(context.config, ClusterConfig)
-            and context.config.cluster__qsub_needs_continuation
-        ]
-        if not loaded_candidates:
-            return None
-
         context, _ = max(
-            loaded_candidates,
+            candidates,
             key=lambda item: (len(item[0].qsub_submissions), item[1].stat().st_mtime),
         )
         return context

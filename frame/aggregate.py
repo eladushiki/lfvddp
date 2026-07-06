@@ -1,17 +1,26 @@
 from glob import glob
 from logging import warning
 from pathlib import Path
-from data_tools.dataset_config import DatasetConfig, DatasetParameters
-from data_tools.detector.detector_config import DetectorConfig
-from data_tools.profile_likelihood import calc_injected_t_significance_by_sqrt_q0_continuous, calc_t_test_statistic
-from frame.context.execution_context import ExecutionContext
-from frame.context.execution_products import products_from_stem, unstamp_product_stem
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_RESULT_FILE_EXTENSION, RESULTING_T_FILE_STEM, TRAINING_HISTORY_LOG_FILE_SUFFIX
-from frame.file_system.training_history import HistoryKeys, load_training_history
+
 import numpy as np
 from numpy.typing import NDArray
 
+from data_tools.dataset_config import DatasetConfig, DatasetParameters
+from data_tools.detector.detector_config import DetectorConfig
+from data_tools.profile_likelihood import (
+    calc_injected_t_significance_by_sqrt_q0_continuous,
+    calc_t_test_statistic,
+)
+from frame.context.execution_context import ExecutionContext
+from frame.context.execution_products import products_from_stem, unstamp_product_stem
+from frame.file_structure import (
+    RESULTING_T_FILE_STEM,
+    TRAINING_HISTORY_LOG_FILE_SUFFIX,
+    TRAINING_RESULT_FILE_EXTENSION,
+)
+from frame.file_system.training_history import HistoryKeys, load_training_history
 from train.train_config import TrainConfig
+
 
 def utils__get_signal_dataset_parameters(
         signal_context: ExecutionContext,
@@ -132,8 +141,10 @@ class ResultAggregator:
         return self._epochs
 
     def _load_run_contexts(self):
-        _context_files = glob(str(self._parent_directory) + f"**/{CONTEXT_FILE_NAME}", recursive=True)
-        self._run_contexts = [ExecutionContext.naive_load_from_file(Path(_context_file)) for _context_file in _context_files]
+        self._run_contexts = [
+            context
+            for context, _ in ExecutionContext.discover_run_contexts(self._parent_directory)
+        ]
 
     @property
     def all_injected_significances(self) -> NDArray[np.float64]:

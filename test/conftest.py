@@ -2,17 +2,16 @@
 Pytest configuration and shared fixtures for all tests.
 This file is automatically discovered by pytest.
 """
+from argparse import Namespace
+
+import pytest
+from pytest import fixture
+
 from data_tools.data_generation import DataGeneration
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.command_line.handle_args import create_config_from_paths
 from frame.context.execution_context import version_controlled_execution_context
 from test.environment import DEFAULT_CONFIG_PATHS, wrap_with_command_line_args
-
-from pytest import fixture
-
-from argparse import Namespace
-
-import pytest
 
 
 @fixture(scope="session", autouse=True)
@@ -79,7 +78,7 @@ def function_execution_context(
     config = create_config_from_paths(
         config_paths=list(config_paths.values()),
         is_plot=True,
-        out_dir=session_execution_context.unique_out_dir / request.node.name,
+        out_dir=session_execution_context.unique_out_dir,
         plot_in_place=True,
     )
     with version_controlled_execution_context(

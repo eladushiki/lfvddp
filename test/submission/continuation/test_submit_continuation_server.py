@@ -6,19 +6,20 @@ import pytest
 from frame.cluster.walltime import parse_walltime
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
-    CONTEXT_FILE_NAME,
     LOCAL_PROJECT_ROOT,
+    SINGLE_TRAIN_SCRIPT_NAME,
+    TRAINING_CHECKPOINT_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
+from test.environment import ConfigType
 from test.submission.submit_test_utils import (
+    build_submit_command,
     load_submit_context,
     require_server_prerequisites,
     run_submit,
-    build_submit_command,
     wait_for_job_to_finish,
 )
-from test.environment import ConfigType
-from train.checkpoints import TRAINING_CHECKPOINT_SUFFIX, _torch_load
+from train.checkpoints import _torch_load
 from train.training_names import symmetric_training_names
 
 
@@ -28,11 +29,11 @@ def _array_indices(n_jobs: int) -> set[int]:
 
 def _single_train_context_dirs(submit_run_dir: Path) -> list[tuple[Path, ExecutionContext]]:
     contexts = []
-    for context_path in submit_run_dir.glob(f"*/{CONTEXT_FILE_NAME}"):
-        context = ExecutionContext.load_from_run_dir(context_path.parent)
+    for context, context_path in ExecutionContext.discover_run_contexts(
+        submit_run_dir,
+        entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
+    ):
         if context.array_index is None:
-            continue
-        if "single_train.py" not in str(context.run_descriptor):
             continue
         contexts.append((context_path.parent, context))
     return contexts
@@ -192,7 +193,7 @@ def test_submit_continue_advances_all_array_jobs(
 ):
     require_server_prerequisites()
 
-    out_dir = Path("results") / f"pytest_server_continuation_{time.time_ns()}"
+    out_dir = function_execution_context.unique_out_dir
     config = function_execution_context.config
 
     run_submit(build_submit_command(function_execution_context, out_dir))

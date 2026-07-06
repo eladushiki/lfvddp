@@ -5,12 +5,14 @@ from typing import Any, Iterable, Optional
 import torch
 
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
-from frame.file_system.textual_data import load_dict_from_json
-
-
-TRAINING_CHECKPOINT_SUFFIX = "checkpoint.pt"
-CHECKPOINTS_DIR_NAME = "checkpoints"
+from frame.context.run_descriptor import run_descriptor_matches
+from frame.file_structure import (
+    CHECKPOINTS_DIR_NAME,
+    CONTEXT_FILE_NAME,
+    SINGLE_TRAIN_SCRIPT_NAME,
+    TRAINING_CHECKPOINT_SUFFIX,
+    TRAINING_OUTCOMES_DIR_NAME,
+)
 
 
 def checkpoint_filename(model_name: str) -> str:
@@ -49,11 +51,16 @@ def _single_train_checkpoint_paths(
         return
 
     continue_from = Path(context.continue_from)
+    dirsafe_runtag = getattr(getattr(context, "config", None), "config__dirsafe_runtag", None)
     for child_context_path in continue_from.glob(f"*/{CONTEXT_FILE_NAME}"):
-        child_context = load_dict_from_json(child_context_path)
-        if child_context.get("array_index") != context.array_index:
+        child_context = ExecutionContext.load_from_run_dir(child_context_path.parent)
+        if child_context.array_index != context.array_index:
             continue
-        if "single_train.py" not in str(child_context.get("run_descriptor", "")):
+        if not run_descriptor_matches(
+            child_context.run_descriptor,
+            entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
+            dirsafe_runtag=dirsafe_runtag,
+        ):
             continue
 
         checkpoint_path = (

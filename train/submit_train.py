@@ -6,12 +6,14 @@ from sys import argv
 from frame.cluster.cluster_config import ClusterConfig
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import PLOT_DIR, TRAIN_DIR, path_as_in_container
+from frame.file_structure import (
+    CONTAINER_CREATE_PLOTS_PATH,
+    CONTAINER_SINGLE_TRAIN_PATH,
+    SUBMIT_TRAIN_SCRIPT_NAME,
+    path_as_in_container,
+)
 from frame.submit import submit_command, submit_container_build
 from train.train_config import TrainConfig
-
-CONTAINER_SINGLE_TRAIN_PATH = path_as_in_container(TRAIN_DIR / "single_train.py")
-CONTAINER_CREATE_PLOTS_PATH = path_as_in_container(PLOT_DIR / "create_plots.py")
 
 
 def _replace_or_append_continue_from(
@@ -49,9 +51,11 @@ def _context_to_continue(context: ExecutionContext) -> ExecutionContext:
     if context.continue_from is not None:
         return ExecutionContext.load_from_run_dir(context.continue_from)
 
-    continuation_context = ExecutionContext.find_stamped_submit_context(
+    continuation_context = ExecutionContext.find_stamped_run_context(
         Path(context.config.config__out_dir),
         context.config.config__dirsafe_runtag,
+        entrypoint=SUBMIT_TRAIN_SCRIPT_NAME,
+        require_continuation=True,
     )
     if continuation_context is None:
         raise RuntimeError("Could not find a stamped submit context to continue.")
@@ -61,7 +65,7 @@ def _context_to_continue(context: ExecutionContext) -> ExecutionContext:
 @context_controlled_execution
 def submit_process(context: ExecutionContext) -> None:
     """
-    Build the singularity command that runs single_train.py with current args.
+    Build the singularity commands that run training and plotting with current args.
     """
     # Validate that we have both TrainConfig and ClusterConfig
     if not isinstance(context.config, TrainConfig):
@@ -110,7 +114,7 @@ def submit_process(context: ExecutionContext) -> None:
             include_continue_flag=context.is_continue,
         )
 
-    # Construct the python command to run single_train.py
+    # Construct the python commands to run inside the container
     train_cmd = f"python {CONTAINER_SINGLE_TRAIN_PATH}"
     plot_cmd = f"python {CONTAINER_CREATE_PLOTS_PATH}"
 

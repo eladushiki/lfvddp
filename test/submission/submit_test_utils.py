@@ -9,7 +9,12 @@ from typing import Mapping
 import pytest
 
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import LOCAL_PROJECT_ROOT, PROJECT_NAME
+from frame.file_structure import (
+    LOCAL_PROJECT_ROOT,
+    PROJECT_NAME,
+    SUBMIT_TRAIN_SCRIPT_NAME,
+    SUBMIT_TRAIN_SCRIPT_RELATIVE,
+)
 from test.environment import CONFIG_ARGUMENTS, ConfigType
 
 JOB_WAIT_TIMEOUT_SECONDS = 20 * 60
@@ -23,7 +28,7 @@ def build_submit_command(  # TODO: make configs independent of their type all ov
 ) -> list[str]:
     command = [
         sys.executable,
-        "train/submit_train.py",
+        str(SUBMIT_TRAIN_SCRIPT_RELATIVE),
     ]
     for config_type, argument in CONFIG_ARGUMENTS:
         command.extend([argument, str(context.typed_config_paths[config_type])])
@@ -52,16 +57,18 @@ def run_submit(command: list[str]) -> None:
     )
     if result.returncode != 0:
         pytest.fail(
-            "submit_train.py failed\n"
+            f"{SUBMIT_TRAIN_SCRIPT_NAME} failed\n"
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )
 
 
 def load_submit_context(out_dir: Path, dirsafe_runtag: str) -> ExecutionContext:
-    context = ExecutionContext.find_stamped_submit_context(
+    context = ExecutionContext.find_stamped_run_context(
         LOCAL_PROJECT_ROOT / out_dir,
         dirsafe_runtag,
+        entrypoint=SUBMIT_TRAIN_SCRIPT_NAME,
+        require_continuation=True,
     )
     assert context is not None, (
         f"No submit context found below {LOCAL_PROJECT_ROOT / out_dir}"
