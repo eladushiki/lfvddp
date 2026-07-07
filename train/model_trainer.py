@@ -101,7 +101,7 @@ class TrainLauncher:
                 self._context,
                 sample_a_dataset,
                 sample_b_dataset,
-                f"NPLM train for {model_name}",
+                f"NPLM_train_for_{model_name}",
             )
         else:
             from neural_networks.differentiating_model import DifferentiatingModel, calc_min_LFVNN
