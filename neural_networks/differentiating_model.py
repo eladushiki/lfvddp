@@ -256,6 +256,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         eta_a_cr: torch.Tensor,
         eta_b_sr: torch.Tensor,
         eta_b_cr: torch.Tensor,
+        z_eta: torch.Tensor,
     ) -> torch.Tensor:
         """
         The loss function for minimizing any expression in lfvddp.
@@ -290,6 +291,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         eta_minus_term_cr = 1 - eta_cr
         cr_sum_term = torch.sum(N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr)
 
+        # z_eta log term
+        z_eta_term = N_B_SR * torch.log(z_eta)
+
         # Optional f and g sum terms
         f_a_sr_sum_term = torch.sum(f_a_sr)
         g_b_sr_sum_term = torch.sum(g_b_sr)
@@ -305,6 +309,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return (
             sr_sum_term
             + cr_sum_term
+            - z_eta_term
             - f_a_sr_sum_term
             - g_b_sr_sum_term
             - eta_plus_a_sum_term
@@ -323,6 +328,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         sr_map = region_mask[a_sr_mask | b_sr_mask]
 
         # Z_eta norm term
+        z_eta = torch.clamp(
+            torch.mean(
+                1 - eta_x_est[region_mask == DataSet.DataSetCategory.B_SR.value]
+            ),
+            min=1e-6,
+        )
 
         return DifferentiatingModel.ddp_minimization_loss(
             f_a_sr=f_x_sr_est[sr_map == DataSet.DataSetCategory.A_SR.value],
@@ -333,6 +344,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             eta_a_cr=eta_x_est[region_mask == DataSet.DataSetCategory.A_CR.value],
             eta_b_sr=eta_x_est[region_mask == DataSet.DataSetCategory.B_SR.value],
             eta_b_cr=eta_x_est[region_mask == DataSet.DataSetCategory.B_CR.value],
+            z_eta=z_eta,
         )
 
     def forward(
