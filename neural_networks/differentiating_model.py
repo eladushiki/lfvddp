@@ -117,6 +117,47 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             self._tensorboard_writer.close()
             self._tensorboard_writer = None
 
+    def _log_tensorboard_parameter(self, tag: str, parameter: torch.Tensor, epoch: int) -> None:
+        if self._tensorboard_writer is None:
+            return
+        detached_parameter = parameter.detach().cpu()
+        self._tensorboard_writer.add_histogram(tag, detached_parameter, epoch)
+
+    def _log_tensorboard_network_parameters(
+        self,
+        network_name: str,
+        network: nn.Module,
+        epoch: int,
+    ) -> None:
+        for parameter_name, parameter in network.named_parameters():
+            self._log_tensorboard_parameter(
+                f"parameters/{network_name}/{parameter_name}",
+                parameter,
+                epoch,
+            )
+
+    def _log_tensorboard_nuisance_parameters(self, epoch: int) -> None:
+        for observable_name, parameter in self._detector_deltas.items():
+            self._log_tensorboard_parameter(
+                f"parameters/eta/nuisance_{observable_name}",
+                parameter,
+                epoch,
+            )
+
+    def _log_tensorboard_epoch(self, epoch: int, loss: torch.Tensor) -> None:
+        if self._tensorboard_writer is None:
+            return
+        self._tensorboard_writer.add_scalar(
+            "loss",
+            float(loss.detach().cpu()),
+            epoch,
+        )
+        if (epoch + 1) % self._config.train__number_of_epochs_for_checkpoint != 0:
+            return
+        self._log_tensorboard_network_parameters("f_network", self.f_network, epoch)
+        self._log_tensorboard_network_parameters("g_network", self.g_network, epoch)
+        self._log_tensorboard_nuisance_parameters(epoch)
+
     def _build_eta(self):
         self._detector_deltas = {}
         if not self._config.train__data_is_train_for_nuisances:
@@ -341,6 +382,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             float(loss.detach().cpu())
         )
         self._training_history.setdefault(HistoryKeys.EPOCH.value, []).append(epoch)
+        self._log_tensorboard_epoch(epoch, loss)
 
     def has_trainable_parameters(self) -> bool:
         return any(parameter.requires_grad for parameter in self.parameters())
