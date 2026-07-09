@@ -64,7 +64,7 @@ class AdaptedImperfectModel(imperfect_model, ContextedModel):
             self.nu_n = 0
 
     def predict(self, data: DataSet):
-        return super().predict(data.events)[:, 1]
+        return np.exp(super().predict(data.events)[:, 1])
 
     def fit(self, data, target, **kwargs) -> keras.callbacks.History:
         return super().fit(data.events, target, **kwargs)

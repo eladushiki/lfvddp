@@ -591,7 +591,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         with torch.no_grad():
             with self.binning_context(data):
                 eta_term = torch.clamp(1 + eta_sign * self.eta(x_tensor), min=1e-12)
-                predictions = network(x_tensor) + torch.log(eta_term)
+                predictions = torch.exp(network(x_tensor)) * eta_term
         return predictions.detach().cpu().numpy()
 
     def predict(self, data: DataSet) -> npt.NDArray:

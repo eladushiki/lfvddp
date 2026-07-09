@@ -26,7 +26,7 @@ class ContextedModel(Protocol):
 
     @abstractmethod
     def predict(self, data: DataSet):
-        """Predict log-weights for a dataset."""
+        """Predict NDF weights for a dataset."""
         ...
 
     @abstractmethod
@@ -78,7 +78,7 @@ def prediction_to_sample_ndf_hypothesis_weights(
 ) -> np.ndarray:
     model_prediction = np.asarray(model_prediction).reshape(-1)
     hypothesis_weights = (
-        np.exp(model_prediction)[:, None]
+        model_prediction[:, None]
         * reference_ndf_estimation.histogram_weight_mask
     )
     return (
