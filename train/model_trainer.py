@@ -4,7 +4,7 @@ from logging import info
 from multiprocessing import get_context
 from pathlib import Path
 import traceback
-from typing import Any, Callable, List, Optional
+from typing import Any, Optional
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
@@ -18,7 +18,6 @@ from neural_networks.utils import ContextedModel
 
 
 class TrainLauncher:
-
     @dataclass
     class Training:
         data_batch: DataBatch
@@ -26,6 +25,7 @@ class TrainLauncher:
         is_numerator: bool
         name: Optional[str] = None
         result: Optional[float] = None
+        model: Optional[ContextedModel] = None
 
     def __init__(self, context: ExecutionContext, detector_effect: DetectorEffect):
         self._context = context
@@ -81,21 +81,27 @@ class TrainLauncher:
         training_history = checkpoint.get("training_history", {})
         losses = training_history.get(HistoryKeys.LOSS.value)
         if losses is None or len(losses) == 0:
-            raise RuntimeError("Cannot recover training result from checkpoint without loss history.")
+            raise RuntimeError(
+                "Cannot recover training result from checkpoint without loss history."
+            )
         return float(losses[-1])
 
     def _follow_instructions_for_t(
         self,
         training: Training,
     ) -> tuple[Optional[ContextedModel], float]:
-        
-        base_name = training.data_batch.parameters[DataSet.DataSetCategory.A_SR].name
+
         model_name = self._training_model_name(training)
 
         if self._config.train__like_NPLM:
             from neural_networks.NPLM_adapters import calc_t_NPLM
-            sample_a_dataset = training.data_batch.datasets[DataSet.DataSetCategory.A_SR]
-            sample_b_dataset = training.data_batch.datasets[DataSet.DataSetCategory.B_SR]
+
+            sample_a_dataset = training.data_batch.datasets[
+                DataSet.DataSetCategory.A_SR
+            ]
+            sample_b_dataset = training.data_batch.datasets[
+                DataSet.DataSetCategory.B_SR
+            ]
 
             model, final_val = calc_t_NPLM(
                 self._context,
@@ -104,7 +110,11 @@ class TrainLauncher:
                 f"NPLM_train_for_{model_name}",
             )
         else:
-            from neural_networks.differentiating_model import DifferentiatingModel, calc_min_LFVNN
+            from neural_networks.differentiating_model import (
+                DifferentiatingModel,
+                calc_min_LFVNN,
+            )
+
             if DifferentiatingModel.has_configured_trainable_parameters(
                 self._config,
                 training.is_numerator,
@@ -127,23 +137,41 @@ class TrainLauncher:
                 )
                 info(f"Calculated static loss for {model_name}: {final_val:.6f}")
 
-        if self._context.is_debug_mode and model is not None:
-            from plot.plots import plot_prediction_process_sliced
-
-            data_process_plot = plot_prediction_process_sliced(
-                context=self._context,
-                detector_effect=self._detector_effect,
-                experiment_sample=training.data_batch.datasets[DataSet.DataSetCategory.A_SR],
-                reference_sample=training.data_batch.datasets[DataSet.DataSetCategory.A_SR] + training.data_batch.datasets[DataSet.DataSetCategory.B_SR],
-                trained_tau_model=model,
-                trained_delta_model=None,
-                title=base_name + " prediction process",
-                along_observables=self._detector_effect._observable_names[:2],
-            )
-            self._context.save_and_document_figure(data_process_plot, self._context.unique_out_dir / f"{model_name}_data_process_plot.png")
-
+        training.model = model
         training.result = final_val
         return model, final_val
+
+    def _plot_training_prediction(self, training: Training) -> None:
+        if not self._context.is_debug_mode or training.model is None:
+            return
+        from plot.plots import plot_prediction_process_sliced
+
+        base_name = training.data_batch.parameters[DataSet.DataSetCategory.A_SR].name
+        model_name = self._training_model_name(training)
+
+        data_process_plot = plot_prediction_process_sliced(
+            context=self._context,
+            detector_effect=self._detector_effect,
+            experiment_sample=training.data_batch.datasets[
+                DataSet.DataSetCategory.A_SR
+            ],
+            reference_sample=(
+                training.data_batch.datasets[DataSet.DataSetCategory.A_SR]
+                + training.data_batch.datasets[DataSet.DataSetCategory.B_SR]
+            ),
+            trained_tau_model=training.model,
+            trained_delta_model=None,
+            title=base_name + " prediction process",
+            along_observables=self._detector_effect._observable_names[:2],
+        )
+        self._context.save_and_document_figure(
+            data_process_plot,
+            self._context.unique_out_dir / f"{model_name}_data_process_plot.png",
+        )
+
+    def _plot_training_predictions(self) -> None:
+        for training in self._train_stack:
+            self._plot_training_prediction(training)
 
 
 class SequentialTrainLauncher(TrainLauncher):
@@ -153,13 +181,18 @@ class SequentialTrainLauncher(TrainLauncher):
     def execute_trainings(self):
         for training in self._train_stack:
             checkpoint = self._training_checkpoint(training)
-            if checkpoint is not None and self._checkpoint_finished_training(checkpoint):
+            if checkpoint is not None and self._checkpoint_finished_training(
+                checkpoint
+            ):
                 training.result = self._checkpoint_result(checkpoint)
-                info(f"Skipping completed training {self._training_model_name(training)}.")
+                info(
+                    f"Skipping completed training {self._training_model_name(training)}."
+                )
                 continue
 
             self._follow_instructions_for_t(training)
-    
+        self._plot_training_predictions()
+
 
 class ParallelTrainLauncher(TrainLauncher):
     def __init__(self, context: ExecutionContext, detector_effect: DetectorEffect):
@@ -213,7 +246,9 @@ class ParallelTrainLauncher(TrainLauncher):
             process.join()
 
         if errors:
-            error_text = "\n".join(f"{name} failed:\n{tb}" for name, tb in errors.items())
+            error_text = "\n".join(
+                f"{name} failed:\n{tb}" for name, tb in errors.items()
+            )
             raise RuntimeError(f"Parallel symmetric training failed.\n{error_text}")
 
         if model_a_name not in results or model_b_name not in results:
@@ -222,7 +257,6 @@ class ParallelTrainLauncher(TrainLauncher):
             )
 
         return float(results[model_a_name]), float(results[model_b_name])
-
 
     def _parallel_training_worker(
         result_queue,
@@ -248,7 +282,7 @@ class ParallelTrainLauncher(TrainLauncher):
 
             context.save_and_document_text(
                 f"{final_t}\n",
-                file_path=context.unique_out_dir / SINGLE_TRAIN_T_FILE_NAME
+                file_path=context.unique_out_dir / SINGLE_TRAIN_T_FILE_NAME,
             )
 
             result_queue.put((name, final_t, None))
