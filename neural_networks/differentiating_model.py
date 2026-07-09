@@ -522,7 +522,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     self._log_epoch(epoch, epoch_last_predictions)
 
                     if (
-                        (epoch + 1) % self._config.train__number_of_epochs_for_checkpoint
+                        (epoch + 1)
+                        % self._config.train__number_of_epochs_for_checkpoint
                         == 0
                         or epoch == target_epochs - 1
                     ):
