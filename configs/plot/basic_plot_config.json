@@ -18,6 +18,7 @@
         }
     },
     "plot__figure_size": [10, 9],
+    "plot__prediction_process_number_of_bins": 30,
     "plot__plot_specifications": [
         {
             "name": "t_distribution_plot",

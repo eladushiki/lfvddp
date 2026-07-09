@@ -602,6 +602,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def predict_secondary(self, data: DataSet) -> npt.NDArray:
         return self._predict_ndf(data, self.g_network, eta_sign=-1.0)
 
+    def predict_eta(self, data: DataSet) -> npt.NDArray:
+        x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self._device)
+        self.eval()
+        with torch.no_grad():
+            with self.binning_context(data):
+                predictions = self.eta(x_tensor)
+        return predictions.detach().cpu().numpy()
+
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""
         torch.save(self.state_dict(), file_path)
