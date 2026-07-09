@@ -9,7 +9,6 @@ import numpy.typing as npt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
@@ -114,6 +113,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _initialize_tensorboard_writer(self) -> None:
         """Initialize TensorBoard writer for this model instance."""
+        from torch.utils.tensorboard import SummaryWriter
+
         tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
         tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
         self._tensorboard_writer = SummaryWriter(log_dir=str(tensorboard_log_dir))
@@ -493,47 +494,48 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
 
         self.train()
-        self._initialize_tensorboard_writer()
         optimizer = self.configure_optimizers()
 
         target_epochs = self._config.train__epochs
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
 
         if start_epoch >= target_epochs:
-            self._close_tensorboard_writer()
             return self._training_history
 
-        epoch_iterator = range(start_epoch, target_epochs)
+        self._initialize_tensorboard_writer()
 
-        if self._config.train__enable_progress_bar:
-            epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
+        try:
+            epoch_iterator = range(start_epoch, target_epochs)
 
-        # Training with binning context
-        with self.binning_context(data.unified_data):
-            for epoch in epoch_iterator:
-                epoch_last_predictions = self._train_step(
-                    optimizer=optimizer,
-                    data=data_tensor,
-                    region_mask=region_mask_tensor,
-                    batch_weights=weights_tensor,
-                )
-                self._log_epoch(epoch, epoch_last_predictions)
+            if self._config.train__enable_progress_bar:
+                epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
-                if (
-                    (epoch + 1) % self._config.train__number_of_epochs_for_checkpoint
-                    == 0
-                    or epoch == target_epochs - 1
-                ):
-                    save_training_checkpoint(
-                        context=self._context,
-                        model_name=self._name,
-                        model=self,
+            # Training with binning context
+            with self.binning_context(data.unified_data):
+                for epoch in epoch_iterator:
+                    epoch_last_predictions = self._train_step(
                         optimizer=optimizer,
-                        epoch=epoch,
-                        training_history=self._training_history,
+                        data=data_tensor,
+                        region_mask=region_mask_tensor,
+                        batch_weights=weights_tensor,
                     )
+                    self._log_epoch(epoch, epoch_last_predictions)
 
-        self._close_tensorboard_writer()
+                    if (
+                        (epoch + 1) % self._config.train__number_of_epochs_for_checkpoint
+                        == 0
+                        or epoch == target_epochs - 1
+                    ):
+                        save_training_checkpoint(
+                            context=self._context,
+                            model_name=self._name,
+                            model=self,
+                            optimizer=optimizer,
+                            epoch=epoch,
+                            training_history=self._training_history,
+                        )
+        finally:
+            self._close_tensorboard_writer()
 
         # Collect history from training
         return self._training_history
