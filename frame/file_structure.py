@@ -1,6 +1,5 @@
 from pathlib import Path, PurePath, PurePosixPath
 
-
 # project hierarchy
 PROJECT_NAME = "lfvddp"
 LOCAL_PROJECT_ROOT = Path(__file__).parent.parent.absolute()
@@ -19,6 +18,23 @@ CONTAINER_PROJECT_ROOT = PurePosixPath("/app")
 def path_as_in_container(local_path: Path) -> PurePosixPath:
     relative_path = get_relpath_from_local_root(local_path)
     return CONTAINER_PROJECT_ROOT / relative_path
+
+
+# Entrypoint scripts
+SINGLE_TRAIN_SCRIPT_NAME = "single_train.py"
+SUBMIT_TRAIN_SCRIPT_NAME = "submit_train.py"
+CREATE_PLOTS_SCRIPT_NAME = "create_plots.py"
+
+SINGLE_TRAIN_SCRIPT = TRAIN_DIR / SINGLE_TRAIN_SCRIPT_NAME
+SUBMIT_TRAIN_SCRIPT = TRAIN_DIR / SUBMIT_TRAIN_SCRIPT_NAME
+CREATE_PLOTS_SCRIPT = PLOT_DIR / CREATE_PLOTS_SCRIPT_NAME
+
+SINGLE_TRAIN_SCRIPT_RELATIVE = get_relpath_from_local_root(SINGLE_TRAIN_SCRIPT)
+SUBMIT_TRAIN_SCRIPT_RELATIVE = get_relpath_from_local_root(SUBMIT_TRAIN_SCRIPT)
+CREATE_PLOTS_SCRIPT_RELATIVE = get_relpath_from_local_root(CREATE_PLOTS_SCRIPT)
+
+CONTAINER_SINGLE_TRAIN_PATH = path_as_in_container(SINGLE_TRAIN_SCRIPT)
+CONTAINER_CREATE_PLOTS_PATH = path_as_in_container(CREATE_PLOTS_SCRIPT)
 
 
 # File extensions
@@ -44,6 +60,8 @@ RESULTS_BRIEFING_FILE_NAME = f"results_briefing.{TEXT_FILE_EXTENSION}"
 
 # NN training
 TRAINING_OUTCOMES_DIR_NAME = "training_outcomes"
+TRAINING_CHECKPOINT_SUFFIX = "checkpoint.pt"
+CHECKPOINTS_DIR_NAME = "checkpoints"
 SINGLE_TRAIN_T_FILE_NAME = f"single_t.{TRAINING_RESULT_FILE_EXTENSION}"
 RESULTING_T_FILE_STEM = f"final_t"
 RESULTING_T_FILE_NAME = f"{RESULTING_T_FILE_STEM}.{TRAINING_RESULT_FILE_EXTENSION}"

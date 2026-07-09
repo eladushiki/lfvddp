@@ -3,6 +3,7 @@
         {
             "name": "A",
             "type": "generated",
+            "category": "a_sr",
             
             "dataset_generated__number_of_dimensions": 2,
             "dataset_generated__background_function": "exponential_background",

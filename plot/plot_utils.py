@@ -511,8 +511,7 @@ def utils__contour_model_prediction(
 
     spanning_dataset = utils__get_spanning_dataset(config)
     sliced_dataset = spanning_dataset.filter_observable_names(along_observables)
-    model_prediction = prediction_function(spanning_dataset)
-    contour = np.exp(model_prediction)
+    contour = prediction_function(spanning_dataset)
     
     # Average over bins across projected dimensions
     sliced_dataset_bin_centers = detector_effect.get_event_bin_centers(sliced_dataset, indexed=False)

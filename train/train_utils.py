@@ -1,6 +1,5 @@
 from typing import Union
 from data_tools.detector.detector_config import DetectorConfig
-from neural_networks.NPLM.src.NPLM.PLOTutils import compute_df
 from train.train_config import TrainConfig
 
 
@@ -15,6 +14,8 @@ def model_degrees_of_freedom(
         raise TypeError(f"Expected DetectorConfig, got {config.__class__.__name__}")
 
     if config.train__like_NPLM:
+        from neural_networks.NPLM.src.NPLM.PLOTutils import compute_df
+
         return compute_df(
             input_size=config.train__nn_input_dimension,
             hidden_layers=[config.train__nn_inner_layer_nodes],

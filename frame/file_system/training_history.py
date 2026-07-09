@@ -19,7 +19,7 @@ def save_training_history(model_history: Dict[str, Any], history_path: Path, epo
     with h5py.File(history_path,"w") as history_file:
         for key in list(model_history.keys()):
             monitored = np.array(model_history[key])
-            debug('%s: %f'%(key, monitored[-1]))
+            debug('%s: %f'%(key, monitored.squeeze()[-1]))
             history_file.create_dataset(key, data=monitored, compression='gzip')
         info("saved history")
 

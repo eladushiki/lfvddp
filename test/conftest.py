@@ -2,15 +2,16 @@
 Pytest configuration and shared fixtures for all tests.
 This file is automatically discovered by pytest.
 """
+from argparse import Namespace
+
+import pytest
+from pytest import fixture
+
 from data_tools.data_generation import DataGeneration
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.command_line.handle_args import create_config_from_paths
 from frame.context.execution_context import version_controlled_execution_context
 from test.environment import DEFAULT_CONFIG_PATHS, wrap_with_command_line_args
-
-from pytest import fixture
-
-from argparse import Namespace
 
 
 @fixture(scope="session", autouse=True)
@@ -20,6 +21,8 @@ def session_execution_context():
         no_build=True,
         out_dir="results",
         only_train=False,
+        continue_training=False,
+        continue_from=None,
     )
     config = create_config_from_paths(
         config_paths=list(DEFAULT_CONFIG_PATHS.values()),
@@ -36,6 +39,25 @@ def session_execution_context():
         yield context
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-server-tests",
+        action="store_true",
+        default=False,
+        help="Run tests marked 'server' that submit real scheduler jobs.",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-server-tests"):
+        return
+
+    skip_server = pytest.mark.skip(reason="need --run-server-tests to run server tests")
+    for item in items:
+        if "server" in item.keywords:
+            item.add_marker(skip_server)
+
+
 @fixture(scope="function")
 def function_execution_context(
     request,
@@ -50,11 +72,13 @@ def function_execution_context(
         no_build=session_execution_context.is_no_build,
         out_dir=session_execution_context.unique_out_dir,
         only_train=session_execution_context.is_only_train,
+        continue_training=False,
+        continue_from=None,
     )
     config = create_config_from_paths(
         config_paths=list(config_paths.values()),
         is_plot=True,
-        out_dir=session_execution_context.unique_out_dir / request.node.name,
+        out_dir=session_execution_context.unique_out_dir,
         plot_in_place=True,
     )
     with version_controlled_execution_context(
@@ -63,7 +87,9 @@ def function_execution_context(
         command_line_args=wrap_with_command_line_args(config_paths),
         args=args,
     ) as context:
+        context.typed_config_paths = config_paths  # Attach config_paths to context for test convenience
         yield context
+        del context.typed_config_paths  # Clean up after test
 
 
 @fixture(scope="function")

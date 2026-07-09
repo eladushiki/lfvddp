@@ -1,4 +1,5 @@
 {
+    "plot__target_run_parent_directory": "",
     "plot__pyplot_styling": {
         "rcParams": {
             "font.family": "serif",

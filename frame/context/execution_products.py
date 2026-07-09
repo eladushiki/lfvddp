@@ -103,6 +103,19 @@ class ExecutionProducts:
     def add_product(self, descriptor: Any):
         self._add_product(ProductFactory().create_from_descriptor(descriptor))
 
+    @classmethod
+    def from_serialized(cls, serialized_products: Any) -> 'ExecutionProducts':
+        if isinstance(serialized_products, cls):
+            return serialized_products
+
+        execution_products = cls()
+        for serialized_product in serialized_products.get("products", []):
+            store_path = serialized_product.get("store_path")
+            if store_path is not None:
+                execution_products.add_product(Path(store_path))
+
+        return execution_products
+
     def get_product(self, descriptor: Any) -> Product:
         for product in self.products:
             if product.descriptor == descriptor:

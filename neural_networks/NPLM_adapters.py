@@ -64,7 +64,7 @@ class AdaptedImperfectModel(imperfect_model, ContextedModel):
             self.nu_n = 0
 
     def predict(self, data: DataSet):
-        return super().predict(data.events)[:, 1]
+        return np.exp(super().predict(data.events)[:, 1])
 
     def fit(self, data, target, **kwargs) -> keras.callbacks.History:
         return super().fit(data.events, target, **kwargs)
@@ -162,6 +162,9 @@ def train_NPML_model(
         verbose=False,
     )
     tau_history = np.array(tau_model_history[HistoryKeys.LOSS.value])                
+    tau_model_history[HistoryKeys.EPOCH.value] = (
+        config.train__number_of_epochs_for_checkpoint * np.arange(len(tau_history))
+    ).tolist()
     
     info(f'Training time (seconds): {time() - t0}')
 

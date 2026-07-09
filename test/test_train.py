@@ -1,9 +1,44 @@
 from pathlib import Path
 import pytest
-import numpy as np
+import torch
+from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
-from train.model_trainer import follow_instructions_for_t
-from data_tools.data_utils import DataSet
+from train.checkpoints import _torch_load, checkpoint_filename
+from train.model_trainer import SequentialTrainLauncher
+
+
+def _train_numerator(function_execution_context, data_batch, detector_effect, name):
+    train_launcher = SequentialTrainLauncher(
+        function_execution_context, detector_effect
+    )
+    train_idx = train_launcher.add_training(
+        data_batch=data_batch,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name=name,
+    )
+    train_launcher.execute_trainings()
+    return train_launcher.get_train_result(train_idx)
+
+
+def _load_checkpoint_state_dict(function_execution_context, model_name):
+    checkpoint = _torch_load(
+        function_execution_context.training_outcomes_dir
+        / checkpoint_filename(model_name)
+    )
+    return checkpoint["model_state_dict"]
+
+
+class _TensorboardRecorder:
+    def __init__(self):
+        self.scalars = []
+        self.histograms = []
+
+    def add_scalar(self, tag, scalar_value, global_step):
+        self.scalars.append((tag, scalar_value, global_step))
+
+    def add_histogram(self, tag, values, global_step):
+        self.histograms.append((tag, values, global_step))
 
 
 @pytest.mark.parametrize(
@@ -28,20 +63,14 @@ def test_learning(
     data_generation,
     detector_effect,
 ):
-    A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
-    B, B_params = data_generation[DataSet.DataSetCategory.B_SR]
-
-    affected_A = detector_effect.affect_and_compensate(A, A_params, True)
-    affected_B = detector_effect.affect_and_compensate(B, B_params, True)
-
-    reference_dataset = affected_A + affected_B
-
-    _, t_a_loss = follow_instructions_for_t(
+    detected_batch = detector_effect.affect_and_compensate_batch(
+        data_generation.get_batch()
+    )
+    t_a_loss = _train_numerator(
         function_execution_context,
-        affected_A,
-        reference_dataset,
-        detector_effect=detector_effect,
-        name="test_model",
+        detected_batch,
+        detector_effect,
+        "test_model",
     )
 
     # Train should not yet converge but a value should be given
@@ -50,16 +79,77 @@ def test_learning(
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{
-        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
-        ConfigType.TRAIN.value: Path("test/configs/train/long_1D_train_config_without_nuisance.json"),
-    },
-    {
-        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
-        ConfigType.TRAIN.value: Path("test/configs/train/long_1D_train_config_with_nuisance.json"),
-    }],
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/short_1D_train_config_with_nuisance.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
+def test_differentiating_model_logs_parameters_to_tensorboard(
+    function_execution_context,
+    detector_effect,
+):
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="test_model",
+    )
+    recorder = _TensorboardRecorder()
+    model._tensorboard_writer = recorder
+
+    model._log_epoch(7, torch.tensor(1.5))
+
+    assert [tag for tag, _, _ in recorder.scalars] == ["loss"]
+    assert recorder.histograms == []
+
+    model._log_epoch(9, torch.tensor(1.25))
+
+    scalar_tags = [tag for tag, _, _ in recorder.scalars]
+    histogram_tags = [tag for tag, _, _ in recorder.histograms]
+
+    assert scalar_tags == ["loss", "loss"]
+    assert any(tag.startswith("parameters/f_network/") for tag in histogram_tags)
+    assert any(tag.startswith("parameters/g_network/") for tag in histogram_tags)
+    assert any(tag.startswith("parameters/eta/nuisance_") for tag in histogram_tags)
+    assert all(global_step == 9 for _, _, global_step in recorder.histograms)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/long_1D_train_config_without_nuisance.json"
+            ),
+        },
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/long_1D_train_config_with_nuisance.json"
+            ),
+        },
+    ],
     indirect=True,
 )
 @pytest.mark.long
@@ -68,35 +158,34 @@ def test_convergence(
     data_generation,
     detector_effect,
 ):
-    A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
-    B, B_params = data_generation[DataSet.DataSetCategory.B_SR]
-
-    affected_A = detector_effect.affect_and_compensate(A, A_params, True)
-    affected_B = detector_effect.affect_and_compensate(B, B_params, True)
-
-    reference_dataset = affected_A + affected_B
-
-    model_a, t_a = follow_instructions_for_t(
-        function_execution_context,
-        affected_A,
-        reference_dataset,
-        detector_effect=detector_effect,
-        name="test_model_A",
+    detected_batch = detector_effect.affect_and_compensate_batch(
+        data_generation.get_batch()
     )
-    model_b, t_b = follow_instructions_for_t(
+    t_a = _train_numerator(
         function_execution_context,
-        affected_B,
-        reference_dataset,
-        detector_effect=detector_effect,
-        name="test_model_B",
+        detected_batch,
+        detector_effect,
+        "test_model_A",
+    )
+    detected_batch.swap_ab()
+    t_b = _train_numerator(
+        function_execution_context,
+        detected_batch,
+        detector_effect,
+        "test_model_B",
     )
 
-    # Load weights from both models
-    weights_a = list(model_a.state_dict().values())
-    weights_b = list(model_b.state_dict().values())
+    weights_a = list(
+        _load_checkpoint_state_dict(function_execution_context, "test_model_A").values()
+    )
+    weights_b = list(
+        _load_checkpoint_state_dict(function_execution_context, "test_model_B").values()
+    )
 
     # Verify weights are different
-    for i, (w_a, w_b) in enumerate(zip(weights_a, weights_b)):
-        assert not np.allclose(w_a.cpu().detach().numpy(), w_b.cpu().detach().numpy()), f"Weight matrix {i} should be different between models"
+    assert any(
+        not torch.allclose(w_a.cpu(), w_b.cpu())
+        for w_a, w_b in zip(weights_a, weights_b)
+    )
 
     assert t_a + t_b > 0

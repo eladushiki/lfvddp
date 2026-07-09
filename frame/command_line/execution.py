@@ -113,6 +113,12 @@ else
     exit 1
 fi
 
+PBS_ARRAY_ID_FOR_CONTAINER="${{PBS_ARRAY_INDEX:-}}"
+if [ -n "$PBS_ARRAY_ID_FOR_CONTAINER" ]; then
+    export SINGULARITYENV_PBS_ARRAY_INDEX="$PBS_ARRAY_ID_FOR_CONTAINER"
+    export APPTAINERENV_PBS_ARRAY_INDEX="$PBS_ARRAY_ID_FOR_CONTAINER"
+fi
+
 run_singularity exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} "$CONTAINER_RUNTIME_PATH" {command}
 """
 
