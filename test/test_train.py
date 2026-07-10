@@ -107,12 +107,12 @@ def test_differentiating_model_logs_parameters_to_tensorboard(
     recorder = _TensorboardRecorder()
     model._tensorboard_writer = recorder
 
-    model._log_epoch(7, torch.tensor(1.5))
+    model._log(7, torch.tensor(1.5))
 
     assert [tag for tag, _, _ in recorder.scalars] == ["loss"]
     assert recorder.histograms == []
 
-    model._log_epoch(9, torch.tensor(1.25))
+    model._log(9, torch.tensor(1.25))
 
     scalar_tags = [tag for tag, _, _ in recorder.scalars]
     histogram_tags = [tag for tag, _, _ in recorder.histograms]

@@ -276,9 +276,9 @@ class results:  # todo: deprecate
         return filenames
 
 
-def utils__sample_over_background_histograms_sliced(
+def utils__samples_over_background_histograms_sliced(
         ax: plt.Axes,
-        sample: DataSet,
+        samples: Union[DataSet, List[DataSet]],
         background: DataSet,
         bins: np.ndarray,
         along_observables: Union[List[str], str, None] = None,
@@ -292,13 +292,17 @@ def utils__sample_over_background_histograms_sliced(
         along_observables=along_observables,
         label=background_legend,
     )
-    utils__datset_histogram_sliced(
-        ax=ax,
-        bins=bins,
-        dataset=sample,
-        along_observables=along_observables,
-        label=sample_legend,
-    )
+
+    if isinstance(samples, DataSet):
+        samples = [samples]
+    for ds in samples:
+        utils__datset_histogram_sliced(
+            ax=ax,
+            bins=bins,
+            dataset=ds,
+            along_observables=along_observables,
+            label=sample_legend,
+        )
 
 
 def utils__flatten_histogram_values(values: npt.ArrayLike) -> np.ndarray:
