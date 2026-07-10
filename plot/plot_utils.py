@@ -1,22 +1,26 @@
+import re
 from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
+
+import numpy as np
+import numpy.typing as npt
+from matplotlib import gridspec, patches, ticker
+from matplotlib import pyplot as plt
+from matplotlib.colors import LogNorm
+from matplotlib.legend_handler import HandlerPatch
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import TRAINING_HISTORY_LOG_FILE_SUFFIX, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import (
+    TRAINING_HISTORY_LOG_FILE_SUFFIX,
+    TRAINING_OUTCOMES_DIR_NAME,
+)
 from frame.file_system.training_history import HistoryKeys
-import numpy as np
-import numpy.typing as npt
-from matplotlib import gridspec, patches, pyplot as plt
-from matplotlib.colors import LogNorm
 from plot.plotting_config import PlottingConfig
-from matplotlib.legend_handler import HandlerPatch
-import re
-
 from train.train_config import TrainConfig
 
 
@@ -526,3 +530,256 @@ def utils__contour_model_prediction(
     ])
 
     return unique_sliced_bin_centers, contour_means
+
+
+def utils__add_subplot_sliced(
+    fig: plt.Figure,
+    subplot_shape: Tuple[int, int, int],
+    number_of_dimensions: int,
+) -> plt.Axes:
+    """Create a regular 1D panel or a consistently oriented 2D-data 3D panel."""
+    if number_of_dimensions == 1:
+        return fig.add_subplot(*subplot_shape)
+
+    panel = fig.add_subplot(*subplot_shape, projection="3d")
+    panel.view_init(elev=28, azim=-58)
+    panel.set_box_aspect((1.2, 1.2, 0.9))
+    return panel
+
+
+def utils__set_subplot_labels_sliced(
+    ax: plt.Axes,
+    bins: Union[np.ndarray, List[np.ndarray]],
+    along_observables: List[str],
+    output_label: str,
+) -> None:
+    """Apply shared observable limits and labels to a sliced plot panel."""
+    if len(along_observables) == 1:
+        ax.set_xlim(bins[0], bins[-1])
+        ax.set_xlabel(along_observables[0])
+        ax.set_ylabel(output_label)
+        return
+
+    ax.set_xlim(bins[0][0], bins[0][-1])
+    ax.set_ylim(bins[1][0], bins[1][-1])
+    ax.set_xlabel(along_observables[0])
+    ax.set_ylabel(along_observables[1])
+    ax.set_zlabel(output_label)
+
+
+def utils__plot_region_histograms_sliced(
+    ax: plt.Axes,
+    sample_a: DataSet,
+    sample_b: DataSet,
+    background: DataSet,
+    bins: Union[np.ndarray, List[np.ndarray]],
+    along_observables: List[str],
+    region_name: str,
+    background_color: str,
+    sample_a_color: str,
+    sample_b_color: str,
+) -> None:
+    """Draw a complete A/B/background distribution panel for one region."""
+    distribution_specs = (
+        (
+            background,
+            f"A-{region_name} + B-{region_name} (background)",
+            background_color,
+            "stepfilled",
+            0.28,
+            1.0,
+        ),
+        (sample_a, f"A-{region_name}", sample_a_color, "step", 1.0, 1.8),
+        (sample_b, f"B-{region_name}", sample_b_color, "step", 1.0, 1.8),
+    )
+    for dataset, label, color, histtype, alpha, linewidth in distribution_specs:
+        utils__datset_histogram_sliced(
+            ax=ax,
+            bins=bins,
+            dataset=dataset,
+            along_observables=along_observables,
+            label=label,
+            color=color,
+            histtype=histtype,
+            alpha=alpha,
+            lw=linewidth,
+        )
+
+    if len(along_observables) == 2:
+        ax.set_zlim(0.1, max(1.0, ax.get_zlim()[1]))
+        ax.set_zscale("log")
+        ax.zaxis.set_major_locator(ticker.LogLocator(base=10, numticks=4))
+        ax.zaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10))
+
+    utils__set_subplot_labels_sliced(
+        ax=ax,
+        bins=bins,
+        along_observables=along_observables,
+        output_label="number of events",
+    )
+    ax.set_title(f"{region_name} distributions")
+
+
+def utils__plot_weighted_histogram_predictions_sliced(
+    ax: plt.Axes,
+    reference_dataset: DataSet,
+    predictions: List[Tuple[np.ndarray, str, str, str]],
+    bins: Union[np.ndarray, List[np.ndarray]],
+    bin_centers: Union[np.ndarray, List[np.ndarray]],
+    along_observables: List[str],
+) -> None:
+    """Overlay weighted reference-distribution predictions on a histogram panel."""
+    number_of_dimensions = len(along_observables)
+    reference_data = np.asarray(
+        reference_dataset.slice_along_observable_names(along_observables)
+    ).reshape(reference_dataset.n_samples, number_of_dimensions)
+
+    if number_of_dimensions == 2:
+        prediction_xx, prediction_yy = np.meshgrid(
+            bin_centers[0], bin_centers[1], indexing="ij"
+        )
+
+    for weights, label, color, marker in predictions:
+        flattened_weights = utils__flatten_histogram_values(weights)
+        if number_of_dimensions == 1:
+            predicted_counts, _ = np.histogram(
+                reference_data[:, 0],
+                bins=bins,
+                weights=flattened_weights,
+            )
+            ax.scatter(
+                bin_centers,
+                predicted_counts,
+                label=label,
+                color=color,
+                marker=marker,
+                s=28,
+                edgecolor="black",
+                linewidth=0.5,
+            )
+            continue
+
+        predicted_counts, _, _ = np.histogram2d(
+            reference_data[:, 0],
+            reference_data[:, 1],
+            bins=bins,
+            weights=flattened_weights,
+        )
+        positive_counts = predicted_counts.ravel() > 0
+        ax.scatter(
+            prediction_xx.ravel()[positive_counts],
+            prediction_yy.ravel()[positive_counts],
+            predicted_counts.ravel()[positive_counts],
+            label=label,
+            color=color,
+            marker=marker,
+            s=22,
+            edgecolor="black",
+            linewidth=0.4,
+        )
+
+
+def utils__synchronize_output_axis_limits(
+    axes: List[plt.Axes],
+    number_of_dimensions: int,
+) -> None:
+    """Share the event-count or model-output range across sliced panels."""
+    output_axis = "y" if number_of_dimensions == 1 else "z"
+    get_limits_name = f"get_{output_axis}lim"
+    set_limits_name = f"set_{output_axis}lim"
+    shared_limits = (
+        min(getattr(ax, get_limits_name)()[0] for ax in axes),
+        max(getattr(ax, get_limits_name)()[1] for ax in axes),
+    )
+    for ax in axes:
+        getattr(ax, set_limits_name)(shared_limits)
+
+
+def utils__model_prediction_values(
+    prediction_function: Callable[[DataSet], npt.NDArray],
+    dataset: DataSet,
+) -> np.ndarray:
+    """Evaluate and flatten one model prediction per event."""
+    return utils__flatten_histogram_values(prediction_function(dataset))
+
+
+def utils__project_prediction_values_sliced(
+    values: np.ndarray,
+    spanning_dataset: DataSet,
+    along_observables: List[str],
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Project already evaluated model values onto selected observables."""
+    return utils__contour_model_prediction(
+        prediction_function=lambda _: values,
+        spanning_dataset=spanning_dataset,
+        along_observables=along_observables,
+        prediction_transform=np.asarray,
+    )
+
+
+def utils__plot_model_predictions_sliced(
+    ax: plt.Axes,
+    predictions: List[Tuple[np.ndarray, np.ndarray, str, str, str]],
+    bins: Union[np.ndarray, List[np.ndarray]],
+    along_observables: List[str],
+    prediction_limits: Tuple[float, float],
+    title: str,
+) -> None:
+    """Draw a complete 1D-line or 2D-wireframe model-prediction panel."""
+    first_coordinates = predictions[0][0]
+    if len(along_observables) == 1:
+        ax.axhline(1.0, color="gray", linestyle=":", linewidth=1, alpha=0.6)
+        for coordinates, contour, label, color, linestyle in predictions:
+            ax.plot(
+                utils__flatten_histogram_values(coordinates),
+                utils__flatten_histogram_values(contour),
+                label=label,
+                color=color,
+                linestyle=linestyle,
+                linewidth=1.8,
+            )
+        ax.set_ylim(prediction_limits)
+    else:
+        x_values = np.unique(first_coordinates[:, 0])
+        y_values = np.unique(first_coordinates[:, 1])
+        prediction_xx, prediction_yy = np.meshgrid(
+            x_values, y_values, indexing="ij"
+        )
+        ax.plot_surface(
+            prediction_xx,
+            prediction_yy,
+            np.ones_like(prediction_xx),
+            color="gray",
+            linewidth=0,
+            alpha=0.06,
+            shade=False,
+        )
+        for coordinates, contour, label, color, linestyle in predictions:
+            x_values = np.unique(coordinates[:, 0])
+            y_values = np.unique(coordinates[:, 1])
+            prediction_xx, prediction_yy = np.meshgrid(
+                x_values, y_values, indexing="ij"
+            )
+            contour_grid = np.asarray(contour).reshape(
+                len(x_values), len(y_values)
+            )
+            ax.plot_wireframe(
+                prediction_xx,
+                prediction_yy,
+                contour_grid,
+                color=color,
+                linestyle=linestyle,
+                linewidth=0.8,
+                alpha=0.9,
+            )
+            ax.plot([], [], [], label=label, color=color, linestyle=linestyle)
+        ax.set_zlim(prediction_limits)
+
+    utils__set_subplot_labels_sliced(
+        ax=ax,
+        bins=bins,
+        along_observables=along_observables,
+        output_label="model prediction",
+    )
+    ax.set_title(title)
+    ax.legend(fontsize=7)

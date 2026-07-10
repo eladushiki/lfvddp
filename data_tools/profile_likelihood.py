@@ -13,6 +13,14 @@ def calc_t_test_statistic(tau: Union[int, float, np.ndarray]) -> Union[int, floa
     return -2 * tau
 
 
+def calc_t(
+    numerator: Union[int, float, np.ndarray],
+    denominator: Union[int, float, np.ndarray],
+) -> Union[int, float, np.ndarray]:
+    """Calculate t from the two independently minimized expressions."""
+    return -2 * numerator + 2 * denominator
+
+
 def calc_t_significance_by_chi2_percentile(
           t_distribution: np.ndarray,
           degrees_of_freedom: int,
