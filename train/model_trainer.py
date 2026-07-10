@@ -12,6 +12,7 @@ from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAIN_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
+from neural_networks.differentiating_model import calc_min_LFVNN
 from train.checkpoints import find_latest_training_checkpoint
 from train.training_names import training_name
 from neural_networks.utils import ContextedModel
@@ -54,8 +55,11 @@ class TrainLauncher:
     def execute_trainings(self):
         pass
 
-    def get_train_result(self, idx):
-        return self._train_stack[idx].result
+    def get_training(self, idx: int) -> Training:
+        return self._train_stack[idx]
+
+    def get_train_result(self, idx: int) -> Optional[float]:
+        return self.get_training(idx).result
 
     def _training_model_name(self, training: Training) -> str:
         if training.name is not None:
@@ -103,75 +107,24 @@ class TrainLauncher:
                 DataSet.DataSetCategory.B_SR
             ]
 
-            model, final_val = calc_t_NPLM(
+            model, final_val = calc_t_NPLM( # TODO: no chance this works
                 self._context,
                 sample_a_dataset,
                 sample_b_dataset,
                 f"NPLM_train_for_{model_name}",
             )
         else:
-            from neural_networks.differentiating_model import (
-                DifferentiatingModel,
-                calc_min_LFVNN,
+            model, final_val = calc_min_LFVNN(
+                context=self._context,
+                data=training.data_batch,
+                detector_effect=self._detector_effect,
+                is_numerator=training.is_numerator,
+                name=model_name,
             )
-
-            if DifferentiatingModel.has_configured_trainable_parameters(
-                self._config,
-                training.is_numerator,
-            ):
-                model, final_val = calc_min_LFVNN(
-                    context=self._context,
-                    data=training.data_batch,
-                    detector_effect=self._detector_effect,
-                    is_numerator=training.is_numerator,
-                    name=model_name,
-                )
-            else:
-                model = None
-                final_val = DifferentiatingModel.calculate_loss_statically(
-                    context=self._context,
-                    data=training.data_batch,
-                    detector_effect=self._detector_effect,
-                    is_numerator=training.is_numerator,
-                    name=model_name,
-                )
-                info(f"Calculated static loss for {model_name}: {final_val:.6f}")
 
         training.model = model
         training.result = final_val
         return model, final_val
-
-    def _plot_training_prediction(self, training: Training) -> None:
-        if not self._context.is_debug_mode or training.model is None:
-            return
-        from plot.plots import plot_prediction_process_sliced
-
-        base_name = training.data_batch.parameters[DataSet.DataSetCategory.A_SR].name
-        model_name = self._training_model_name(training)
-
-        data_process_plot = plot_prediction_process_sliced(
-            context=self._context,
-            detector_effect=self._detector_effect,
-            experiment_sample=training.data_batch.datasets[
-                DataSet.DataSetCategory.A_SR
-            ],
-            reference_sample=(
-                training.data_batch.datasets[DataSet.DataSetCategory.A_SR]
-                + training.data_batch.datasets[DataSet.DataSetCategory.B_SR]
-            ),
-            trained_tau_model=training.model,
-            trained_delta_model=None,
-            title=base_name + " prediction process",
-            along_observables=self._detector_effect._observable_names[:2],
-        )
-        self._context.save_and_document_figure(
-            data_process_plot,
-            self._context.unique_out_dir / f"{model_name}_data_process_plot.png",
-        )
-
-    def _plot_training_predictions(self) -> None:
-        for training in self._train_stack:
-            self._plot_training_prediction(training)
 
 
 class SequentialTrainLauncher(TrainLauncher):
@@ -191,7 +144,6 @@ class SequentialTrainLauncher(TrainLauncher):
                 continue
 
             self._follow_instructions_for_t(training)
-        self._plot_training_predictions()
 
 
 class ParallelTrainLauncher(TrainLauncher):

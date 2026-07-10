@@ -1,38 +1,53 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from contextlib import contextmanager
 from logging import info
 from time import time
 from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import numpy.typing as npt
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn.functional import pad
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
-from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
+from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import (
     ContextedModel,
-    save_training_outcomes,
     get_model_logging_dir,
+    save_training_outcomes,
 )
 from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
 from train.train_config import TrainConfig
 
 
 def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
+    """
+    Normalize the dataset weights by total events in the region.
+    This stems from the reference distribution formula.
+    """
+    N_SR = (N_A_SR := data.datasets[DataSet.DataSetCategory.A_SR].n_samples) + (
+        N_B_SR := data.datasets[DataSet.DataSetCategory.B_SR].n_samples
+    )
+
+    N_CR = (N_A_CR := data.datasets[DataSet.DataSetCategory.A_CR].n_samples) + (
+        N_B_CR := data.datasets[DataSet.DataSetCategory.B_CR].n_samples
+    )
+
     return np.concatenate(
         [
-            ds._weight_mask
-            * ds.corrected_n_samples
-            / data.unified_data.corrected_n_samples
-            for ds, params in data
+            data.datasets[DataSet.DataSetCategory.A_SR]._weight_mask * N_A_SR / N_SR,
+            data.datasets[DataSet.DataSetCategory.B_SR]._weight_mask * N_B_SR / N_SR,
+            data.datasets[DataSet.DataSetCategory.A_CR]._weight_mask * N_A_CR / N_CR,
+            data.datasets[DataSet.DataSetCategory.B_CR]._weight_mask * N_B_CR / N_CR,
         ],
         axis=0,
     )
@@ -82,7 +97,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._train_target_classifier = None
         self._train_weights = None
         self._norm_factor = None
-        self._training_history = {}
+        self._training_history = defaultdict(list)
         self._tensorboard_writer = None
 
     @property
@@ -154,7 +169,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 epoch,
             )
 
-    def _log_tensorboard_epoch(self, epoch: int, loss: torch.Tensor) -> None:
+    def _log_tensorboard(self, epoch: int, loss: torch.Tensor) -> None:
         if self._tensorboard_writer is None:
             return
         self._tensorboard_writer.add_scalar(
@@ -162,8 +177,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             float(loss.detach().cpu()),
             epoch,
         )
-        if (epoch + 1) % self._config.train__number_of_epochs_for_checkpoint != 0:
-            return
         self._log_tensorboard_network_parameters("f_network", self.f_network, epoch)
         self._log_tensorboard_network_parameters("g_network", self.g_network, epoch)
         self._log_tensorboard_nuisance_parameters(epoch)
@@ -248,14 +261,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     @staticmethod
     def ddp_minimization_loss(
-        f_a_sr: torch.Tensor,
-        f_b_sr: torch.Tensor,
-        g_a_sr: torch.Tensor,
-        g_b_sr: torch.Tensor,
-        eta_a_sr: torch.Tensor,
-        eta_a_cr: torch.Tensor,
-        eta_b_sr: torch.Tensor,
-        eta_b_cr: torch.Tensor,
+        region_mask: torch.Tensor,
+        f_of_x_sr_est: torch.Tensor,
+        g_of_x_sr_est: torch.Tensor,
+        eta_of_x_est: torch.Tensor,
     ) -> torch.Tensor:
         """
         The loss function for minimizing any expression in lfvddp.
@@ -266,92 +275,85 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         Enter a zeros vector for each for it not to be use. This is the default
         behavior of DifferentiatingModel fit.
 
-        Returns torch.Tensor of the same shape as the input tensors with NLL values to be minimized.
+        Returns torch.Tensor of the same shape as either input to be summed.
         """
-        # SR sum term
-        eta_sr = torch.cat([eta_a_sr, eta_b_sr])
+        # Setting the subsets we need for the element-wise loss calculation
+        f_of_x_a_sr = f_of_x_sr_est * (
+            region_mask == DataSet.DataSetCategory.A_SR.value
+        )
+        g_of_x_b_sr = g_of_x_sr_est * (
+            region_mask == DataSet.DataSetCategory.B_SR.value
+        )
+        eta_a_sr = eta_of_x_est * (region_mask == DataSet.DataSetCategory.A_SR.value)
+        eta_b_sr = eta_of_x_est * (region_mask == DataSet.DataSetCategory.B_SR.value)
+        eta_sr = eta_a_sr + eta_b_sr
+        eta_a_cr = eta_of_x_est * (region_mask == DataSet.DataSetCategory.A_CR.value)
+        eta_b_cr = eta_of_x_est * (region_mask == DataSet.DataSetCategory.B_CR.value)
+        eta_of_x_cr = eta_a_cr + eta_b_cr
+        eta_of_x_a = eta_a_sr + eta_a_cr
+        eta_of_x_b = eta_b_sr + eta_b_cr
 
-        N_A_SR = len(eta_a_sr)
-        e_to_the_f_sr = torch.exp(torch.cat([f_a_sr, f_b_sr]))
+        # Constant expression parameters
+        N_A_SR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.A_SR.value)
+        N_B_SR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.B_SR.value)
+        N_A_CR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.A_CR.value)
+        N_B_CR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.B_CR.value)
+
+        e_to_the_f_sr = torch.exp(f_of_x_sr_est)
         eta_plus_term_sr = 1 + eta_sr
-        N_B_SR = len(eta_b_sr)
-        e_to_the_g_sr = torch.exp(torch.cat([g_a_sr, g_b_sr]))
+        e_to_the_g_sr = torch.exp(g_of_x_sr_est)
         eta_minus_term_sr = 1 - eta_sr
-        sr_sum_term = torch.sum(
+        sr_sum_term = (
             N_A_SR * e_to_the_f_sr * eta_plus_term_sr
             + N_B_SR * e_to_the_g_sr * eta_minus_term_sr
         )
 
         # CR sum term
-        eta_cr = torch.cat([eta_a_cr, eta_b_cr])
-        N_A_CR = len(eta_a_cr)
-        eta_plus_term_cr = 1 + eta_cr
-        N_B_CR = len(eta_b_cr)
-        eta_minus_term_cr = 1 - eta_cr
-        cr_sum_term = torch.sum(N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr)
-
-        # Optional f and g sum terms
-        f_a_sr_sum_term = torch.sum(f_a_sr)
-        g_b_sr_sum_term = torch.sum(g_b_sr)
+        eta_plus_term_cr = 1 + eta_of_x_cr
+        eta_minus_term_cr = 1 - eta_of_x_cr
+        cr_sum_term = N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr
 
         # eta log terms
-        eta_a = torch.cat([eta_a_sr, eta_a_cr])
-        eta_plus_a_sum_term = torch.sum(torch.log(1 + eta_a))
-
-        eta_b = torch.cat([eta_b_sr, eta_b_cr])
-        eta_minus_b_sum_term = torch.sum(torch.log(1 - eta_b))
+        eta_plus_a_sum_term = torch.log(1 + eta_of_x_a)
+        eta_minus_b_sum_term = torch.log(1 - eta_of_x_b)
 
         # Total loss is sum of log-likelihoods
         return (
             sr_sum_term
             + cr_sum_term
-            - f_a_sr_sum_term
-            - g_b_sr_sum_term
+            - f_of_x_a_sr
+            - g_of_x_b_sr
             - eta_plus_a_sum_term
             - eta_minus_b_sum_term
-        )
-
-    @staticmethod
-    def _loss_from_estimates(
-        region_mask: torch.Tensor,
-        f_x_sr_est: torch.Tensor,
-        g_x_sr_est: torch.Tensor,
-        eta_x_est: torch.Tensor,
-    ) -> torch.Tensor:
-        a_sr_mask = region_mask == DataSet.DataSetCategory.A_SR.value
-        b_sr_mask = region_mask == DataSet.DataSetCategory.B_SR.value
-        sr_map = region_mask[a_sr_mask | b_sr_mask]
-
-        # Z_eta norm term
-
-        return DifferentiatingModel.ddp_minimization_loss(
-            f_a_sr=f_x_sr_est[sr_map == DataSet.DataSetCategory.A_SR.value],
-            f_b_sr=f_x_sr_est[sr_map == DataSet.DataSetCategory.B_SR.value],
-            g_a_sr=g_x_sr_est[sr_map == DataSet.DataSetCategory.A_SR.value],
-            g_b_sr=g_x_sr_est[sr_map == DataSet.DataSetCategory.B_SR.value],
-            eta_a_sr=eta_x_est[region_mask == DataSet.DataSetCategory.A_SR.value],
-            eta_a_cr=eta_x_est[region_mask == DataSet.DataSetCategory.A_CR.value],
-            eta_b_sr=eta_x_est[region_mask == DataSet.DataSetCategory.B_SR.value],
-            eta_b_cr=eta_x_est[region_mask == DataSet.DataSetCategory.B_CR.value],
         )
 
     def forward(
         self,
         data: torch.Tensor,
         region_mask: torch.Tensor,
+        weights: torch.Tensor,
     ) -> torch.Tensor:
         a_sr_mask = region_mask == DataSet.DataSetCategory.A_SR.value
         b_sr_mask = region_mask == DataSet.DataSetCategory.B_SR.value
         sr_data = data[a_sr_mask | b_sr_mask]
-        f_x_sr_est = self.f_network(sr_data)
-        g_x_sr_est = self.g_network(sr_data)
-        eta_x_est = self.eta(data)
+        f_of_x_sr_est = pad(
+            self.f_network(sr_data).squeeze(),
+            (0, data.numel() - sr_data.numel()),
+        )
+        g_of_x_sr_est = pad(
+            self.g_network(sr_data).squeeze(),
+            (0, data.numel() - sr_data.numel()),
+        )
+        eta_of_x_est = self.eta(data).squeeze()
 
-        return self._loss_from_estimates(
-            region_mask=region_mask,
-            f_x_sr_est=f_x_sr_est,
-            g_x_sr_est=g_x_sr_est,
-            eta_x_est=eta_x_est,
+        return (
+            DifferentiatingModel.ddp_minimization_loss(
+                region_mask=region_mask,
+                f_of_x_sr_est=f_of_x_sr_est,
+                g_of_x_sr_est=g_of_x_sr_est,
+                eta_of_x_est=eta_of_x_est,
+            )
+            * weights
         )
 
     @contextmanager
@@ -366,53 +368,39 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         finally:
             self._bins_of_events = None
 
-    @staticmethod
-    def _prepare_training_tensors(
+    def _prepare_training_data(
+        self,
         data: DataBatch,
         weights: npt.NDArray,
-        device: torch.device,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Convert DataSet and target to tensors on the correct device."""
+        """
+        Organize input data into masks and tensor for further processing
+        """
+        normalized_data, self._norm_factor = data.get_normalized()
+
         data_parts = []
         mask_parts = []
-        for ds, params in data:
+        for ds, params in normalized_data:
             data_parts.append(ds.events)
             mask_parts.append(
                 np.full(ds.n_samples, params.category.value, dtype=np.int64)
             )
 
         data_tensor = torch.tensor(
-            np.concatenate(data_parts), dtype=torch.float32, device=device
+            np.concatenate(data_parts), dtype=torch.float32, device=self._device
         )
-        mask_tensor = torch.from_numpy(np.concatenate(mask_parts)).to(device)
-        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=device)
+        mask_tensor = torch.from_numpy(np.concatenate(mask_parts)).to(self._device)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self._device)
         return data_tensor, mask_tensor, weights_tensor
 
-    def _prepare_training_data(
-        self,
-        data: DataBatch,
-        weights: npt.NDArray,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return self._prepare_training_tensors(data, weights, self._device)
-
-    def _log_epoch(self, epoch: int, loss: torch.Tensor) -> None:
-        self._training_history.setdefault(HistoryKeys.LOSS.value, []).append(
+    def _log(self, epoch: int, loss: torch.Tensor) -> None:
+        self._training_history[HistoryKeys.LOSS.value].append(
             float(loss.detach().cpu())
         )
-        self._training_history.setdefault(HistoryKeys.EPOCH.value, []).append(epoch)
-        self._log_tensorboard_epoch(epoch, loss)
+        self._training_history[HistoryKeys.EPOCH.value].append(epoch)
 
     def has_trainable_parameters(self) -> bool:
         return any(parameter.requires_grad for parameter in self.parameters())
-
-    @staticmethod
-    def has_configured_trainable_parameters(
-        config: Union[TrainConfig, DetectorConfig],
-        is_numerator: bool,
-    ) -> bool:
-        if not isinstance(config, TrainConfig):
-            raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
-        return is_numerator or config.train__data_is_train_for_nuisances
 
     def _load_training_checkpoint_if_requested(
         self, optimizer: Optional[optim.Optimizer]
@@ -449,11 +437,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         optimizer: Optional[optim.Optimizer],
         data: torch.Tensor,
+        weights: torch.Tensor,
         region_mask: torch.Tensor,
-        batch_weights: torch.Tensor,
     ) -> torch.Tensor:
         """Run one optimization step and return the batch loss."""
-        loss = self(data=data, region_mask=region_mask)
+        loss = torch.sum(self(data=data, region_mask=region_mask, weights=weights))
 
         if optimizer is not None:
             optimizer.zero_grad(set_to_none=True)
@@ -468,17 +456,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         data: DataBatch,
         weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
-        """Pure PyTorch training loop."""
-        if not self.has_trainable_parameters():
-            raise RuntimeError(
-                "Cannot fit DifferentiatingModel without trainable parameters; "
-                "call calculate_loss_value for the static loss instead."
-            )
 
-        # Store training data for metrics computation
-        normalized_data, self._norm_factor = data.get_normalized()
         data_tensor, region_mask_tensor, weights_tensor = self._prepare_training_data(
-            normalized_data, weights
+            data, weights
         )
 
         self.train()
@@ -486,7 +466,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         target_epochs = self._config.train__epochs
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
-
         if start_epoch >= target_epochs:
             return self._training_history
 
@@ -494,7 +473,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         try:
             epoch_iterator = range(start_epoch, target_epochs)
-
             if self._config.train__enable_progress_bar:
                 epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
@@ -504,10 +482,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     epoch_last_predictions = self._train_step(
                         optimizer=optimizer,
                         data=data_tensor,
+                        weights=weights_tensor,
                         region_mask=region_mask_tensor,
-                        batch_weights=weights_tensor,
                     )
-                    self._log_epoch(epoch, epoch_last_predictions)
 
                     if (
                         (epoch + 1)
@@ -515,6 +492,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                         == 0
                         or epoch == target_epochs - 1
                     ):
+                        self._log(epoch, epoch_last_predictions)
+                        self._log_tensorboard(epoch, epoch_last_predictions)
                         save_training_checkpoint(
                             context=self._context,
                             model_name=self._name,
@@ -529,42 +508,26 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Collect history from training
         return self._training_history
 
-    def calculate_loss_value(
+    def calculate_loss_statically(
         self,
         data: DataBatch,
         weights: npt.NDArray,
-    ) -> float:
-        normalized_data, self._norm_factor = data.get_normalized()
-        data_tensor, region_mask_tensor, _ = self._prepare_training_data(
-            normalized_data, weights
+    ) -> Dict[str, List[float]]:
+        data_tensor, region_mask_tensor, weights_tensor = self._prepare_training_data(
+            data, weights
         )
         self.eval()
         with torch.no_grad():
             with self.binning_context(data.unified_data):
-                loss = self(data=data_tensor, region_mask=region_mask_tensor)
-        return float(loss.detach().cpu())
+                loss = torch.sum(
+                    self(
+                        data=data_tensor,
+                        region_mask=region_mask_tensor,
+                        weights=weights_tensor,
+                    )
+                )
 
-    @classmethod
-    def calculate_loss_statically(
-        cls,
-        context: ExecutionContext,
-        data: DataBatch,
-        detector_effect: DetectorEffect,
-        is_numerator: bool,
-        name: str,
-    ) -> float:
-        model = cls(
-            context=context,
-            detector_effect=detector_effect,
-            is_numerator=is_numerator,
-            name=name,
-        )
-        if model.has_trainable_parameters():
-            raise RuntimeError(
-                "Static loss calculation is only valid when the LFVNN model has no trainable parameters."
-            )
-        weights = _calculate_loss_weights(data)
-        return model.calculate_loss_value(data=data, weights=weights)
+        return {HistoryKeys.LOSS.value: [float(loss.detach().cpu())]}
 
     def _predict_ndf(
         self,
@@ -613,28 +576,28 @@ def calc_min_LFVNN(
 ) -> Tuple[ContextedModel, float]:
     loss_weights = _calculate_loss_weights(data)
 
-    # Train
-    info("Starting training")
-    t0 = time()
-
     model = DifferentiatingModel(
         context=context,
         detector_effect=detector_effect,
         is_numerator=is_numerator,
         name=name,
     )
+
     if not model.has_trainable_parameters():
-        raise RuntimeError(
-            "Cannot train LFVNN without trainable parameters; "
-            "call DifferentiatingModel.calculate_loss_statically instead."
+        info("No trainable parameters in the model, calculating static expression.")
+        model_history = model.calculate_loss_statically(
+            data=data,
+            weights=loss_weights,
         )
 
-    model_history = model.fit(
-        data=data,
-        weights=loss_weights,
-    )
-
-    info(f"Training time (seconds): {time() - t0}")
+    else:
+        info("Starting training")
+        t0 = time()
+        model_history = model.fit(
+            data=data,
+            weights=loss_weights,
+        )
+        info(f"Training time (seconds): {time() - t0}")
 
     # Calculate minimum loss from training history
     final_loss = model_history[HistoryKeys.LOSS.value][-1]
