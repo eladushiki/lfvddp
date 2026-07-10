@@ -22,8 +22,7 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import (
     ContextedModel,
-    get_model_logging_dir,
-    save_training_outcomes,
+    save_model_parameters_outcome,
 )
 from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
 from train.train_config import TrainConfig
@@ -98,7 +97,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._train_weights = None
         self._norm_factor = None
         self._training_history = defaultdict(list)
-        self._tensorboard_writer = None
 
     @property
     def _device(self) -> torch.device:
@@ -125,61 +123,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             nn.Sigmoid(),
             nn.Linear(hidden_size, output_size),
         )
-
-    def _initialize_tensorboard_writer(self) -> None:
-        """Initialize TensorBoard writer for this model instance."""
-        from torch.utils.tensorboard import SummaryWriter
-
-        tensorboard_log_dir = get_model_logging_dir(self._context, self._name)
-        tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
-        self._tensorboard_writer = SummaryWriter(log_dir=str(tensorboard_log_dir))
-
-    def _close_tensorboard_writer(self) -> None:
-        """Close and clear TensorBoard writer if initialized."""
-        if self._tensorboard_writer is not None:
-            self._tensorboard_writer.close()
-            self._tensorboard_writer = None
-
-    def _log_tensorboard_parameter(
-        self, tag: str, parameter: torch.Tensor, epoch: int
-    ) -> None:
-        if self._tensorboard_writer is None:
-            return
-        detached_parameter = parameter.detach().cpu()
-        self._tensorboard_writer.add_histogram(tag, detached_parameter, epoch)
-
-    def _log_tensorboard_network_parameters(
-        self,
-        network_name: str,
-        network: nn.Module,
-        epoch: int,
-    ) -> None:
-        for parameter_name, parameter in network.named_parameters():
-            self._log_tensorboard_parameter(
-                f"parameters/{network_name}/{parameter_name}",
-                parameter,
-                epoch,
-            )
-
-    def _log_tensorboard_nuisance_parameters(self, epoch: int) -> None:
-        for observable_name, parameter in self._detector_deltas.items():
-            self._log_tensorboard_parameter(
-                f"parameters/eta/nuisance_{observable_name}",
-                parameter,
-                epoch,
-            )
-
-    def _log_tensorboard(self, epoch: int, loss: torch.Tensor) -> None:
-        if self._tensorboard_writer is None:
-            return
-        self._tensorboard_writer.add_scalar(
-            "loss",
-            float(loss.detach().cpu()),
-            epoch,
-        )
-        self._log_tensorboard_network_parameters("f_network", self.f_network, epoch)
-        self._log_tensorboard_network_parameters("g_network", self.g_network, epoch)
-        self._log_tensorboard_nuisance_parameters(epoch)
 
     def _build_eta(self):
         self._detector_deltas = {}
@@ -399,6 +342,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         self._training_history[HistoryKeys.EPOCH.value].append(epoch)
 
+    def _is_history_epoch(self, epoch: int) -> bool:
+        return (
+            (epoch + 1) % self._config.train__number_of_epochs_for_checkpoint == 0
+            or epoch == self._config.train__epochs - 1
+        )
+
+    def _history_epochs(self) -> List[int]:
+        return [
+            epoch
+            for epoch in range(self._config.train__epochs)
+            if self._is_history_epoch(epoch)
+        ]
+
     def has_trainable_parameters(self) -> bool:
         return any(parameter.requires_grad for parameter in self.parameters())
 
@@ -469,41 +425,30 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if start_epoch >= target_epochs:
             return self._training_history
 
-        self._initialize_tensorboard_writer()
+        epoch_iterator = range(start_epoch, target_epochs)
+        if self._config.train__enable_progress_bar:
+            epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
-        try:
-            epoch_iterator = range(start_epoch, target_epochs)
-            if self._config.train__enable_progress_bar:
-                epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
+        # Training with binning context
+        with self.binning_context(data.unified_data):
+            for epoch in epoch_iterator:
+                epoch_last_predictions = self._train_step(
+                    optimizer=optimizer,
+                    data=data_tensor,
+                    weights=weights_tensor,
+                    region_mask=region_mask_tensor,
+                )
 
-            # Training with binning context
-            with self.binning_context(data.unified_data):
-                for epoch in epoch_iterator:
-                    epoch_last_predictions = self._train_step(
+                if self._is_history_epoch(epoch):
+                    self._log(epoch, epoch_last_predictions)
+                    save_training_checkpoint(
+                        context=self._context,
+                        model_name=self._name,
+                        model=self,
                         optimizer=optimizer,
-                        data=data_tensor,
-                        weights=weights_tensor,
-                        region_mask=region_mask_tensor,
+                        epoch=epoch,
+                        training_history=self._training_history,
                     )
-
-                    if (
-                        (epoch + 1)
-                        % self._config.train__number_of_epochs_for_checkpoint
-                        == 0
-                        or epoch == target_epochs - 1
-                    ):
-                        self._log(epoch, epoch_last_predictions)
-                        self._log_tensorboard(epoch, epoch_last_predictions)
-                        save_training_checkpoint(
-                            context=self._context,
-                            model_name=self._name,
-                            model=self,
-                            optimizer=optimizer,
-                            epoch=epoch,
-                            training_history=self._training_history,
-                        )
-        finally:
-            self._close_tensorboard_writer()
 
         # Collect history from training
         return self._training_history
@@ -527,7 +472,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     )
                 )
 
-        return {HistoryKeys.LOSS.value: [float(loss.detach().cpu())]}
+        epochs = self._history_epochs()
+        loss_value = float(loss.detach().cpu())
+        return {
+            HistoryKeys.LOSS.value: [loss_value] * len(epochs),
+            HistoryKeys.EPOCH.value: epochs,
+        }
 
     def _predict_ndf(
         self,
@@ -573,7 +523,7 @@ def calc_min_LFVNN(
     detector_effect: DetectorEffect,
     is_numerator: bool,
     name: str,
-) -> Tuple[ContextedModel, float]:
+) -> Tuple[ContextedModel, float, Dict[str, List[float]]]:
     loss_weights = _calculate_loss_weights(data)
 
     model = DifferentiatingModel(
@@ -603,10 +553,6 @@ def calc_min_LFVNN(
     final_loss = model_history[HistoryKeys.LOSS.value][-1]
     info(f"Minimum weighted loss achieved: {final_loss:.6f}")
 
-    save_training_outcomes(
-        context,
-        model_history=model_history,
-        tau_model=model,
-    )
+    save_model_parameters_outcome(context, model)
 
-    return model, final_loss
+    return model, final_loss, model_history

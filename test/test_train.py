@@ -1,10 +1,13 @@
 from pathlib import Path
+
 import pytest
 import torch
-from neural_networks.differentiating_model import DifferentiatingModel
+
+from frame.file_system.training_history import HistoryKeys
 from test.environment import ConfigType
 from train.checkpoints import _torch_load, checkpoint_filename
 from train.model_trainer import SequentialTrainLauncher
+from train.tensorboard_clutch import log_t_history
 
 
 def _train_numerator(function_execution_context, data_batch, detector_effect, name):
@@ -77,51 +80,26 @@ def test_learning(
     assert t_a_loss != 0
 
 
-@pytest.mark.parametrize(
-    "function_execution_context",
-    [
-        {
-            ConfigType.DATASET.value: Path(
-                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
-            ),
-            ConfigType.DETECTOR.value: Path(
-                "test/configs/detector/basic_1D_detector_config.json"
-            ),
-            ConfigType.TRAIN.value: Path(
-                "test/configs/train/short_1D_train_config_with_nuisance.json"
-            ),
-        }
-    ],
-    indirect=True,
-)
-def test_differentiating_model_logs_parameters_to_tensorboard(
-    function_execution_context,
-    detector_effect,
-):
-    model = DifferentiatingModel(
-        context=function_execution_context,
-        detector_effect=detector_effect,
-        is_numerator=True,
-        name="test_model",
-    )
+def test_t_history_is_logged_to_tensorboard():
     recorder = _TensorboardRecorder()
-    model._tensorboard_writer = recorder
+    history = {
+        HistoryKeys.EPOCH.value: [7, 9],
+        HistoryKeys.NUMERATOR.value: [1.5, 1.25],
+        HistoryKeys.DENOMINATOR.value: [2.0, 1.75],
+        HistoryKeys.T.value: [1.0, 1.0],
+    }
 
-    model._log(7, torch.tensor(1.5))
+    log_t_history(recorder, "A", history)
 
-    assert [tag for tag, _, _ in recorder.scalars] == ["loss"]
+    assert recorder.scalars == [
+        ("A/numerator", 1.5, 7),
+        ("A/numerator", 1.25, 9),
+        ("A/denominator", 2.0, 7),
+        ("A/denominator", 1.75, 9),
+        ("A/t", 1.0, 7),
+        ("A/t", 1.0, 9),
+    ]
     assert recorder.histograms == []
-
-    model._log(9, torch.tensor(1.25))
-
-    scalar_tags = [tag for tag, _, _ in recorder.scalars]
-    histogram_tags = [tag for tag, _, _ in recorder.histograms]
-
-    assert scalar_tags == ["loss", "loss"]
-    assert any(tag.startswith("parameters/f_network/") for tag in histogram_tags)
-    assert any(tag.startswith("parameters/g_network/") for tag in histogram_tags)
-    assert any(tag.startswith("parameters/eta/nuisance_") for tag in histogram_tags)
-    assert all(global_step == 9 for _, _, global_step in recorder.histograms)
 
 
 @pytest.mark.parametrize(

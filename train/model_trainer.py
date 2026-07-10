@@ -27,6 +27,7 @@ class TrainLauncher:
         name: Optional[str] = None
         result: Optional[float] = None
         model: Optional[ContextedModel] = None
+        history: Optional[dict[str, Any]] = None
 
     def __init__(self, context: ExecutionContext, detector_effect: DetectorEffect):
         self._context = context
@@ -114,13 +115,14 @@ class TrainLauncher:
                 f"NPLM_train_for_{model_name}",
             )
         else:
-            model, final_val = calc_min_LFVNN(
+            model, final_val, history = calc_min_LFVNN(
                 context=self._context,
                 data=training.data_batch,
                 detector_effect=self._detector_effect,
                 is_numerator=training.is_numerator,
                 name=model_name,
             )
+            training.history = history
 
         training.model = model
         training.result = final_val
@@ -138,6 +140,7 @@ class SequentialTrainLauncher(TrainLauncher):
                 checkpoint
             ):
                 training.result = self._checkpoint_result(checkpoint)
+                training.history = checkpoint["training_history"]
                 info(
                     f"Skipping completed training {self._training_model_name(training)}."
                 )

@@ -1,19 +1,17 @@
+import os
+from abc import abstractmethod
+from pathlib import Path
+from typing import Any, Dict, Protocol
+
 import numpy as np
 
 from data_tools.data_utils import DataSet
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
-    TENSORBOARD_LOG_DIR_NAME,
     WEIGHTS_OUTPUT_FILE_NAME,
 )
 from train.train_config import TrainConfig
-
-
-import os
-from abc import abstractmethod
-from typing import Any, Dict, Protocol
-from pathlib import Path
 
 
 class ContextedModel(Protocol):
@@ -46,9 +44,18 @@ def save_training_outcomes(
     tau_model: ContextedModel,
 ) -> None:
     save_training_history_outcome(context, model_history, tau_model._name)
-    model_output_dir = get_model_logging_dir(context, tau_model._name)
+    save_model_parameters_outcome(context, tau_model)
+
+
+def save_model_parameters_outcome(
+    context: ExecutionContext,
+    model: ContextedModel,
+) -> None:
+    """Persist model parameters without exposing an intermediate loss history."""
+    model_output_dir = get_model_logging_dir(context, model._name)
+    model_output_dir.mkdir(parents=True, exist_ok=True)
     context.save_and_document_model_parameters(
-        tau_model, model_output_dir / f"{tau_model._name}_{WEIGHTS_OUTPUT_FILE_NAME}"
+        model, model_output_dir / f"{model._name}_{WEIGHTS_OUTPUT_FILE_NAME}"
     )
 
 

@@ -1,15 +1,21 @@
+import numpy as np
+
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.dataset_config import DatasetConfig
+from data_tools.profile_likelihood import calc_t
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
+from frame.file_system.training_history import HistoryKeys
+from neural_networks.utils import save_training_history_outcome
 from train.model_trainer import (
     SequentialTrainLauncher,
     TrainLauncher,
 )
 from train.train_config import TrainConfig
+from train.tensorboard_clutch import log_t_history_to_tensorboard
 from train.training_names import (
     SAMPLE_A_NAME,
     SAMPLE_B_NAME,
@@ -95,23 +101,39 @@ def train_for_t(
     numerator_training = train_launcher.get_training(numerator_train_idx)
     denominator_training = train_launcher.get_training(denominator_train_idx)
 
+    if numerator_training.history is None or denominator_training.history is None:
+        # NPLM does not expose the paired minimization histories used here.
+        final_t = float(
+            calc_t(
+                numerator=numerator_training.result,
+                denominator=denominator_training.result,
+            )
+        )
+    else:
+        numerator = np.asarray(numerator_training.history[HistoryKeys.LOSS.value])
+        denominator = np.asarray(denominator_training.history[HistoryKeys.LOSS.value])
+        t_history = {
+            HistoryKeys.EPOCH.value: numerator_training.history[
+                HistoryKeys.EPOCH.value
+            ],
+            HistoryKeys.NUMERATOR.value: numerator,
+            HistoryKeys.DENOMINATOR.value: denominator,
+            HistoryKeys.T.value: calc_t(numerator, denominator),
+        }
+        save_training_history_outcome(
+            context=context,
+            model_history=t_history,
+            model_name=name,
+        )
+        log_t_history_to_tensorboard(context, name, t_history)
+        final_t = float(t_history[HistoryKeys.T.value][-1])
+
     plot_training_prediction(
         context=context,
         numerator_training=numerator_training,
         denominator_training=denominator_training,
     )
-
-    return calc_t(
-        numerator=numerator_training.result,
-        denominator=denominator_training.result,
-    )
-
-
-def calc_t(numerator: float, denominator: float) -> float:
-    """
-    Calculate the t value from the numerator and denominator.
-    """
-    return -2 * numerator + 2 * denominator
+    return final_t
 
 
 def plot_training_prediction(
@@ -131,9 +153,7 @@ def plot_training_prediction(
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
     ].name
-    model_name = numerator_training.name or training_name(
-        base_name, is_numerator=True
-    )
+    model_name = numerator_training.name or training_name(base_name, is_numerator=True)
 
     data_process_plot = plot_prediction_process_sliced(
         context=context,

@@ -1,6 +1,7 @@
 from glob import glob
 from logging import warning
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,10 +10,9 @@ from data_tools.dataset_config import DatasetConfig, DatasetParameters
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_t_test_statistic,
 )
 from frame.context.execution_context import ExecutionContext
-from frame.context.execution_products import products_from_stem, unstamp_product_stem
+from frame.context.execution_products import unstamp_product_stem
 from frame.file_structure import (
     RESULTING_T_FILE_STEM,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
@@ -57,6 +57,7 @@ class ResultAggregator:
 
         # Exhibits retrieved
         self._test_statistics = None
+        self._history_values = None
         self._epochs = None
         self._run_contexts = None
 
@@ -95,37 +96,59 @@ class ResultAggregator:
         if not all_history_files:
             raise ValueError("No history files found")
         
-        # Load history files
-        all_loaded_histories = {history_file: load_training_history(Path(history_file)) for history_file in all_history_files}
-        
-        # Epochs should be aligned in all files. If you get a 1D array here, they're not of the same length.
-        all_epochs = np.array([history[HistoryKeys.EPOCH.value] for history in all_loaded_histories.values()])
-        assert all_epochs.ndim == 2, "Epochs arrays are not of the same length"
-        for col in range(all_epochs.shape[1]):
-            if not (m := np.maximum.reduce(all_epochs[:, col], initial=0)) == np.minimum.reduce(all_epochs[:, col], initial=m):
-                raise ValueError("Epochs are not the same for all files")
-        epochs = all_epochs[0]
+        required_value_keys = (
+            HistoryKeys.NUMERATOR.value,
+            HistoryKeys.DENOMINATOR.value,
+            HistoryKeys.T.value,
+        )
+        loaded = []
+        for history_file in all_history_files:
+            history = load_training_history(Path(history_file))
+            missing_keys = {
+                HistoryKeys.EPOCH.value,
+                *required_value_keys,
+            } - history.keys()
+            if missing_keys:
+                raise ValueError(
+                    f"History {history_file} is not a paired t history; "
+                    f"missing {sorted(missing_keys)}"
+                )
+            sample_name = Path(unstamp_product_stem(Path(history_file))).stem
+            run_output = str(Path(history_file).parent.parent)
+            loaded.append((run_output, sample_name, history_file, history))
 
-        # We assume each run generates each type of test statistic, and that they all should be summed to get a single value
-        unique_history_file_stems = np.unique([unstamp_product_stem(Path(history_file)) for history_file in all_history_files])
-        unique_runs_output_dirs = np.unique([str(Path(history_file).parent.parent) for history_file in all_history_files])
+        epochs = np.asarray(loaded[0][3][HistoryKeys.EPOCH.value])
+        for _, _, history_file, history in loaded[1:]:
+            if not np.array_equal(epochs, history[HistoryKeys.EPOCH.value]):
+                raise ValueError(f"Epochs in {history_file} are not aligned.")
 
-        # We assume that we need to sum two types of test statistics for every single value, each with different name
-        all_model_t_test_statistics = np.zeros(shape=(len(unique_runs_output_dirs), len(epochs)))
-        for run_index, run_output in enumerate(unique_runs_output_dirs):
-            for history_file_stem in unique_history_file_stems:    
-                history_files = [f for f in products_from_stem(history_file_stem, Path(run_output)) if str(f) in all_history_files]
-                
-                if len(history_files) > 1:
-                    raise ValueError(f"Found multiple history files for stem {history_file_stem} in directory {run_output}")
-                if len(history_files) == 0:
-                    warning(f"Found dir with no history for stem {history_file_stem}: {run_output}")
-                    continue
-                
-                history_file = all_loaded_histories[str(history_files[0])]
-                all_model_t_test_statistics[run_index, :] += np.array(calc_t_test_statistic(history_file[HistoryKeys.LOSS.value]))  # type: ignore
+        run_outputs = sorted({item[0] for item in loaded})
+        sample_names = sorted({item[1] for item in loaded})
+        history_values = {
+            sample_name: {
+                key: np.full((len(run_outputs), len(epochs)), np.nan)
+                for key in required_value_keys
+            }
+            for sample_name in sample_names
+        }
 
-        self._test_statistics = all_model_t_test_statistics
+        seen = set()
+        for run_output, sample_name, _, history in loaded:
+            identity = (run_output, sample_name)
+            if identity in seen:
+                raise ValueError(
+                    f"Found multiple {sample_name} histories in {run_output}."
+                )
+            seen.add(identity)
+            run_index = run_outputs.index(run_output)
+            for key in required_value_keys:
+                history_values[sample_name][key][run_index] = history[key]
+
+        self._history_values = history_values
+        self._test_statistics = np.sum(
+            [values[HistoryKeys.T.value] for values in history_values.values()],
+            axis=0,
+        )
         self._epochs = epochs
 
     @property
@@ -133,6 +156,13 @@ class ResultAggregator:
         if self._test_statistics is None:
             self._load_test_statistics()
         return self._test_statistics
+
+    @property
+    def all_history_values(self) -> dict[str, dict[str, NDArray[np.float64]]]:
+        """Numerator, denominator, and t histories grouped by sample name."""
+        if self._history_values is None:
+            self._load_test_statistics()
+        return self._history_values
 
     @property
     def all_epochs(self) -> NDArray[np.int64]:

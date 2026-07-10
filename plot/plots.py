@@ -15,7 +15,6 @@ from data_tools.dataset_config import (
     GeneratedDatasetParameters,
 )
 from data_tools.detector.detector_config import DetectorConfig
-from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
@@ -25,6 +24,7 @@ from data_tools.profile_likelihood import (
 from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME
+from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import (
     ContextedModel,
     prediction_to_sample_ndf_hypothesis_weights,
@@ -33,10 +33,15 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
-    utils__contour_model_prediction,
+    utils__add_subplot_sliced,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
-    utils__samples_over_background_histograms_sliced,
+    utils__model_prediction_values,
+    utils__plot_model_predictions_sliced,
+    utils__plot_region_histograms_sliced,
+    utils__plot_weighted_histogram_predictions_sliced,
+    utils__project_prediction_values_sliced,
+    utils__synchronize_output_axis_limits,
 )
 from plot.plotting_config import PlottingConfig
 from train.model_trainer import TrainLauncher
@@ -57,12 +62,8 @@ def t_train_percentile_progression_plot(
     context: ExecutionContext,
 ):
     """
-    The funcion creates the plot of the evolution in the epochs of the [2.5%, 25%, 50%, 75%, 97.5%] quantiles of the toy sample distribution.
-    The percentile lines for the target chi2 distribution are shown as a reference.
-
-    patience:      (int) interval between two check points (epochs).
-    tvalues_check: (numpy array shape (N_toys, N_check_points)) array of t=-2*loss
-    df:            (int) chi2 degrees of freedom
+    Plot numerator, denominator, and derived-t percentile progression for each
+    sample over the toy runs.
     """
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(
@@ -71,64 +72,54 @@ def t_train_percentile_progression_plot(
 
     # Training results aggregation
     agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
-    all_model_t_test_statistics = agg.all_test_statistics
+    all_history_values = agg.all_history_values
     epochs = agg.all_epochs
 
     # Framing
     c = Carpenter(context)
     fig = c.figure()
-    ax = fig.add_subplot(111)
+    sample_names = sorted(all_history_values)
+    axes = fig.subplots(len(sample_names), 3, squeeze=False, sharex=True)
 
-    # Drawing
-    legend = []
     quantiles = [2.5, 25, 50, 75, 97.5]
-    percentiles = np.apply_along_axis(
-        lambda x: np.nanpercentile(x, quantiles), 0, all_model_t_test_statistics
-    )
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
+    quantities = (
+        (HistoryKeys.NUMERATOR.value, "numerator minimization"),
+        (HistoryKeys.DENOMINATOR.value, "denominator minimization"),
+        (HistoryKeys.T.value, r"$t=-2\,N+2\,D$"),
+    )
 
-    # Training percentile progression
-    for j in range(percentiles.shape[0]):
-        plt.plot(epochs, percentiles[j, :], linewidth=3, color=colors[j])
-        legend.append(str(quantiles[j]) + "% quantile")
+    legend_handles = []
+    for row, sample_name in enumerate(sample_names):
+        for column, (history_key, title) in enumerate(quantities):
+            ax = axes[row, column]
+            values = all_history_values[sample_name][history_key]
+            percentiles = np.nanpercentile(values, quantiles, axis=0)
+            for quantile, percentile, color in zip(quantiles, percentiles, colors):
+                (line,) = ax.plot(
+                    epochs,
+                    percentile,
+                    linewidth=2,
+                    color=color,
+                    label=f"{quantile}% quantile",
+                )
+                if row == 0 and column == 0:
+                    legend_handles.append(line)
+            ax.set_title(f"{sample_name}: {title}")
+            ax.set_ylabel(history_key)
+            ax.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
+            if row == len(sample_names) - 1:
+                ax.set_xlabel("Training epochs")
 
-    # chi2 reference
-    for j in range(percentiles.shape[0]):
-        plt.plot(
-            epochs,
-            chi2.ppf(
-                quantiles[j] / 100.0,
-                df=model_degrees_of_freedom(config),
-                loc=0,
-                scale=1,
-            )
-            * np.ones_like(epochs),
-            color=colors[j],
-            ls="--",
-            linewidth=1,
-        )
-        if j == 0:
-            legend.append(
-                "Target " + r"$\chi^2($" + str(model_degrees_of_freedom(config)) + ")"
-            )
-
-    # Labeling
-    plt.title(r"$\chi^2$ percentile progression", fontsize=24)
-
-    if np.any(np.isnan(all_model_t_test_statistics)):
-        legend.append(
-            f"Nan percent: {np.count_nonzero(np.isnan(all_model_t_test_statistics)) / all_model_t_test_statistics.size * 100:.2f}"
-        )
-    plt.legend(legend, frameon=False, markerscale=0)
-
-    plt.xlabel("Training Epochs", fontsize=22)
-    plt.ylabel("t", fontsize=22)
-    plt.xlim(0, np.max(epochs))
-    plt.ylim(0, np.nanmax(percentiles))
-    plt.yticks(fontsize=20)
-    plt.xticks(fontsize=20)
-    plt.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
-    ax.xaxis.get_offset_text().set_fontsize(18)
+    fig.suptitle("Training percentile progression", fontsize=24)
+    fig.legend(
+        handles=legend_handles,
+        labels=[handle.get_label() for handle in legend_handles],
+        frameon=False,
+        loc="upper center",
+        ncol=len(quantiles),
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
 
     return fig
 
@@ -166,7 +157,7 @@ def t_distribution_plot(
 
     # Convergence statistics
     fifth_percentile = np.percentile(t, 5)
-    critical_mass_t = t > fifth_percentile
+    critical_mass_t = t >= fifth_percentile
     distribution_std = np.std(t[critical_mass_t])
     distribution_mean = np.mean(t[critical_mass_t])
     n_std = 6
@@ -177,12 +168,14 @@ def t_distribution_plot(
     # Limits
     chi2_begin = 0
     chi2_end = chi2.ppf(0.9999, chi2_dof := model_degrees_of_freedom(config))
-    xmin = min(t)
-    xmax = max(t)
+    xmin = min(0.0, float(np.min(t)))
+    xmax = max(0.0, float(np.max(t)))
+    if xmin == xmax:
+        xmax = xmin + max(1.0, abs(xmin) * 0.1)
 
     # plot distribution histogram
-    histogram_bins = np.linspace(0, xmax, number_of_bins + 1)
-    histogram_bin_width = (xmax - xmin) * 1.0 / number_of_bins
+    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
+    histogram_bin_width = (xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
         f"median: {str(np.around(np.median(t), 2))} \n"
@@ -196,7 +189,7 @@ def t_distribution_plot(
 
     h, _, _ = ax.hist(
         t,
-        weights=np.ones_like(t) * (number_of_bins / ((xmax - xmin) * t.shape[0])),
+        weights=np.full(t.shape, 1.0 / (t.size * histogram_bin_width)),
         color=style["histogram_color"],
         ec=style["edge_color"],
         bins=histogram_bins,
@@ -248,8 +241,8 @@ def t_distribution_plot(
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel("t", fontsize=22, labelpad=20)
     ax.set_ylabel("Bin Probability", fontsize=22, labelpad=20)
-    ax.set_ylim(0, top=max(h + y_error))
-    ax.set_xlim(0, xmax)
+    ax.set_ylim(0, top=float(np.max(h + y_error)) * 1.05)
+    ax.set_xlim(xmin, xmax)
     plt.yticks()
     plt.xticks()
 
@@ -744,9 +737,8 @@ def plot_prediction_process_sliced(
         "background": "gray",
         "f": "tab:blue",
         "g": "tab:orange",
-        "eta": "darkviolet",
-        "eta_plus": "mediumpurple",
-        "eta_minus": "plum",
+        "eta_plus": "cornflowerblue",
+        "eta_minus": "sandybrown",
     }
     prediction_linestyles = {
         "component": "-",
@@ -771,83 +763,41 @@ def plot_prediction_process_sliced(
         observable_names=configured_observables,
     )
 
-    def add_panel(position: int) -> plt.Axes:
-        if ndim == 1:
-            return fig.add_subplot(2, 2, position)
-        panel = fig.add_subplot(2, 2, position, projection="3d")
-        panel.view_init(elev=28, azim=-58)
-        panel.set_box_aspect((1.2, 1.2, 0.9))
-        return panel
+    sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
+    cr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 2), ndim)
+    sr_prediction_ax = utils__add_subplot_sliced(fig, (2, 2, 3), ndim)
+    cr_prediction_ax = utils__add_subplot_sliced(fig, (2, 2, 4), ndim)
 
-    sr_distribution_ax = add_panel(1)
-    cr_distribution_ax = add_panel(2)
-    sr_prediction_ax = add_panel(3)
-    cr_prediction_ax = add_panel(4)
+    utils__plot_region_histograms_sliced(
+        ax=sr_distribution_ax,
+        sample_a=a_sr,
+        sample_b=b_sr,
+        background=sr_background,
+        bins=bins,
+        along_observables=selected_observables,
+        region_name="SR",
+        background_color=plot_colors["background"],
+        sample_a_color=plot_colors["f"],
+        sample_b_color=plot_colors["g"],
+    )
+    utils__plot_region_histograms_sliced(
+        ax=cr_distribution_ax,
+        sample_a=a_cr,
+        sample_b=b_cr,
+        background=cr_background,
+        bins=bins,
+        along_observables=selected_observables,
+        region_name="CR",
+        background_color=plot_colors["background"],
+        sample_a_color=plot_colors["f"],
+        sample_b_color=plot_colors["g"],
+    )
 
-    def set_observable_axes(panel: plt.Axes, output_label: str) -> None:
-        if ndim == 1:
-            panel.set_xlim(bins[0], bins[-1])
-            panel.set_xlabel(selected_observables[0])
-            panel.set_ylabel(output_label)
-            return
-        panel.set_xlim(bins[0][0], bins[0][-1])
-        panel.set_ylim(bins[1][0], bins[1][-1])
-        panel.set_xlabel(selected_observables[0])
-        panel.set_ylabel(selected_observables[1])
-        panel.set_zlabel(output_label)
-
-    def draw_region_distribution(
-        panel: plt.Axes,
-        sample_a: DataSet,
-        sample_b: DataSet,
-        background: DataSet,
-        region_name: str,
-    ) -> None:
-        distribution_specs = (
-            (
-                background,
-                f"A-{region_name} + B-{region_name} (background)",
-                plot_colors["background"],
-                "stepfilled",
-                0.28,
-                1.0,
-            ),
-            (sample_a, f"A-{region_name}", plot_colors["f"], "step", 1.0, 1.8),
-            (sample_b, f"B-{region_name}", plot_colors["g"], "step", 1.0, 1.8),
-        )
-        for dataset, label, color, histtype, alpha, linewidth in distribution_specs:
-            utils__datset_histogram_sliced(
-                ax=panel,
-                bins=bins,
-                dataset=dataset,
-                along_observables=selected_observables,
-                label=label,
-                color=color,
-                histtype=histtype,
-                alpha=alpha,
-                lw=linewidth,
-            )
-        if ndim == 2:
-            panel.set_zlim(0.1, max(1.0, panel.get_zlim()[1]))
-            panel.set_zscale("log")
-            panel.zaxis.set_major_locator(ticker.LogLocator(base=10, numticks=4))
-            panel.zaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10))
-        set_observable_axes(panel, "number of events")
-        panel.set_title(f"{region_name} distributions")
-
-    draw_region_distribution(sr_distribution_ax, a_sr, b_sr, sr_background, "SR")
-    draw_region_distribution(cr_distribution_ax, a_cr, b_cr, cr_background, "CR")
-
-    def prediction_values(
-        model: ContextedModel,
-        method_name: str,
-        dataset: DataSet,
-    ) -> np.ndarray:
-        return utils__flatten_histogram_values(getattr(model, method_name)(dataset))
-
-    sr_f = prediction_values(numerator_model, "predict", sr_background)
-    sr_g = prediction_values(numerator_model, "predict_secondary", sr_background)
-    sr_eta = prediction_values(numerator_model, "predict_eta", sr_background)
+    sr_f = utils__model_prediction_values(numerator_model.predict, sr_background)
+    sr_g = utils__model_prediction_values(
+        numerator_model.predict_secondary, sr_background
+    )
+    sr_eta = utils__model_prediction_values(numerator_model.predict_eta, sr_background)
     sr_product_predictions = (
         (
             sr_f * (1.0 + sr_eta),
@@ -862,87 +812,47 @@ def plot_prediction_process_sliced(
             "s",
         ),
     )
-    sr_background_data = np.asarray(
-        sr_background.slice_along_observable_names(selected_observables)
-    ).reshape(sr_background.n_samples, ndim)
-
-    if ndim == 2:
-        prediction_xx, prediction_yy = np.meshgrid(
-            bin_centers[0], bin_centers[1], indexing="ij"
+    weighted_sr_product_predictions = [
+        (
+            prediction_to_sample_ndf_hypothesis_weights(
+                model_prediction=prediction,
+                predicted_distribution_corrected_size=(
+                    sr_background.corrected_n_samples
+                ),
+                reference_ndf_estimation=sr_background,
+            ),
+            label,
+            color,
+            marker,
         )
-    for prediction, label, color, marker in sr_product_predictions:
-        hypothesis_weights = prediction_to_sample_ndf_hypothesis_weights(
-            model_prediction=prediction,
-            predicted_distribution_corrected_size=sr_background.corrected_n_samples,
-            reference_ndf_estimation=sr_background,
-        )
-        flattened_weights = utils__flatten_histogram_values(hypothesis_weights)
-        if ndim == 1:
-            predicted_counts, _ = np.histogram(
-                sr_background_data[:, 0],
-                bins=bins,
-                weights=flattened_weights,
-            )
-            sr_distribution_ax.scatter(
-                bin_centers,
-                predicted_counts,
-                label=label,
-                color=color,
-                marker=marker,
-                s=28,
-                edgecolor="black",
-                linewidth=0.5,
-            )
-        else:
-            predicted_counts, _, _ = np.histogram2d(
-                sr_background_data[:, 0],
-                sr_background_data[:, 1],
-                bins=bins,
-                weights=flattened_weights,
-            )
-            positive_counts = predicted_counts.ravel() > 0
-            sr_distribution_ax.scatter(
-                prediction_xx.ravel()[positive_counts],
-                prediction_yy.ravel()[positive_counts],
-                predicted_counts.ravel()[positive_counts],
-                label=label,
-                color=color,
-                marker=marker,
-                s=22,
-                edgecolor="black",
-                linewidth=0.4,
-            )
+        for prediction, label, color, marker in sr_product_predictions
+    ]
+    utils__plot_weighted_histogram_predictions_sliced(
+        ax=sr_distribution_ax,
+        reference_dataset=sr_background,
+        predictions=weighted_sr_product_predictions,
+        bins=bins,
+        bin_centers=bin_centers,
+        along_observables=selected_observables,
+    )
 
     distribution_axes = (sr_distribution_ax, cr_distribution_ax)
-    if ndim == 1:
-        shared_distribution_limits = (
-            min(panel.get_ylim()[0] for panel in distribution_axes),
-            max(panel.get_ylim()[1] for panel in distribution_axes),
-        )
-        for panel in distribution_axes:
-            panel.set_ylim(shared_distribution_limits)
-    else:
-        shared_distribution_limits = (
-            min(panel.get_zlim()[0] for panel in distribution_axes),
-            max(panel.get_zlim()[1] for panel in distribution_axes),
-        )
-        for panel in distribution_axes:
-            panel.set_zlim(shared_distribution_limits)
+    utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
 
     for panel in distribution_axes:
         panel.legend(fontsize=8)
 
-    spanning_f = prediction_values(
-        numerator_model, "predict", contour_spanning_dataset
+    spanning_f = utils__model_prediction_values(
+        numerator_model.predict, contour_spanning_dataset
     )
-    spanning_g = prediction_values(
-        numerator_model, "predict_secondary", contour_spanning_dataset
+    spanning_g = utils__model_prediction_values(
+        numerator_model.predict_secondary, contour_spanning_dataset
     )
-    numerator_eta = prediction_values(
-        numerator_model, "predict_eta", contour_spanning_dataset
+    numerator_eta = utils__model_prediction_values(
+        numerator_model.predict_eta, contour_spanning_dataset
     )
-    denominator_eta = prediction_values(
-        denominator_model, "predict_eta", contour_spanning_dataset
+    denominator_eta = utils__model_prediction_values(
+        denominator_model.predict_eta, contour_spanning_dataset
     )
 
     prediction_specs = {
@@ -956,12 +866,6 @@ def plot_prediction_process_sliced(
             r"numerator $g(x)$",
             spanning_g,
             plot_colors["g"],
-            prediction_linestyles["component"],
-        ),
-        "numerator_eta": (
-            r"numerator $\eta(x)$",
-            numerator_eta,
-            plot_colors["eta"],
             prediction_linestyles["component"],
         ),
         "numerator_eta_plus": (
@@ -988,12 +892,6 @@ def plot_prediction_process_sliced(
             plot_colors["g"],
             prediction_linestyles["product"],
         ),
-        "denominator_eta": (
-            r"denominator $\eta(x)$",
-            denominator_eta,
-            plot_colors["eta"],
-            prediction_linestyles["denominator"],
-        ),
         "denominator_eta_plus": (
             r"denominator $1+\eta(x)$",
             1.0 + denominator_eta,
@@ -1009,24 +907,18 @@ def plot_prediction_process_sliced(
     }
     sr_prediction_keys = tuple(prediction_specs)
     cr_prediction_keys = (
-        "numerator_eta",
         "numerator_eta_plus",
         "numerator_eta_minus",
-        "denominator_eta",
         "denominator_eta_plus",
         "denominator_eta_minus",
     )
 
-    def project_prediction(values: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        return utils__contour_model_prediction(
-            prediction_function=lambda _: values,
+    projected_predictions = {
+        key: utils__project_prediction_values_sliced(
+            values=specification[1],
             spanning_dataset=contour_spanning_dataset,
             along_observables=selected_observables,
-            prediction_transform=np.asarray,
         )
-
-    projected_predictions = {
-        key: project_prediction(specification[1])
         for key, specification in prediction_specs.items()
     }
     finite_prediction_chunks = []
@@ -1036,7 +928,7 @@ def plot_prediction_process_sliced(
             flattened_contour[np.isfinite(flattened_contour)]
         )
     finite_prediction_values = np.concatenate(finite_prediction_chunks)
-    prediction_minimum = min(0.0, float(np.min(finite_prediction_values)))
+    prediction_minimum = min(1.0, float(np.min(finite_prediction_values)))
     prediction_maximum = max(1.0, float(np.max(finite_prediction_values)))
     prediction_span = prediction_maximum - prediction_minimum
     prediction_padding = 0.05 * prediction_span if prediction_span > 0 else 0.5
@@ -1045,71 +937,34 @@ def plot_prediction_process_sliced(
         prediction_maximum + prediction_padding,
     )
 
-    def draw_prediction_panel(
-        panel: plt.Axes,
+    def projected_specs(
         prediction_keys: Tuple[str, ...],
-        region_name: str,
-    ) -> None:
-        first_coordinates, _ = projected_predictions[prediction_keys[0]]
-        if ndim == 1:
-            panel.axhline(0.0, color="gray", linestyle=":", linewidth=1, alpha=0.6)
-            panel.axhline(1.0, color="gray", linestyle=":", linewidth=1, alpha=0.6)
-            for prediction_key in prediction_keys:
-                label, _, color, linestyle = prediction_specs[prediction_key]
-                coordinates, contour = projected_predictions[prediction_key]
-                panel.plot(
-                    utils__flatten_histogram_values(coordinates),
-                    utils__flatten_histogram_values(contour),
-                    label=label,
-                    color=color,
-                    linestyle=linestyle,
-                    linewidth=1.8,
-                )
-            panel.set_ylim(prediction_limits)
-        else:
-            x_values = np.unique(first_coordinates[:, 0])
-            y_values = np.unique(first_coordinates[:, 1])
-            prediction_xx, prediction_yy = np.meshgrid(
-                x_values, y_values, indexing="ij"
+    ) -> List[Tuple[np.ndarray, np.ndarray, str, str, str]]:
+        return [
+            (
+                *projected_predictions[prediction_key],
+                prediction_specs[prediction_key][0],
+                prediction_specs[prediction_key][2],
+                prediction_specs[prediction_key][3],
             )
-            for reference_value in (0.0, 1.0):
-                panel.plot_surface(
-                    prediction_xx,
-                    prediction_yy,
-                    np.full_like(prediction_xx, reference_value),
-                    color="gray",
-                    linewidth=0,
-                    alpha=0.06,
-                    shade=False,
-                )
-            for prediction_key in prediction_keys:
-                label, _, color, linestyle = prediction_specs[prediction_key]
-                coordinates, contour = projected_predictions[prediction_key]
-                x_values = np.unique(coordinates[:, 0])
-                y_values = np.unique(coordinates[:, 1])
-                prediction_xx, prediction_yy = np.meshgrid(
-                    x_values, y_values, indexing="ij"
-                )
-                contour_grid = np.asarray(contour).reshape(
-                    len(x_values), len(y_values)
-                )
-                panel.plot_wireframe(
-                    prediction_xx,
-                    prediction_yy,
-                    contour_grid,
-                    color=color,
-                    linestyle=linestyle,
-                    linewidth=0.8,
-                    alpha=0.9,
-                )
-                panel.plot([], [], [], label=label, color=color, linestyle=linestyle)
-            panel.set_zlim(prediction_limits)
+            for prediction_key in prediction_keys
+        ]
 
-        set_observable_axes(panel, "model prediction")
-        panel.set_title(f"{region_name} predictions")
-        panel.legend(fontsize=7)
-
-    draw_prediction_panel(sr_prediction_ax, sr_prediction_keys, "SR")
-    draw_prediction_panel(cr_prediction_ax, cr_prediction_keys, "CR")
+    utils__plot_model_predictions_sliced(
+        ax=sr_prediction_ax,
+        predictions=projected_specs(sr_prediction_keys),
+        bins=bins,
+        along_observables=selected_observables,
+        prediction_limits=prediction_limits,
+        title="SR predictions",
+    )
+    utils__plot_model_predictions_sliced(
+        ax=cr_prediction_ax,
+        predictions=projected_specs(cr_prediction_keys),
+        bins=bins,
+        along_observables=selected_observables,
+        prediction_limits=prediction_limits,
+        title="CR predictions",
+    )
 
     return fig
