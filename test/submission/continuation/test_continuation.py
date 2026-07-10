@@ -16,7 +16,9 @@ from frame.file_structure import (
 from frame.file_system.textual_data import load_config_file
 from test.environment import DEFAULT_CONFIG_PATHS
 from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
-from train.submit_train import _replace_or_append_continue_from
+from train.submit_train import (
+    _replace_or_append_continue_from,
+)
 
 
 def _cluster_config(walltime: str, walltime_limit: str = "72:00:00") -> ClusterConfig:

@@ -47,6 +47,13 @@ def _replace_or_append_continue_from(
     return updated_args
 
 
+def _arguments_for_plotting_training_outputs(args: list[str]) -> list[str]:
+    """Target the output directory mounted for this submitted training batch."""
+    if "--plot-in-place" in args:
+        return args
+    return [*args, "--plot-in-place"]
+
+
 def _context_to_continue(context: ExecutionContext) -> ExecutionContext:
     if context.continue_from is not None:
         return ExecutionContext.load_from_run_dir(context.continue_from)
@@ -120,9 +127,12 @@ def submit_process(context: ExecutionContext) -> None:
 
     updated_args = [config_path_mapping.get(arg, arg) for arg in current_args]
 
-    # Add all the updated arguments
+    # Add the training arguments unchanged.
     for arg in updated_args:
         train_cmd += f" {arg}"
+
+    # Submitted plots always aggregate the outputs of this submitted batch.
+    for arg in _arguments_for_plotting_training_outputs(updated_args):
         plot_cmd += f" {arg}"
 
     # Submit the job to the cluster

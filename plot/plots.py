@@ -157,7 +157,7 @@ def t_distribution_plot(
 
     # Convergence statistics
     fifth_percentile = np.percentile(t, 5)
-    critical_mass_t = t > fifth_percentile
+    critical_mass_t = t >= fifth_percentile
     distribution_std = np.std(t[critical_mass_t])
     distribution_mean = np.mean(t[critical_mass_t])
     n_std = 6
@@ -168,12 +168,14 @@ def t_distribution_plot(
     # Limits
     chi2_begin = 0
     chi2_end = chi2.ppf(0.9999, chi2_dof := model_degrees_of_freedom(config))
-    xmin = min(t)
-    xmax = max(t)
+    xmin = min(0.0, float(np.min(t)))
+    xmax = max(0.0, float(np.max(t)))
+    if xmin == xmax:
+        xmax = xmin + max(1.0, abs(xmin) * 0.1)
 
     # plot distribution histogram
-    histogram_bins = np.linspace(0, xmax, number_of_bins + 1)
-    histogram_bin_width = (xmax - xmin) * 1.0 / number_of_bins
+    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
+    histogram_bin_width = (xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
         f"median: {str(np.around(np.median(t), 2))} \n"
@@ -187,7 +189,7 @@ def t_distribution_plot(
 
     h, _, _ = ax.hist(
         t,
-        weights=np.ones_like(t) * (number_of_bins / ((xmax - xmin) * t.shape[0])),
+        weights=np.full(t.shape, 1.0 / (t.size * histogram_bin_width)),
         color=style["histogram_color"],
         ec=style["edge_color"],
         bins=histogram_bins,
@@ -239,8 +241,8 @@ def t_distribution_plot(
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel("t", fontsize=22, labelpad=20)
     ax.set_ylabel("Bin Probability", fontsize=22, labelpad=20)
-    ax.set_ylim(0, top=max(h + y_error))
-    ax.set_xlim(0, xmax)
+    ax.set_ylim(0, top=float(np.max(h + y_error)) * 1.05)
+    ax.set_xlim(xmin, xmax)
     plt.yticks()
     plt.xticks()
 
