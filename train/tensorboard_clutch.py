@@ -11,6 +11,14 @@ def log_t_history_to_tensorboard(
     history: Mapping[str, Any],
 ) -> None:
     """Log the numerator, denominator, and derived t progress for one sample."""
+    import sys
+    print(sys.executable)
+
+    import tensorboard
+    print("TensorBoard:", tensorboard.__version__, tensorboard.__file__)
+
+    import torch
+    print("PyTorch:", torch.__version__)
     from torch.utils.tensorboard import SummaryWriter
 
     log_dir = context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME

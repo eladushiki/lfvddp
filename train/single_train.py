@@ -15,7 +15,7 @@ from train.model_trainer import (
     TrainLauncher,
 )
 from train.train_config import TrainConfig
-from train.tensorboard import log_t_history_to_tensorboard
+from train.tensorboard_clutch import log_t_history_to_tensorboard
 from train.training_names import (
     SAMPLE_A_NAME,
     SAMPLE_B_NAME,

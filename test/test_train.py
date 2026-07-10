@@ -7,7 +7,7 @@ from frame.file_system.training_history import HistoryKeys
 from test.environment import ConfigType
 from train.checkpoints import _torch_load, checkpoint_filename
 from train.model_trainer import SequentialTrainLauncher
-from train.tensorboard import log_t_history
+from train.tensorboard_clutch import log_t_history
 
 
 def _train_numerator(function_execution_context, data_batch, detector_effect, name):
