@@ -617,7 +617,7 @@ def utils__plot_region_histograms_sliced(
         along_observables=along_observables,
         output_label="number of events",
     )
-    ax.set_title(f"{region_name} distributions")
+    ax.set_title(f"{region_name} distributions (normalized)")
 
 
 def utils__plot_weighted_histogram_predictions_sliced(

@@ -819,55 +819,60 @@ def plot_prediction_process_sliced(
 
     prediction_specs = {
         "exp_f": (
-            r"numerator $e^{f(x)}$",
+            r"signal hypothesis $e^{f(x)}$",
             spanning_exp_f,
             plot_colors["f"],
             prediction_linestyles["component"],
         ),
         "exp_g": (
-            r"numerator $e^{g(x)}$",
+            r"signal hypothesis $e^{g(x)}$",
             spanning_exp_g,
             plot_colors["g"],
             prediction_linestyles["component"],
         ),
         "numerator_eta_plus": (
-            r"numerator $1+\eta(x)$",
+            r"signal hypothesis $1+\eta(x)$",
             1.0 + numerator_eta,
             plot_colors["eta_plus"],
             prediction_linestyles["component"],
         ),
         "numerator_eta_minus": (
-            r"numerator $1-\eta(x)$",
+            r"signal hypothesis $1-\eta(x)$",
             1.0 - numerator_eta,
             plot_colors["eta_minus"],
             prediction_linestyles["component"],
         ),
         "exp_f_eta_plus": (
-            r"numerator $e^{f(x)}(1+\eta(x))$",
+            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
             spanning_exp_f_eta_plus,
             plot_colors["f"],
             prediction_linestyles["product"],
         ),
         "exp_g_eta_minus": (
-            r"numerator $e^{g(x)}(1-\eta(x))$",
+            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
             spanning_exp_g_eta_minus,
             plot_colors["g"],
             prediction_linestyles["product"],
         ),
         "denominator_eta_plus": (
-            r"denominator $1+\eta(x)$",
+            r"null hypothesis $1+\eta(x)$",
             1.0 + denominator_eta,
             plot_colors["eta_plus"],
             prediction_linestyles["denominator"],
         ),
         "denominator_eta_minus": (
-            r"denominator $1-\eta(x)$",
+            r"null hypothesis $1-\eta(x)$",
             1.0 - denominator_eta,
             plot_colors["eta_minus"],
             prediction_linestyles["denominator"],
         ),
     }
-    sr_prediction_keys = tuple(prediction_specs)
+    sr_prediction_keys = (
+        "exp_f",
+        "exp_g",
+        "exp_f_eta_plus",
+        "exp_g_eta_minus",
+    )
     cr_prediction_keys = (
         "numerator_eta_plus",
         "numerator_eta_minus",
