@@ -111,19 +111,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if self._a_sr_mask is None or self._a_cr_mask is None:
             raise RuntimeError("Access to an uninitialized mask")
         return self._a_sr_mask | self._a_cr_mask
-    
+
     @property
     def _b_mask(self) -> torch.Tensor:
         if self._b_sr_mask is None or self._b_cr_mask is None:
             raise RuntimeError("Access to an uninitialized mask")
         return self._b_sr_mask | self._b_cr_mask
-    
+
     @property
     def _sr_mask(self) -> torch.Tensor:
         if self._a_sr_mask is None or self._b_sr_mask is None:
             raise RuntimeError("Access to an uninitialized mask")
         return self._a_sr_mask | self._b_sr_mask
-    
+
     @property
     def _cr_mask(self) -> torch.Tensor:
         if self._a_cr_mask is None or self._b_cr_mask is None:
@@ -272,17 +272,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         e_to_the_g_sr = torch.exp(g_of_x_sr_est)
         eta_minus_term_sr = (1 - eta_sr) * self._sr_mask
         sr_sum_term = (
-            N_A_SR * e_to_the_f_sr * eta_plus_term_sr \
+            N_A_SR * e_to_the_f_sr * eta_plus_term_sr
             + N_B_SR * e_to_the_g_sr * eta_minus_term_sr
         ) / N_SR
 
         # CR sum term
         eta_plus_term_cr = (1 + eta_of_x_cr) * self._cr_mask
         eta_minus_term_cr = (1 - eta_of_x_cr) * self._cr_mask
-        cr_sum_term = (
-            N_A_CR * eta_plus_term_cr \
-            + N_B_CR * eta_minus_term_cr
-        ) / N_CR
+        cr_sum_term = (N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr) / N_CR
 
         # eta log terms
         eta_plus_a_sum_term = torch.log(1 + eta_of_x_a)
@@ -314,13 +311,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         eta_of_x_est = self.eta(data).squeeze()
 
-        return (
-            self.ddp_minimization_loss(
-                f_of_x_sr_est=f_of_x_sr_est,
-                g_of_x_sr_est=g_of_x_sr_est,
-                eta_of_x_est=eta_of_x_est,
+        return torch.mean(
+            (
+                self.ddp_minimization_loss(
+                    f_of_x_sr_est=f_of_x_sr_est,
+                    g_of_x_sr_est=g_of_x_sr_est,
+                    eta_of_x_est=eta_of_x_est,
+                )
+                * weights
             )
-            * weights
         )
 
     @contextmanager
@@ -427,7 +426,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         weights: torch.Tensor,
     ) -> torch.Tensor:
         """Run one optimization step and return the batch loss."""
-        loss = torch.sum(self(data=data, weights=weights))
+        loss = self(data=data, weights=weights)
 
         if optimizer is not None:
             optimizer.zero_grad(set_to_none=True)
@@ -443,9 +442,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
 
-        data_tensor, weights_tensor = self._prepare_training_data(
-            data, weights
-        )
+        data_tensor, weights_tensor = self._prepare_training_data(data, weights)
 
         self.train()
         optimizer = self.configure_optimizers()
@@ -487,17 +484,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         data: DataBatch,
         weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
-        data_tensor, weights_tensor = self._prepare_training_data(
-            data, weights
-        )
+        data_tensor, weights_tensor = self._prepare_training_data(data, weights)
         self.eval()
         with torch.no_grad():
             with self.binning_context(data.unified_data):
-                loss = torch.sum(
-                    self(
-                        data=data_tensor,
-                        weights=weights_tensor,
-                    )
+                loss = self(
+                    data=data_tensor,
+                    weights=weights_tensor,
                 )
 
         epochs = self._history_epochs()
