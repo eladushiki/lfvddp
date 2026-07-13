@@ -41,23 +41,12 @@ def main(context: ExecutionContext) -> None:
     det = DetectorEffect(context)
     detected_batch = det.affect_and_compensate_batch(batch)
 
-    t_a = train_for_t(
+    t_result = train_for_t(
         context=context,
         data_batch=detected_batch,
         detector_effect=det,
         name=SAMPLE_A_NAME,
     )
-
-    detected_batch.swap_ab()
-
-    t_b = train_for_t(
-        context=context,
-        data_batch=detected_batch,
-        detector_effect=det,
-        name=SAMPLE_B_NAME,
-    )
-
-    t_result = t_a + t_b
 
     ## Training log
     context.save_and_document_text(

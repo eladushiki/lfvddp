@@ -132,8 +132,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             nuisance_var = nn.Parameter(
-                torch.full((nbins,), 1e-3, dtype=torch.float32, device=self._device)
-            )
+                torch.full((nbins,), 0.0, dtype=torch.float32, device=self._device)
+            )  # Initialized later, value here has no meaning
             self.register_parameter(
                 f"nuisance_{self._observable_names[i]}", nuisance_var
             )
@@ -177,7 +177,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Handle detector nuisances separately
         if self._config.train__data_is_train_for_nuisances:
             for var in self._detector_deltas.values():
-                nn.init.constant_(var, 1e-3)
+                nn.init.normal_(var, mean=0.0, std=1e-3)
 
     def _clamp_nuisance_parameters(self) -> None:
         if not self._config.train__data_is_train_for_nuisances:
@@ -236,25 +236,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         eta_of_x_a = eta_a_sr + eta_a_cr
         eta_of_x_b = eta_b_sr + eta_b_cr
 
-        # Constant expression parameters
-        N_A_SR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.A_SR.value)
-        N_B_SR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.B_SR.value)
-        N_A_CR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.A_CR.value)
-        N_B_CR = torch.count_nonzero(region_mask == DataSet.DataSetCategory.B_CR.value)
-
         e_to_the_f_sr = torch.exp(f_of_x_sr_est)
         eta_plus_term_sr = 1 + eta_sr
         e_to_the_g_sr = torch.exp(g_of_x_sr_est)
         eta_minus_term_sr = 1 - eta_sr
         sr_sum_term = (
-            N_A_SR * e_to_the_f_sr * eta_plus_term_sr
-            + N_B_SR * e_to_the_g_sr * eta_minus_term_sr
+            e_to_the_f_sr * eta_plus_term_sr
+            + e_to_the_g_sr * eta_minus_term_sr
         )
 
         # CR sum term
         eta_plus_term_cr = 1 + eta_of_x_cr
         eta_minus_term_cr = 1 - eta_of_x_cr
-        cr_sum_term = N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr
+        cr_sum_term = eta_plus_term_cr + eta_minus_term_cr
 
         # eta log terms
         eta_plus_a_sum_term = torch.log(1 + eta_of_x_a)
