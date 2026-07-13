@@ -342,6 +342,7 @@ def utils__datset_histogram_sliced(
     weights = utils__flatten_histogram_values(
         dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
     )
+        
     if weights.shape[0] != dataset.n_samples:
         raise ValueError(
             f"Expected one histogram weight per sample, got weights shape {weights.shape} "
