@@ -156,7 +156,7 @@ class results:  # todo: deprecate
         #all_patience_str = self.sample+all_patience_str.split(self.sample)[1]#"exp"+all_patience_str.split('exp')[1] if "exp" in self.file else "em"+all_patience_str.split('em')[1]
         #all_patience_str = "exp"+all_patience_str.split('exp')[1] if "exp" in self.file else "em"+all_patience_str.split('em')[1]
         all_patience_str = all_patience_str.split('/')[-1]
-        all_patience_str =re.sub('\*\*+', '*', all_patience_str)
+        all_patience_str =re.sub(r'\*\*+', '*', all_patience_str)
         #all_patience_str  = re.sub(r'\d+signals',f"[^0-9]?{self.Sig_events}signals",all_patience_str)
         self.similar_search_name = all_patience_str
         
@@ -211,7 +211,7 @@ class results:  # todo: deprecate
         t_final, txt_names = self.read_final_t_csv()
         txt_names = [(name.split("/")[-1]).replace("\n", "") for name in txt_names]
         history_files = f'{dir}extract_here/*{tar_file.replace(".tar.gz", "")}*_history*'
-        files = glob(re.sub('\*\*+', '*', history_files))
+        files = glob(re.sub(r'\*\*+', '*', history_files))
         t_history = []
         epochs = []
         seeds = []
@@ -252,7 +252,7 @@ class results:  # todo: deprecate
         bkg_search_filename = self.similar_search_name.replace("tar.gz","csv")
         if self._config.train__nn_weight_clipping!=9:
             bkg_search_filename =(bkg_search_filename.split('clipping')[0]+'*'+bkg_search_filename.split('signals_')[1])
-            sig_filename = re.sub('\*\*+', '*', bkg_search_filename)
+            sig_filename = re.sub(r'\*\*+', '*', bkg_search_filename)
         else:
             sig_filename = '*'+bkg_search_filename.split('signals_')[1]
 
@@ -621,7 +621,7 @@ def utils__plot_region_histograms_sliced(
         along_observables=along_observables,
         output_label="number of events",
     )
-    ax.set_title(f"{region_name} distributions")
+    ax.set_title(f"{region_name} distributions (normalized)")
 
 
 def utils__plot_weighted_histogram_predictions_sliced(
