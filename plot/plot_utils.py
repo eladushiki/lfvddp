@@ -319,6 +319,7 @@ def utils__datset_histogram_sliced(
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
         along_observables: Union[List, str, None] = None,
+        noramlized: bool = False,
         **hist_kwargs,
 ):
     if along_observables is None:
@@ -331,6 +332,9 @@ def utils__datset_histogram_sliced(
     weights = utils__flatten_histogram_values(
         dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
     )
+    if noramlized:
+        weights = weights / dataset.corrected_n_samples
+        
     if weights.shape[0] != dataset.n_samples:
         raise ValueError(
             f"Expected one histogram weight per sample, got weights shape {weights.shape} "
