@@ -1,10 +1,10 @@
 import numpy as np
 
-from data_tools.data_utils import DataSet
-from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.data_generation import DataBatch, DataGeneration
+from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
-from data_tools.profile_likelihood import calc_t
+from data_tools.detector.detector_effect import DetectorEffect
+from data_tools.profile_likelihood import calc_t_LFVDDP
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
@@ -14,8 +14,8 @@ from train.model_trainer import (
     SequentialTrainLauncher,
     TrainLauncher,
 )
-from train.train_config import TrainConfig
 from train.tensorboard_clutch import log_t_history_to_tensorboard
+from train.train_config import TrainConfig
 from train.training_names import (
     SAMPLE_A_NAME,
     SAMPLE_B_NAME,
@@ -93,7 +93,7 @@ def train_for_t(
     if numerator_training.history is None or denominator_training.history is None:
         # NPLM does not expose the paired minimization histories used here.
         final_t = float(
-            calc_t(
+            calc_t_LFVDDP(
                 numerator=numerator_training.result,
                 denominator=denominator_training.result,
             )
@@ -107,7 +107,7 @@ def train_for_t(
             ],
             HistoryKeys.NUMERATOR.value: numerator,
             HistoryKeys.DENOMINATOR.value: denominator,
-            HistoryKeys.T.value: calc_t(numerator, denominator),
+            HistoryKeys.T.value: calc_t_LFVDDP(numerator, denominator),
         }
         save_training_history_outcome(
             context=context,
