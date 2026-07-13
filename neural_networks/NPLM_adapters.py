@@ -1,16 +1,22 @@
 from logging import info
 from time import time
 from typing import Tuple
+
+import numpy as np
+from tensorflow import keras
+from tensorflow.keras.models import Model  # type: ignore
+
 from data_tools.data_utils import DataSet
-from data_tools.profile_likelihood import calc_t_test_statistic
+from data_tools.profile_likelihood import calc_t_test_statistic_NPLM
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-from tensorflow import keras
-from neural_networks.NPLM.src.NPLM.NNutils import imperfect_loss, imperfect_model, np, train_model
-import numpy as np
-from tensorflow.keras.models import Model # type: ignore
-
-from neural_networks.utils import save_training_outcomes, ContextedModel
+from neural_networks.NPLM.src.NPLM.NNutils import (
+    imperfect_loss,
+    imperfect_model,
+    np,
+    train_model,
+)
+from neural_networks.utils import ContextedModel, save_training_outcomes
 from neural_networks.weights.taylor_expansion_net.parameters import parNN_list
 from train.train_config import TrainConfig
 
@@ -168,7 +174,7 @@ def train_NPML_model(
     
     info(f'Training time (seconds): {time() - t0}')
 
-    final_loss = calc_t_test_statistic(tau_history[-1])
+    final_loss = calc_t_test_statistic_NPLM(tau_history[-1])
     info(f'Observed t test statistic: {final_loss}')
     
     save_training_outcomes(

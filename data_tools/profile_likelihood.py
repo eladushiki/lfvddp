@@ -6,14 +6,14 @@ from scipy.stats import norm, chi2
 from warnings import simplefilter
 
 
-def calc_t_test_statistic(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
+def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
     """
     Calculate the test statistic t from the tau value
     """
     return -2 * tau
 
 
-def calc_t(
+def calc_t_LFVDDP(
     numerator: Union[int, float, np.ndarray],
     denominator: Union[int, float, np.ndarray],
 ) -> Union[int, float, np.ndarray]:
