@@ -313,13 +313,23 @@ def utils__flatten_histogram_values(values: npt.ArrayLike) -> np.ndarray:
     return np.asarray(values).reshape(-1)
 
 
+def utils__normalize_histogram_values(
+    histogram_values: npt.ArrayLike,
+    normalization: float,
+) -> np.ndarray:
+    """Normalize histogram values by their positive total event weight."""
+    if not np.isfinite(normalization) or normalization <= 0:
+        raise ValueError("Histogram normalization must be a positive finite value.")
+    return np.asarray(histogram_values) / normalization
+
+
 def utils__datset_histogram_sliced(
         ax: plt.Axes,
         bins: np.ndarray,
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
         along_observables: Union[List, str, None] = None,
-        noramlized: bool = False,
+        normalize_by_corrected_n_samples: bool = False,
         **hist_kwargs,
 ):
     if along_observables is None:
@@ -339,6 +349,10 @@ def utils__datset_histogram_sliced(
         raise ValueError(
             f"Expected one histogram weight per sample, got weights shape {weights.shape} "
             f"for {dataset.n_samples} samples."
+        )
+    if normalize_by_corrected_n_samples:
+        weights = utils__normalize_histogram_values(
+            weights, dataset.corrected_n_samples
         )
 
     if len(along_observables) == 1:
@@ -607,10 +621,19 @@ def utils__plot_region_histograms_sliced(
             histtype=histtype,
             alpha=alpha,
             lw=linewidth,
+            normalize_by_corrected_n_samples=True,
         )
 
     if len(along_observables) == 2:
-        ax.set_zlim(0.1, max(1.0, ax.get_zlim()[1]))
+        minimum_probability = min(
+            1.0 / dataset.corrected_n_samples
+            for dataset in (background, sample_a, sample_b)
+            if dataset.corrected_n_samples > 0
+        )
+        ax.set_zlim(
+            minimum_probability / 2.0,
+            max(minimum_probability, ax.get_zlim()[1]),
+        )
         ax.set_zscale("log")
         ax.zaxis.set_major_locator(ticker.LogLocator(base=10, numticks=4))
         ax.zaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10))
@@ -619,7 +642,7 @@ def utils__plot_region_histograms_sliced(
         ax=ax,
         bins=bins,
         along_observables=along_observables,
-        output_label="number of events",
+        output_label="probability per bin",
     )
     ax.set_title(f"{region_name} distributions (normalized)")
 
@@ -631,6 +654,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
     bins: Union[np.ndarray, List[np.ndarray]],
     bin_centers: Union[np.ndarray, List[np.ndarray]],
     along_observables: List[str],
+    normalize_each_prediction: bool = False,
 ) -> None:
     """Overlay weighted reference-distribution predictions on a histogram panel."""
     number_of_dimensions = len(along_observables)
@@ -651,6 +675,10 @@ def utils__plot_weighted_histogram_predictions_sliced(
                 bins=bins,
                 weights=flattened_weights,
             )
+            if normalize_each_prediction:
+                predicted_counts = utils__normalize_histogram_values(
+                    predicted_counts, np.sum(predicted_counts)
+                )
             ax.scatter(
                 bin_centers,
                 predicted_counts,
@@ -669,6 +697,10 @@ def utils__plot_weighted_histogram_predictions_sliced(
             bins=bins,
             weights=flattened_weights,
         )
+        if normalize_each_prediction:
+            predicted_counts = utils__normalize_histogram_values(
+                predicted_counts, np.sum(predicted_counts)
+            )
         positive_counts = predicted_counts.ravel() > 0
         ax.scatter(
             prediction_xx.ravel()[positive_counts],

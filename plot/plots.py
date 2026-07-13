@@ -786,6 +786,9 @@ def plot_prediction_process_sliced(
         bins=bins,
         bin_centers=bin_centers,
         along_observables=selected_observables,
+        normalize_each_prediction=(
+            config.plot__prediction_process_normalize_each_prediction
+        ),
     )
 
     distribution_axes = (sr_distribution_ax, cr_distribution_ax)
