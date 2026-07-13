@@ -703,6 +703,16 @@ def utils__model_prediction_values(
     return utils__flatten_histogram_values(prediction_function(dataset))
 
 
+def utils__remove_eta_from_prediction_values(
+    prediction_values: np.ndarray,
+    eta_values: np.ndarray,
+    eta_sign: float,
+) -> np.ndarray:
+    """Remove the clamped 1±eta factor from a combined LFVDDP prediction."""
+    eta_term = np.clip(1.0 + eta_sign * eta_values, a_min=1e-12, a_max=None)
+    return prediction_values / eta_term
+
+
 def utils__project_prediction_values_sliced(
     values: np.ndarray,
     spanning_dataset: DataSet,
