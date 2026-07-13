@@ -342,8 +342,6 @@ def utils__datset_histogram_sliced(
     weights = utils__flatten_histogram_values(
         dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
     )
-    if noramlized:
-        weights = weights / dataset.corrected_n_samples
         
     if weights.shape[0] != dataset.n_samples:
         raise ValueError(
@@ -596,6 +594,7 @@ def utils__plot_region_histograms_sliced(
     background_color: str,
     sample_a_color: str,
     sample_b_color: str,
+    normalize_distributions: bool,
 ) -> None:
     """Draw a complete A/B/background distribution panel for one region."""
     distribution_specs = (
@@ -621,19 +620,23 @@ def utils__plot_region_histograms_sliced(
             histtype=histtype,
             alpha=alpha,
             lw=linewidth,
-            normalize_by_corrected_n_samples=True,
+            normalize_by_corrected_n_samples=normalize_distributions,
         )
 
     if len(along_observables) == 2:
-        minimum_probability = min(
-            1.0 / dataset.corrected_n_samples
-            for dataset in (background, sample_a, sample_b)
-            if dataset.corrected_n_samples > 0
-        )
-        ax.set_zlim(
-            minimum_probability / 2.0,
-            max(minimum_probability, ax.get_zlim()[1]),
-        )
+        if normalize_distributions:
+            minimum_output = min(
+                1.0 / dataset.corrected_n_samples
+                for dataset in (background, sample_a, sample_b)
+                if dataset.corrected_n_samples > 0
+            )
+            output_limits = (
+                minimum_output / 2.0,
+                max(minimum_output, ax.get_zlim()[1]),
+            )
+        else:
+            output_limits = (0.1, max(1.0, ax.get_zlim()[1]))
+        ax.set_zlim(output_limits)
         ax.set_zscale("log")
         ax.zaxis.set_major_locator(ticker.LogLocator(base=10, numticks=4))
         ax.zaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10))
@@ -642,9 +645,18 @@ def utils__plot_region_histograms_sliced(
         ax=ax,
         bins=bins,
         along_observables=along_observables,
-        output_label="probability per bin",
+        output_label=(
+            "probability per bin"
+            if normalize_distributions
+            else "number of events per bin"
+        ),
     )
-    ax.set_title(f"{region_name} distributions (normalized)")
+    title_suffix = (
+        "distributions (normalized)"
+        if normalize_distributions
+        else "number density functions"
+    )
+    ax.set_title(f"{region_name} {title_suffix}")
 
 
 def utils__plot_weighted_histogram_predictions_sliced(
@@ -675,10 +687,20 @@ def utils__plot_weighted_histogram_predictions_sliced(
                 bins=bins,
                 weights=flattened_weights,
             )
-            if normalize_each_prediction:
-                predicted_counts = utils__normalize_histogram_values(
-                    predicted_counts, np.sum(predicted_counts)
-                )
+        else:
+            predicted_counts, _, _ = np.histogram2d(
+                reference_data[:, 0],
+                reference_data[:, 1],
+                bins=bins,
+                weights=flattened_weights,
+            )
+
+        if normalize_each_prediction:
+            predicted_counts = utils__normalize_histogram_values(
+                predicted_counts, np.sum(predicted_counts)
+            )
+
+        if number_of_dimensions == 1:
             ax.scatter(
                 bin_centers,
                 predicted_counts,
@@ -691,16 +713,6 @@ def utils__plot_weighted_histogram_predictions_sliced(
             )
             continue
 
-        predicted_counts, _, _ = np.histogram2d(
-            reference_data[:, 0],
-            reference_data[:, 1],
-            bins=bins,
-            weights=flattened_weights,
-        )
-        if normalize_each_prediction:
-            predicted_counts = utils__normalize_histogram_values(
-                predicted_counts, np.sum(predicted_counts)
-            )
         positive_counts = predicted_counts.ravel() > 0
         ax.scatter(
             prediction_xx.ravel()[positive_counts],
@@ -770,24 +782,39 @@ def utils__plot_model_predictions_sliced(
     along_observables: List[str],
     prediction_limits: Tuple[float, float],
     title: str,
+    draw_as_steps: bool = False,
 ) -> None:
     """Draw a complete 1D-line or 2D-wireframe model-prediction panel."""
     first_coordinates = predictions[0][0]
     if len(along_observables) == 1:
         ax.axhline(1.0, color="gray", linestyle=":", linewidth=1, alpha=0.6)
         for coordinates, contour, label, color, linestyle in predictions:
-            ax.plot(
-                utils__flatten_histogram_values(coordinates),
-                utils__flatten_histogram_values(contour),
-                label=label,
-                color=color,
-                linestyle=linestyle,
-                linewidth=1.8,
-            )
+            plot_kwargs = {
+                "label": label,
+                "color": color,
+                "linestyle": linestyle,
+                "linewidth": 1.8,
+            }
+            if draw_as_steps:
+                ax.stairs(
+                    utils__flatten_histogram_values(contour),
+                    bins,
+                    **plot_kwargs,
+                )
+            else:
+                ax.plot(
+                    utils__flatten_histogram_values(coordinates),
+                    utils__flatten_histogram_values(contour),
+                    **plot_kwargs,
+                )
         ax.set_ylim(prediction_limits)
     else:
-        x_values = np.unique(first_coordinates[:, 0])
-        y_values = np.unique(first_coordinates[:, 1])
+        if draw_as_steps:
+            x_values = np.asarray(bins[0])
+            y_values = np.asarray(bins[1])
+        else:
+            x_values = np.unique(first_coordinates[:, 0])
+            y_values = np.unique(first_coordinates[:, 1])
         prediction_xx, prediction_yy = np.meshgrid(
             x_values, y_values, indexing="ij"
         )
@@ -801,13 +828,23 @@ def utils__plot_model_predictions_sliced(
             shade=False,
         )
         for coordinates, contour, label, color, linestyle in predictions:
-            x_values = np.unique(coordinates[:, 0])
-            y_values = np.unique(coordinates[:, 1])
+            if draw_as_steps:
+                x_values = np.repeat(np.asarray(bins[0]), 2)[1:-1]
+                y_values = np.repeat(np.asarray(bins[1]), 2)[1:-1]
+                contour_grid = np.asarray(contour).reshape(
+                    len(bins[0]) - 1, len(bins[1]) - 1
+                )
+                contour_grid = np.repeat(
+                    np.repeat(contour_grid, 2, axis=0), 2, axis=1
+                )
+            else:
+                x_values = np.unique(coordinates[:, 0])
+                y_values = np.unique(coordinates[:, 1])
+                contour_grid = np.asarray(contour).reshape(
+                    len(x_values), len(y_values)
+                )
             prediction_xx, prediction_yy = np.meshgrid(
                 x_values, y_values, indexing="ij"
-            )
-            contour_grid = np.asarray(contour).reshape(
-                len(x_values), len(y_values)
             )
             ax.plot_wireframe(
                 prediction_xx,
