@@ -213,7 +213,7 @@ def t_distribution_plot(
         style["chi2_color"],
         linewidth=style["linewidth"],
         alpha=style["alpha"],
-        label=f"$\chi^{2}_{{{chi2_dof}}}$",
+        label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
     )
 
     # Legend
@@ -226,7 +226,7 @@ def t_distribution_plot(
 
     ax.legend(
         (circ, rect1),
-        (label, f"$\chi^{2}_{{{chi2_dof}}}$"),
+        (label, fr"$\chi^{{2}}_{{{chi2_dof}}}$"),
         handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),
