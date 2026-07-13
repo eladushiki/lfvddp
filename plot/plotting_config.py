@@ -38,6 +38,7 @@ class PlottingConfig:
     # Additional settings for each plot
     plot__plot_specifications: List[Dict[str, Any]]
     plot__prediction_process_number_of_bins: int = 30
+    plot__prediction_process_normalize_each_prediction: bool = True
 
     @property
     def plot_instructions(self) -> List[PlotInstructions]:
