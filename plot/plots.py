@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -25,10 +25,7 @@ from frame.aggregate import ResultAggregator, utils__get_signal_dataset_paramete
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.utils import (
-    ContextedModel,
-    prediction_to_sample_ndf_hypothesis_weights,
-)
+from neural_networks.utils import prediction_to_sample_ndf_hypothesis_weights
 from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
@@ -41,6 +38,7 @@ from plot.plot_utils import (
     utils__plot_region_histograms_sliced,
     utils__plot_weighted_histogram_predictions_sliced,
     utils__project_prediction_values_sliced,
+    utils__remove_eta_from_prediction_values,
     utils__synchronize_output_axis_limits,
 )
 from plot.plotting_config import PlottingConfig
@@ -556,54 +554,6 @@ def plot_data_generation_sliced(
     return fig
 
 
-def _model_prediction_specs(
-    trained_model: ContextedModel,
-    base_legend: str,
-    primary_color: str,
-    secondary_color: str,
-) -> List[Tuple[Callable[[DataSet], np.ndarray], str, str]]:
-    predictions = [(trained_model.predict, base_legend, primary_color)]
-    if hasattr(trained_model, "predict_secondary"):
-        predictions.append(
-            (
-                trained_model.predict_secondary,
-                f"{base_legend} secondary",
-                secondary_color,
-            )
-        )
-    return predictions
-
-
-def _model_contour_specs(
-    trained_model: ContextedModel,
-    base_legend: str,
-    primary_color: str,
-    secondary_color: str,
-    eta_color: str,
-) -> List[
-    Tuple[Callable[[DataSet], np.ndarray], str, str, Callable[[np.ndarray], np.ndarray]]
-]:
-    predict_f = getattr(trained_model, "predict_f", None)
-    predict_g = getattr(trained_model, "predict_g", None)
-    predict_eta = getattr(trained_model, "predict_eta", None)
-    if callable(predict_f) and callable(predict_g):
-        specs = [
-            (predict_f, f"{base_legend} (f)", primary_color, np.exp),
-            (predict_g, f"{base_legend} (g)", secondary_color, np.exp),
-        ]
-        if callable(predict_eta):
-            specs.append((predict_eta, f"{base_legend} (eta)", eta_color, np.asarray))
-        return specs
-
-    predict = getattr(trained_model, "predict", None)
-    if callable(predict):
-        return [(predict, base_legend, primary_color, np.exp)]
-
-    raise AttributeError(
-        f"{trained_model.__class__.__name__} must expose predict_f/predict_g or predict to be plotted."
-    )
-
-
 def _display_edges_by_observable(
     datasets: List[DataSet],
     observable_names: List[str],
@@ -686,8 +636,9 @@ def plot_prediction_process_sliced(
     """
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
-    The numerator model's ``predict`` and ``predict_secondary`` outputs are treated
-    directly as f and g. NPLM model compatibility is intentionally out of scope.
+    The numerator model's ``predict`` and ``predict_secondary`` outputs provide
+    the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
+    is intentionally out of scope.
     """
     if not isinstance((config := context.config), TrainConfig):
         raise ValueError("The context config is not a TrainConfig.")
@@ -793,21 +744,22 @@ def plot_prediction_process_sliced(
         sample_b_color=plot_colors["g"],
     )
 
-    sr_f = utils__model_prediction_values(numerator_model.predict, sr_background)
-    sr_g = utils__model_prediction_values(
+    sr_exp_f_eta_plus = utils__model_prediction_values(
+        numerator_model.predict, sr_background
+    )
+    sr_exp_g_eta_minus = utils__model_prediction_values(
         numerator_model.predict_secondary, sr_background
     )
-    sr_eta = utils__model_prediction_values(numerator_model.predict_eta, sr_background)
     sr_product_predictions = (
         (
-            sr_f * (1.0 + sr_eta),
-            r"$f(x)(1+\eta(x))$ prediction",
+            sr_exp_f_eta_plus,
+            r"$e^{f(x)}(1+\eta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
-            sr_g * (1.0 - sr_eta),
-            r"$g(x)(1-\eta(x))$ prediction",
+            sr_exp_g_eta_minus,
+            r"$e^{g(x)}(1-\eta(x))$ prediction",
             plot_colors["g"],
             "s",
         ),
@@ -842,10 +794,10 @@ def plot_prediction_process_sliced(
     for panel in distribution_axes:
         panel.legend(fontsize=8)
 
-    spanning_f = utils__model_prediction_values(
+    spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, contour_spanning_dataset
     )
-    spanning_g = utils__model_prediction_values(
+    spanning_exp_g_eta_minus = utils__model_prediction_values(
         numerator_model.predict_secondary, contour_spanning_dataset
     )
     numerator_eta = utils__model_prediction_values(
@@ -854,17 +806,27 @@ def plot_prediction_process_sliced(
     denominator_eta = utils__model_prediction_values(
         denominator_model.predict_eta, contour_spanning_dataset
     )
+    spanning_exp_f = utils__remove_eta_from_prediction_values(
+        prediction_values=spanning_exp_f_eta_plus,
+        eta_values=numerator_eta,
+        eta_sign=1.0,
+    )
+    spanning_exp_g = utils__remove_eta_from_prediction_values(
+        prediction_values=spanning_exp_g_eta_minus,
+        eta_values=numerator_eta,
+        eta_sign=-1.0,
+    )
 
     prediction_specs = {
-        "f": (
-            r"numerator $f(x)$",
-            spanning_f,
+        "exp_f": (
+            r"numerator $e^{f(x)}$",
+            spanning_exp_f,
             plot_colors["f"],
             prediction_linestyles["component"],
         ),
-        "g": (
-            r"numerator $g(x)$",
-            spanning_g,
+        "exp_g": (
+            r"numerator $e^{g(x)}$",
+            spanning_exp_g,
             plot_colors["g"],
             prediction_linestyles["component"],
         ),
@@ -880,15 +842,15 @@ def plot_prediction_process_sliced(
             plot_colors["eta_minus"],
             prediction_linestyles["component"],
         ),
-        "f_eta_plus": (
-            r"numerator $f(x)(1+\eta(x))$",
-            spanning_f * (1.0 + numerator_eta),
+        "exp_f_eta_plus": (
+            r"numerator $e^{f(x)}(1+\eta(x))$",
+            spanning_exp_f_eta_plus,
             plot_colors["f"],
             prediction_linestyles["product"],
         ),
-        "g_eta_minus": (
-            r"numerator $g(x)(1-\eta(x))$",
-            spanning_g * (1.0 - numerator_eta),
+        "exp_g_eta_minus": (
+            r"numerator $e^{g(x)}(1-\eta(x))$",
+            spanning_exp_g_eta_minus,
             plot_colors["g"],
             prediction_linestyles["product"],
         ),

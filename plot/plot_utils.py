@@ -319,6 +319,7 @@ def utils__datset_histogram_sliced(
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
         along_observables: Union[List, str, None] = None,
+        noramlized: bool = False,
         **hist_kwargs,
 ):
     if along_observables is None:
@@ -331,6 +332,9 @@ def utils__datset_histogram_sliced(
     weights = utils__flatten_histogram_values(
         dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
     )
+    if noramlized:
+        weights = weights / dataset.corrected_n_samples
+        
     if weights.shape[0] != dataset.n_samples:
         raise ValueError(
             f"Expected one histogram weight per sample, got weights shape {weights.shape} "
@@ -701,6 +705,16 @@ def utils__model_prediction_values(
 ) -> np.ndarray:
     """Evaluate and flatten one model prediction per event."""
     return utils__flatten_histogram_values(prediction_function(dataset))
+
+
+def utils__remove_eta_from_prediction_values(
+    prediction_values: np.ndarray,
+    eta_values: np.ndarray,
+    eta_sign: float,
+) -> np.ndarray:
+    """Remove the clamped 1±eta factor from a combined LFVDDP prediction."""
+    eta_term = np.clip(1.0 + eta_sign * eta_values, a_min=1e-12, a_max=None)
+    return prediction_values / eta_term
 
 
 def utils__project_prediction_values_sliced(
