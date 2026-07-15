@@ -1,0 +1,157 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\section{Computing the t value}\label{Appendix_Tvalue}
+
+
+Treating separately the numerator and denominator here, for they will soon require handling on their own
+
+\begin{equation}
+\label{eq:overall_test_statistic_numerator}
+\begin{aligned}
+    \log \nu &= \log \Bigg(
+        e^{- \int \srdist{\meas{A}}^1} \prod\limits_{\event \in \srmeas{A}} \srdistevent{\meas{A}}^1
+        \cdot
+        e^{- \int \srdist{\meas{B}}^1} \prod\limits_{\event \in \srmeas{B}} \srdistevent{\meas{B}}^1 \\&
+        \cdot
+        e^{- \int \crdist{\meas{A}}^0} \prod\limits_{\event \in \crmeas{A}} \crdistevent{\meas{A}}^0
+        \cdot
+        e^{- \int \crdist{\meas{B}}^0} \prod\limits_{\event \in \crmeas{B}} \crdistevent{\meas{B}}^0
+    \Bigg)
+    \\
+    &= \Bigg(
+        - \left(
+            \int \srdist{\meas{A}}^1 + \srdist{\meas{B}}^1
+            + \crdist{\meas{A}}^0 + \crdist{\meas{B}}^0
+        \right)
+        + \sum\limits_{\event \in \srmeas{A}} \log({N_\srmeas{A}} (1 + {\nparam(\anyevent)}) e^{f(\anyevent)} \srrefdist) \\&
+        + \sum\limits_{\event \in \srmeas{B}} \log({N_\srmeas{B}}  (1 - {\nparam(\anyevent)}) e^{g(\anyevent)} \srrefdist)
+        + \sum\limits_{\event \in \crmeas{A}} \log({N_\crmeas{A}} (1 + {\nparam(\anyevent)}) \crrefdist) \\&
+        + \sum\limits_{\event \in \crmeas{B}} \log({N_\crmeas{B}}  (1 - {\nparam(\anyevent)}) \crrefdist)
+    \Bigg)
+    \\
+    &= \Bigg(
+            - \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0 )
+            - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+        \\&
+        + N_{\srmeas{A}}\log({N_\srmeas{A}})
+        + N_{\srmeas{B}}\log({N_\srmeas{B}})
+        + N_{\crmeas{A}}\log({N_\crmeas{A}})
+        + N_{\crmeas{B}}\log({N_\crmeas{B}})
+        \\&
+        + \sum\limits_{\event \in \srmeas{A}} [\log(1 + {\nparam(\anyevent)}) + f(\anyevent)]
+        + \sum\limits_{\event \in \srmeas{B}} [\log(1 - {\nparam(\anyevent)}) + g(\anyevent)] \\&
+        + \sum\limits_{\event \in \crmeas{A}} \log(1 + {\nparam(\anyevent)})
+        + \sum\limits_{\event \in \crmeas{B}} \log(1 - {\nparam(\anyevent)})
+    \Bigg) + C
+\end{aligned}
+\end{equation}
+
+\noindent leaving out the $C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist$ for it cancels in the division.
+
+\noindent using the substitution $\srdist{\meas{A}}^1 = e^{f(\anyevent)}\srdist{\meas{A}}^0, \quad \srdist{\meas{B}}^1 = e^{g(\anyevent)}\srdist{\meas{B}}^0$.
+
+\begin{equation}
+\label{eq:overall_test_statistic_denominator}
+\begin{aligned}
+\log \Delta &= \log \Bigg(
+    e^{- \int \srdist{\meas{A}}^0} \prod\limits_{\event \in \srmeas{A}} \srdistevent{\meas{A}}^0
+    \cdot
+    e^{- \int \srdist{\meas{B}}^0} \prod\limits_{\event \in \srmeas{B}} \srdistevent{\meas{B}}^0 \\&
+    \cdot
+    e^{- \int \crdist{\meas{A}}^0} \prod\limits_{\event \in \crmeas{A}} \crdistevent{\meas{A}}^0
+    \cdot
+    e^{- \int \crdist{\meas{B}}^0} \prod\limits_{\event \in \crmeas{B}} \crdistevent{\meas{B}}^0
+\Bigg)
+\\&
+= \Bigg(
+    - \int \left(
+        \srdist{\meas{A}}^0
+        + \srdist{\meas{B}}^0
+        + \crdist{\meas{A}}^0
+        + \crdist{\meas{B}}^0
+    \right)
+    \\&
+    + \sum\limits_{\event \in \srmeas{A}} \log({N_\srmeas{A}} (1 + {\nparam(\anyevent)}) \srrefdist)
+    + \sum\limits_{\event \in \srmeas{B}} \log({N_\srmeas{B}} (1 - {\nparam(\anyevent)}) \srrefdist) \\&
+    + \sum\limits_{\event \in \crmeas{A}} \log({N_\crmeas{A}} (1 + {\nparam(\anyevent)}) \crrefdist)
+    + \sum\limits_{\event \in \crmeas{B}} \log({N_\crmeas{B}} (1 - {\nparam(\anyevent)}) \crrefdist)
+\Bigg)
+\\&
+= \Bigg(
+    - \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
+    - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+    \\&
+    + N_{\srmeas{A}}\log({N_\srmeas{A}})
+    + N_{\srmeas{B}}\log({N_\srmeas{B}})
+    + N_{\crmeas{A}}\log({N_\crmeas{A}})
+    + N_{\crmeas{B}}\log({N_\crmeas{B}})
+    \\&
+    + \sum\limits_{\event \in \srmeas{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \srmeas{B}} \log(1 - {\nparam(\anyevent)}) \\&
+    + \sum\limits_{\event \in \crmeas{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \crmeas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg) + C
+\end{aligned}
+\end{equation}
+
+Plugging back in the expressions cancels some independent terms. From Equations~\ref{eq:high_level_overall_test_statistic}, \ref{eq:overall_test_statistic_numerator} and \ref{eq:overall_test_statistic_denominator}:
+
+\begin{equation}
+\begin{aligned}
+t &= 2 \max\limits_{f, g, \nparam} \Bigg(
+    - \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0)
+    - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+    \\&
+    + \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
+    + \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
+    + \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\\&
+- 2 \max\limits_{\nparam} \Bigg(
+    - \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
+    - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+    \\&
+    + \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg) \\
+&= - 2 \min\limits_{f, g, \nparam} \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        N_\srmeas{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)})
+        + N_\srmeas{B}e^{g(\anyevent)} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        N_\crmeas{A} (1 + {\nparam(\anyevent)})
+        + N_\crmeas{B} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
+    - \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
+    - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\\&
++ 2 \min\limits_{\nparam} \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        N_\srmeas{A} (1 + {\nparam(\anyevent)})
+        + N_\srmeas{B}(1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        N_\crmeas{A} (1 + {\nparam(\anyevent)})
+        + N_\crmeas{B}(1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\end{aligned}
+\end{equation}
+
+\noindent while we substituted the integral with its approximation, the sum over the according domain $\int y(\anyevent) \srrefdist d\anyevent \to \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} y(\event)$, and similarly for $CR$.
+
+\end{document}

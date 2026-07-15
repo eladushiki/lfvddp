@@ -6,33 +6,41 @@
 
 \subsection{Distribution Likelihood}
 
-For an inhomogeneous Poisson process with intensity \(\lambda(x)\), the log-likelihood for a set of events \(\dataset{A} = \{\event\}\) can be written as
-
-\[
-\llikelihood( \lambda | \dataset{A}) = -\int \lambda(\anyevent)d\anyevent + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A}
-\],
-
-where the value of \(C_{\dataset{A}}\) is independent of \(\lambda\). Therefore, in the case where we look at the set of observed events $\meas{A}$, we can write 
-
-\[
-\llikelihood( \lambda | \meas{A}) = -{N}_{\meas{A}} + \sum_{\event \in \meas{A}} \log\big(\tfrac{{N}_{\meas{A}}}{Z_f} e^{f(\event)} \refdist[\event]\big) + C_\meas{A}
-\],
-
-which can be rewritten as
-
-\[
-\llikelihood( \lambda | \meas{A}) = -N_{\meas{A}} + \sum_{\event \in \meas{A}} f(\event) + N_{\meas{A}}\log{\frac{N_{\meas{A}}}{Z_f}} + \sum_{\event \in \meas{A}} \log \refdist[\event] + C_\meas{A}
-\]
-
-
-\subsection{Passing to Reconstructed Data Statistics}
-
-Since instead of observing the unfiltered sets we observe the detected subset \(\meas{A}\), then by the construction of weights (as defined in Equation~\ref{eq:def_weights}), we can convert our formulation to use the reconstructed datasets \(\reco{A}\). In addition, integrals and sums over the unfiltered process are estimated by weighted sums over detected events. Thus, working with reconstructed data, the log-likelihood for sample $\reco{A}$ can be represented by
+Likelihood of observed data $\dataset{A}$ and a statistical model with parameters $\param$ is defined to be
 
 \begin{equation}
-\begin{aligned}\label{eq:reconstructed_log_likelihood_of_a_distribution}
-    \llikelihood( \lambda | \reco{A}) = -N_{\reco{A}} + \sum_{\weightedevent \in \reco{A}} w_i f(\event) + N_\reco{A}\log \frac{N_\reco{A}}{Z_f} + \sum_{\weightedevent \in \reco{A}} w_i\log \refdist[\event] + C_\reco{A}
-\end{aligned}    
+    \likelihood(\lambda_{\param} | \dataset{A}) = P(\dataset{A} | \lambda_{\param})
 \end{equation}
+
+The likelihood of a process governed by Poisson statistics is then\cite{LastDDPPaper}
+
+\begin{equation}
+\label{eq:likelihood_of_a_distribution}
+    \likelihood(\lambda_{\param} | \dataset{A})
+    = \dfrac{e^{-N_{\dataset{A}}(\param)}}{N_{\dataset{A}}!}
+    \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+    = \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
+    \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+\end{equation}
+
+For our test statistic we take the log-likelihood measure. It is
+
+\begin{equation}
+\label{eq:log_likelihood_of_a_distribution}
+    \llikelihood( \lambda_\param | \dataset{A}) = -\int \lambda(\anyevent)d\anyevent + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A}
+\end{equation},
+
+\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute Eq.~\ref{eq:learnable_distribution} to get
+
+\begin{equation}
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{f(\event)} \refdist[\event]\big) + C_\dataset{A}
+\end{equation},
+
+\noindent which can be rewritten as
+
+\begin{equation}
+\label{eq:log_likelihood_of_a_learnable_distribution}
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} f(\event) + N_{\dataset{A}}\log{N_{\dataset{A}}} + \sum_{\event \in \dataset{A}} \log \refdist[\event] + C'_\dataset{A}
+\end{equation}.
 
 \end{document}

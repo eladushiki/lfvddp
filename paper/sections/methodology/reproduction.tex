@@ -6,9 +6,24 @@
 
 \subsection{Reproducing Previous Results}
 
-The following results are generated using the new, improved codebase, with a subset of parameters that mimic the conditions for the previous paper \cite{LastDDPPaper}. As can be seen in \ref{fig:t_distribution_plot_reproduction}, using the same parameters, we achieved a similar convergence of the $t$ values distribution to a $\chi^2_{13}$ distribution.
+The following results are generated using the new, improved codebase, with a subset of parameters that mimic the conditions for the previous paper \cite{LastDDPPaper}. In Figure~\ref{fig:single_train_visualization} we can see the results of a single calculation, with nuisance values, visualized.
 
-\begin{figure*}      % figure* for full page width
+\begin{figure}
+\label{fig:single_train_visualization}
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]
+{"plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/A_numerator_data_process_plot_2163321021161639752.png"}
+\end{minipage}
+\hfill
+\caption{Visualization of the outcome of a single run of our procedure. Top: overlaying distributions of $\dataset{A}$ and $\dataset{B}$ of both regions. Bottom: illustration of the learned (minimized) parts of the NN - for the signal hypothesis (first expression in Eq~\ref{eq:discrete_loss_functions}) train at the left, and for the null hypothesis (second expression) to the right. Detector is set to work at perfect efficiency on both datasets.}
+\end{figure}
+
+As can be seen in Figure~\ref{fig:t_distribution_plot_reproduction}, using the same parameters, we achieved a similar convergence of the $t$ values distribution to a $\chi^2_{13}$ distribution.
+\TODO{13 of the chi^2 should change. Also update the t convergence to chi^2 plot.}
+
+\begin{figure}
 \centering
 \begin{minipage}{0.48\textwidth}
 \centering
@@ -23,7 +38,7 @@ The following results are generated using the new, improved codebase, with a sub
 \end{minipage}
 \label{fig:t_distribution_plot_reproduction}
 \caption{Training results of two equivalent datasets, drawn from an exponentially decaying pdf. Each dataset contains a number of events drawn from a poissonian distribution with a mean of $1e5$. Left: the resulting distribution of $t$ values. Right: the progression of the $t$ value percentiles during $5e5$ epochs of training.}
-\end{figure*}
+\end{figure}
 
 We further investigate the correlation between the significance of an injected signal and its significance as detected by our machinery. Again, similarly as what was done before.
 

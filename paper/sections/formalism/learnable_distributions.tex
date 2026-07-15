@@ -4,25 +4,26 @@
 
 \begin{document}
 
-\subsection{Model and Parametrization}
-We model the true events for our sample set $\dataset{A}$ as an inhomogeneous Poisson process with intensity
-\[
-\lambda(\anyevent)={N_{\true{A}}} p(\anyevent),
-\]
-where \(p_{\dataset{A}}\) is a probability density. In addition, we introduce a common reference density \(n_{\mathcal{R}}(x)\) and parametrize
-\[
-p(\anyevent)=\frac{1}{Z_f} e^{f(\anyevent)} \refdist[\anyevent],
-\]
-with
-\(Z_f = \int e^{f(\anyevent)} \refdist[\anyevent] d\anyevent\) being the ensuring normalization (based upon $\refdist[\anyevent], f$). Note that even though we keep \(Z_f\) explicit here, later in our computations $Z_f$ might cancel or become irrelevant for the test statistic.
+\subsection{Modeling Physical Process Sampling}
+Our hypothetical accelerator causes particles to collide, creating the set $\true{A}$ of events, $\event \in \mathbb{R}^k$, which are represented as a vector of some of their physical quantities. We claim that the resulting events are the result of an inhomogeneous Poisson process with intensity
 
-Drawing from our probability density \(p_{\dataset{A}}\), the number density of our samples is given by
+\begin{equation}   
+    \lambda(\anyevent)={N_{\true{A}}} p(\anyevent),
+\end{equation}
+
+\noindent where $p(\anyevent)$ is the theoretical probability density of the physical process we measure. In addition, we introduce a common reference number density function (NDF), $\refdist$, and parametrize
+
+\begin{equation}
+    p(\anyevent) = e^{f(\anyevent)} \refdist,
+\end{equation}
+
+\noindent Drawing from our probability density $p_{\true{A}}$, the intensity becomes
 
 \begin{eqnarray}
 \label{eq:learnable_distribution}
-\dist{\meas{A}} = \dfrac{N_\meas{A}}{Z_f} e^{f(\anyevent)} \refdist[\anyevent].
+    \lambda_\param = N_{\true{A}} e^{f(\anyevent)} \refdist.
 \end{eqnarray}
 
-Eventually, we show how to estimate the underlying distribution given such a sample. In addition, we grant some arbitrary $\refdist[\anyevent]$ and try to find a learnable function that best explains the sample based upon measures of likelihood.
+For now, $f$ is arbitrary and is composed from parameters that are of interest for us, $\param$. It gives us the freedom to shape the reference NDF.
 
 \end{document}

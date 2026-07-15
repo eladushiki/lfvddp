@@ -25,7 +25,7 @@ aps, physrev,
 ]{revtex4-2}
 
 \input{../common/preamble}
-	
+
 \begin{document}
 \preprint{WIS/DDP-01}
 
@@ -52,7 +52,7 @@ aps, physrev,
 }
 
 \author{Yotam Svoray}
-\email{svoray@math.utah.edu}
+\email{yotam.svoray@mail.huji.ac.il}
 \affiliation{%
   Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
 }
@@ -79,23 +79,22 @@ aps, physrev,
 
 \section{Formalism}
 
-\subfile{sections/formalism/event_counting.tex}
 \subfile{paper/sections/formalism/learnable_distributions}
 \subfile{paper/sections/formalism/distribution_likelihood}
-\subfile{sections/formalism/adding_nuisances.tex}
-\subfile{sections/formalism/hypothesis_testing.tex}
-\subfile{paper/sections/formalism/constructing_test_statistic}
-\subfile{paper/sections/formalism/loss_for_learnable_statistic}
-\subfile{sections/formalism/error_propagation.tex}
-\TODO{do we need pooled likelihood anywhere?}
+\subfile{paper/sections/formalism/event_counting}
+\subfile{paper/sections/formalism/adding_nuisances}
+\subfile{paper/sections/formalism/hypothesis_testing}
+\subfile{paper/sections/formalism/loss_mechanics}
+\subfile{paper/sections/formalism/test_statistics}
+\TODO{error propagation is currently not used anywhere}
+\subfile{paper/sections/formalism/error_propagation}
 
 \section{Methodology}
-
-\subfile{sections/methodology/reproduction.tex}
-\TODO{show the effect of efficiency model nuisance in 1D}
-\subfile{sections/methodology/detector_effect.tex}
+\subfile{paper/sections/methodology/implementation_details}
+\subfile{paper/sections/methodology/reproduction}
+\subfile{paper/sections/methodology/detector_nuisance}
 \TODO{effects of multi dim 2-4}
-\subfile{sections/methodology/multiple_dimensions.tex}
+\subfile{paper/sections/methodology/multiple_dimensions}
 \TODO{combination of both}
 \TODO{cms data with control region -> central value of nuisances}
 
@@ -108,7 +107,7 @@ aps, physrev,
 \end{acknowledgments}
 
 \appendix
-\TODO{appendix sections here}
+\subfile{paper/sections/appendices/t_value_computation}
 
 % Print out all entries in the bibliography, even if they are not cited in the text.
 % Produce the bibliography via BibTeX.

@@ -4,37 +4,29 @@
 
 \begin{document}
 
-\subsection{Adding Nuisance Parameters to Account for Imperfect knowledge}
+\subsection{Nuisance Parameters Account for Imperfect Knowledge}
 
-We now explain how we can take into account the nuisance parameters that appear in our model, which we use to address the imperfect knowledge of the exact detector efficiency. Even though there are ways to formulate how our theory depends on many different types of imperfections within our model, our model takes into account detector efficiency imperfections that are easily translatable to any other nuisance parameter in the model.
+We would like to account for the imperfect knowledge of the detector's operation via the incorporation of said $\nparam$'s, now referred to as nuisance parameters and a are subject to further modification. That being said, our method is applicable for any other nuisance parameter a theory might have.
 
-We use the assumption that the nuisance parameters are "small", which adds an additional layer to the calculation of the likelihood. Using a similar argument to that presented in \cite{Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine}, we claim that the likelihood (which is dependent on some nuisance parameters $\nu_m^j$) becomes
+\subsubsection{Learning Nuisance from Control Region}
 
-\begin{equation}
-\begin{aligned}\label{eq:nuisance_likelihood_construction}
-    \likelihood(\lambda | \dataset{A}, \nparam) &= \likelihood(\dataset{A}| \lambda(\nparam)) \cdot \likelihood(\nparam) \\
-    \llikelihood(\lambda | \dataset{A}, \nparam) &= \llikelihood(\dataset{A}| \lambda(\nparam)) + \llikelihood(\nparam)
-\end{aligned}
-\end{equation}
+As in a real experiment, we would like to learn about uncertainties in our system from an environment that is clean of signal. For our process, we introduce two pairs of event sets, elaborated in Table \ref{table:division_of_data}.
+While the signal region (SR) is a pair of two datasets that are of interest and may contain a signal, the control region (CR) is assumed to be clean of unknown physics, hence fully expressible by our known physics model and nuisance parameters.
 
-\noindent while having multiple nuisances sums all their log likelihoods in the same manner.
+\begin{table}[ht]%[H] add [H] placement to break table across pages
+\centering
+\caption{\label{table:division_of_data}}
+\begin{ruledtabular}
+\begin{tabular}{| l | c | c |}
+ & $\dataset{A}$ & $\dataset{B}$ \\
+\hline
+SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
+CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
+\end{tabular}
+\end{ruledtabular}
+\caption{Division of available data from different cuts into subsets for signal and control regions.}
+\end{table}
 
-To estimate the likelihood of a nuisance parameter, we must assume it follows a certain behavioral pattern. For the sake of simplicity, we assume that it follows a normal distribution with some $\sigma_0$ that is centered around $0$. In this case, the likelihood of a gaussian distributed parameter is well known, and can be expressed by
-
-\begin{equation} \label{eq:gaussian_likelihood}
-    \likelihood(\nparam) = \frac{1}{\sqrt{2 \pi \sigma_0^2}} e^{-\frac{(\nparam)^2}{2 \sigma_0^2}},
-\end{equation}
-
-\noindent and whose logarithm can be expressed as  
-
-\begin{equation} \label{eq:gaussian_log_likelihood}
-    \llikelihood(\nparam) = -\frac{1}{2} \log(2 \pi \sigma_0^2) - \frac{(\nparam)^2}{2 \sigma_0^2} = - \frac{1}{2 \sigma_0^2} (\nparam)^2 + C
-\end{equation}
-
-Plugging \ref{eq:gaussian_likelihood} and \ref{eq:reconstructed_log_likelihood_of_a_distribution} into \ref{eq:nuisance_likelihood_construction} we get the full expression
-
-\begin{equation}\label{eq:ultimate_log_likelihood_of_a_distribution}
-\llikelihood(\lambda | \reco{A}, \nparam) =-N_{\reco{A}} + \sum_{\weightedevent \in \reco{A}} w_i f(\event) + N_\reco{A}\log \frac{N_\reco{A}}{Z_f} + \sum_{\weightedevent \in \reco{A}} w_i\log \refdist[\event] - \sum_{\nparam} \frac{1}{2 \sigma_0^2} (\nu^j_m)^2 + C_\reco{A}
-\end{equation}
+The CR dataset pair would serve as a constraint to the nuisance parameters, which are incorporated to the SR hypothesis as well.
 
 \end{document}

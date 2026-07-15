@@ -7,34 +7,28 @@
 \subsection{Building an Observed Dataset}
 \label{sec:building_an_observed_dataset}
 
-During a HEP experiment, large amounts of collision events occur inside the detector. The original number of such events in a dataset is denoted by $\true{N}$.
+During a HEP experiment, large amounts of collision events occur inside the detector.
 
-When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components, and angles. Let each event \( \event \coloneq (\phi_1^i, \dots, \phi_k^i) \in \mathbb{R}^k\) be a point in \( k \)-dimensional feature space and each dataset \(\dataset{A} \subset \mathbb{R}^{\true{N} \times k}\) be a collection of $k$ such events.
-
-Due to limited detector efficiency not all events that occur inside the detector are observed. We denote by $\eta(\event)$ the probability with which an event is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\meas{A}$ to be the dataset that that stochastically removes events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\eta(\event)$. We denote the observed number of events by $|\meas{A}| = N_\meas{A}$. Our first goal is to estimate \( \true{N} \) from the observed \( N_\meas{A} \), correcting for detector efficiency effects and propagating uncertainties associated with the efficiency estimation.
+When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components, and angles. Due to limited detector efficiency not all events that occur inside the detector are observed. We denote by $\detector(\event)$ the probability with which an event is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\meas{A}$ to be the dataset after stochastically removing events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\detector(\event)$. We denote the observed number of events by $|\meas{A}| = N_\meas{A}$. As we see soon, the absolute effect of a detector would not matter, but the difference between its effect on two datasets.
 
 \subsection{Modeling our Knowledge of the Detector Efficiency}
 
-In our modeling, the datasets statistics are being binned before they can be analyzed. Therefore, as the detectable range is divided into $m^j$ bins along each dimension, we consider the efficiency of the detector $\eta$ and the uncertainty modified efficiency function $\theta$ to be a multiplicative functions in each of the ranges, and thus they are evaluated at a per-bin and per-dimension basis. In addition, we have $\sum_j m^j$ nuisance unknown nuisance parameters $\nu_m^j$ that are considered small for our formulation, yet needed to fully capture the uncertainty effect.
+We know our model of the detector's behavior is not perfect. Moreover, we know the detector might not behave exactly the same detecting two otherwise-physically-equivalent samples, say, electrons and muons. We now formulate our accounting to uncertainties of this process.
 
-
-Therefore, we express the (true) efficiency function as a product $\eta(\event) \coloneq \prod_{j=1}^k \eta^j(\phi_i^j)$ where $\eta^j(\phi_i^j) \colon  \mathbb{R} \to [0,1]$, and we express the uncertainty modified efficiency function as $\theta(\event) \coloneq \prod_{j=1}^{k}\theta^j(\phi_i^j)$ where $\theta^j(\phi_i^j) \coloneq e^{-\nu^j_m}\eta^j(\phi_i^j)$ represents our knowledge of the efficiency of each bin.
-
-
-\subsection{Efficiency Compensation via Event Weights}
-
-To reconstruct the statistics of the original datasets, we assign weights for each event $\event \in \tilde{\mathbf{A}}$ by setting
+Given two such sets, we denote by $2\nparam(\anyevent)$ the difference between the probability to detect an event of either within a specific point in the observable space
 
 \begin{equation}
-\label{eq:def_weights}
-\quad w_i \coloneq \frac{1}{\theta(\event)} = e^{\nu^j_m}\frac{1}{\eta^j(\event)}.
+\label{eq:nuisance_from_detector_efficiencies}
+    \detector_{A}(\anyevent) - \detector_{B}(\anyevent) \coloneqq 2 \nparam(\anyevent)
 \end{equation}
 
-This gives rise to the efficiency-compensated reconstructed datasets that is given by $\dot{\mathbf{A}} \coloneq \{ (\event, w_i) \colon \event \in \tilde{\mathbf{A}} \}$, whose estimated total event counts is
-\[
-N_\reco{A} = \sum_{\event \in \meas{A}} w_i \approx \true{N}.
-\]
+That is, given some constant distribution, we'll expect the two detected datasets be of the sort
 
-Note that this expression $N_\reco{A}$ includes our knowledge of the efficiency and our error, through the $\eta$'s in the definition of the weights.
+\begin{equation}
+\begin{aligned}
+    \dist{\meas{A}} &= (1 + \nparam(\event))\refdist \\
+    \dist{\meas{B}} &= (1 - \nparam(\event))\refdist
+\end{aligned}
+\end{equation}
 
 \end{document}
