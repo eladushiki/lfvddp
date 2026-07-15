@@ -11,7 +11,6 @@ import numpy.typing as npt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn.functional import pad
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
@@ -30,14 +29,41 @@ from train.train_config import TrainConfig
 
 def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
     """
-    Concatenate per-event detector weights in the canonical DataBatch order.
+    Prepare per-event detector weights in the canonical DataBatch order.
 
-    Dataset-size coefficients belong to ``ddp_minimization_loss`` and must not
-    be applied a second time here.
+    Preserve relative detector weights within each region while assigning SR
+    and CR equal total weight. Dataset-size mixture coefficients belong to
+    ``ddp_minimization_loss`` and must not be applied a second time here.
     """
+    region_categories = (
+        (DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR),
+        (DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR),
+    )
+    normalization_by_category = {}
+    for region in region_categories:
+        region_weight = sum(
+            data.datasets[category].corrected_n_samples for category in region
+        )
+        normalization_by_category.update(
+            {category: 0.5 / region_weight for category in region}
+        )
     return np.concatenate(
-        [dataset._weight_mask for dataset, _ in data],
+        [
+            dataset._weight_mask * normalization_by_category[dataset.category]
+            for dataset, _ in data
+        ],
         axis=0,
+    )
+
+
+def _expand_masked_predictions(
+    predictions: torch.Tensor,
+    mask: torch.Tensor,
+) -> torch.Tensor:
+    """Restore predictions made on a masked subset to full-batch positions."""
+    return predictions.new_zeros(mask.shape).masked_scatter(
+        mask,
+        predictions.reshape(-1),
     )
 
 
@@ -290,26 +316,22 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         weights: torch.Tensor,
     ) -> torch.Tensor:
         sr_data = data[self._sr_mask]
-        f_of_x_sr_est = pad(
-            self.f_network(sr_data).squeeze(),
-            (0, data.numel() - sr_data.numel()),
+        f_of_x_sr_est = _expand_masked_predictions(
+            self.f_network(sr_data),
+            self._sr_mask,
         )
-        g_of_x_sr_est = pad(
-            self.g_network(sr_data).squeeze(),
-            (0, data.numel() - sr_data.numel()),
+        g_of_x_sr_est = _expand_masked_predictions(
+            self.g_network(sr_data),
+            self._sr_mask,
         )
         eta_of_x_est = self.eta(data).squeeze()
 
-        return torch.mean(
-            (
-                self.ddp_minimization_loss(
-                    f_of_x_sr_est=f_of_x_sr_est,
-                    g_of_x_sr_est=g_of_x_sr_est,
-                    eta_of_x_est=eta_of_x_est,
-                )
-                * weights
-            )
+        losses = self.ddp_minimization_loss(
+            f_of_x_sr_est=f_of_x_sr_est,
+            g_of_x_sr_est=g_of_x_sr_est,
+            eta_of_x_est=eta_of_x_est,
         )
+        return torch.sum(losses * weights)
 
     @contextmanager
     def binning_context(self, data: DataSet):
