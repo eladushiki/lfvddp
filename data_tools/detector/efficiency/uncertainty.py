@@ -27,15 +27,25 @@ def detector_uncertainty_no_uncertainty(
     return detector_efficiency
 
 
-def detector_uncertainty_10_percent_constant_diminish(
-        detector_efficiency: DETECTOR_EFFICIENCY_TYPE,
+def detector_uncertainty_constant_offset(
+        offset: float,
 ):
-    def uncertainty_wrapper(binned_x: pd.DataFrame) -> np.ndarray:
-        clean_efficiency = detector_efficiency(binned_x)
-        defected_efficiency = clean_efficiency * 0.9
-        return defected_efficiency
-    
-    return uncertainty_wrapper
+    def uncertain_detector_effect(
+            detector_efficiency: DETECTOR_EFFICIENCY_TYPE,
+    ):
+        def uncertainty_wrapper(binned_x: pd.DataFrame) -> np.ndarray:
+            clean_efficiency = detector_efficiency(binned_x)
+            defected_efficiency = clean_efficiency * (1 + offset)
+            return defected_efficiency
+        
+        return uncertainty_wrapper
+
+    return uncertain_detector_effect
+
+
+detector_uncertainty_2_percent_constant_diminish = detector_uncertainty_constant_offset(-0.02)
+detector_uncertainty_2_percent_constant_increase = detector_uncertainty_constant_offset(0.02)
+detector_uncertainty_10_percent_constant_diminish = detector_uncertainty_constant_offset(-0.1)
 
 
 def detector_uncertainty_gaussian_noise(
@@ -50,8 +60,8 @@ def detector_uncertainty_gaussian_noise(
         unique_bins = pd.DataFrame(unique_bins, columns=binned_x.columns)
         unique_efficiency = detector_efficiency(unique_bins)
         
-        relative_error_magnitude_max = 0.5
-        relative_error_std = 0.1
+        relative_error_magnitude_max = 0.1
+        relative_error_std = 0.02
         relative_errors = truncnorm.rvs(
             -relative_error_magnitude_max,
             relative_error_magnitude_max,
