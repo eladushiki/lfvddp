@@ -702,16 +702,8 @@ def plot_prediction_process_sliced(
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
     )
-    display_centers_by_observable = {
-        observable_name: 0.5 * (observable_edges[:-1] + observable_edges[1:])
-        for observable_name, observable_edges in display_edges_by_observable.items()
-    }
     bins, bin_centers = _bins_for_observables(
         display_edges_by_observable, selected_observables
-    )
-    contour_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=display_centers_by_observable,
-        observable_names=configured_observables,
     )
 
     sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
@@ -847,53 +839,6 @@ def plot_prediction_process_sliced(
     for panel in distribution_axes:
         panel.legend(fontsize=8)
 
-    spanning_exp_f_eta_plus = utils__model_prediction_values(
-        numerator_model.predict, contour_spanning_dataset
-    )
-    spanning_exp_g_eta_minus = utils__model_prediction_values(
-        numerator_model.predict_secondary, contour_spanning_dataset
-    )
-    spanning_numerator_eta = utils__model_prediction_values(
-        numerator_model.predict_eta, contour_spanning_dataset
-    )
-    spanning_exp_f = utils__remove_eta_from_prediction_values(
-        prediction_values=spanning_exp_f_eta_plus,
-        eta_values=spanning_numerator_eta,
-        eta_sign=1.0,
-    )
-    spanning_exp_g = utils__remove_eta_from_prediction_values(
-        prediction_values=spanning_exp_g_eta_minus,
-        eta_values=spanning_numerator_eta,
-        eta_sign=-1.0,
-    )
-
-    sr_prediction_specs = {
-        "exp_f": (
-            r"signal hypothesis $e^{f(x)}$",
-            spanning_exp_f,
-            plot_colors["f"],
-            prediction_linestyles["product"],
-        ),
-        "exp_g": (
-            r"signal hypothesis $e^{g(x)}$",
-            spanning_exp_g,
-            plot_colors["g"],
-            prediction_linestyles["product"],
-        ),
-        "exp_f_eta_plus": (
-            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
-            spanning_exp_f_eta_plus,
-            plot_colors["f"],
-            prediction_linestyles["component"],
-        ),
-        "exp_g_eta_minus": (
-            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
-            spanning_exp_g_eta_minus,
-            plot_colors["g"],
-            prediction_linestyles["component"],
-        ),
-    }
-
     detector_effect = denominator_training.detector_effect
     detector_bins_by_observable = {
         observable_name: detector_effect.get_observable_bins(observable_name)
@@ -926,7 +871,7 @@ def plot_prediction_process_sliced(
             )
         )
 
-    nuisance_values_by_observable = {
+    prediction_values_by_observable = {
         observable_name: (
             dense_display_axis_values(
                 display_edges_by_observable[observable_name],
@@ -937,17 +882,60 @@ def plot_prediction_process_sliced(
         )
         for observable_name in configured_observables
     }
-    nuisance_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=nuisance_values_by_observable,
+    prediction_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
 
+    spanning_exp_f_eta_plus = utils__model_prediction_values(
+        numerator_model.predict, prediction_spanning_dataset
+    )
+    spanning_exp_g_eta_minus = utils__model_prediction_values(
+        numerator_model.predict_secondary, prediction_spanning_dataset
+    )
     nuisance_numerator_eta = utils__model_prediction_values(
-        numerator_model.predict_eta, nuisance_spanning_dataset
+        numerator_model.predict_eta, prediction_spanning_dataset
     )
     nuisance_denominator_eta = utils__model_prediction_values(
-        denominator_model.predict_eta, nuisance_spanning_dataset
+        denominator_model.predict_eta, prediction_spanning_dataset
     )
+    spanning_exp_f = utils__remove_eta_from_prediction_values(
+        prediction_values=spanning_exp_f_eta_plus,
+        eta_values=nuisance_numerator_eta,
+        eta_sign=1.0,
+    )
+    spanning_exp_g = utils__remove_eta_from_prediction_values(
+        prediction_values=spanning_exp_g_eta_minus,
+        eta_values=nuisance_numerator_eta,
+        eta_sign=-1.0,
+    )
+
+    sr_prediction_specs = {
+        "exp_f": (
+            r"signal hypothesis $e^{f(x)}$",
+            spanning_exp_f,
+            plot_colors["f"],
+            prediction_linestyles["product"],
+        ),
+        "exp_g": (
+            r"signal hypothesis $e^{g(x)}$",
+            spanning_exp_g,
+            plot_colors["g"],
+            prediction_linestyles["product"],
+        ),
+        "exp_f_eta_plus": (
+            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+            spanning_exp_f_eta_plus,
+            plot_colors["f"],
+            prediction_linestyles["component"],
+        ),
+        "exp_g_eta_minus": (
+            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+            spanning_exp_g_eta_minus,
+            plot_colors["g"],
+            prediction_linestyles["component"],
+        ),
+    }
 
     def nuisance_prediction_specs(
         numerator_eta: np.ndarray,
@@ -999,10 +987,10 @@ def plot_prediction_process_sliced(
         }
 
     projected_sr_predictions = project_predictions(
-        sr_prediction_specs, contour_spanning_dataset
+        sr_prediction_specs, prediction_spanning_dataset
     )
     projected_cr_predictions = project_predictions(
-        cr_prediction_specs, nuisance_spanning_dataset
+        cr_prediction_specs, prediction_spanning_dataset
     )
 
     def prediction_axis_limits(
