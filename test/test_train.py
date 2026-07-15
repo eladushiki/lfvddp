@@ -1,9 +1,16 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
+from data_tools.data_generation import DataBatch
+from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
+from neural_networks.differentiating_model import (
+    _calculate_loss_weights,
+    _expand_masked_predictions,
+)
 from test.environment import ConfigType
 from train.checkpoints import _torch_load, checkpoint_filename
 from train.model_trainer import SequentialTrainLauncher
@@ -30,6 +37,46 @@ def _load_checkpoint_state_dict(function_execution_context, model_name):
         / checkpoint_filename(model_name)
     )
     return checkpoint["model_state_dict"]
+
+
+def test_loss_weights_follow_batch_order_and_equally_weight_regions():
+    category_weights = {
+        DataSet.DataSetCategory.A_SR: 1.0,
+        DataSet.DataSetCategory.A_CR: 2.0,
+        DataSet.DataSetCategory.B_SR: 3.0,
+        DataSet.DataSetCategory.B_CR: 4.0,
+    }
+    datasets = []
+    for category, weight in reversed(category_weights.items()):
+        dataset = DataSet(
+            data=np.full((1, 1), weight),
+            observable_names=["observable"],
+            category=category,
+        )
+        dataset._weight_mask[:] = weight
+        datasets.append((dataset, None))
+
+    data_batch = DataBatch(datasets)
+
+    np.testing.assert_array_equal(
+        data_batch.unified_data.events[:, 0],
+        [1.0, 2.0, 3.0, 4.0],
+    )
+    np.testing.assert_allclose(
+        _calculate_loss_weights(data_batch),
+        [1.0 / 8.0, 1.0 / 6.0, 3.0 / 8.0, 1.0 / 3.0],
+    )
+
+
+def test_masked_predictions_are_restored_to_batch_positions():
+    predictions = torch.tensor([[10.0], [30.0]], requires_grad=True)
+    sr_mask = torch.tensor([True, False, True, False])
+
+    expanded = _expand_masked_predictions(predictions, sr_mask)
+
+    torch.testing.assert_close(expanded, torch.tensor([10.0, 0.0, 30.0, 0.0]))
+    expanded.sum().backward()
+    torch.testing.assert_close(predictions.grad, torch.ones_like(predictions))
 
 
 class _TensorboardRecorder:
