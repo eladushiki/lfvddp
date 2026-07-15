@@ -908,46 +908,6 @@ def plot_prediction_process_sliced(
         for observable_name, detector_bins in detector_bins_by_observable.items()
     }
 
-    nuisance_plot_edges_by_observable = {
-        observable_name: np.unique(
-            np.concatenate(
-                (
-                    display_edges_by_observable[observable_name][[0, -1]],
-                    detector_edges_by_observable[observable_name][
-                        (
-                            detector_edges_by_observable[observable_name]
-                            >= display_edges_by_observable[observable_name][0]
-                        )
-                        & (
-                            detector_edges_by_observable[observable_name]
-                            <= display_edges_by_observable[observable_name][-1]
-                        )
-                    ],
-                )
-            )
-        )
-        for observable_name in configured_observables
-    }
-    nuisance_bins, _ = _bins_for_observables(
-        nuisance_plot_edges_by_observable, selected_observables
-    )
-    nuisance_step_values_by_observable = {
-        observable_name: (
-            0.5
-            * (
-                nuisance_plot_edges_by_observable[observable_name][:-1]
-                + nuisance_plot_edges_by_observable[observable_name][1:]
-            )
-            if observable_name in selected_observables
-            else detector_centers_by_observable[observable_name]
-        )
-        for observable_name in configured_observables
-    }
-    nuisance_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=nuisance_step_values_by_observable,
-        observable_names=configured_observables,
-    )
-
     def dense_display_axis_values(
         display_edges: np.ndarray,
         detector_edges: np.ndarray,
@@ -966,7 +926,7 @@ def plot_prediction_process_sliced(
             )
         )
 
-    nuisance_dense_values_by_observable = {
+    nuisance_values_by_observable = {
         observable_name: (
             dense_display_axis_values(
                 display_edges_by_observable[observable_name],
@@ -977,8 +937,8 @@ def plot_prediction_process_sliced(
         )
         for observable_name in configured_observables
     }
-    nuisance_dense_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=nuisance_dense_values_by_observable,
+    nuisance_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=nuisance_values_by_observable,
         observable_names=configured_observables,
     )
 
@@ -987,12 +947,6 @@ def plot_prediction_process_sliced(
     )
     nuisance_denominator_eta = utils__model_prediction_values(
         denominator_model.predict_eta, nuisance_spanning_dataset
-    )
-    nuisance_dense_numerator_eta = utils__model_prediction_values(
-        numerator_model.predict_eta, nuisance_dense_spanning_dataset
-    )
-    nuisance_dense_denominator_eta = utils__model_prediction_values(
-        denominator_model.predict_eta, nuisance_dense_spanning_dataset
     )
 
     def nuisance_prediction_specs(
@@ -1030,10 +984,6 @@ def plot_prediction_process_sliced(
         nuisance_numerator_eta,
         nuisance_denominator_eta,
     )
-    dense_cr_prediction_specs = nuisance_prediction_specs(
-        nuisance_dense_numerator_eta,
-        nuisance_dense_denominator_eta,
-    )
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -1053,9 +1003,6 @@ def plot_prediction_process_sliced(
     )
     projected_cr_predictions = project_predictions(
         cr_prediction_specs, nuisance_spanning_dataset
-    )
-    projected_dense_cr_predictions = project_predictions(
-        dense_cr_prediction_specs, nuisance_dense_spanning_dataset
     )
 
     def prediction_axis_limits(
@@ -1111,15 +1058,10 @@ def plot_prediction_process_sliced(
         predictions=projected_specs(
             cr_prediction_specs, projected_cr_predictions
         ),
-        bins=nuisance_bins,
+        bins=bins,
         along_observables=selected_observables,
         prediction_limits=cr_prediction_limits,
         title="CR predictions",
-        draw_as_steps=True,
-        continuous_predictions=projected_specs(
-            dense_cr_prediction_specs,
-            projected_dense_cr_predictions,
-        ),
     )
 
     return fig
