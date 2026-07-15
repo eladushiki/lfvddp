@@ -27,9 +27,6 @@ class TrainConfig:
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
     
-    # LFVDDP PARAMETERS -- only relevant if train__like_NPLM is False
-    train__nuisance_lfvddp_nuisance_std: float = 0.1
-
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
     train__nn_weight_clipping: float = False
     # Correction - what should be taken into account about the nuisance parameters?

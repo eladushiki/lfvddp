@@ -783,6 +783,9 @@ def utils__plot_model_predictions_sliced(
     prediction_limits: Tuple[float, float],
     title: str,
     draw_as_steps: bool = False,
+    continuous_predictions: Optional[
+        List[Tuple[np.ndarray, np.ndarray, str, str, str]]
+    ] = None,
 ) -> None:
     """Draw a complete 1D-line or 2D-wireframe model-prediction panel."""
     first_coordinates = predictions[0][0]
@@ -806,6 +809,43 @@ def utils__plot_model_predictions_sliced(
                     utils__flatten_histogram_values(coordinates),
                     utils__flatten_histogram_values(contour),
                     **plot_kwargs,
+                )
+        for coordinates, contour, _, color, linestyle in continuous_predictions or []:
+            flattened_coordinates = utils__flatten_histogram_values(coordinates)
+            ax.plot(
+                flattened_coordinates,
+                utils__flatten_histogram_values(contour),
+                color=color,
+                linestyle=linestyle,
+                linewidth=1.0,
+                alpha=0.9,
+                marker="x",
+                markersize=3.5,
+                markeredgewidth=0.6,
+                markevery=max(1, len(flattened_coordinates) // 40),
+                label="_nolegend_",
+                zorder=4,
+            )
+        if continuous_predictions:
+            ax.plot(
+                [],
+                [],
+                color="black",
+                linewidth=1.0,
+                marker="x",
+                markersize=3.5,
+                label="dense model evaluation",
+            )
+        if draw_as_steps:
+            ax.set_xticks(bins)
+            for bin_edge in np.asarray(bins)[1:-1]:
+                ax.axvline(
+                    bin_edge,
+                    color="gray",
+                    linestyle=":",
+                    linewidth=0.7,
+                    alpha=0.35,
+                    zorder=0,
                 )
         ax.set_ylim(prediction_limits)
     else:
@@ -856,6 +896,27 @@ def utils__plot_model_predictions_sliced(
                 alpha=0.9,
             )
             ax.plot([], [], [], label=label, color=color, linestyle=linestyle)
+        for coordinates, contour, _, color, linestyle in continuous_predictions or []:
+            x_values = np.unique(coordinates[:, 0])
+            y_values = np.unique(coordinates[:, 1])
+            continuous_grid = np.asarray(contour).reshape(
+                len(x_values), len(y_values)
+            )
+            continuous_xx, continuous_yy = np.meshgrid(
+                x_values, y_values, indexing="ij"
+            )
+            ax.plot_wireframe(
+                continuous_xx,
+                continuous_yy,
+                continuous_grid,
+                color=color,
+                linestyle=linestyle,
+                linewidth=0.65,
+                alpha=0.8,
+            )
+        if draw_as_steps:
+            ax.set_xticks(bins[0])
+            ax.set_yticks(bins[1])
         ax.set_zlim(prediction_limits)
 
     utils__set_subplot_labels_sliced(

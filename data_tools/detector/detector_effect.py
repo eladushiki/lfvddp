@@ -101,6 +101,21 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         return __compensator
 
     # Exported functions - uses DataSet
+    def get_observable_bins(
+        self,
+        observable_name: str,
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+        """Return the detector bin edges and centers for one observable."""
+        try:
+            return (
+                self._dimensional_bin_edges[observable_name].copy(),
+                self._dimensional_bin_centers[observable_name].copy(),
+            )
+        except KeyError as error:
+            raise ValueError(
+                f"Observable {observable_name} is not detected by this detector effect."
+            ) from error
+
     def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
         """
         Generate a filter for the dataset based on the true efficiency.

@@ -609,13 +609,13 @@ def _bins_for_observables(
     return edges, centers
 
 
-def _spanning_dataset_from_centers(
-    centers_by_observable: dict[str, np.ndarray],
+def _spanning_dataset_from_observable_values(
+    values_by_observable: dict[str, np.ndarray],
     observable_names: List[str],
 ) -> DataSet:
     spanning_mesh = np.meshgrid(
         *[
-            centers_by_observable[observable_name]
+            values_by_observable[observable_name]
             for observable_name in observable_names
         ],
         indexing="ij",
@@ -709,8 +709,8 @@ def plot_prediction_process_sliced(
     bins, bin_centers = _bins_for_observables(
         display_edges_by_observable, selected_observables
     )
-    contour_spanning_dataset = _spanning_dataset_from_centers(
-        centers_by_observable=display_centers_by_observable,
+    contour_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=display_centers_by_observable,
         observable_names=configured_observables,
     )
 
@@ -894,57 +894,146 @@ def plot_prediction_process_sliced(
         ),
     }
 
+    detector_effect = denominator_training.detector_effect
     detector_bins_by_observable = {
-        observable_name: config.observable_bins(observable_name)
+        observable_name: detector_effect.get_observable_bins(observable_name)
         for observable_name in configured_observables
     }
-    nuisance_edges_by_observable = {
+    detector_edges_by_observable = {
         observable_name: detector_bins[0]
         for observable_name, detector_bins in detector_bins_by_observable.items()
     }
-    nuisance_centers_by_observable = {
+    detector_centers_by_observable = {
         observable_name: detector_bins[1]
         for observable_name, detector_bins in detector_bins_by_observable.items()
     }
+
+    nuisance_plot_edges_by_observable = {
+        observable_name: np.unique(
+            np.concatenate(
+                (
+                    display_edges_by_observable[observable_name][[0, -1]],
+                    detector_edges_by_observable[observable_name][
+                        (
+                            detector_edges_by_observable[observable_name]
+                            >= display_edges_by_observable[observable_name][0]
+                        )
+                        & (
+                            detector_edges_by_observable[observable_name]
+                            <= display_edges_by_observable[observable_name][-1]
+                        )
+                    ],
+                )
+            )
+        )
+        for observable_name in configured_observables
+    }
     nuisance_bins, _ = _bins_for_observables(
-        nuisance_edges_by_observable, selected_observables
+        nuisance_plot_edges_by_observable, selected_observables
     )
-    nuisance_spanning_dataset = _spanning_dataset_from_centers(
-        centers_by_observable=nuisance_centers_by_observable,
+    nuisance_step_values_by_observable = {
+        observable_name: (
+            0.5
+            * (
+                nuisance_plot_edges_by_observable[observable_name][:-1]
+                + nuisance_plot_edges_by_observable[observable_name][1:]
+            )
+            if observable_name in selected_observables
+            else detector_centers_by_observable[observable_name]
+        )
+        for observable_name in configured_observables
+    }
+    nuisance_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=nuisance_step_values_by_observable,
         observable_names=configured_observables,
     )
+
+    def dense_display_axis_values(
+        display_edges: np.ndarray,
+        detector_edges: np.ndarray,
+    ) -> np.ndarray:
+        step = np.min(np.diff(display_edges)) / 10.0
+        return np.unique(
+            np.concatenate(
+                (
+                    np.arange(display_edges[0], display_edges[-1], step),
+                    display_edges,
+                    detector_edges[
+                        (detector_edges >= display_edges[0])
+                        & (detector_edges <= display_edges[-1])
+                    ],
+                )
+            )
+        )
+
+    nuisance_dense_values_by_observable = {
+        observable_name: (
+            dense_display_axis_values(
+                display_edges_by_observable[observable_name],
+                detector_edges_by_observable[observable_name],
+            )
+            if observable_name in selected_observables
+            else detector_centers_by_observable[observable_name]
+        )
+        for observable_name in configured_observables
+    }
+    nuisance_dense_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=nuisance_dense_values_by_observable,
+        observable_names=configured_observables,
+    )
+
     nuisance_numerator_eta = utils__model_prediction_values(
         numerator_model.predict_eta, nuisance_spanning_dataset
     )
     nuisance_denominator_eta = utils__model_prediction_values(
         denominator_model.predict_eta, nuisance_spanning_dataset
     )
-    cr_prediction_specs = {
-        "numerator_eta_plus": (
-            r"signal hypothesis $1+\eta(x)$",
-            1.0 + nuisance_numerator_eta,
-            plot_colors["eta_plus"],
-            prediction_linestyles["component"],
-        ),
-        "numerator_eta_minus": (
-            r"signal hypothesis $1-\eta(x)$",
-            1.0 - nuisance_numerator_eta,
-            plot_colors["eta_minus"],
-            prediction_linestyles["component"],
-        ),
-        "denominator_eta_plus": (
-            r"null hypothesis $1+\eta(x)$",
-            1.0 + nuisance_denominator_eta,
-            plot_colors["eta_plus"],
-            prediction_linestyles["denominator"],
-        ),
-        "denominator_eta_minus": (
-            r"null hypothesis $1-\eta(x)$",
-            1.0 - nuisance_denominator_eta,
-            plot_colors["eta_minus"],
-            prediction_linestyles["denominator"],
-        ),
-    }
+    nuisance_dense_numerator_eta = utils__model_prediction_values(
+        numerator_model.predict_eta, nuisance_dense_spanning_dataset
+    )
+    nuisance_dense_denominator_eta = utils__model_prediction_values(
+        denominator_model.predict_eta, nuisance_dense_spanning_dataset
+    )
+
+    def nuisance_prediction_specs(
+        numerator_eta: np.ndarray,
+        denominator_eta: np.ndarray,
+    ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
+        return {
+            "numerator_eta_plus": (
+                r"signal hypothesis $1+\eta(x)$",
+                1.0 + numerator_eta,
+                plot_colors["eta_plus"],
+                prediction_linestyles["component"],
+            ),
+            "numerator_eta_minus": (
+                r"signal hypothesis $1-\eta(x)$",
+                1.0 - numerator_eta,
+                plot_colors["eta_minus"],
+                prediction_linestyles["component"],
+            ),
+            "denominator_eta_plus": (
+                r"null hypothesis $1+\eta(x)$",
+                1.0 + denominator_eta,
+                plot_colors["eta_plus"],
+                prediction_linestyles["denominator"],
+            ),
+            "denominator_eta_minus": (
+                r"null hypothesis $1-\eta(x)$",
+                1.0 - denominator_eta,
+                plot_colors["eta_minus"],
+                prediction_linestyles["denominator"],
+            ),
+        }
+
+    cr_prediction_specs = nuisance_prediction_specs(
+        nuisance_numerator_eta,
+        nuisance_denominator_eta,
+    )
+    dense_cr_prediction_specs = nuisance_prediction_specs(
+        nuisance_dense_numerator_eta,
+        nuisance_dense_denominator_eta,
+    )
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -964,6 +1053,9 @@ def plot_prediction_process_sliced(
     )
     projected_cr_predictions = project_predictions(
         cr_prediction_specs, nuisance_spanning_dataset
+    )
+    projected_dense_cr_predictions = project_predictions(
+        dense_cr_prediction_specs, nuisance_dense_spanning_dataset
     )
 
     def prediction_axis_limits(
@@ -1024,6 +1116,10 @@ def plot_prediction_process_sliced(
         prediction_limits=cr_prediction_limits,
         title="CR predictions",
         draw_as_steps=True,
+        continuous_predictions=projected_specs(
+            dense_cr_prediction_specs,
+            projected_dense_cr_predictions,
+        ),
     )
 
     return fig
