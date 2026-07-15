@@ -49,7 +49,7 @@ class DataBatch:
 
     @property
     def unified_data(self) -> DataSet:
-        return sum(self.datasets.values(), DataSet())
+        return sum((dataset for dataset, _ in self), DataSet())
 
     def get_normalized(self) -> Tuple['DataBatch', ShiftAndNormalizationFactor]:
         _, norm_factor = self.unified_data.get_normalized()

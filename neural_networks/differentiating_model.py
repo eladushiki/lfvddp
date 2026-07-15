@@ -30,24 +30,13 @@ from train.train_config import TrainConfig
 
 def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
     """
-    Normalize the dataset weights by total events in the region.
-    This stems from the reference distribution formula.
+    Concatenate per-event detector weights in the canonical DataBatch order.
+
+    Dataset-size coefficients belong to ``ddp_minimization_loss`` and must not
+    be applied a second time here.
     """
-    N_SR = (N_A_SR := data.datasets[DataSet.DataSetCategory.A_SR].n_samples) + (
-        N_B_SR := data.datasets[DataSet.DataSetCategory.B_SR].n_samples
-    )
-
-    N_CR = (N_A_CR := data.datasets[DataSet.DataSetCategory.A_CR].n_samples) + (
-        N_B_CR := data.datasets[DataSet.DataSetCategory.B_CR].n_samples
-    )
-
     return np.concatenate(
-        [
-            data.datasets[DataSet.DataSetCategory.A_SR]._weight_mask * N_A_SR / N_SR,
-            data.datasets[DataSet.DataSetCategory.B_SR]._weight_mask * N_B_SR / N_SR,
-            data.datasets[DataSet.DataSetCategory.A_CR]._weight_mask * N_A_CR / N_CR,
-            data.datasets[DataSet.DataSetCategory.B_CR]._weight_mask * N_B_CR / N_CR,
-        ],
+        [dataset._weight_mask for dataset, _ in data],
         axis=0,
     )
 
