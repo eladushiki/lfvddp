@@ -785,14 +785,14 @@ def plot_prediction_process_sliced(
     sr_product_predictions = (
         (
             sr_exp_f_eta_plus,
-            sr_background.corrected_n_samples,
+            a_sr.corrected_n_samples,
             r"$e^{f(x)}(1+\eta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
-            sr_background.corrected_n_samples,
+            b_sr.corrected_n_samples,
             r"$e^{g(x)}(1-\eta(x))$ prediction",
             plot_colors["g"],
             "s",
@@ -872,25 +872,25 @@ def plot_prediction_process_sliced(
             r"signal hypothesis $e^{f(x)}$",
             spanning_exp_f,
             plot_colors["f"],
-            prediction_linestyles["component"],
+            prediction_linestyles["product"],
         ),
         "exp_g": (
             r"signal hypothesis $e^{g(x)}$",
             spanning_exp_g,
             plot_colors["g"],
-            prediction_linestyles["component"],
+            prediction_linestyles["product"],
         ),
         "exp_f_eta_plus": (
             r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
             spanning_exp_f_eta_plus,
             plot_colors["f"],
-            prediction_linestyles["product"],
+            prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
             r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
             spanning_exp_g_eta_minus,
             plot_colors["g"],
-            prediction_linestyles["product"],
+            prediction_linestyles["component"],
         ),
     }
 
