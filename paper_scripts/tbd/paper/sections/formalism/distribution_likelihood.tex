@@ -1,0 +1,46 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Distribution Likelihood}
+
+Likelihood of observed data $\dataset{A}$ and a statistical model with parameters $\param$ is defined to be
+
+\begin{equation}
+    \likelihood(\lambda_{\param} | \dataset{A}) = P(\dataset{A} | \lambda_{\param})
+\end{equation}
+
+The likelihood of a process governed by Poisson statistics is then\cite{LastDDPPaper}
+
+\begin{equation}
+\label{eq:likelihood_of_a_distribution}
+    \likelihood(\lambda_{\param} | \dataset{A})
+    = \dfrac{e^{-N_{\dataset{A}}(\param)}}{N_{\dataset{A}}!}
+    \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+    = \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
+    \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+\end{equation}
+
+For our test statistic we take the log-likelihood measure. It is
+
+\begin{equation}
+\label{eq:log_likelihood_of_a_distribution}
+    \llikelihood( \lambda_\param | \dataset{A}) = -\int \lambda(\anyevent)d\anyevent + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A}
+\end{equation},
+
+\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute Eq.~\ref{eq:learnable_distribution} to get
+
+\begin{equation}
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{f(\event)} \refdist[\event]\big) + C_\dataset{A}
+\end{equation},
+
+\noindent which can be rewritten as
+
+\begin{equation}
+\label{eq:log_likelihood_of_a_learnable_distribution}
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} f(\event) + N_{\dataset{A}}\log{N_{\dataset{A}}} + \sum_{\event \in \dataset{A}} \log \refdist[\event] + C'_\dataset{A}
+\end{equation}.
+
+\end{document}

@@ -1,0 +1,147 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Method implementation}
+
+\subsubsection{Framework}
+
+We chose to implement our project using Python, as a go-to programming language nowadays with several standard libraries for ML, data and plotting, including pytorch, numpy and matplotlib. Our project runs on Singularity containerization platform and using CERN's VM FS environment. Parallel runs are handled from within python and is fitted to use the current configuration of our department's computing cluster running OpenPBS engine.
+
+Some of the design principles were to encapsulate any new functionality while maintaining past capabilities, document and hash run details for traceability and separation of run parameter configuration from the code files in the codebase.
+
+\subsection{Implementation Choices}
+
+\subsubsection{Choosing the Reference Distribution}
+
+As in \cite{LastDDPPaper}, we would like to take the $\refdist$ to be the normalized NDF combined sample. Since unbeknownst to us, our approximation is the evident combined sample itself. To plug to our $t$-value formalism, we need to translate the integrals over $\refdist$ to sums over the observed samples:
+
+\begin{equation}
+    \int f(\anyevent) \refdist^r d\anyevent \to \dfrac{1}{N_{\dataset{A}^r} + N_{\dataset{B}^r}}\sum\limits_{\event \in \dataset{A}^r \cup \dataset{B}^r} f(\event)
+\end{equation}
+
+\noindent with $r$ that is either our control or signal region.
+
+With Eq.~\ref{eq:formal_loss_functions}, this converts the loss functions of our trainings to be:
+
+\begin{equation}
+\label{eq:discrete_loss_functions}
+\begin{aligned}
+L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] &= \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        {N_\srmeas{A}} e^{f(\anyevent)} (1 + {\nparam(\anyevent)})
+        + {N_\srmeas{B}} e^{g(\anyevent)} (1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        {N_\crmeas{A}} (1 + {\nparam(\anyevent)})
+        + {N_\crmeas{B}} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
+    - \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
+    - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\\
+L^{denom}[\nparam] &= \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        {N_\srmeas{A}} (1 + {\nparam(\anyevent)})
+        + {N_\srmeas{B}} (1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        {N_\crmeas{A}} (1 + {\nparam(\anyevent)})
+        + {N_\crmeas{B}} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\end{aligned}
+\end{equation}
+
+\noindent while Eq.~\ref{eq:t_value_from_two_losses} stands still.
+
+\subsubsection{Nuisance Function Implementation}
+
+At this point, we still lack some concrete implementation for $\nparam$ and its degrees of freedom in order to run our program. While many detector functioning and uncertainty models exist, sophisticated and sophisticated even more, we chose a simplistic one to make our point. We split our efficiency to be a product of the detector efficiency in each observable dimension:
+
+\begin{equation}
+    \detector(\anyevent) = \prod\limits_{j=0}^k \detector^j(\anyevent^j)
+\end{equation},
+
+\noindent each of which being a piecewise constant function, separated to a constant number of segments with borders $b_i^j$ across any dimension.
+
+\begin{equation}
+    \detector^j(\anyevent^j) = 
+    \begin{cases}
+        \detector^j^0, &x \in \left(-\infty, b_1^j\right) \\
+        \detector^j^1, &x \in \left[b_1^j, b_2^j\right) \\
+        ... \\
+        \detector^j^n, &x \in \left[b_{n-1}^j, \infty\right) \\
+    \end{cases}
+\end{equation}
+
+To give, together with Eq.~\ref{eq:nuisance_from_detector_efficiencies}:
+
+\begin{equation}
+    \nparam(\anyevent) = \prod\limits_{j=0}^{k} \dfrac{1}{2}(\detector^j^h_\dataset{A} - \detector^j^h_\dataset{B})
+\end{equation}
+
+\noindent for the binned $h$ value.
+
+Each of the $\detector^i^h$ elements is set to be a single learnable value in our program, that is expected to be close to 0.
+
+That being said, any specific detector model can be run and tested in our method by cloning our repository and changing a single function.
+
+\subsubsection{Neural Network Specs}
+
+As stated above, our network is a fully connected 3 layer NN with Sigmoid activation function for the inner layer neurons. We chose $N=4$ for the number of neurons. Weights initialization is taken from a Xavier uniform, and biases are from a uniform distribution from the segment $[-0.3, 0.3]$.
+
+Before any given process, data is normalized such that all datasets would fit $[-1, 1]$ to allow for stable numerics of the Sigmoid functions.
+
+Detector segments are initialized from a normal distribution with std of $1e-3$, and are clamped in each step if reaching either $\pm 1$ within a distance of $1e-6$.
+
+Training batching is done with a single batch per train step, having all datasets as column vectors to allow for single pytorch operation for every arithmetic calculation.
+
+\subsubsection{Description of the Algorithm}
+A single run of our procedure goes as follows:
+
+\begin{algorithm}
+\caption{Single $t$ value stochastic calculation}
+\label{alg:single_train_algorithm}
+\begin{algorithmic}[1]
+
+\Statex \textit{Variables in italics are user configurable}
+\Statex % Purely for a clean visual separation
+
+\Require Configuration of model internal parameters, $\nparam$ usage, dataset source and criteria, number of epochs
+
+\State Load or generate a sample and randomly divide to $A^{SR}, B^{SR}$ of dimension $\mathit{k}$
+\State Load or generate a sample and randomly divide to $A^{CR}, B^{CR}$ of dimension $\mathit{k}$
+\State $\text{reference}^{SR} \gets A^{SR} + B^{SR}$ and same for $CR$
+
+\If{\textit{should inject signal}}
+    \State Inject the signal to $A^{SR}$
+\EndIf
+
+\State Numerator model $\gets \text{Model}(f, g, \nparam, \text{loss} = L^{\text{numerator}})$
+\State Denominator model $\gets \text{Model}(f = 0, g = 0, \nparam, \text{loss} = L^{\text{denominator}})$
+
+\For{\textit{epoch} times}
+    \State Train a step for each model
+\EndFor
+
+\State $t \gets -2 \cdot (\text{numerator model final loss}) + 2 \cdot (\text{denominator model final loss})$
+
+\State Plot, document and save
+\State \Return $t$
+
+\end{algorithmic}
+\end{algorithm}
+
+Unless stated specifically otherwise, the trainings were run with $N=4$ neurons, generated datasets from an exponentially decaying probability distribution.
+Repeating this procedure many times gives us a set of $t$ values, of which we can examine the statistics.
+
+\end{document}
