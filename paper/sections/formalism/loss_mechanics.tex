@@ -1,0 +1,49 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Loss Mechanics for Calculating $t$}
+
+As seen before in \cite{LastDDPPaper}, we use a simple 3-layer neural net's ability to minimize an arbitrary function with a set number of parameters to approximate each minimization expression. Expanding to more than one physical observable describing each event, we can express f and g with by choosing an arbitrary number of neurons $N$, to give:
+
+\begin{equation}
+    f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha)
+\end{equation}
+
+\noindent and balance it for $f$'s expressiveness. Similar expression holds for $g$.
+
+The loss expression stems directly from the test statistic minimization parts, as:
+
+\begin{equation}
+\label{eq:formal_loss_functions}
+\begin{aligned}
+    L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] &= \Bigg(
+        \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0)
+        + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+        \\&
+        - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
+        - \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
+        - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+        - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    \Bigg)
+    \\
+    L^{denom}[\nparam] &= \Bigg(
+        \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
+        + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+        \\&
+        - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+        - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    \Bigg)
+\end{aligned}
+\end{equation}
+
+A quick look convinces us that this function is indeed differentiable and finite, for each part of it is so, and so can serve as a loss function for a NN. the test statistic is then obtained by
+
+\begin{equation}
+\label{eq:t_value_from_two_losses}
+    t = -2 \cdot L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] + 2 \cdot L^{denom}[\nparam]
+\end{equation}.
+
+\end{document}
