@@ -1,0 +1,25 @@
+# TeX Processing artifacts
+*.aux
+*.bbl
+*.bib
+*.blg
+*(busy)
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.lov
+*.pdf
+*.out
+*.synctex
+*.synctex.gz
+*.toc
+
+# IDE
+.vscode/
+**.code-workspace
+
+## Elad's sync local files
+thesis/
+research_proposal/
