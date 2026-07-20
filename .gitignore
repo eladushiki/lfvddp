@@ -27,6 +27,9 @@ tmp*/
 *.out
 *.gz
 *.toc
+## Tex Beamer
+*.nav
+*.snm
 
 # IDE
 .vscode/

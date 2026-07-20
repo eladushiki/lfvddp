@@ -4,7 +4,15 @@
 
 \input{../common/packages}
 \input{../common/definitions}
-\geometry{letterpaper}
+
+\makeatletter  % set paper size if not included in presentation
+\@ifclassloaded{beamer}{
+    % Do nothing if compiling the presentation
+}{
+    % Apply this only when compiling the main paper
+    \geometry{letterpaper}
+}
+\makeatother
 
 % Package additions from REVTeX templates
 \usepackage{dcolumn}% Align table columns on decimal point

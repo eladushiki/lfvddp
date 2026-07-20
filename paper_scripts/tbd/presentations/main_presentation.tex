@@ -1,0 +1,269 @@
+\documentclass[notheorems]{beamer}
+
+\input{../common/preamble.tex}
+
+\usetheme{Madrid} 
+\usecolortheme{default}
+
+\title{LFV DDP Searches}
+\author{Elad Kliger}
+\institute{WIS}
+\date{\today}
+
+\AtBeginSection[]{
+    \begin{frame}
+        \sectionpage
+    \end{frame}
+}
+
+\begin{document}
+
+% main title
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% table of contents
+\begin{frame}{Outline}
+    \tableofcontents
+\end{frame}
+
+\section{Formulation}
+
+\begin{frame}{Observing Events}
+    \begin{itemize}
+        \item We consider stochastic physical processes, to measure which we repeat the same experiment many time and gather statistics of the results.
+        \item Each repetition is an event, and we gather such to create datasets, and represent them as some $k$ physical quantities that we measure them by:
+    \end{itemize}
+    \begin{equation}
+        \event \in \mathbb{R}^k, \quad \event \sim \lambda, \quad \dataset{A} = \{\event\}
+    \end{equation}
+    \begin{itemize}
+        \item with $\lambda$ some probability distribution, that we express as a shift of some common reference distribution
+    \end{itemize}
+    \begin{equation}
+        \label{eq:parametrized_distribution}
+        \lambda_{\theta}(\anyevent) = e^{f_\theta(\anyevent)}\refdist
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Distribution Likelihood}
+    \begin{itemize}
+        \item Likelihood of a distribution given an observation $\dataset{A}$
+    \end{itemize}
+    \begin{equation}
+        \likelihood(\lambda_{\param} | \dataset{A}) = P(\dataset{A} | \lambda_{\param})
+    \end{equation}
+    \begin{itemize}
+        \item Likelihood of a dataset generated from Poisson statistics
+    \end{itemize}
+    \begin{equation}
+        \likelihood(\lambda_{\param} | \dataset{A})
+        = \dfrac{e^{-N_{\dataset{A}}(\param)}}{N_{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+        = \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+    \end{equation}
+    \begin{itemize}
+        \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
+    \end{itemize}
+    \begin{equation}
+        \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{f(\event)} \refdist[\event]\big) + C_\dataset{A}
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Observing Data}
+    \begin{itemize}
+        \item Events have to be registered in a detector in order to be observed.
+        \item Detector does not always succeed, so we say it has efficiency, $\detector(\anyevent)$, that is bounded in $\left[0, 1\right]$ and may depend on the attributes of $\event$.
+        \item We are about to compare similar datasets, hence interested only in the efficiency difference between two such, so we define
+    \end{itemize}
+    \begin{equation}
+        \detector_{A}(\anyevent) - \detector_{B}(\anyevent) \coloneqq 2 \nparam(\anyevent)
+    \end{equation}
+    \begin{itemize}
+        \item In other words, distributions can be parametrized again by an additional factor
+    \end{itemize}
+    \begin{equation}
+    \begin{aligned}
+        \dist{\meas{A}} &= (1 + \nparam(\event))\refdist \\
+        \dist{\meas{B}} &= (1 - \nparam(\event))\refdist
+    \end{aligned}
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Data Regions}
+    \begin{itemize}
+        \item We consider two pairs of datasets, as follows;
+    \end{itemize}
+
+    \begin{table}[ht]%[H] add [H] placement to break table across pages
+        \caption{\label{table:division_of_data}}
+        \begin{tabular}{| l | c | c |}
+            & $\dataset{A}$ & $\dataset{B}$ \\
+            \hline
+            SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
+            CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
+            \end{tabular}
+        \caption{Division of available data from different cuts into subsets for signal and control regions.}
+    \end{table}
+
+    \begin{itemize}
+        \item Datasets $\dataset{A}$ and $\dataset{B}$ in either region differ by some symmetric phsyical quantity. In our case, lepton flavor.
+        \item Signal and control regions are created using disjoint cuts. We assume the control region has no new physics to be discovered, while we search for it in the signal region.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Hypotheses}
+    
+    \begin{itemize}
+        \item We formulate two hypothises, signal an null, as follows
+    \end{itemize}
+
+    \begin{equation}
+    \begin{aligned}
+        \nullhypothesis |_{SR} &: \quad
+        \begin{cases}
+            {\srdist{\meas{A}}^0} = N_\srmeas{A} (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\meas{B}}^0} = N_\srmeas{B} (1 - {\nparam(\anyevent)}) \srrefdist
+        \end{cases} \\
+        \hypothesis{1} |_{SR} &: \quad
+        \begin{cases}
+            {\srdist{\meas{A}}^1} = N_\srmeas{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\meas{B}}^1} = N_\srmeas{B} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
+        \end{cases} \\
+        \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
+        \begin{cases}
+            \crdist{\meas{A}}^i = N_\crmeas{A} (1 + {\nparam(\anyevent)}) \crrefdist \\
+            \crdist{\meas{B}}^i = N_\crmeas{B} (1 - {\nparam(\anyevent)}) \crrefdist
+        \end{cases}
+    \end{aligned}
+    \end{equation}
+
+\end{frame}
+
+\begin{frame}{Likelihood and Test Statistics}
+    
+    \begin{itemize}
+        \item Log likelihood of a hypothesis is a product of that of its parts
+    \end{itemize}
+
+    \begin{equation}
+    \begin{aligned}
+        \likelihood(\hypothesis{i} | \meas{A}, \meas{B})
+        &= \likelihood(\hypothesis{i}|\srmeas{A}, \srmeas{B}) \cdot \likelihood(\hypothesis{i}|\crmeas{A}, \crmeas{B}) \\&
+        = \likelihood(\srdist{\meas{A}}^i|\srmeas{A}) \cdot \likelihood(\srdist{\meas{B}}^i|\srmeas{B}) \\&
+        \cdot \likelihood(\crdist{\meas{A}}^i|\crmeas{A}) \cdot \likelihood(\crdist{\meas{B}}^i|\crmeas{B})
+    \end{aligned}
+    \end{equation}
+ 
+    \begin{itemize}
+        \item From which we build the test statistic from definition
+    \end{itemize}
+    \begin{equation}
+    \begin{aligned}
+        t &= 2 \log \left(
+            \frac{
+                \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}|\meas{A}, \meas{B}, \nparam))
+            }{
+                \max\limits_{\nparam} (\likelihood(\nullhypothesis|\meas{A}, \meas{B}, \nparam))
+        }\right) \\&
+        = - 2 \left(
+            {\min\limits_{f, g, \nparam}(-\log \likelihood(\hypothesis{1}|\meas{A}, \meas{B}, \nparam))} 
+            - {\min\limits_{\nparam}(-\log \likelihood(\nullhypothesis|\meas{A}, \meas{B}, \nparam))}
+        \right)
+    \end{aligned}
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Minimization by Loss Function}
+    \begin{itemize}
+        \item We reduce the problem of calculating this to the calculation of two minima
+    \end{itemize}
+
+    \begin{equation}
+    \label{eq:formal_loss_functions}
+    \begin{aligned}
+        L^{n}[f, g, \nparam] &= \Bigg(
+            \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0)
+            + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+            \\&
+            - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
+            - \sum\limits_{\event \in \srmeas{B}} g(\anyevent) \\&
+            - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+            - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+        \Bigg)
+        \\
+        L^{d}[\nparam] &= \Bigg(
+            \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
+            + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+            \\&
+            - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+            - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+        \Bigg)
+    \end{aligned}
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Parameterization by Neural Networks}
+
+    \begin{itemize}
+        \item Since $f, g$ should be generic and as expressive as possible, we realize them as NN outputs
+    \end{itemize}
+
+    \begin{equation}
+    \begin{aligned}
+        f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha) \\
+        g(\event) = c_{0} + \sum\limits_{\alpha = 1}^{N} \upsilon_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\upsilon^j_{\alpha} \event^j + c_\alpha)
+    \end{aligned}
+    \end{equation}
+
+    \begin{itemize}
+        \item Eta implementation is left for the methodology section, as it's arbitrary and would be furhter manipulated in the future
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Neymann - Pearson}
+    \begin{lemma}
+        \textbf{Neymann - Pearson:} The most discriminative test statistic for testing a signal hypothesis vs the null hypothesis is the profile likelihood ratio, defined as
+    \end{lemma}
+
+    \begin{equation}
+        \Lambda(\mu) = \dfrac{
+            \likelihood(\hat{\mu},\hat{\theta})
+        }{
+            \likelihood(\mu = 0, \hat{\hat{\theta}})
+        } > k
+    \end{equation}
+
+    \begin{block}{}
+        for some constant $k$, that maximizes
+    \end{block}
+
+    \begin{equation}
+        P(\text{reject }\nullhypothesis | \hypothesis{1} \text{ is true})
+    \end{equation}
+
+\end{frame}
+
+\begin{frame}{Wilk's Theorem}
+    \begin{theorem}
+        \textbf{Wilk theorem}: Given a test statistic $\Lambda$ of a signal hypothesis vs. the null hypothesis, assuming the null hypothesis is true, the negative log-likelihood test statistic converges to a $\chi^2$:
+        
+        \begin{equation*}
+            -2 \log \Lambda \to \chi^2_r
+        \end{equation*}
+        
+        with $r$ the number of degrees of freedom of the signal hypothesis minus those of the null one.
+    \end{theorem}
+\end{frame}
+
+\begin{frame}
+    \begin{itemize}
+        \item And so, by gathering statistics of $t$, we compare it to a $\chi^2$ distribution and we can estimate how likely it is for the null hypothesis to be true.
+    \end{itemize}
+\end{frame}
+
+\section{Methodology}
+
+\end{document}
