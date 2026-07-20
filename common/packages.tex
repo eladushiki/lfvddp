@@ -12,7 +12,6 @@
 \usepackage{bm}
 \usepackage{color}
 \usepackage{dsfont}
-\usepackage{enumitem}
 \usepackage{faktor}
 \usepackage[T1]{fontenc}
 \usepackage{hyperref} % load as late as possible to prevent warning
@@ -26,6 +25,13 @@
 \usepackage{soul}
 \usepackage{tikz}
 \usepackage{tikz-cd}
+
+\@ifclassloaded{beamer}{  % Context dependent inclusions
+    % Do nothing if compiling the presentation
+}{
+    % Apply this only when compiling the main paper
+    \usepackage{enumitem}
+}
 
 \usetikzlibrary{arrows}
 \tikzcdset{arrow style=tikz,
