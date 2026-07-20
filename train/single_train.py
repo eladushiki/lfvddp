@@ -39,7 +39,7 @@ def main(context: ExecutionContext) -> None:
 
     # Simulate detector
     det = DetectorEffect(context)
-    detected_batch = det.affect_and_compensate_batch(batch)
+    detected_batch = det.affect_batch(batch)
 
     t_result = train_for_t(
         context=context,

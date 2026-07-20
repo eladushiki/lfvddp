@@ -121,15 +121,18 @@ def build_target_for_NPLM_model_loss(sample_dataset: DataSet, reference_dataset:
     _zeros_like_reference = np.zeros(shape=(reference_dataset.n_samples,))
     _is_sample_mask = np.concatenate((_ones_like_sample, _zeros_like_reference), axis=0)
 
-    # Weight mask, multiplies loss
-    _sample_weights = sample_dataset._weight_mask
-    _reference_weights = reference_dataset._weight_mask * sample_dataset.corrected_n_samples * 1. / reference_dataset.corrected_n_samples
-    _weight_mask = np.concatenate((_sample_weights, _reference_weights), axis=0)
+    # Per-event loss weights
+    _sample_weights = np.ones(shape=(sample_dataset.n_samples,))
+    _reference_weights = np.full(
+        shape=(reference_dataset.n_samples,),
+        fill_value=sample_dataset.n_samples / reference_dataset.n_samples,
+    )
+    _loss_weights = np.concatenate((_sample_weights, _reference_weights), axis=0)
 
     # NPLM's format
     _is_sample_mask_expanded = np.expand_dims(_is_sample_mask, axis=1)
-    _weight_mask_expanded = np.expand_dims(_weight_mask, axis=1)
-    loss_mask = np.concatenate((_is_sample_mask_expanded, _weight_mask_expanded), axis=1)
+    _loss_weights_expanded = np.expand_dims(_loss_weights, axis=1)
+    loss_mask = np.concatenate((_is_sample_mask_expanded, _loss_weights_expanded), axis=1)
 
     return loss_mask
 

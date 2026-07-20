@@ -40,31 +40,30 @@ def _load_checkpoint_state_dict(function_execution_context, model_name):
 
 
 def test_loss_weights_follow_batch_order_and_equally_weight_regions():
-    category_weights = {
-        DataSet.DataSetCategory.A_SR: 1.0,
-        DataSet.DataSetCategory.A_CR: 2.0,
-        DataSet.DataSetCategory.B_SR: 3.0,
-        DataSet.DataSetCategory.B_CR: 4.0,
+    category_sizes = {
+        DataSet.DataSetCategory.A_SR: 1,
+        DataSet.DataSetCategory.A_CR: 2,
+        DataSet.DataSetCategory.B_SR: 3,
+        DataSet.DataSetCategory.B_CR: 4,
     }
     datasets = []
-    for category, weight in reversed(category_weights.items()):
+    for category, size in reversed(category_sizes.items()):
         dataset = DataSet(
-            data=np.full((1, 1), weight),
+            data=np.full((size, 1), category.value),
             observable_names=["observable"],
             category=category,
         )
-        dataset._weight_mask[:] = weight
         datasets.append((dataset, None))
 
     data_batch = DataBatch(datasets)
 
     np.testing.assert_array_equal(
         data_batch.unified_data.events[:, 0],
-        [1.0, 2.0, 3.0, 4.0],
+        [1, 2, 2, 3, 3, 3, 4, 4, 4, 4],
     )
     np.testing.assert_allclose(
         _calculate_loss_weights(data_batch),
-        [1.0 / 8.0, 1.0 / 6.0, 3.0 / 8.0, 1.0 / 3.0],
+        [1.0 / 8.0] * 1 + [1.0 / 12.0] * 2 + [1.0 / 8.0] * 3 + [1.0 / 12.0] * 4,
     )
 
 
