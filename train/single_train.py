@@ -1,4 +1,4 @@
-import numpy as np
+import torch
 
 from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.data_utils import DataSet
@@ -99,8 +99,17 @@ def train_for_t(
             )
         )
     else:
-        numerator = np.asarray(numerator_training.history[HistoryKeys.LOSS.value])
-        denominator = np.asarray(denominator_training.history[HistoryKeys.LOSS.value])
+        training_dtype = numerator_training.model._dtype
+
+        numerator = torch.as_tensor(
+            numerator_training.history[HistoryKeys.LOSS.value],
+            dtype=training_dtype,
+        ).numpy()
+        denominator = torch.as_tensor(
+            denominator_training.history[HistoryKeys.LOSS.value],
+            dtype=training_dtype,
+        ).numpy()
+
         t_history = {
             HistoryKeys.EPOCH.value: numerator_training.history[
                 HistoryKeys.EPOCH.value
