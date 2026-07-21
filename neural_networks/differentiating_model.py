@@ -85,18 +85,20 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         detector_effect: DetectorEffect,
         is_numerator: bool,
         name: str,
+        dtype: torch.dtype = torch.float64
     ):
         super().__init__()
-        self._name = name
-        self._is_numerator = is_numerator
         self._context = context
         self._config: Union[TrainConfig, DetectorConfig] = context.config
+        self._detector_effect = detector_effect
+        self._is_numerator = is_numerator
+        self._name = name
+        self._dtype = dtype
 
         # Add layers by spec. We would add two NNs to express f, g separately.
         self._build_layers()
 
         # Add detector uncertainty nuisance parameters
-        self._detector_effect = detector_effect
         self._build_eta()
         self._bins_of_events = None  # Set in context
 
@@ -154,14 +156,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             return
 
         self.f_network = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
+            nn.Linear(input_dim, hidden_size, dtype=self._dtype),
             nn.Sigmoid(),
-            nn.Linear(hidden_size, output_size),
+            nn.Linear(hidden_size, output_size, dtype=self._dtype),
         )
         self.g_network = nn.Sequential(
-            nn.Linear(input_dim, hidden_size),
+            nn.Linear(input_dim, hidden_size, dtype=self._dtype),
             nn.Sigmoid(),
-            nn.Linear(hidden_size, output_size),
+            nn.Linear(hidden_size, output_size, dtype=self._dtype),
         )
 
     def _build_eta(self):
@@ -172,7 +174,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             nuisance_var = nn.Parameter(
-                torch.full((nbins,), 0.0, dtype=torch.float32, device=self._device)
+                torch.full(
+                    (nbins,),
+                    0.0,
+                    dtype=self._dtype,
+                    device=self._device,
+                )
             )  # Initialized later, value here has no meaning
             self.register_parameter(
                 f"nuisance_{self._observable_names[i]}", nuisance_var
@@ -328,7 +335,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             g_of_x_sr_est=g_of_x_sr_est,
             eta_of_x_est=eta_of_x_est,
         )
-        return torch.sum(losses * weights)
+        return torch.sum(losses * weights, dtype=self._dtype)
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -362,10 +369,16 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
 
         data_tensor = torch.tensor(
-            np.concatenate(data_parts), dtype=torch.float32, device=self._device
+            np.concatenate(data_parts),
+            dtype=self._dtype,
+            device=self._device,
         )
         mask_tensor = torch.from_numpy(np.concatenate(mask_parts)).to(self._device)
-        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self._device)
+        weights_tensor = torch.tensor(
+            weights,
+            dtype=self._dtype,
+            device=self._device,
+        )
 
         self._a_sr_mask = mask_tensor == DataSet.DataSetCategory.A_SR.value
         self._b_sr_mask = mask_tensor == DataSet.DataSetCategory.B_SR.value
@@ -518,7 +531,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             raise RuntimeError("Cannot predict before the model has been fitted.")
         normalized_data = data / self._norm_factor
         x_tensor = torch.tensor(
-            normalized_data.events, dtype=torch.float32, device=self._device
+            normalized_data.events,
+            dtype=self._dtype,
+            device=self._device,
         )
         self.eval()
         with torch.no_grad():
@@ -534,7 +549,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return self._predict_ndf(data, self.g_network, eta_sign=-1.0)
 
     def predict_eta(self, data: DataSet) -> npt.NDArray:
-        x_tensor = torch.tensor(data.events, dtype=torch.float32, device=self._device)
+        x_tensor = torch.tensor(
+            data.events,
+            dtype=self._dtype,
+            device=self._device,
+        )
         self.eval()
         with torch.no_grad():
             with self.binning_context(data):
