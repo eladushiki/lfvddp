@@ -25,6 +25,7 @@ from train.train_config import TrainConfig
 
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
+_MESH_BORDER_WIDTH = 0.15
 
 
 class HandlerRect(HandlerPatch):
@@ -565,6 +566,39 @@ def utils__add_subplot_sliced(
     return panel
 
 
+def _plot_bordered_wireframe(
+    ax: plt.Axes,
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    z_values: np.ndarray,
+    color: str,
+    linewidth: float,
+    alpha: float,
+    linestyle: str = "-",
+) -> None:
+    """Draw a colored wireframe over a slightly wider black wireframe."""
+    wireframe_arguments = {
+        "linestyle": linestyle,
+        "alpha": alpha,
+    }
+    ax.plot_wireframe(
+        x_values,
+        y_values,
+        z_values,
+        color="black",
+        linewidth=linewidth + 2.0 * _MESH_BORDER_WIDTH,
+        **wireframe_arguments,
+    )
+    ax.plot_wireframe(
+        x_values,
+        y_values,
+        z_values,
+        color=color,
+        linewidth=linewidth,
+        **wireframe_arguments,
+    )
+
+
 def utils__prediction_process_observables(
     context: ExecutionContext,
     along_observables: Union[List[str], str, None],
@@ -760,7 +794,8 @@ def utils__plot_region_histogram_meshes_2d(
             weights=weights,
         )
         positive_counts = np.where(counts > 0, counts, np.nan)
-        ax.plot_wireframe(
+        _plot_bordered_wireframe(
+            ax,
             mesh_x,
             mesh_y,
             positive_counts,
@@ -984,7 +1019,8 @@ def utils__plot_model_predictions_sliced(
             prediction_yy,
             np.ones_like(prediction_xx),
             color="gray",
-            linewidth=0,
+            edgecolor="black",
+            linewidth=_MESH_BORDER_WIDTH,
             alpha=0.06,
             shade=False,
         )
@@ -1007,7 +1043,8 @@ def utils__plot_model_predictions_sliced(
             prediction_xx, prediction_yy = np.meshgrid(
                 x_values, y_values, indexing="ij"
             )
-            ax.plot_wireframe(
+            _plot_bordered_wireframe(
+                ax,
                 prediction_xx,
                 prediction_yy,
                 contour_grid,
@@ -1026,7 +1063,8 @@ def utils__plot_model_predictions_sliced(
             continuous_xx, continuous_yy = np.meshgrid(
                 x_values, y_values, indexing="ij"
             )
-            ax.plot_wireframe(
+            _plot_bordered_wireframe(
+                ax,
                 continuous_xx,
                 continuous_yy,
                 continuous_grid,
