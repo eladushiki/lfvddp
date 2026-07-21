@@ -678,9 +678,13 @@ def plot_prediction_process_1d(
     plot_colors = {
         "background": "gray",
         "f": "tab:blue",
+        "f_light": "cornflowerblue",
         "g": "tab:orange",
+        "g_light": "sandybrown",
         "eta_plus": "cornflowerblue",
+        "eta_plus_light": "lightskyblue",
         "eta_minus": "sandybrown",
+        "eta_minus_light": "moccasin",
     }
     prediction_linestyles = {
         "component": "-",
@@ -915,15 +919,15 @@ def plot_prediction_process_1d(
             prediction_linestyles["product"],
         ),
         "exp_f_eta_plus": (
-            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+        r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
             spanning_exp_f_eta_plus,
-            plot_colors["f"],
+            plot_colors["f_light"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+        r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
             spanning_exp_g_eta_minus,
-            plot_colors["g"],
+            plot_colors["g_light"],
             prediction_linestyles["component"],
         ),
     }
@@ -945,16 +949,16 @@ def plot_prediction_process_1d(
                 plot_colors["eta_minus"],
                 prediction_linestyles["component"],
             ),
-            "denominator_eta_plus": (
-                r"null hypothesis $1+\eta(x)$",
+        "denominator_eta_plus": (
+        r"null hypothesis $1+\eta(x)$",
                 1.0 + denominator_eta,
-                plot_colors["eta_plus"],
+            plot_colors["eta_plus_light"],
                 prediction_linestyles["denominator"],
             ),
-            "denominator_eta_minus": (
-                r"null hypothesis $1-\eta(x)$",
+        "denominator_eta_minus": (
+        r"null hypothesis $1-\eta(x)$",
                 1.0 - denominator_eta,
-                plot_colors["eta_minus"],
+            plot_colors["eta_minus_light"],
                 prediction_linestyles["denominator"],
             ),
         }
@@ -1102,9 +1106,13 @@ def plot_prediction_process_2d(
     plot_colors = {
         "background": "gray",
         "f": "tab:blue",
+        "f_light": "cornflowerblue",
         "g": "tab:orange",
+        "g_light": "sandybrown",
         "eta_plus": "cornflowerblue",
+        "eta_plus_light": "lightskyblue",
         "eta_minus": "sandybrown",
+        "eta_minus_light": "moccasin",
     }
     prediction_linestyles = {
         "component": "-",
@@ -1341,13 +1349,13 @@ def plot_prediction_process_2d(
         "exp_f_eta_plus": (
             r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
             spanning_exp_f_eta_plus,
-            plot_colors["f"],
+            plot_colors["f_light"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
             r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
             spanning_exp_g_eta_minus,
-            plot_colors["g"],
+            plot_colors["g_light"],
             prediction_linestyles["component"],
         ),
     }
@@ -1372,13 +1380,13 @@ def plot_prediction_process_2d(
             "denominator_eta_plus": (
                 r"null hypothesis $1+\eta(x)$",
                 1.0 + denominator_eta,
-                plot_colors["eta_plus"],
+                plot_colors["eta_plus_light"],
                 prediction_linestyles["denominator"],
             ),
             "denominator_eta_minus": (
                 r"null hypothesis $1-\eta(x)$",
                 1.0 - denominator_eta,
-                plot_colors["eta_minus"],
+                plot_colors["eta_minus_light"],
                 prediction_linestyles["denominator"],
             ),
         }

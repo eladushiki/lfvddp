@@ -1019,8 +1019,7 @@ def utils__plot_model_predictions_sliced(
             prediction_yy,
             np.ones_like(prediction_xx),
             color="gray",
-            edgecolor="black",
-            linewidth=_MESH_BORDER_WIDTH,
+            linewidth=0,
             alpha=0.06,
             shade=False,
         )
