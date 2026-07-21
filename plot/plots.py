@@ -828,7 +828,7 @@ def plot_prediction_process_1d(
     utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
 
     for panel in distribution_axes:
-        panel.legend(fontsize=8)
+        panel.legend(fontsize=8, loc="lower left")
 
     detector_effect = denominator_training.detector_effect
     detector_bins_by_observable = {
@@ -1252,7 +1252,7 @@ def plot_prediction_process_2d(
     utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
 
     for panel in distribution_axes:
-        panel.legend(fontsize=8)
+        panel.legend(fontsize=8, loc="lower left")
 
     detector_effect = denominator_training.detector_effect
     detector_bins_by_observable = {

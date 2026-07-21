@@ -1085,4 +1085,4 @@ def utils__plot_model_predictions_sliced(
         output_label="model prediction",
     )
     ax.set_title(title)
-    ax.legend(fontsize=7)
+    ax.legend(fontsize=7, loc="lower left")
