@@ -76,14 +76,11 @@ def test_progression_plot_has_numerator_denominator_and_t_for_each_sample(tmp_pa
 
     figure = t_train_percentile_progression_plot(context)
     try:
-        assert len(figure.axes) == 6
+        assert len(figure.axes) == 2
         assert {axis.get_title() for axis in figure.axes} == {
-            "A: numerator minimization",
-            "A: denominator minimization",
             r"A: $t=-2\,N+2\,D$",
-            "B: numerator minimization",
-            "B: denominator minimization",
             r"B: $t=-2\,N+2\,D$",
         }
+        assert all(axis.get_ylim()[0] == 0 for axis in figure.axes)
     finally:
         plt.close(figure)

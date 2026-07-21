@@ -146,18 +146,25 @@ def plot_training_prediction(
     ):
         return
 
-    from plot.plots import plot_prediction_process_sliced
+    # Plotting is optional and imports a comparatively heavy scientific stack.
+    # Keep it out of the training process until the trained models are ready.
+    from plot.plot_factory import PlotFactory
+    from plot.plotting_config import PlotInstructions
 
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
     ].name
     model_name = numerator_training.name or training_name(base_name, is_numerator=True)
 
-    data_process_plot = plot_prediction_process_sliced(
-        context=context,
-        numerator_training=numerator_training,
-        denominator_training=denominator_training,
-        title=base_name + " prediction process",
+    data_process_plot = PlotFactory(context).generate_plot(
+        PlotInstructions(
+            name="plot_prediction_process",
+            instructions={
+                "numerator_training": numerator_training,
+                "denominator_training": denominator_training,
+                "title": base_name + " prediction process",
+            },
+        )
     )
     context.save_and_document_figure(
         data_process_plot,
