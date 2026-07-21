@@ -9,8 +9,9 @@ import numpy as np
 import numpy.typing as npt
 from matplotlib import gridspec, patches, ticker
 from matplotlib import pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, to_rgba
 from matplotlib.legend_handler import HandlerPatch
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
@@ -943,6 +944,49 @@ def utils__project_prediction_values_sliced(
     )
 
 
+def _surface_polygons(
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    z_values: np.ndarray,
+    maximum_axis_points: int = 50,
+) -> List[np.ndarray]:
+    """Convert a regular surface grid into finite quads for depth sorting."""
+    x_indices = np.unique(
+        np.append(
+            np.arange(
+                0,
+                len(x_values),
+                max(1, int(np.ceil((len(x_values) - 1) / maximum_axis_points))),
+            ),
+            len(x_values) - 1,
+        )
+    )
+    y_indices = np.unique(
+        np.append(
+            np.arange(
+                0,
+                len(y_values),
+                max(1, int(np.ceil((len(y_values) - 1) / maximum_axis_points))),
+            ),
+            len(y_values) - 1,
+        )
+    )
+    polygons = []
+    for x_start, x_end in zip(x_indices[:-1], x_indices[1:]):
+        for y_start, y_end in zip(y_indices[:-1], y_indices[1:]):
+            polygon = np.array(
+                [
+                    (x_values[x_start], y_values[y_start], z_values[x_start, y_start]),
+                    (x_values[x_end], y_values[y_start], z_values[x_end, y_start]),
+                    (x_values[x_end], y_values[y_end], z_values[x_end, y_end]),
+                    (x_values[x_start], y_values[y_end], z_values[x_start, y_end]),
+                ]
+            )
+            if np.all(np.isfinite(polygon)):
+                polygons.append(polygon)
+    return polygons
+
+
 def utils__plot_model_predictions_sliced(
     ax: plt.Axes,
     predictions: List[Tuple[np.ndarray, np.ndarray, str, str, str]],
@@ -1018,23 +1062,34 @@ def utils__plot_model_predictions_sliced(
         ax.set_ylim(prediction_limits)
     else:
         if draw_as_steps:
-            x_values = np.asarray(bins[0])
-            y_values = np.asarray(bins[1])
+            reference_x_values = np.asarray(bins[0])
+            reference_y_values = np.asarray(bins[1])
         else:
-            x_values = np.unique(first_coordinates[:, 0])
-            y_values = np.unique(first_coordinates[:, 1])
-        prediction_xx, prediction_yy = np.meshgrid(
-            x_values, y_values, indexing="ij"
+            reference_x_values = np.unique(first_coordinates[:, 0])
+            reference_y_values = np.unique(first_coordinates[:, 1])
+
+        surface_polygons = _surface_polygons(
+            reference_x_values,
+            reference_y_values,
+            np.ones((len(reference_x_values), len(reference_y_values))),
         )
-        ax.plot_surface(
-            prediction_xx,
-            prediction_yy,
-            np.ones_like(prediction_xx),
-            color="gray",
-            linewidth=0,
-            alpha=0.06,
-            shade=False,
-        )
+        facecolors = [to_rgba("gray", 0.06)] * len(surface_polygons)
+        edgecolors = [to_rgba("gray", 0.0)] * len(surface_polygons)
+        linewidths = [0.0] * len(surface_polygons)
+
+        def add_prediction_surface(
+            x_values: np.ndarray,
+            y_values: np.ndarray,
+            contour_grid: np.ndarray,
+            color: str,
+            alpha: float,
+        ) -> None:
+            polygons = _surface_polygons(x_values, y_values, contour_grid)
+            surface_polygons.extend(polygons)
+            facecolors.extend([to_rgba(color, alpha)] * len(polygons))
+            edgecolors.extend([to_rgba("black", 0.55)] * len(polygons))
+            linewidths.extend([_MESH_BORDER_WIDTH] * len(polygons))
+
         for coordinates, contour, label, color, linestyle in predictions:
             if draw_as_steps:
                 x_values = np.repeat(np.asarray(bins[0]), 2)[1:-1]
@@ -1051,18 +1106,12 @@ def utils__plot_model_predictions_sliced(
                 contour_grid = np.asarray(contour).reshape(
                     len(x_values), len(y_values)
                 )
-            prediction_xx, prediction_yy = np.meshgrid(
-                x_values, y_values, indexing="ij"
-            )
-            _plot_bordered_wireframe(
-                ax,
-                prediction_xx,
-                prediction_yy,
+            add_prediction_surface(
+                x_values,
+                y_values,
                 contour_grid,
                 color=color,
-                linestyle=linestyle,
-                linewidth=_MESH_LINE_WIDTH,
-                alpha=0.9,
+                alpha=0.22,
             )
             ax.plot([], [], [], label=label, color=color, linestyle=linestyle)
         for coordinates, contour, _, color, linestyle in continuous_predictions or []:
@@ -1071,19 +1120,23 @@ def utils__plot_model_predictions_sliced(
             continuous_grid = np.asarray(contour).reshape(
                 len(x_values), len(y_values)
             )
-            continuous_xx, continuous_yy = np.meshgrid(
-                x_values, y_values, indexing="ij"
-            )
-            _plot_bordered_wireframe(
-                ax,
-                continuous_xx,
-                continuous_yy,
+            add_prediction_surface(
+                x_values,
+                y_values,
                 continuous_grid,
                 color=color,
-                linestyle=linestyle,
-                linewidth=_DENSE_MESH_LINE_WIDTH,
-                alpha=0.8,
+                alpha=0.12,
             )
+        ax.add_collection3d(
+            Poly3DCollection(
+                surface_polygons,
+                facecolors=facecolors,
+                edgecolors=edgecolors,
+                linewidths=linewidths,
+                zsort="average",
+                shade=False,
+            )
+        )
         if draw_as_steps:
             ax.set_xticks(bins[0])
             ax.set_yticks(bins[1])
