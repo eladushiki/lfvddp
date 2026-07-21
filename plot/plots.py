@@ -48,6 +48,15 @@ from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import model_degrees_of_freedom
 
+_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
+    "left": 0.025,
+    "right": 0.995,
+    "top": 0.93,
+    "bottom": 0.035,
+    "hspace": 0.06,
+    "wspace": 0.03,
+}
+
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
 # Implement any new plot function here, and you will be able to call it automatically.
 # This being said, the format for implementation has to be:
@@ -665,14 +674,7 @@ def plot_prediction_process_1d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(
-        left=0.07,
-        right=0.98,
-        top=0.90,
-        bottom=0.08,
-        hspace=0.30,
-        wspace=0.22,
-    )
+    fig.subplots_adjust(**_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS)
     fig.suptitle(title, fontsize=22)
 
     plot_colors = {
@@ -1093,14 +1095,7 @@ def plot_prediction_process_2d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(
-        left=0.07,
-        right=0.98,
-        top=0.90,
-        bottom=0.08,
-        hspace=0.30,
-        wspace=0.22,
-    )
+    fig.subplots_adjust(**_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS)
     fig.suptitle(title, fontsize=22)
 
     plot_colors = {
