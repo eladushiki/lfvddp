@@ -10,6 +10,8 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import save_training_history_outcome
+from plot.plot_factory import PlotFactory
+from plot.plotting_config import PlotInstructions
 from train.model_trainer import (
     SequentialTrainLauncher,
     TrainLauncher,
@@ -146,18 +148,20 @@ def plot_training_prediction(
     ):
         return
 
-    from plot.plots import plot_prediction_process_sliced
-
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
     ].name
     model_name = numerator_training.name or training_name(base_name, is_numerator=True)
 
-    data_process_plot = plot_prediction_process_sliced(
-        context=context,
-        numerator_training=numerator_training,
-        denominator_training=denominator_training,
-        title=base_name + " prediction process",
+    data_process_plot = PlotFactory(context).generate_plot(
+        PlotInstructions(
+            name="plot_prediction_process",
+            instructions={
+                "numerator_training": numerator_training,
+                "denominator_training": denominator_training,
+                "title": base_name + " prediction process",
+            },
+        )
     )
     context.save_and_document_figure(
         data_process_plot,

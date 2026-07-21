@@ -35,8 +35,10 @@ from plot.plot_utils import (
     utils__flatten_histogram_values,
     utils__model_prediction_values,
     utils__plot_model_predictions_sliced,
+    utils__plot_region_histogram_meshes_2d,
     utils__plot_region_histograms_sliced,
     utils__plot_weighted_histogram_predictions_sliced,
+    utils__prediction_process_observables,
     utils__project_prediction_values_sliced,
     utils__remove_eta_from_prediction_values,
     utils__synchronize_output_axis_limits,
@@ -77,37 +79,31 @@ def t_train_percentile_progression_plot(
     c = Carpenter(context)
     fig = c.figure()
     sample_names = sorted(all_history_values)
-    axes = fig.subplots(len(sample_names), 3, squeeze=False, sharex=True)
+    axes = fig.subplots(len(sample_names), 1, squeeze=False, sharex=True)
 
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
-    quantities = (
-        (HistoryKeys.NUMERATOR.value, "numerator minimization"),
-        (HistoryKeys.DENOMINATOR.value, "denominator minimization"),
-        (HistoryKeys.T.value, r"$t=-2\,N+2\,D$"),
-    )
-
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
-        for column, (history_key, title) in enumerate(quantities):
-            ax = axes[row, column]
-            values = all_history_values[sample_name][history_key]
-            percentiles = np.nanpercentile(values, quantiles, axis=0)
-            for quantile, percentile, color in zip(quantiles, percentiles, colors):
-                (line,) = ax.plot(
-                    epochs,
-                    percentile,
-                    linewidth=2,
-                    color=color,
-                    label=f"{quantile}% quantile",
-                )
-                if row == 0 and column == 0:
-                    legend_handles.append(line)
-            ax.set_title(f"{sample_name}: {title}")
-            ax.set_ylabel(history_key)
-            ax.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
-            if row == len(sample_names) - 1:
-                ax.set_xlabel("Training epochs")
+        ax = axes[row, 0]
+        values = all_history_values[sample_name][HistoryKeys.T.value]
+        percentiles = np.nanpercentile(values, quantiles, axis=0)
+        for quantile, percentile, color in zip(quantiles, percentiles, colors):
+            (line,) = ax.plot(
+                epochs,
+                percentile,
+                linewidth=2,
+                color=color,
+                label=f"{quantile}% quantile",
+            )
+            if row == 0:
+                legend_handles.append(line)
+        ax.set_title(rf"{sample_name}: $t=-2\,N+2\,D$")
+        ax.set_ylabel(HistoryKeys.T.value)
+        ax.set_ylim(bottom=0)
+        ax.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
+        if row == len(sample_names) - 1:
+            ax.set_xlabel("Training epochs")
 
     fig.suptitle("Training percentile progression", fontsize=24)
     fig.legend(
@@ -626,7 +622,7 @@ def _spanning_dataset_from_observable_values(
     )
 
 
-def plot_prediction_process_sliced(
+def plot_prediction_process_1d(
     context: ExecutionContext,
     numerator_training: TrainLauncher.Training,
     denominator_training: TrainLauncher.Training,
@@ -640,6 +636,9 @@ def plot_prediction_process_sliced(
     the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
     is intentionally out of scope.
     """
+    selected_observables = utils__prediction_process_observables(
+        context, along_observables, required_dimensions=1
+    )
     if not isinstance((config := context.config), TrainConfig):
         raise ValueError("The context config is not a TrainConfig.")
     if not isinstance(config, DatasetConfig):
@@ -650,19 +649,11 @@ def plot_prediction_process_sliced(
         raise ValueError("The context config is not a PlottingConfig.")
 
     configured_observables = config.detector__detect_observable_names
-    if along_observables is None:
-        selected_observables = configured_observables[:2]
-    elif isinstance(along_observables, str):
-        selected_observables = [along_observables]
-    else:
-        selected_observables = list(along_observables)
-    if len(selected_observables) > 2:
-        raise ValueError("Cannot plot more than 2 observables in a single plot.")
 
     numerator_model = numerator_training.model
     denominator_model = denominator_training.model
 
-    ndim = len(selected_observables)
+    ndim = 1
     data_batch = numerator_training.data_batch
     datasets = data_batch.datasets
     a_sr = datasets[DataSet.DataSetCategory.A_SR]
@@ -816,6 +807,430 @@ def plot_prediction_process_sliced(
         (
             1.0 - cr_eta,
             b_cr.n_samples,
+            r"null hypothesis $1-\eta(x)$ prediction",
+            plot_colors["eta_minus"],
+            "s",
+        ),
+    )
+    utils__plot_weighted_histogram_predictions_sliced(
+        ax=cr_distribution_ax,
+        reference_dataset=cr_background,
+        predictions=weighted_distribution_predictions(
+            cr_background, cr_eta_predictions
+        ),
+        bins=bins,
+        bin_centers=bin_centers,
+        along_observables=selected_observables,
+        normalize_each_prediction=normalize_top_distributions,
+    )
+
+    distribution_axes = (sr_distribution_ax, cr_distribution_ax)
+    utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
+
+    for panel in distribution_axes:
+        panel.legend(fontsize=8)
+
+    detector_effect = denominator_training.detector_effect
+    detector_bins_by_observable = {
+        observable_name: detector_effect.get_observable_bins(observable_name)
+        for observable_name in configured_observables
+    }
+    detector_edges_by_observable = {
+        observable_name: detector_bins[0]
+        for observable_name, detector_bins in detector_bins_by_observable.items()
+    }
+    detector_centers_by_observable = {
+        observable_name: detector_bins[1]
+        for observable_name, detector_bins in detector_bins_by_observable.items()
+    }
+
+    def dense_display_axis_values(
+        display_edges: np.ndarray,
+        detector_edges: np.ndarray,
+    ) -> np.ndarray:
+        step = np.min(np.diff(display_edges)) / 10.0
+        return np.unique(
+            np.concatenate(
+                (
+                    np.arange(display_edges[0], display_edges[-1], step),
+                    display_edges,
+                    detector_edges[
+                        (detector_edges >= display_edges[0])
+                        & (detector_edges <= display_edges[-1])
+                    ],
+                )
+            )
+        )
+
+    prediction_values_by_observable = {
+        observable_name: (
+            dense_display_axis_values(
+                display_edges_by_observable[observable_name],
+                detector_edges_by_observable[observable_name],
+            )
+            if observable_name in selected_observables
+            else detector_centers_by_observable[observable_name]
+        )
+        for observable_name in configured_observables
+    }
+    prediction_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=prediction_values_by_observable,
+        observable_names=configured_observables,
+    )
+
+    spanning_exp_f_eta_plus = utils__model_prediction_values(
+        numerator_model.predict, prediction_spanning_dataset
+    )
+    spanning_exp_g_eta_minus = utils__model_prediction_values(
+        numerator_model.predict_secondary, prediction_spanning_dataset
+    )
+    nuisance_numerator_eta = utils__model_prediction_values(
+        numerator_model.predict_eta, prediction_spanning_dataset
+    )
+    nuisance_denominator_eta = utils__model_prediction_values(
+        denominator_model.predict_eta, prediction_spanning_dataset
+    )
+    spanning_exp_f = utils__remove_eta_from_prediction_values(
+        prediction_values=spanning_exp_f_eta_plus,
+        eta_values=nuisance_numerator_eta,
+        eta_sign=1.0,
+    )
+    spanning_exp_g = utils__remove_eta_from_prediction_values(
+        prediction_values=spanning_exp_g_eta_minus,
+        eta_values=nuisance_numerator_eta,
+        eta_sign=-1.0,
+    )
+
+    sr_prediction_specs = {
+        "exp_f": (
+            r"signal hypothesis $e^{f(x)}$",
+            spanning_exp_f,
+            plot_colors["f"],
+            prediction_linestyles["product"],
+        ),
+        "exp_g": (
+            r"signal hypothesis $e^{g(x)}$",
+            spanning_exp_g,
+            plot_colors["g"],
+            prediction_linestyles["product"],
+        ),
+        "exp_f_eta_plus": (
+            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+            spanning_exp_f_eta_plus,
+            plot_colors["f"],
+            prediction_linestyles["component"],
+        ),
+        "exp_g_eta_minus": (
+            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+            spanning_exp_g_eta_minus,
+            plot_colors["g"],
+            prediction_linestyles["component"],
+        ),
+    }
+
+    def nuisance_prediction_specs(
+        numerator_eta: np.ndarray,
+        denominator_eta: np.ndarray,
+    ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
+        return {
+            "numerator_eta_plus": (
+                r"signal hypothesis $1+\eta(x)$",
+                1.0 + numerator_eta,
+                plot_colors["eta_plus"],
+                prediction_linestyles["component"],
+            ),
+            "numerator_eta_minus": (
+                r"signal hypothesis $1-\eta(x)$",
+                1.0 - numerator_eta,
+                plot_colors["eta_minus"],
+                prediction_linestyles["component"],
+            ),
+            "denominator_eta_plus": (
+                r"null hypothesis $1+\eta(x)$",
+                1.0 + denominator_eta,
+                plot_colors["eta_plus"],
+                prediction_linestyles["denominator"],
+            ),
+            "denominator_eta_minus": (
+                r"null hypothesis $1-\eta(x)$",
+                1.0 - denominator_eta,
+                plot_colors["eta_minus"],
+                prediction_linestyles["denominator"],
+            ),
+        }
+
+    cr_prediction_specs = nuisance_prediction_specs(
+        nuisance_numerator_eta,
+        nuisance_denominator_eta,
+    )
+
+    def project_predictions(
+        prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
+        spanning_dataset: DataSet,
+    ) -> dict[str, Tuple[np.ndarray, np.ndarray]]:
+        return {
+            key: utils__project_prediction_values_sliced(
+                values=specification[1],
+                spanning_dataset=spanning_dataset,
+                along_observables=selected_observables,
+            )
+            for key, specification in prediction_specs.items()
+        }
+
+    projected_sr_predictions = project_predictions(
+        sr_prediction_specs, prediction_spanning_dataset
+    )
+    projected_cr_predictions = project_predictions(
+        cr_prediction_specs, prediction_spanning_dataset
+    )
+
+    def prediction_axis_limits(
+        projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],
+    ) -> Tuple[float, float]:
+        finite_prediction_chunks = []
+        for _, contour in projected_predictions.values():
+            flattened_contour = utils__flatten_histogram_values(contour)
+            finite_prediction_chunks.append(
+                flattened_contour[np.isfinite(flattened_contour)]
+            )
+        finite_prediction_values = np.concatenate(finite_prediction_chunks)
+        prediction_minimum = min(1.0, float(np.min(finite_prediction_values)))
+        prediction_maximum = max(1.0, float(np.max(finite_prediction_values)))
+        prediction_span = prediction_maximum - prediction_minimum
+        prediction_padding = (
+            0.05 * prediction_span if prediction_span > 0 else 0.05
+        )
+        return (
+            prediction_minimum - prediction_padding,
+            prediction_maximum + prediction_padding,
+        )
+
+    sr_prediction_limits = prediction_axis_limits(projected_sr_predictions)
+    cr_prediction_limits = prediction_axis_limits(projected_cr_predictions)
+
+    def projected_specs(
+        prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
+        projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],
+    ) -> List[Tuple[np.ndarray, np.ndarray, str, str, str]]:
+        return [
+            (
+                *projected_predictions[prediction_key],
+                specification[0],
+                specification[2],
+                specification[3],
+            )
+            for prediction_key, specification in prediction_specs.items()
+        ]
+
+    utils__plot_model_predictions_sliced(
+        ax=sr_prediction_ax,
+        predictions=projected_specs(
+            sr_prediction_specs, projected_sr_predictions
+        ),
+        bins=bins,
+        along_observables=selected_observables,
+        prediction_limits=sr_prediction_limits,
+        title="SR predictions",
+    )
+    utils__plot_model_predictions_sliced(
+        ax=cr_prediction_ax,
+        predictions=projected_specs(
+            cr_prediction_specs, projected_cr_predictions
+        ),
+        bins=bins,
+        along_observables=selected_observables,
+        prediction_limits=cr_prediction_limits,
+        title="CR predictions",
+    )
+
+    return fig
+
+
+def plot_prediction_process_2d(
+    context: ExecutionContext,
+    numerator_training: TrainLauncher.Training,
+    denominator_training: TrainLauncher.Training,
+    title: str = "Datasets Along the Process",
+    along_observables: Union[List[str], str, None] = None,
+) -> Figure:
+    """
+    Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
+
+    The numerator model's ``predict`` and ``predict_secondary`` outputs provide
+    the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
+    is intentionally out of scope.
+    """
+    selected_observables = utils__prediction_process_observables(
+        context, along_observables, required_dimensions=2
+    )
+    if not isinstance((config := context.config), TrainConfig):
+        raise ValueError("The context config is not a TrainConfig.")
+    if not isinstance(config, DatasetConfig):
+        raise ValueError("The context config is not a DatasetConfig.")
+    if not isinstance(config, DetectorConfig):
+        raise ValueError("The context config is not a DetectorConfig.")
+    if not isinstance(config, PlottingConfig):
+        raise ValueError("The context config is not a PlottingConfig.")
+
+    configured_observables = config.detector__detect_observable_names
+
+    numerator_model = numerator_training.model
+    denominator_model = denominator_training.model
+
+    ndim = 2
+    data_batch = numerator_training.data_batch
+    datasets = data_batch.datasets
+    a_sr = datasets[DataSet.DataSetCategory.A_SR]
+    b_sr = datasets[DataSet.DataSetCategory.B_SR]
+    a_cr = datasets[DataSet.DataSetCategory.A_CR]
+    b_cr = datasets[DataSet.DataSetCategory.B_CR]
+    sr_background = a_sr + b_sr
+    cr_background = a_cr + b_cr
+
+    c = Carpenter(context)
+    fig = c.figure()
+    fig.subplots_adjust(
+        left=0.07,
+        right=0.98,
+        top=0.90,
+        bottom=0.08,
+        hspace=0.30,
+        wspace=0.22,
+    )
+    fig.suptitle(title, fontsize=22)
+
+    plot_colors = {
+        "background": "gray",
+        "f": "tab:blue",
+        "g": "tab:orange",
+        "eta_plus": "cornflowerblue",
+        "eta_minus": "sandybrown",
+    }
+    prediction_linestyles = {
+        "component": "-",
+        "product": "-.",
+        "denominator": "--",
+    }
+
+    display_edges_by_observable = _display_edges_by_observable(
+        datasets=[data_batch.unified_data],
+        observable_names=configured_observables,
+        number_of_bins=config.plot__prediction_process_number_of_bins,
+    )
+    bins, bin_centers = _bins_for_observables(
+        display_edges_by_observable, selected_observables
+    )
+
+    sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
+    cr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 2), ndim)
+    sr_prediction_ax = utils__add_subplot_sliced(fig, (2, 2, 3), ndim)
+    cr_prediction_ax = utils__add_subplot_sliced(fig, (2, 2, 4), ndim)
+
+    normalize_top_distributions = (
+        config.plot__prediction_process_normalize_each_prediction
+    )
+
+    utils__plot_region_histogram_meshes_2d(
+        ax=sr_distribution_ax,
+        sample_a=a_sr,
+        sample_b=b_sr,
+        background=sr_background,
+        bins=bins,
+        along_observables=selected_observables,
+        region_name="SR",
+        background_color=plot_colors["background"],
+        sample_a_color=plot_colors["f"],
+        sample_b_color=plot_colors["g"],
+        normalize_distributions=normalize_top_distributions,
+    )
+    utils__plot_region_histogram_meshes_2d(
+        ax=cr_distribution_ax,
+        sample_a=a_cr,
+        sample_b=b_cr,
+        background=cr_background,
+        bins=bins,
+        along_observables=selected_observables,
+        region_name="CR",
+        background_color=plot_colors["background"],
+        sample_a_color=plot_colors["f"],
+        sample_b_color=plot_colors["g"],
+        normalize_distributions=normalize_top_distributions,
+    )
+
+    def weighted_distribution_predictions(
+        reference_background: DataSet,
+        prediction_specs: Tuple[
+            Tuple[np.ndarray, float, str, str, str], ...
+        ],
+    ) -> List[Tuple[np.ndarray, str, str, str]]:
+        return [
+            (
+                prediction_to_sample_ndf_hypothesis_weights(
+                    model_prediction=prediction,
+                    predicted_distribution_corrected_size=ndf_corrected_n_samples,
+                    reference_ndf_estimation=reference_background,
+                ),
+                label,
+                color,
+                marker,
+            )
+            for (
+                prediction,
+                ndf_corrected_n_samples,
+                label,
+                color,
+                marker,
+            ) in prediction_specs
+        ]
+
+    sr_exp_f_eta_plus = utils__model_prediction_values(
+        numerator_model.predict, sr_background
+    )
+    sr_exp_g_eta_minus = utils__model_prediction_values(
+        numerator_model.predict_secondary, sr_background
+    )
+    sr_product_predictions = (
+        (
+            sr_exp_f_eta_plus,
+            a_sr.corrected_n_samples,
+            r"$e^{f(x)}(1+\eta(x))$ prediction",
+            plot_colors["f"],
+            "o",
+        ),
+        (
+            sr_exp_g_eta_minus,
+            b_sr.corrected_n_samples,
+            r"$e^{g(x)}(1-\eta(x))$ prediction",
+            plot_colors["g"],
+            "s",
+        ),
+    )
+    utils__plot_weighted_histogram_predictions_sliced(
+        ax=sr_distribution_ax,
+        reference_dataset=sr_background,
+        predictions=weighted_distribution_predictions(
+            sr_background, sr_product_predictions
+        ),
+        bins=bins,
+        bin_centers=bin_centers,
+        along_observables=selected_observables,
+        normalize_each_prediction=normalize_top_distributions,
+    )
+
+    cr_eta = utils__model_prediction_values(
+        denominator_model.predict_eta, cr_background
+    )
+    cr_eta_predictions = (
+        (
+            1.0 + cr_eta,
+            a_cr.corrected_n_samples,
+            r"null hypothesis $1+\eta(x)$ prediction",
+            plot_colors["eta_plus"],
+            "o",
+        ),
+        (
+            1.0 - cr_eta,
+            b_cr.corrected_n_samples,
             r"null hypothesis $1-\eta(x)$ prediction",
             plot_colors["eta_minus"],
             "s",

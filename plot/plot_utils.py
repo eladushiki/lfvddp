@@ -1,3 +1,4 @@
+from keras import datasets
 import re
 from glob import glob
 from os.path import exists
@@ -562,6 +563,37 @@ def utils__add_subplot_sliced(
     return panel
 
 
+def utils__prediction_process_observables(
+    context: ExecutionContext,
+    along_observables: Union[List[str], str, None],
+    required_dimensions: int,
+) -> List[str]:
+    """Select and validate observables for a dimensional prediction-process plot."""
+    if not isinstance(config := context.config, DetectorConfig):
+        raise ValueError("The context config is not a DetectorConfig.")
+
+    configured_observables = config.detector__detect_observable_names
+    if along_observables is None:
+        selected_observables = configured_observables[:required_dimensions]
+    elif isinstance(along_observables, str):
+        selected_observables = [along_observables]
+    else:
+        selected_observables = list(along_observables)
+
+    if len(selected_observables) != required_dimensions:
+        raise ValueError(
+            f"The {required_dimensions}D prediction-process plot requires exactly "
+            f"{required_dimensions} observable(s), got {len(selected_observables)}."
+        )
+    unknown_observables = set(selected_observables) - set(configured_observables)
+    if unknown_observables:
+        raise ValueError(
+            "Prediction-process observables are not configured for detection: "
+            f"{sorted(unknown_observables)}"
+        )
+    return selected_observables
+
+
 def utils__set_subplot_labels_sliced(
     ax: plt.Axes,
     bins: Union[np.ndarray, List[np.ndarray]],
@@ -622,11 +654,29 @@ def utils__plot_region_histograms_sliced(
             normalize_by_n_samples=normalize_distributions,
         )
 
+    _configure_region_histogram_panel_sliced(
+        ax=ax,
+        bins=bins,
+        along_observables=along_observables,
+        region_name=region_name,
+        normalize_distributions=normalize_distributions,
+        datasets=(background, sample_a, sample_b),
+    )
+
+
+def _configure_region_histogram_panel_sliced(
+    ax: plt.Axes,
+    bins: Union[np.ndarray, List[np.ndarray]],
+    along_observables: List[str],
+    region_name: str,
+    normalize_distributions: bool,
+    datasets: Tuple[DataSet, DataSet, DataSet],
+) -> None:
     if len(along_observables) == 2:
         if normalize_distributions:
             minimum_output = min(
                 1.0 / dataset.n_samples
-                for dataset in (background, sample_a, sample_b)
+                for dataset in datasets
                 if dataset.n_samples > 0
             )
             output_limits = (
@@ -656,6 +706,76 @@ def utils__plot_region_histograms_sliced(
         else "number density functions"
     )
     ax.set_title(f"{region_name} {title_suffix}")
+
+
+def utils__plot_region_histogram_meshes_2d(
+    ax: plt.Axes,
+    sample_a: DataSet,
+    sample_b: DataSet,
+    background: DataSet,
+    bins: List[np.ndarray],
+    along_observables: List[str],
+    region_name: str,
+    background_color: str,
+    sample_a_color: str,
+    sample_b_color: str,
+    normalize_distributions: bool,
+) -> None:
+    """Draw A/B/background 2D histograms as wireframe meshes."""
+    if len(along_observables) != 2:
+        raise ValueError(
+            "The 2D histogram mesh renderer requires exactly two observables."
+        )
+
+    x_centers = 0.5 * (np.asarray(bins[0][:-1]) + np.asarray(bins[0][1:]))
+    y_centers = 0.5 * (np.asarray(bins[1][:-1]) + np.asarray(bins[1][1:]))
+    mesh_x, mesh_y = np.meshgrid(x_centers, y_centers, indexing="ij")
+    distribution_specs = (
+        (
+            background,
+            f"A-{region_name} + B-{region_name} (background)",
+            background_color,
+            0.75,
+            0.75,
+        ),
+        (sample_a, f"A-{region_name}", sample_a_color, 0.9, 0.9),
+        (sample_b, f"B-{region_name}", sample_b_color, 0.9, 0.9),
+    )
+
+    for dataset, label, color, alpha, linewidth in distribution_specs:
+        values = np.asarray(
+            dataset.slice_along_observable_names(along_observables)
+        ).reshape(dataset.n_samples, 2)
+        weights = utils__flatten_histogram_values(dataset.histogram_weight_mask)
+        if normalize_distributions:
+            weights = utils__normalize_histogram_values(
+                weights, dataset.corrected_n_samples
+            )
+        counts, _, _ = np.histogram2d(
+            values[:, 0],
+            values[:, 1],
+            bins=bins,
+            weights=weights,
+        )
+        positive_counts = np.where(counts > 0, counts, np.nan)
+        ax.plot_wireframe(
+            mesh_x,
+            mesh_y,
+            positive_counts,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+        )
+        ax.plot([], [], [], color=color, linewidth=linewidth, label=label)
+
+    _configure_region_histogram_panel_sliced(
+        ax=ax,
+        bins=bins,
+        along_observables=along_observables,
+        region_name=region_name,
+        normalize_distributions=normalize_distributions,
+        datasets=(background, sample_a, sample_b),
+    )
 
 
 def utils__plot_weighted_histogram_predictions_sliced(
