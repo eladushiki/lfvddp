@@ -19,6 +19,26 @@ def checkpoint_filename(model_name: str) -> str:
     return f"{model_name}.{TRAINING_CHECKPOINT_SUFFIX}"
 
 
+def optimizer_name(optimizer: Optional[torch.optim.Optimizer]) -> Optional[str]:
+    if optimizer is None:
+        return None
+    return optimizer.__class__.__name__.lower()
+
+
+def validate_checkpoint_optimizer(
+    checkpoint: dict[str, Any],
+    expected_optimizer_name: str,
+) -> None:
+    checkpoint_optimizer_name = checkpoint.get("optimizer_name")
+    if checkpoint_optimizer_name is None:
+        raise ValueError("Checkpoint does not contain optimizer metadata.")
+    if checkpoint_optimizer_name != expected_optimizer_name:
+        raise ValueError(
+            f"Checkpoint optimizer {checkpoint_optimizer_name!r} does not match "
+            f"configured optimizer {expected_optimizer_name!r}."
+        )
+
+
 def _torch_load(file_path: Path) -> dict[str, Any]:
     try:
         return torch.load(file_path, map_location="cpu", weights_only=False)
@@ -100,6 +120,7 @@ def save_training_checkpoint(
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,
+        "optimizer_name": optimizer_name(optimizer),
         "training_history": training_history,
         "array_index": context.array_index,
         "run_hash": context.run_hash,

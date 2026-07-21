@@ -112,7 +112,7 @@ def test_learning(
     data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_and_compensate_batch(
+    detected_batch = detector_effect.affect_batch(
         data_generation.get_batch()
     )
     t_a_loss = _train_numerator(
@@ -182,7 +182,7 @@ def test_convergence(
     data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_and_compensate_batch(
+    detected_batch = detector_effect.affect_batch(
         data_generation.get_batch()
     )
     t_a = _train_numerator(

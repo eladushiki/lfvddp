@@ -1,5 +1,5 @@
 {    
-    "train__epochs": 50000,
+    "train__epochs": 100,
     "train__batch_size": 4096,
     "train__number_of_epochs_for_checkpoint": 10,
 

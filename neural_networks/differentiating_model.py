@@ -23,7 +23,11 @@ from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
 )
-from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
+from train.checkpoints import (
+    find_latest_training_checkpoint,
+    save_training_checkpoint,
+    validate_checkpoint_optimizer,
+)
 from train.train_config import TrainConfig
 
 
@@ -239,11 +243,20 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         ]
         if not trainable_parameters:
             return None
-        optimizer = optim.Adam(
-            trainable_parameters,
-            lr=self._config.train__learning_rate,
-        )
-        return optimizer
+        if self._config.train__optimizer == "adam":
+            return optim.Adam(
+                trainable_parameters,
+                lr=self._config.train__resolved_learning_rate,
+            )
+        if self._config.train__optimizer == "lbfgs":
+            return optim.LBFGS(
+                trainable_parameters,
+                lr=self._config.train__resolved_learning_rate,
+                max_iter=20,
+                history_size=20,
+                line_search_fn="strong_wolfe",
+            )
+        raise ValueError(f"Unsupported optimizer {self._config.train__optimizer!r}.")
 
     @property
     def _observable_names(self) -> List[str]:
@@ -419,6 +432,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             return 0
 
         checkpoint_path, checkpoint = checkpoint_result
+        validate_checkpoint_optimizer(
+            checkpoint,
+            self._config.train__optimizer,
+        )
         self.load_state_dict(checkpoint["model_state_dict"])
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
@@ -447,6 +464,18 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         weights: torch.Tensor,
     ) -> torch.Tensor:
         """Run one optimization step and return the batch loss."""
+        if isinstance(optimizer, optim.LBFGS):
+            def closure() -> torch.Tensor:
+                self._clamp_nuisance_parameters()
+                optimizer.zero_grad(set_to_none=True)
+                closure_loss = self(data=data, weights=weights)
+                closure_loss.backward()
+                return closure_loss
+
+            loss = optimizer.step(closure)
+            self._clamp_nuisance_parameters()
+            return loss
+
         loss = self(data=data, weights=weights)
 
         if optimizer is not None:

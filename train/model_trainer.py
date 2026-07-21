@@ -13,7 +13,10 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import SINGLE_TRAIN_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import calc_min_LFVNN
-from train.checkpoints import find_latest_training_checkpoint
+from train.checkpoints import (
+    find_latest_training_checkpoint,
+    validate_checkpoint_optimizer,
+)
 from train.training_names import training_name
 from neural_networks.utils import ContextedModel
 
@@ -77,6 +80,10 @@ class TrainLauncher:
         if checkpoint_result is None:
             return None
         _, checkpoint = checkpoint_result
+        validate_checkpoint_optimizer(
+            checkpoint,
+            self._config.train__optimizer,
+        )
         return checkpoint
 
     def _checkpoint_finished_training(self, checkpoint: dict[str, Any]) -> bool:

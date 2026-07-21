@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from frame.cluster.cluster_config import ClusterConfig
@@ -15,7 +16,11 @@ from frame.file_structure import (
 )
 from frame.file_system.textual_data import load_config_file
 from test.environment import DEFAULT_CONFIG_PATHS
-from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
+from train.checkpoints import (
+    find_latest_training_checkpoint,
+    save_training_checkpoint,
+    validate_checkpoint_optimizer,
+)
 from train.submit_train import (
     _replace_or_append_continue_from,
 )
@@ -180,6 +185,13 @@ def test_checkpoint_discovery_uses_single_latest_path_per_array_index(tmp_path):
     assert first_path != second_path
     assert found_path == second_path
     assert checkpoint["epoch"] == 5
+    assert checkpoint["optimizer_name"] == "sgd"
+    validate_checkpoint_optimizer(checkpoint, "sgd")
+
+    with pytest.raises(ValueError, match="does not match"):
+        validate_checkpoint_optimizer(checkpoint, "adam")
+    with pytest.raises(ValueError, match="does not contain optimizer metadata"):
+        validate_checkpoint_optimizer({}, "sgd")
 
     wrong_array_context = SimpleNamespace(
         is_continue=True,

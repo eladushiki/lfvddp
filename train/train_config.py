@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import warning
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -19,7 +19,8 @@ class TrainConfig:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
     train__nn_xavier_gain: float = 4
-    train__learning_rate: float = 0.001  # optimizer learning rate
+    train__optimizer: str = "lbfgs"
+    train__learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
     train__run_symmetric_in_parallel: bool = False
     
@@ -56,11 +57,26 @@ class TrainConfig:
         )
         return total_params - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
 
+    @property
+    def train__resolved_learning_rate(self) -> float:
+        if self.train__learning_rate is not None:
+            return self.train__learning_rate
+        return 0.001 if self.train__optimizer == "adam" else 1.0
+
 
     def __post_init__(self):
         self.validate()
 
     def validate(self):
+        supported_optimizers = {"adam", "lbfgs"}
+        if self.train__optimizer not in supported_optimizers:
+            raise ValueError(
+                f"Unsupported optimizer {self.train__optimizer!r}; "
+                f"expected one of {sorted(supported_optimizers)}."
+            )
+        if self.train__learning_rate is not None and self.train__learning_rate <= 0:
+            raise ValueError("Training learning rate must be positive.")
+
         if self.train__epochs < 1e5 and self.train__like_NPLM or \
                 self.train__epochs < 5e5 and not self.train__like_NPLM:
             warning("Training epochs not sufficient, train may not converge")
