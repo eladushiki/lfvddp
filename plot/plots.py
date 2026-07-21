@@ -752,7 +752,7 @@ def plot_prediction_process_sliced(
             (
                 prediction_to_sample_ndf_hypothesis_weights(
                     model_prediction=prediction,
-                    predicted_distribution_corrected_size=ndf_corrected_n_samples,
+                    predicted_distribution_size=ndf_n_samples,
                     reference_ndf_estimation=reference_background,
                 ),
                 label,
@@ -761,7 +761,7 @@ def plot_prediction_process_sliced(
             )
             for (
                 prediction,
-                ndf_corrected_n_samples,
+                ndf_n_samples,
                 label,
                 color,
                 marker,
@@ -777,14 +777,14 @@ def plot_prediction_process_sliced(
     sr_product_predictions = (
         (
             sr_exp_f_eta_plus,
-            a_sr.corrected_n_samples,
+            a_sr.n_samples,
             r"$e^{f(x)}(1+\eta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
-            b_sr.corrected_n_samples,
+            b_sr.n_samples,
             r"$e^{g(x)}(1-\eta(x))$ prediction",
             plot_colors["g"],
             "s",
@@ -808,14 +808,14 @@ def plot_prediction_process_sliced(
     cr_eta_predictions = (
         (
             1.0 + cr_eta,
-            a_cr.corrected_n_samples,
+            a_cr.n_samples,
             r"null hypothesis $1+\eta(x)$ prediction",
             plot_colors["eta_plus"],
             "o",
         ),
         (
             1.0 - cr_eta,
-            b_cr.corrected_n_samples,
+            b_cr.n_samples,
             r"null hypothesis $1-\eta(x)$ prediction",
             plot_colors["eta_minus"],
             "s",

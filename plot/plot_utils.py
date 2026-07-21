@@ -329,7 +329,7 @@ def utils__datset_histogram_sliced(
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
         along_observables: Union[List, str, None] = None,
-        normalize_by_corrected_n_samples: bool = False,
+        normalize_by_n_samples: bool = False,
         **hist_kwargs,
 ):
     if along_observables is None:
@@ -339,18 +339,17 @@ def utils__datset_histogram_sliced(
     elif len(along_observables) > 2:
         raise ValueError("Can only plot 1D or 2D histograms, got more than 2 observables")
 
-    weights = utils__flatten_histogram_values(
-        dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
-    )
-        
-    if weights.shape[0] != dataset.n_samples:
+    weights = None if alternative_weights is None else utils__flatten_histogram_values(alternative_weights)
+
+    if weights is not None and weights.shape[0] != dataset.n_samples:
         raise ValueError(
             f"Expected one histogram weight per sample, got weights shape {weights.shape} "
             f"for {dataset.n_samples} samples."
         )
-    if normalize_by_corrected_n_samples:
+    if normalize_by_n_samples:
+        weights = np.ones(dataset.n_samples) if weights is None else weights
         weights = utils__normalize_histogram_values(
-            weights, dataset.corrected_n_samples
+            weights, dataset.n_samples
         )
 
     if len(along_observables) == 1:
@@ -620,15 +619,15 @@ def utils__plot_region_histograms_sliced(
             histtype=histtype,
             alpha=alpha,
             lw=linewidth,
-            normalize_by_corrected_n_samples=normalize_distributions,
+            normalize_by_n_samples=normalize_distributions,
         )
 
     if len(along_observables) == 2:
         if normalize_distributions:
             minimum_output = min(
-                1.0 / dataset.corrected_n_samples
+                1.0 / dataset.n_samples
                 for dataset in (background, sample_a, sample_b)
-                if dataset.corrected_n_samples > 0
+                if dataset.n_samples > 0
             )
             output_limits = (
                 minimum_output / 2.0,
