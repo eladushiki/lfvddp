@@ -23,6 +23,9 @@ from frame.file_system.training_history import HistoryKeys
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
 
+_MESH_LINE_WIDTH = 0.4
+_DENSE_MESH_LINE_WIDTH = 0.3
+
 
 class HandlerRect(HandlerPatch):
 
@@ -557,7 +560,7 @@ def utils__add_subplot_sliced(
         return fig.add_subplot(*subplot_shape)
 
     panel = fig.add_subplot(*subplot_shape, projection="3d")
-    panel.view_init(elev=28, azim=-58)
+    panel.view_init(elev=28, azim=45)
     panel.set_box_aspect((1.2, 1.2, 0.9))
     return panel
 
@@ -735,10 +738,10 @@ def utils__plot_region_histogram_meshes_2d(
             f"A-{region_name} + B-{region_name} (background)",
             background_color,
             0.75,
-            0.75,
+            _DENSE_MESH_LINE_WIDTH,
         ),
-        (sample_a, f"A-{region_name}", sample_a_color, 0.9, 0.9),
-        (sample_b, f"B-{region_name}", sample_b_color, 0.9, 0.9),
+        (sample_a, f"A-{region_name}", sample_a_color, 0.9, _MESH_LINE_WIDTH),
+        (sample_b, f"B-{region_name}", sample_b_color, 0.9, _MESH_LINE_WIDTH),
     )
 
     for dataset, label, color, alpha, linewidth in distribution_specs:
@@ -1010,7 +1013,7 @@ def utils__plot_model_predictions_sliced(
                 contour_grid,
                 color=color,
                 linestyle=linestyle,
-                linewidth=0.8,
+                linewidth=_MESH_LINE_WIDTH,
                 alpha=0.9,
             )
             ax.plot([], [], [], label=label, color=color, linestyle=linestyle)
@@ -1029,7 +1032,7 @@ def utils__plot_model_predictions_sliced(
                 continuous_grid,
                 color=color,
                 linestyle=linestyle,
-                linewidth=0.65,
+                linewidth=_DENSE_MESH_LINE_WIDTH,
                 alpha=0.8,
             )
         if draw_as_steps:
