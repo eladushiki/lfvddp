@@ -54,11 +54,9 @@
 %% Data sets
 \newcommand{\anyevent}{\overline{x}}
 \newcommand{\event}{{\overline{x_i}}}
-\newcommand{\weightedevent}{{(\event, w_i)}}
 \newcommand{\dataset}[1]{{\mathbf{#1}}}         % A dataset
 \newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
 \newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}   % A measured dataset
-\newcommand{\reco}[1]{{\dataset{\dot{#1}}}}     % A reconstructed dataset
 \newcommand{\crmeas}[1]{{\meas{#1}^{CR}}}
 \newcommand{\srmeas}[1]{{\meas{#1}^{SR}}}
 
@@ -74,16 +72,16 @@
 
 %% Hypotheses
 %%% Distributions
-\newcommand{\dist}[1]{{n_{#1}(\anyevent)}}   % Any distribution of x
-\newcommand{\srdist}[1]{{n_{#1}^{SR}(\anyevent)}}   % Any distribution of x
-\newcommand{\crdist}[1]{{n_{#1}^{CR}(\anyevent)}}   % Any distribution of x
-\newcommand{\distevent}[1]{n_{#1}(\event)}
-\newcommand{\srdistevent}[1]{n_{#1}^{SR}(\event)}
-\newcommand{\crdistevent}[1]{n_{#1}^{CR}(\event)}
+\newcommand{\dist}[1]{{\lambda_{#1}(\anyevent)}}   % Any distribution of x
+\newcommand{\srdist}[1]{{\lambda_{#1}^{SR}(\anyevent)}}   % Any distribution of x
+\newcommand{\crdist}[1]{{\lambda_{#1}^{CR}(\anyevent)}}   % Any distribution of x
+\newcommand{\distevent}[1]{\lambda_{#1}(\event)}
+\newcommand{\srdistevent}[1]{\lambda_{#1}^{SR}(\event)}
+\newcommand{\crdistevent}[1]{\lambda_{#1}^{CR}(\event)}
 \newcommand{\refdist}[1][\anyevent]{n_{\mathcal{R}}({#1})}  % Reference distribution
 \newcommand{\crrefdist}[1][\anyevent]{n_{\mathcal{R}}^{CR}({#1})}
 \newcommand{\srrefdist}[1][\anyevent]{n_{\mathcal{R}}^{SR}({#1})}
-\newcommand{\maxdist}[1]{{\hat{n}_{#1}}(\anyevent)}
+
 %% Likelihood
 \newcommand{\likelihood}{\mathcal{L}}           % Likelihood function
 \newcommand{\llikelihood}{\log\mathcal{L}}      % Log-likelihood function
