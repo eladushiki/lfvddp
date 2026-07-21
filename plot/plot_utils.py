@@ -1,4 +1,3 @@
-from keras import datasets
 import re
 from glob import glob
 from os.path import exists

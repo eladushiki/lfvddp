@@ -10,8 +10,6 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import save_training_history_outcome
-from plot.plot_factory import PlotFactory
-from plot.plotting_config import PlotInstructions
 from train.model_trainer import (
     SequentialTrainLauncher,
     TrainLauncher,
@@ -147,6 +145,11 @@ def plot_training_prediction(
         or denominator_training.model is None
     ):
         return
+
+    # Plotting is optional and imports a comparatively heavy scientific stack.
+    # Keep it out of the training process until the trained models are ready.
+    from plot.plot_factory import PlotFactory
+    from plot.plotting_config import PlotInstructions
 
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
