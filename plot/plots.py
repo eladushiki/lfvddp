@@ -30,6 +30,7 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
+    utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
@@ -49,12 +50,12 @@ from train.train_config import TrainConfig
 from train.train_utils import model_degrees_of_freedom
 
 _PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
-    "left": 0.025,
+    "left": 0.005,
     "right": 0.995,
-    "top": 0.93,
-    "bottom": 0.035,
-    "hspace": 0.06,
-    "wspace": 0.03,
+    "top": 0.95,
+    "bottom": 0.005,
+    "hspace": 0.001,
+    "wspace": 0.001,
 }
 
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
@@ -834,7 +835,7 @@ def plot_prediction_process_1d(
     utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
 
     for panel in distribution_axes:
-        panel.legend(fontsize=8, loc="lower left")
+        utils__add_prediction_process_legend(panel, fontsize=8)
 
     detector_effect = denominator_training.detector_effect
     detector_bins_by_observable = {
@@ -1255,7 +1256,7 @@ def plot_prediction_process_2d(
     utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
 
     for panel in distribution_axes:
-        panel.legend(fontsize=8, loc="lower left")
+        utils__add_prediction_process_legend(panel, fontsize=8)
 
     detector_effect = denominator_training.detector_effect
     detector_bins_by_observable = {

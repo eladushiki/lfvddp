@@ -566,6 +566,18 @@ def utils__add_subplot_sliced(
     return panel
 
 
+def utils__add_prediction_process_legend(
+    ax: plt.Axes, fontsize: float
+) -> None:
+    """Place a prediction-process legend below the title and against the left edge."""
+    ax.legend(
+        fontsize=fontsize,
+        loc="upper left",
+        bbox_to_anchor=(0.02, 0.92),
+        borderaxespad=0,
+    )
+
+
 def _plot_bordered_wireframe(
     ax: plt.Axes,
     x_values: np.ndarray,
@@ -1084,4 +1096,4 @@ def utils__plot_model_predictions_sliced(
         output_label="model prediction",
     )
     ax.set_title(title)
-    ax.legend(fontsize=7, loc="lower left")
+    utils__add_prediction_process_legend(ax, fontsize=7)
