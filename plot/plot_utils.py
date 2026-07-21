@@ -571,12 +571,14 @@ def utils__add_prediction_process_legend(
     ax: plt.Axes, fontsize: float
 ) -> None:
     """Place a prediction-process legend below the title and against the left edge."""
-    ax.legend(
+    legend = ax.legend(
         fontsize=fontsize,
         loc="upper left",
         bbox_to_anchor=(0.02, 0.92),
         borderaxespad=0,
+        framealpha=1.0,
     )
+    legend.set_zorder(1000)
 
 
 def _plot_bordered_wireframe(
@@ -1087,7 +1089,7 @@ def utils__plot_model_predictions_sliced(
             polygons = _surface_polygons(x_values, y_values, contour_grid)
             surface_polygons.extend(polygons)
             facecolors.extend([to_rgba(color, alpha)] * len(polygons))
-            edgecolors.extend([to_rgba("black", 0.55)] * len(polygons))
+            edgecolors.extend([to_rgba(color, 0.8)] * len(polygons))
             linewidths.extend([_MESH_BORDER_WIDTH] * len(polygons))
 
         for coordinates, contour, label, color, linestyle in predictions:
