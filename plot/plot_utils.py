@@ -745,10 +745,10 @@ def utils__plot_region_histogram_meshes_2d(
         values = np.asarray(
             dataset.slice_along_observable_names(along_observables)
         ).reshape(dataset.n_samples, 2)
-        weights = utils__flatten_histogram_values(dataset.histogram_weight_mask)
+        weights = None
         if normalize_distributions:
             weights = utils__normalize_histogram_values(
-                weights, dataset.corrected_n_samples
+                np.ones(dataset.n_samples), dataset.n_samples
             )
         counts, _, _ = np.histogram2d(
             values[:, 0],
