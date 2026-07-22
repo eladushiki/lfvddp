@@ -18,7 +18,7 @@ def test_detection_basic(
     detector_effect,
 ):
     A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
-    A_affected = detector_effect.affect_and_compensate(A, A_params, False)
+    A_affected = detector_effect.affect_dataset(A, A_params)
 
     # Expect data to remain unchanged
     assert (A.events == A_affected.events).all()
@@ -40,7 +40,7 @@ def test_detection_effect(
     detector_effect,
 ):
     A, A_params = data_generation[DataSet.DataSetCategory.A_SR]
-    A_affected = detector_effect.affect_and_compensate(A, A_params, False)
+    A_affected = detector_effect.affect_dataset(A, A_params)
 
     # Affected dataset should differ from the original one
     # By missing events:

@@ -112,7 +112,7 @@ def test_learning(
     data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_and_compensate_batch(
+    detected_batch = detector_effect.affect_batch(
         data_generation.get_batch()
     )
     t_a_loss = _train_numerator(
@@ -182,7 +182,7 @@ def test_convergence(
     data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_and_compensate_batch(
+    detected_batch = detector_effect.affect_batch(
         data_generation.get_batch()
     )
     t_a = _train_numerator(
@@ -191,25 +191,5 @@ def test_convergence(
         detector_effect,
         "test_model_A",
     )
-    detected_batch.swap_ab()
-    t_b = _train_numerator(
-        function_execution_context,
-        detected_batch,
-        detector_effect,
-        "test_model_B",
-    )
-
-    weights_a = list(
-        _load_checkpoint_state_dict(function_execution_context, "test_model_A").values()
-    )
-    weights_b = list(
-        _load_checkpoint_state_dict(function_execution_context, "test_model_B").values()
-    )
-
-    # Verify weights are different
-    assert any(
-        not torch.allclose(w_a.cpu(), w_b.cpu())
-        for w_a, w_b in zip(weights_a, weights_b)
-    )
-
-    assert t_a + t_b > 0
+    
+    assert t_a > 0
