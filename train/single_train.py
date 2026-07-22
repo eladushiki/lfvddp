@@ -154,7 +154,6 @@ def plot_training_prediction(
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
     ].name
-    model_name = numerator_training.name or training_name(base_name, is_numerator=True)
 
     data_process_plot = PlotFactory(context).generate_plot(
         PlotInstructions(
@@ -168,7 +167,7 @@ def plot_training_prediction(
     )
     context.save_and_document_figure(
         data_process_plot,
-        context.unique_out_dir / f"{model_name}_data_process_plot.png",
+        context.unique_out_dir / f"dataset_process_plot.png",
     )
 
 
