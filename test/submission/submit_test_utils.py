@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Mapping
+from typing import Optional
 
 import pytest
 
@@ -15,23 +15,28 @@ from frame.file_structure import (
     SUBMIT_TRAIN_SCRIPT_NAME,
     SUBMIT_TRAIN_SCRIPT_RELATIVE,
 )
-from test.environment import CONFIG_ARGUMENTS, ConfigType
+
 
 JOB_WAIT_TIMEOUT_SECONDS = 20 * 60
 POLL_SECONDS = 5
 
 
-def build_submit_command(  # TODO: make configs independent of their type all over the project
+def build_submit_command(
     context: ExecutionContext,
-    out_dir: Path,
-    continue_training: bool = False,
+    out_dir: Optional[Path] = None,
+    continue_from: Optional[Path] = None,
 ) -> list[str]:
     command = [
         sys.executable,
         str(SUBMIT_TRAIN_SCRIPT_RELATIVE),
     ]
-    for config_type, argument in CONFIG_ARGUMENTS:
-        command.extend([argument, str(context.typed_config_paths[config_type])])
+    if continue_from is not None:
+        return [*command, "--continue", str(continue_from)]
+    if out_dir is None:
+        raise ValueError("Fresh submission commands require an output directory.")
+
+    command.append("--configs")
+    command.extend(str(path) for path in context.typed_config_paths.values())
 
     command.extend(
         [
@@ -42,8 +47,6 @@ def build_submit_command(  # TODO: make configs independent of their type all ov
             str(out_dir),
         ]
     )
-    if continue_training:
-        command.append("--continue")
     return command
 
 

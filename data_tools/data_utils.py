@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import enum
 import re
+from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
-import pandas as pd
-
 import numpy as np
-from numpy.random import default_rng
 import numpy.typing as npt
+import pandas as pd
 
 
 class DataSet:
@@ -241,8 +239,7 @@ def resample(
     source distribution itself.
     """
 
-    rng = default_rng()
-    idx = rng.choice(
+    idx = np.random.choice(
         source_dataset.n_samples,
         size=n_samples,
         replace=replacement,

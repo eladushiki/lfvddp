@@ -12,16 +12,6 @@ class ConfigType(Enum):
     USER = "user"
 
 
-CONFIG_ARGUMENTS = [
-    (ConfigType.CLUSTER, "--cluster-config"),
-    (ConfigType.DATASET, "--dataset-config"),
-    (ConfigType.DETECTOR, "--detector-config"),
-    (ConfigType.PLOT, "--plot-config"),
-    (ConfigType.TRAIN, "--train-config"),
-    (ConfigType.USER, "--user-config"),
-]
-
-
 DEFAULT_CONFIG_PATHS = {t: Path(s) for t, s in zip(
     ConfigType,
     [
@@ -39,6 +29,8 @@ def wrap_with_command_line_args(
         kwconfs: Dict[Union[str, ConfigType], Path]
 ) -> list[str]:
     try:
-        return [f"--{ConfigType(key).value}-config {value}" for key, value in kwconfs.items()]
+        for key in kwconfs:
+            ConfigType(key)
     except ValueError:
         raise ValueError("Invalid conf type")
+    return ["--configs", *(str(value) for value in kwconfs.values())]
