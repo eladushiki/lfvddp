@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import warning
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -11,9 +11,11 @@ class TrainConfig:
     train__number_of_epochs_for_checkpoint: int
 
     # NN parameters
-    train__nn_input_dimension: int
     train__nn_inner_layer_nodes: int
-    train__nn_output_dimension: int
+    train__nn_input_dimension: Optional[int] = None
+    @property
+    def train__nn_output_dimension(self) -> int:
+        return 1
     @property
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
@@ -55,7 +57,6 @@ class TrainConfig:
             for i in range(len(architecture) - 1)
         )
         return total_params - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
-
 
     def __post_init__(self):
         self.validate()
