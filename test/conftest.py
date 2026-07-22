@@ -21,12 +21,10 @@ def session_execution_context():
         no_build=True,
         out_dir="results",
         only_train=False,
-        continue_training=False,
         continue_from=None,
     )
     config = create_config_from_paths(
         config_paths=list(DEFAULT_CONFIG_PATHS.values()),
-        is_plot=True,
         out_dir=args.out_dir,
         plot_in_place=True,
     )
@@ -72,12 +70,10 @@ def function_execution_context(
         no_build=session_execution_context.is_no_build,
         out_dir=session_execution_context.unique_out_dir,
         only_train=session_execution_context.is_only_train,
-        continue_training=False,
         continue_from=None,
     )
     config = create_config_from_paths(
         config_paths=list(config_paths.values()),
-        is_plot=True,
         out_dir=session_execution_context.unique_out_dir,
         plot_in_place=True,
     )
@@ -95,6 +91,26 @@ def function_execution_context(
 @fixture(scope="function")
 def data_generation(request, function_execution_context):
     return DataGeneration(function_execution_context)
+
+
+@fixture(scope="function")
+def data_batch_events():
+    """Return reproducible batch events without leaking DataGeneration state."""
+    original_instance = DataGeneration._instance
+    original_loaded_datasets = DataGeneration._loaded_datasets
+
+    def events_for_context(context):
+        DataGeneration._instance = None
+        DataGeneration._loaded_datasets = {}
+        return {
+            dataset.category: dataset.events.copy()
+            for dataset, _ in DataGeneration(context).get_batch()
+        }
+
+    yield events_for_context
+
+    DataGeneration._instance = original_instance
+    DataGeneration._loaded_datasets = original_loaded_datasets
 
 
 @fixture(scope="function")

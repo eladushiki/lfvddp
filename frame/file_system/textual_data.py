@@ -40,6 +40,14 @@ def load_config_file(file_path: Path) -> Dict[str, Any]:
         raise ValueError(f"Unsupported configuration file format: {file_extension}. Supported formats: .json, .yaml, .yml")
 
 
+def load_config_params_from_paths(config_paths: List[Path]) -> Dict[str, Any]:
+    """Shallow-merge configuration files in their supplied order."""
+    config_params = {}
+    for config_path in config_paths:
+        config_params.update(load_config_file(config_path))
+    return config_params
+
+
 def save_dict_to_json(dictionary: dict, file_path: Path):
     with open(file_path, 'w') as file:
         dump(dictionary, file, indent=4, cls=FallbackJSONEncoder)

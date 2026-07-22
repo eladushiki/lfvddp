@@ -14,7 +14,7 @@ import torch
 from matplotlib.figure import Figure
 from numpy import random as nprandom
 
-from configs.x_validate import cross_validate
+from configs.x_validate import cross_configure, cross_validate
 from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
@@ -25,9 +25,17 @@ from frame.context.run_descriptor import (
     context_glob_for_run,
     run_descriptor_matches,
 )
-from frame.file_structure import CONTEXT_FILE_NAME, TRAINING_OUTCOMES_DIR_NAME
+from frame.file_structure import (
+    CONTEXT_FILE_NAME,
+    SUBMIT_TRAIN_SCRIPT_NAME,
+    TRAINING_OUTCOMES_DIR_NAME,
+)
 from frame.file_system.image_storage import save_figure
-from frame.file_system.textual_data import load_dict_from_json, save_dict_to_json
+from frame.file_system.textual_data import (
+    load_config_params_from_paths,
+    load_dict_from_json,
+    save_dict_to_json,
+)
 from frame.file_system.training_history import save_training_history
 from frame.git_tools import get_commit_hash, is_git_head_clean
 from frame.time_tools import (
@@ -39,9 +47,13 @@ from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
 
 
+def _array_index_from_environment() -> Optional[int]:
+    pbs_array_index = environ.get("PBS_ARRAY_INDEX")
+    return int(pbs_array_index) if pbs_array_index else None
+
+
 def create_config_from_paramters(
     config_params: dict,
-    is_plot: bool = True,
     out_dir: Optional[str] = None,
     plot_in_place: bool = False,
 ):
@@ -53,10 +65,8 @@ def create_config_from_paramters(
         DetectorConfig,
         TrainConfig,
         UserConfig,
+        PlottingConfig,
     ]
-
-    if is_plot:
-        config_classes.append(PlottingConfig)
 
     class DynamicConfig(*config_classes):
         def __init__(self, **kwargs):
@@ -70,7 +80,8 @@ def create_config_from_paramters(
                 if hasattr(config_class, "__post_init__"):
                     config_class.__post_init__(self)
 
-            # Cross validate configuration
+            # Configure and validate values that depend on the merged config.
+            cross_configure(self)
             cross_validate(self)
 
     # Configuration according to arguments
@@ -105,6 +116,7 @@ class ExecutionContext:
     continue_from: Optional[Path] = None
     array_index: Optional[int] = None
     qsub_submissions: List[Dict[str, Any]] = field(default_factory=list)
+    qsub_walltime_chunk: Optional[str] = None
     run_successful: bool = False
     products: ExecutionProducts = field(default_factory=ExecutionProducts)
     is_reloaded: bool = False
@@ -117,14 +129,16 @@ class ExecutionContext:
             self.run_hash = hash(self._unique_descriptor)
 
         if self.array_index is None:
-            pbs_array_index = environ.get("PBS_ARRAY_INDEX")
-            self.array_index = int(pbs_array_index) if pbs_array_index else None
+            self.array_index = _array_index_from_environment()
 
         # Initialize once unique output directory
         if not self.is_reloaded:
             makedirs(self.unique_out_dir, exist_ok=False)
 
-        # Random seeding
+        self.seed_random_generators()
+
+    def seed_random_generators(self) -> None:
+        """Seed every random backend used by the configured training path."""
         random.seed(self.random_seed)
         nprandom.seed(self.random_seed)
         if self.config.train__like_NPLM:
@@ -242,6 +256,17 @@ class ExecutionContext:
             )
         return self.config.next_walltime_chunk(self.qsub_submitted_chunk_count)
 
+    def prepare_next_qsub_walltime_chunk(self) -> str:
+        """Select and retain the chunk attempted by this submit invocation."""
+        if self.qsub_walltime_chunk is None:
+            self.qsub_walltime_chunk = self.next_qsub_walltime_chunk()
+        if self.qsub_walltime_chunk is None:
+            raise RuntimeError(
+                f"No remaining walltime chunks to submit for {self.unique_out_dir}."
+            )
+        self.config.use_walltime_chunk(self.qsub_walltime_chunk)
+        return self.qsub_walltime_chunk
+
     def record_qsub_submission(
         self, walltime: str, job_id: str, submit_run_dir: Path
     ) -> None:
@@ -252,6 +277,7 @@ class ExecutionContext:
             "submitted_at": get_time_and_date_string(),
             "submit_run_dir": str(submit_run_dir),
         })
+        self.qsub_walltime_chunk = None
 
     @classmethod
     def load_from_run_dir(cls, run_dir: Path) -> "ExecutionContext":
@@ -362,21 +388,53 @@ class ExecutionContext:
         parameters.
         """
         data = load_dict_from_json(file_path)
+        random_seed = data.pop("random_seed")
         data["config"] = create_config_from_paramters(data["config"])
         data["config_paths"] = [Path(path) for path in data.get("config_paths", [])]
         if data.get("continue_from") is not None:
             data["continue_from"] = Path(data["continue_from"])
         data["products"] = ExecutionProducts.from_serialized(data.get("products", {}))
         data["is_reloaded"] = True
-        context = cls(**data)
+        context = cls(random_seed=random_seed, **data)
 
+        return context
+
+    @classmethod
+    def load_child_run_context(
+        cls,
+        parent_directory: Path,
+        entrypoint: str,
+        array_index: Optional[int],
+    ) -> "ExecutionContext":
+        """Load the matching worker context below a submitted run."""
+        candidates = []
+        for candidate, context_path in cls.discover_run_contexts(
+            parent_directory,
+            entrypoint=entrypoint,
+        ):
+            if candidate.array_index == array_index:
+                candidates.append((candidate, context_path))
+
+        if not candidates:
+            raise RuntimeError(
+                f"Could not find a prior {Path(entrypoint).name} context to continue "
+                f"for array index {array_index} below {parent_directory}."
+            )
+
+        context, _ = max(
+            candidates,
+            key=lambda item: (
+                len(item[0].qsub_submissions),
+                item[1].stat().st_mtime,
+            ),
+        )
         return context
 
 
 @contextmanager
 def version_controlled_execution_context(
-    config: UserConfig,
-    config_paths: List[Path],
+    config: Optional[UserConfig],
+    config_paths: Optional[List[Path]],
     command_line_args: List[str],
     args: Namespace,
 ):
@@ -384,26 +442,68 @@ def version_controlled_execution_context(
     Create a context which should contain any run dependent information.
     The data is later stored in the output_path for documentation.
     """
-    # Force run on strict commit
-    if not args.debug and not is_git_head_clean():
-        raise RuntimeError("Commit changes before running the script.")
+    array_index = _array_index_from_environment()
+    entrypoint = Path(command_line_args[0] if command_line_args else argv[0]).name
+    if args.continue_from is not None:
+        continue_from = Path(args.continue_from)
+        context_path = (
+            continue_from
+            if continue_from.name == CONTEXT_FILE_NAME
+            else continue_from / CONTEXT_FILE_NAME
+        )
+        context = None
+        if context_path.exists():
+            directly_loaded_context = ExecutionContext.naive_load_from_file(context_path)
+            if (
+                directly_loaded_context.array_index == array_index
+                and run_descriptor_matches(
+                    directly_loaded_context.run_descriptor,
+                    entrypoint=entrypoint,
+                )
+            ):
+                context = directly_loaded_context
+        if context is None:
+            context = ExecutionContext.load_child_run_context(
+                parent_directory=continue_from,
+                entrypoint=entrypoint,
+                array_index=array_index,
+            )
+        if not context.is_debug_mode and not is_git_head_clean():
+            raise RuntimeError("Commit changes before running the script.")
 
-    # Initialize
-    context = ExecutionContext(
-        get_commit_hash(),
-        config,
-        config_paths,
-        command_line_args,
-        is_debug_mode=args.debug,
-        is_no_build=args.no_build,
-        is_only_train=args.only_train,
-        is_continue=args.continue_training,
-        continue_from=args.continue_from,
-    )
+        context.is_continue = True
+        context.continue_from = args.continue_from
+        context.run_successful = False
+        context.seed_random_generators()
+    else:
+        if config is None or config_paths is None:
+            raise ValueError("Fresh runs require configuration files.")
+        if not args.debug and not is_git_head_clean():
+            raise RuntimeError("Commit changes before running the script.")
+
+        random_seed = load_config_params_from_paths(config_paths).get("random_seed")
+        context_kwargs = {}
+        if random_seed is not None:
+            context_kwargs["random_seed"] = random_seed
+
+        context = ExecutionContext(
+            get_commit_hash(),
+            config,
+            config_paths,
+            command_line_args,
+            is_debug_mode=args.debug,
+            is_no_build=args.no_build,
+            is_only_train=args.only_train,
+            array_index=array_index,
+            **context_kwargs,
+        )
+
+    if entrypoint == SUBMIT_TRAIN_SCRIPT_NAME:
+        context.prepare_next_qsub_walltime_chunk()
 
     # Save in case run terminates prematurely
     context.save_self_to_out_file()
-    basicConfig(level=getattr(logging, config.config__log_level))
+    basicConfig(level=getattr(logging, context.config.config__log_level))
 
     # Do everything, add important stuff as parameters to context object
     yield context

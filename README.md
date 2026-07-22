@@ -118,11 +118,13 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "program": "train/single_train.py",
             "console": "integratedTerminal",
             "args": [
-                "--user-config", "${config:myConfig.userConfig}",
-                "--cluster-config", "${config:myConfig.clusterConfig}",
-                "--dataset-config", "${config:myConfig.datasetConfig}",
-                "--train-config", "${config:myConfig.trainConfig}",
-                "--plot-config", "${config:myConfig.plotConfig}",
+                "--configs",
+                "${config:myConfig.clusterConfig}",
+                "${config:myConfig.datasetConfig}",
+                "${config:myConfig.detectorConfig}",
+                "${config:myConfig.trainConfig}",
+                "${config:myConfig.userConfig}",
+                "${config:myConfig.plotConfig}",
                 "--debug",
             ]
         },
@@ -133,11 +135,13 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "program": "train/submit_train.py",
             "console": "integratedTerminal",
             "args": [
-                "--user-config", "${config:myConfig.userConfig}",
-                "--cluster-config", "${config:myConfig.clusterConfig}",
-                "--dataset-config", "${config:myConfig.datasetConfig}",
-                "--train-config", "${config:myConfig.trainConfig}",
-                "--plot-config", "${config:myConfig.plotConfig}",
+                "--configs",
+                "${config:myConfig.clusterConfig}",
+                "${config:myConfig.datasetConfig}",
+                "${config:myConfig.detectorConfig}",
+                "${config:myConfig.trainConfig}",
+                "${config:myConfig.userConfig}",
+                "${config:myConfig.plotConfig}",
             ]
         },
         { // DEBUG plot
@@ -147,11 +151,13 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
         "program": "plot/create_plots.py",
         "console": "integratedTerminal",
         "args": [
-            "--user-config", "${config:myConfig.userConfig}",
-            "--cluster-config", "${config:myConfig.clusterConfig}",
-            "--dataset-config", "${config:myConfig.datasetConfig}",
-            "--train-config", "${config:myConfig.trainConfig}",
-            "--plot-config", "${config:myConfig.plotConfig}",
+            "--configs",
+            "${config:myConfig.clusterConfig}",
+            "${config:myConfig.datasetConfig}",
+            "${config:myConfig.detectorConfig}",
+            "${config:myConfig.trainConfig}",
+            "${config:myConfig.userConfig}",
+            "${config:myConfig.plotConfig}",
             "--debug",
         ]
     }
@@ -164,11 +170,22 @@ The custom file paths here refer to a different file, `settings.json`, of the fo
     "myConfig.userConfig": "configs/user/<name>.json",
     "myConfig.clusterConfig": "configs/cluster/<your config>.json",
     "myConfig.datasetConfig": "configs/dataset/<your config>.json",
+    "myConfig.detectorConfig": "configs/detector/<your config>.json",
     "myConfig.trainConfig": "configs/train/<your config>.json",
     "myConfig.plotConfig": "configs/plot/<your config>.json",
 }
 ```
 Which you create and direct to.
+
+Configuration files passed through `--configs` are shallow-merged from left to
+right, so later files override earlier values. Plotting configuration is required,
+although `plot__plot_specifications` may be omitted when no configured batch plots
+are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
+generated otherwise.
+
+Continue a saved run with `--continue <run-directory-or-context.json>`. This must
+be the only option: configuration paths and all runtime settings are restored from
+the saved context.
 
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 

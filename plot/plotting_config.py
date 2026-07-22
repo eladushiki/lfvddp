@@ -1,9 +1,7 @@
-from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 
 from frame.file_structure import PLOT_FILE_EXTENSION
-from train.train_config import TrainConfig
 
 
 @dataclass
@@ -25,6 +23,7 @@ class PlottingConfig:
     """
     Class for structuring all the data needed for plotting instructions.
     """
+
     plot__target_run_parent_directory: str
 
     # General plot settings
@@ -36,7 +35,7 @@ class PlottingConfig:
     plot__figure_size: Tuple[int, int]
 
     # Additional settings for each plot
-    plot__plot_specifications: List[Dict[str, Any]]
+    plot__plot_specifications: List[Dict[str, Any]] = field(default_factory=list)
     plot__prediction_process_number_of_bins: int = 30
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True

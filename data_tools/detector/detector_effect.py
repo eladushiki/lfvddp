@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 import numpy as np
 import numpy.typing as npt
+
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetParameters
@@ -9,7 +10,9 @@ from data_tools.detector import error
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.efficiency import shapes, uncertainty
 from data_tools.detector.efficiency.shapes import DETECTOR_EFFICIENCY_TYPE
-from data_tools.detector.efficiency.uncertainty import DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE
+from data_tools.detector.efficiency.uncertainty import (
+    DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE,
+)
 from data_tools.detector.error import DETECTOR_ERROR_TYPE
 from frame.context.execution_context import ExecutionContext
 from frame.module_retriever import retrieve_from_module
@@ -152,12 +155,7 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
             self,
             dataset: DataSet,
             dataset_parameters: DatasetParameters,
-            is_display: bool = False,
         ) -> DataSet:
-        # For graphing purposes only
-        if is_display:
-            original_dataset = dataset.create_copy()
-
         # Update internal state for detection
         self.detection_parameters = dataset_parameters
 
@@ -171,17 +169,5 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         # Induce detector errors of the true measurements
         errors = self.generate_errors(affected_dataset)
         affected_dataset._data += errors
-
-        if is_display:
-            from plot.plots import plot_data_generation_sliced  # This breaks import hierarchy
-            figure = plot_data_generation_sliced(
-                context=self._context,
-                original_sample=original_dataset,
-                processed_sample=affected_dataset,
-                observable=affected_dataset.observable_names[0],
-            )
-            self._context.save_and_document_figure(
-                figure, self._context.unique_out_dir / f"{dataset_parameters.name}_data_process_plot.png"
-            )
 
         return affected_dataset
