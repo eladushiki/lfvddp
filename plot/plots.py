@@ -9,19 +9,9 @@ from matplotlib.figure import Figure
 from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
-from data_tools.dataset_config import (
-    DatasetConfig,
-    DatasetParameters,
-    GeneratedDatasetParameters,
-)
+from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_config import DetectorConfig
-from data_tools.profile_likelihood import (
-    calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_median_t_significance_relative_to_background,
-    calc_t_significance_by_gaussian_fit_percentile,
-    calc_t_significance_relative_to_background,
-)
-from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
+from frame.aggregate import ResultAggregator
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
@@ -32,9 +22,12 @@ from plot.plot_utils import (
     HandlerRect,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
+    utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
+    utils__group_signal_t_values_directories,
     utils__model_prediction_values,
+    utils__performance_group_label,
     utils__plot_model_predictions_sliced,
     utils__plot_region_histogram_meshes_2d,
     utils__plot_region_histograms_sliced,
@@ -256,7 +249,7 @@ def t_distribution_plot(
 def performance_plot(
     context: ExecutionContext,
     background_only_t_values_parent_directory: str,
-    signal_t_values_parent_directories: List[str],
+    signal_t_values_parent_directory: str,
 ):
     """
     Create a plot of the measured significance as a function of
@@ -267,10 +260,10 @@ def performance_plot(
     - t values distribution for a run with background only.
         contained in a single directory and is used as a
         reference for all signal distributions.
-    - A set of t values distributions, each with a different
-        injected signal strength. Parameters of each are picked
-        from the context file, from the data specification under
-        the corresponding signal dataset name BY ORDER.
+    - A parent directory containing t value distributions. Each
+        outermost directory containing a context file is one
+        distribution. Compatible dataset configurations are grouped,
+        and each group is overlaid as a separate curve.
 
     The plot__target_run_parent_directory has no use here to
     not cause ambiguity.
@@ -286,109 +279,38 @@ def performance_plot(
         Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME
     )
     background_config: DatasetConfig = background_context.config
-    for background_dataset_name in background_config._dataset__names:
-        background_dataset_properties: DatasetParameters = (
-            background_config._dataset__parameters(background_dataset_name)
-        )
-        assert background_dataset_properties.dataset__number_of_signal_events == 0, (
-            f"background dataset expected to have only background events, {background_dataset_name} has {background_dataset_properties.dataset__number_of_signal_events} signal events"
+    for background_dataset_properties in background_config.dataset_parameters:
+        assert not background_dataset_properties.dataset__has_signal, (
+            f"background dataset expected to have only background events, "
+            f"{background_dataset_properties.category} is configured with "
+            f"{background_dataset_properties.dataset__number_of_signal_events} "
+            "signal events and a mean of "
+            f"{background_dataset_properties.dataset__mean_number_of_signal_events}"
         )
 
     # Gather background data
     background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
     background_t_dist = background_agg.all_t_values
 
-    # Result lists
-    ## The analytic calculation of significance based on input parameters, by eq. (33) in the last paper
-    mean_injected_significances = []
-    injected_significance_stds = []
-    mean_signal_strengths = []
-
-    ## The significance by the observed chance to generate an equal or larger t value had this been a
-    ## background only dataset, and confidence bounds
-    observed_significances = []
-    observed_significances_upper_confidence_bounds = []
-    observed_significances_lower_confidence_bounds = []
-    observed_significances_by_gaussian_fit = []
-
-    for signal_t_values_dir in signal_t_values_parent_directories:
-        # Load corresponding dataset
-        signal_context = ExecutionContext.naive_load_from_file(
-            Path(signal_t_values_dir) / CONTEXT_FILE_NAME
+    signal_groups = utils__group_signal_t_values_directories(
+        signal_t_values_parent_directory
+    )
+    if not signal_groups:
+        raise ValueError(
+            f"No directories containing {CONTEXT_FILE_NAME} were found under "
+            f"{signal_t_values_parent_directory}."
         )
-        signal_dataset_parameters = utils__get_signal_dataset_parameters(signal_context)
-
-        # Gather data
-        signal_agg = ResultAggregator(Path(signal_t_values_dir))
-        signal_t_dist = signal_agg.all_t_values
-
-        # Calculate the injected significance centers using the mean number of events.
-        # Those are before introducting poisson fluctuations.
-        if isinstance(signal_dataset_parameters, GeneratedDatasetParameters):
-            mean_injected_significances.append(
-                calc_injected_t_significance_by_sqrt_q0_continuous(
-                    background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                    signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                    n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-                    n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                    upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
-                )
-            )
-            injected_significance_stds.append(
-                np.std(signal_agg.all_injected_significances)
-            )
-        else:
-            mean_signal_strengths.append(
-                signal_dataset_parameters.dataset__number_of_signal_events
-            )
-            injected_significance_stds.append(0.0)
-
-        # Calculate observed significance and +-1 sigma confidence interval
-        observed_significances.append(
-            calc_median_t_significance_relative_to_background(
-                background_t_dist,
-                signal_t_dist,
-            )
+    curves = [
+        utils__calculate_performance_curve(signal_group, background_t_dist)
+        for signal_group in signal_groups
+    ]
+    x_labels = {curve.x_label for curve in curves}
+    if len(x_labels) != 1:
+        raise ValueError(
+            "Performance subgroups with different x-axis quantities cannot be "
+            "overlaid on the same axes."
         )
-        signal_t_dist_std = np.std(signal_t_dist)
-        observed_significances_lower_confidence_bounds.append(
-            calc_t_significance_relative_to_background(
-                np.mean(signal_t_dist) - signal_t_dist_std, background_t_dist
-            )
-        )
-        observed_significances_upper_confidence_bounds.append(
-            calc_t_significance_relative_to_background(
-                np.mean(signal_t_dist) + signal_t_dist_std, background_t_dist
-            )
-        )
-        observed_significances_by_gaussian_fit.append(
-            calc_t_significance_by_gaussian_fit_percentile(
-                background_only_distribution=background_t_dist,
-                t_value=np.median(signal_t_dist),
-            )
-        )
-
-    # Sort all results by injected significance
-    if not len(mean_injected_significances) == 0:
-        sort = np.argsort(np.array(mean_injected_significances))
-        mean_injected_significances = np.array(mean_injected_significances)[sort]
-        plot_x = mean_injected_significances
-        x_label = r"injected $\sqrt{q_0}$"
-    else:
-        sort = np.argsort(np.array(mean_signal_strengths))
-        plot_x = np.array(mean_signal_strengths)[sort]
-        x_label = r"mean signal number of events"
-    injected_significance_stds = np.array(injected_significance_stds)[sort]
-    observed_significances = np.array(observed_significances)[sort]
-    observed_significances_lower_confidence_bounds = np.array(
-        observed_significances_lower_confidence_bounds
-    )[sort]
-    observed_significances_upper_confidence_bounds = np.array(
-        observed_significances_upper_confidence_bounds
-    )[sort]
-    observed_significances_by_gaussian_fit = np.array(
-        observed_significances_by_gaussian_fit
-    )[sort]
+    x_label = x_labels.pop()
 
     # Framing
     c = Carpenter(context)
@@ -397,71 +319,76 @@ def performance_plot(
 
     # Borders
     graph_border = 1
+    all_x_values = np.concatenate([curve.x_values for curve in curves])
     clean_y_significances = np.concatenate(
         [
-            observed_significances[np.isfinite(observed_significances)],
-            observed_significances_lower_confidence_bounds[
-                np.isfinite(observed_significances_lower_confidence_bounds)
-            ],
-            observed_significances_upper_confidence_bounds[
-                np.isfinite(observed_significances_upper_confidence_bounds)
-            ],
-            observed_significances_by_gaussian_fit[
-                np.isfinite(observed_significances_by_gaussian_fit)
-            ],
+            values[np.isfinite(values)]
+            for curve in curves
+            for values in (
+                curve.observed_significances,
+                curve.observed_significance_lower_bounds,
+                curve.observed_significance_upper_bounds,
+                curve.gaussian_fit_significances,
+            )
         ]
     )
 
-    if not len(mean_injected_significances) == 0:
-        min_x = max(min(mean_injected_significances) - graph_border, 0)
-        max_x = max(mean_injected_significances) + graph_border
-    else:
-        min_x = max(min(mean_signal_strengths) - graph_border, 0)
-        max_x = max(mean_signal_strengths) + graph_border
+    min_x = max(min(all_x_values) - graph_border, 0)
+    max_x = max(all_x_values) + graph_border
     min_y = max(min(clean_y_significances) - graph_border, 0)
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
 
-    # Plots
-    colors = plt.get_cmap("cool")
-
-    ax.plot(
-        plot_x,
-        observed_significances_by_gaussian_fit,
-        color=colors(0.75),
-        linewidth=2,
-        linestyle="--",
-        label="gaussian fit significance",
-    )
-    ax.plot(
-        plot_x,
-        observed_significances,
-        color=colors(0.5),
-        label="observed significance",
-        linewidth=2,
-    )
-    ax.fill_between(
-        plot_x,
-        np.clip(observed_significances_lower_confidence_bounds, a_min=0, a_max=max_y),
-        np.clip(observed_significances_upper_confidence_bounds, a_min=0, a_max=max_y),
-        color=colors(1),
-        linewidth=2,
-        alpha=0.1,
-    )
-
-    # Error bars
-    ax.errorbar(
-        plot_x,
-        observed_significances,
-        xerr=injected_significance_stds,
-    )
+    # Overlay one pair of significance curves for each configuration subgroup.
+    colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
+    for signal_group, curve, color in zip(signal_groups, curves, colors):
+        group_label = utils__performance_group_label(
+            signal_group[0][1],
+        )
+        ax.plot(
+            curve.x_values,
+            curve.gaussian_fit_significances,
+            color=color,
+            linewidth=2,
+            linestyle="--",
+        )
+        ax.plot(
+            curve.x_values,
+            curve.observed_significances,
+            color=color,
+            label=group_label,
+            linewidth=2,
+        )
+        ax.fill_between(
+            curve.x_values,
+            np.clip(
+                curve.observed_significance_lower_bounds,
+                a_min=0,
+                a_max=max_y,
+            ),
+            np.clip(
+                curve.observed_significance_upper_bounds,
+                a_min=0,
+                a_max=max_y,
+            ),
+            color=color,
+            linewidth=2,
+            alpha=0.1,
+        )
+        ax.errorbar(
+            curve.x_values,
+            curve.observed_significances,
+            xerr=curve.x_errors,
+            color=color,
+            fmt="none",
+        )
 
     # Texting
     ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel("measured significance", fontsize=21)
     ax.set_title("measured vs injected signal significance", fontsize=24)
-    legend = ax.legend(loc="lower right", fontsize=20, fancybox=True, frameon=False)
+    legend = ax.legend(loc="upper left", fontsize=12, fancybox=True, frameon=False)
 
     # Styling
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)

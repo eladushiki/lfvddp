@@ -1,9 +1,12 @@
+import json
+import os
 import re
+from dataclasses import dataclass
 from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -13,10 +16,24 @@ from matplotlib.colors import LogNorm, to_rgba
 from matplotlib.legend_handler import HandlerPatch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
+from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import (
+    DatasetConfig,
+    GeneratedDatasetParameters,
+    LoadedDatasetParameters,
+)
 from data_tools.detector.detector_config import DetectorConfig
+from data_tools.profile_likelihood import (
+    calc_injected_t_significance_by_sqrt_q0_continuous,
+    calc_median_t_significance_relative_to_background,
+    calc_t_significance_by_gaussian_fit_percentile,
+    calc_t_significance_relative_to_background,
+)
+from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
+    CONTEXT_FILE_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
@@ -27,6 +44,205 @@ from train.train_config import TrainConfig
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
+
+
+def utils__find_context_parent_directories(
+    parent_directory: str,
+) -> List[Path]:
+    """Find outermost directories containing a saved execution context."""
+    context_parent_directories = []
+    for directory, subdirectories, filenames in os.walk(parent_directory):
+        subdirectories.sort()
+        if CONTEXT_FILE_NAME not in filenames:
+            continue
+
+        context_parent_directories.append(Path(directory))
+        subdirectories.clear()
+
+    return context_parent_directories
+
+
+def utils__performance_group_key(
+    signal_context: ExecutionContext,
+) -> Tuple[Tuple[str, str, str, str, bool, str], ...]:
+    signal_config: DatasetConfig = signal_context.config
+    group_key = []
+    for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
+        parameters = signal_config.get_parameters(category)
+        if isinstance(parameters, LoadedDatasetParameters):
+            background_source_type = "loaded"
+            background_source = parameters.dataset_loaded__file_name
+        elif isinstance(parameters, GeneratedDatasetParameters):
+            background_source_type = "generated"
+            background_source = (
+                parameters.dataset_generated__background_function
+            )
+        else:
+            raise TypeError(
+                f"Unsupported dataset parameters type: {type(parameters)}"
+            )
+        signal_parameters = (
+            json.dumps(parameters.dataset__signal_parameters, sort_keys=True)
+            if parameters.dataset__has_signal
+            else ""
+        )
+        group_key.append((
+            category.name,
+            background_source_type,
+            background_source,
+            parameters.dataset__signal_data_generation_function or "",
+            parameters.dataset__has_signal,
+            signal_parameters,
+        ))
+
+    return tuple(group_key)
+
+
+def utils__group_signal_t_values_directories(
+    signal_t_values_parent_directory: str,
+) -> List[List[Tuple[Path, ExecutionContext]]]:
+    groups: Dict[
+        Tuple[Tuple[str, str, str, str, bool, str], ...],
+        List[Tuple[Path, ExecutionContext]],
+    ] = {}
+    for signal_directory in utils__find_context_parent_directories(
+        signal_t_values_parent_directory
+    ):
+        signal_context = ExecutionContext.naive_load_from_file(
+            signal_directory / CONTEXT_FILE_NAME
+        )
+        group_key = utils__performance_group_key(signal_context)
+        groups.setdefault(group_key, []).append((signal_directory, signal_context))
+
+    return [groups[group_key] for group_key in sorted(groups)]
+
+
+@dataclass
+class _PerformanceCurve:
+    x_values: np.ndarray
+    x_errors: np.ndarray
+    x_label: str
+    observed_significances: np.ndarray
+    observed_significance_lower_bounds: np.ndarray
+    observed_significance_upper_bounds: np.ndarray
+    gaussian_fit_significances: np.ndarray
+
+
+def utils__calculate_performance_curve(
+    signal_group: List[Tuple[Path, ExecutionContext]],
+    background_t_dist: np.ndarray,
+) -> _PerformanceCurve:
+    x_values = []
+    x_errors = []
+    observed_significances = []
+    observed_significance_lower_bounds = []
+    observed_significance_upper_bounds = []
+    gaussian_fit_significances = []
+    uses_injected_significance = None
+
+    for signal_t_values_dir, signal_context in signal_group:
+        signal_dataset_parameters = utils__get_signal_dataset_parameters(
+            signal_context
+        )
+        signal_agg = ResultAggregator(signal_t_values_dir)
+        signal_t_dist = signal_agg.all_t_values
+
+        is_generated = isinstance(
+            signal_dataset_parameters, GeneratedDatasetParameters
+        )
+        if uses_injected_significance is None:
+            uses_injected_significance = is_generated
+        elif uses_injected_significance != is_generated:
+            raise ValueError(
+                "A performance subgroup cannot mix generated and loaded signal datasets."
+            )
+
+        if is_generated:
+            x_values.append(
+                calc_injected_t_significance_by_sqrt_q0_continuous(
+                    background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                    signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                    n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                    n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                    upper_limit=max(signal_t_dist.max(), background_t_dist.max()),
+                )
+            )
+            x_errors.append(np.std(signal_agg.all_injected_significances))
+        else:
+            x_values.append(
+                signal_dataset_parameters.dataset__number_of_signal_events
+            )
+            x_errors.append(0.0)
+
+        observed_significances.append(
+            calc_median_t_significance_relative_to_background(
+                background_t_dist,
+                signal_t_dist,
+            )
+        )
+        signal_t_dist_std = np.std(signal_t_dist)
+        observed_significance_lower_bounds.append(
+            calc_t_significance_relative_to_background(
+                np.mean(signal_t_dist) - signal_t_dist_std,
+                background_t_dist,
+            )
+        )
+        observed_significance_upper_bounds.append(
+            calc_t_significance_relative_to_background(
+                np.mean(signal_t_dist) + signal_t_dist_std,
+                background_t_dist,
+            )
+        )
+        gaussian_fit_significances.append(
+            calc_t_significance_by_gaussian_fit_percentile(
+                background_only_distribution=background_t_dist,
+                t_value=np.median(signal_t_dist),
+            )
+        )
+
+    sort = np.argsort(np.asarray(x_values))
+    return _PerformanceCurve(
+        x_values=np.asarray(x_values)[sort],
+        x_errors=np.asarray(x_errors)[sort],
+        x_label=(
+            r"injected $\sqrt{q_0}$"
+            if uses_injected_significance
+            else "mean signal number of events"
+        ),
+        observed_significances=np.asarray(observed_significances)[sort],
+        observed_significance_lower_bounds=np.asarray(
+            observed_significance_lower_bounds
+        )[sort],
+        observed_significance_upper_bounds=np.asarray(
+            observed_significance_upper_bounds
+        )[sort],
+        gaussian_fit_significances=np.asarray(gaussian_fit_significances)[sort],
+    )
+
+
+def utils__performance_group_label(
+    signal_context: ExecutionContext,
+) -> str:
+    signal_config: DatasetConfig = signal_context.config
+    signal_descriptions = []
+    for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
+        parameters = signal_config.get_parameters(category)
+        if not parameters.dataset__has_signal:
+            continue
+        signal_parameter_values = ", ".join(
+            f"{name}={value}"
+            for name, value in sorted(parameters.dataset__signal_parameters.items())
+        )
+        signal_type = (
+            parameters.dataset__signal_data_generation_function or "signal"
+        )
+        signal_descriptions.append(
+            f"{signal_type}: {signal_parameter_values}"
+            if signal_parameter_values
+            else signal_type
+        )
+
+    return "; ".join(signal_descriptions) or "no signal"
 
 
 class HandlerRect(HandlerPatch):
