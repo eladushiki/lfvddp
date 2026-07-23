@@ -29,28 +29,13 @@ from train.train_config import TrainConfig
 
 def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
     """
-    Prepare per-event loss weights in the canonical DataBatch order.
+    Prepare per-event detector weights in the canonical DataBatch order.
 
-    Assign SR and CR equal total weight. Dataset-size mixture coefficients
-    belong to ``ddp_minimization_loss`` and must not be applied a second time here.
+    Preserve relative detector weights within each region while assigning SR
+    and CR equal total weight. Dataset-size mixture coefficients belong to
+    ``ddp_minimization_loss`` and must not be applied a second time here.
     """
-    region_categories = (
-        (DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR),
-        (DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR),
-    )
-    normalization_by_category = {}
-    for region in region_categories:
-        region_weight = sum(data.datasets[category].n_samples for category in region)
-        normalization_by_category.update(
-            {category: 0.5 / region_weight for category in region}
-        )
-    return np.concatenate(
-        [
-            np.full(dataset.n_samples, normalization_by_category[dataset.category])
-            for dataset, _ in data
-        ],
-        axis=0,
-    )
+    return np.ones_like(data.unified_data.events.squeeze())
 
 
 def _expand_masked_predictions(
