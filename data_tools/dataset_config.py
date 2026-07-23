@@ -308,6 +308,22 @@ class DatasetConfig:
     def _dataset__names(self) -> List[str]:
         return [user_dataset_definitions[self._dataset__name_property] for user_dataset_definitions in self.dataset__definitions]
 
+    @property
+    def _dataset__categories(self) -> List[DataSet.DataSetCategory]:
+        return [
+            DataSet.DataSetCategory.from_string(
+                user_dataset_definitions[self._dataset__category_property]
+            )
+            for user_dataset_definitions in self.dataset__definitions
+        ]
+
+    @property
+    def dataset_parameters(self) -> List[DatasetParameters]:
+        return [
+            self.get_parameters(category)
+            for category in self._dataset__categories
+        ]
+
     def _dataset__parameters(self, category: DataSet.DataSetCategory) -> DatasetParameters:
         # Create datasets definitions from the input arguments
         for user_dataset_definitions in self.dataset__definitions:

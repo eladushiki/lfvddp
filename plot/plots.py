@@ -12,7 +12,6 @@ from scipy.stats import chi2
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
-    DatasetParameters,
     GeneratedDatasetParameters,
 )
 from data_tools.detector.detector_config import DetectorConfig
@@ -303,12 +302,11 @@ def performance_plot(
         Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME
     )
     background_config: DatasetConfig = background_context.config
-    for background_dataset_name in background_config._dataset__names:
-        background_dataset_properties: DatasetParameters = (
-            background_config._dataset__parameters(background_dataset_name)
-        )
+    for background_dataset_properties in background_config.dataset_parameters:
         assert background_dataset_properties.dataset__number_of_signal_events == 0, (
-            f"background dataset expected to have only background events, {background_dataset_name} has {background_dataset_properties.dataset__number_of_signal_events} signal events"
+            f"background dataset expected to have only background events, "
+            f"{background_dataset_properties.category} has "
+            f"{background_dataset_properties.dataset__number_of_signal_events} signal events"
         )
 
     # Gather background data
