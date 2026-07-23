@@ -84,6 +84,13 @@ class DatasetParameters(ABC):
 
         if isinstance(self.category, str):
             self.category = DataSet.DataSetCategory.from_string(self.category)
+
+    @property
+    def dataset__has_signal(self) -> bool:
+        return bool(
+            self.dataset__number_of_signal_events
+            or self.dataset__mean_number_of_signal_events
+        )
     
     @property
     @abstractmethod
