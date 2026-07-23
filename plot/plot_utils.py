@@ -221,27 +221,20 @@ def utils__calculate_performance_curve(
 
 
 def utils__performance_group_label(
-    group_index: int,
     signal_context: ExecutionContext,
 ) -> str:
     signal_config: DatasetConfig = signal_context.config
-    signal_descriptions = []
+    signal_parameter_values = []
     for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
         parameters = signal_config.get_parameters(category)
         if not parameters.dataset__has_signal:
             continue
-        parameter_values = ", ".join(
+        signal_parameter_values.extend(
             f"{name}={value}"
             for name, value in sorted(parameters.dataset__signal_parameters.items())
         )
-        signal_description = (
-            f"{category.name}: {parameters.dataset__signal_data_generation_function}"
-        )
-        if parameter_values:
-            signal_description += f"({parameter_values})"
-        signal_descriptions.append(signal_description)
 
-    return f"group {group_index}: {'; '.join(signal_descriptions)}"
+    return ", ".join(signal_parameter_values) or "{}"
 
 
 class HandlerRect(HandlerPatch):

@@ -342,12 +342,8 @@ def performance_plot(
 
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
-    for group_index, (signal_group, curve, color) in enumerate(
-        zip(signal_groups, curves, colors),
-        start=1,
-    ):
+    for signal_group, curve, color in zip(signal_groups, curves, colors):
         group_label = utils__performance_group_label(
-            group_index,
             signal_group[0][1],
         )
         ax.plot(
@@ -356,13 +352,12 @@ def performance_plot(
             color=color,
             linewidth=2,
             linestyle="--",
-            label=f"{group_label} (gaussian fit)",
         )
         ax.plot(
             curve.x_values,
             curve.observed_significances,
             color=color,
-            label=f"{group_label} (observed)",
+            label=group_label,
             linewidth=2,
         )
         ax.fill_between(
