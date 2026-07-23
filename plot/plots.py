@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -253,10 +254,24 @@ def t_distribution_plot(
     return fig
 
 
+def _find_context_parent_directories(parent_directory: str) -> List[Path]:
+    """Find outermost directories containing a saved execution context."""
+    context_parent_directories = []
+    for directory, subdirectories, filenames in os.walk(parent_directory):
+        subdirectories.sort()
+        if CONTEXT_FILE_NAME not in filenames:
+            continue
+
+        context_parent_directories.append(Path(directory))
+        subdirectories.clear()
+
+    return context_parent_directories
+
+
 def performance_plot(
     context: ExecutionContext,
     background_only_t_values_parent_directory: str,
-    signal_t_values_parent_directories: List[str],
+    signal_t_values_parent_directory: str,
 ):
     """
     Create a plot of the measured significance as a function of
@@ -267,10 +282,12 @@ def performance_plot(
     - t values distribution for a run with background only.
         contained in a single directory and is used as a
         reference for all signal distributions.
-    - A set of t values distributions, each with a different
-        injected signal strength. Parameters of each are picked
-        from the context file, from the data specification under
-        the corresponding signal dataset name BY ORDER.
+    - A parent directory containing t value distributions, each
+        with a different injected signal strength. Each outermost
+        directory containing a context file is one distribution.
+        Parameters are picked from the context file, from the data
+        specification under the corresponding signal dataset name
+        BY ORDER.
 
     The plot__target_run_parent_directory has no use here to
     not cause ambiguity.
@@ -311,6 +328,9 @@ def performance_plot(
     observed_significances_lower_confidence_bounds = []
     observed_significances_by_gaussian_fit = []
 
+    signal_t_values_parent_directories = _find_context_parent_directories(
+        signal_t_values_parent_directory
+    )
     for signal_t_values_dir in signal_t_values_parent_directories:
         # Load corresponding dataset
         signal_context = ExecutionContext.naive_load_from_file(
