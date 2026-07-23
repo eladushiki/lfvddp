@@ -224,17 +224,25 @@ def utils__performance_group_label(
     signal_context: ExecutionContext,
 ) -> str:
     signal_config: DatasetConfig = signal_context.config
-    signal_parameter_values = []
+    signal_descriptions = []
     for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
         parameters = signal_config.get_parameters(category)
         if not parameters.dataset__has_signal:
             continue
-        signal_parameter_values.extend(
+        signal_parameter_values = ", ".join(
             f"{name}={value}"
             for name, value in sorted(parameters.dataset__signal_parameters.items())
         )
+        signal_type = (
+            parameters.dataset__signal_data_generation_function or "signal"
+        )
+        signal_descriptions.append(
+            f"{signal_type}: {signal_parameter_values}"
+            if signal_parameter_values
+            else signal_type
+        )
 
-    return ", ".join(signal_parameter_values) or "{}"
+    return "; ".join(signal_descriptions) or "no signal"
 
 
 class HandlerRect(HandlerPatch):

@@ -388,7 +388,7 @@ def performance_plot(
     ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel("measured significance", fontsize=21)
     ax.set_title("measured vs injected signal significance", fontsize=24)
-    legend = ax.legend(loc="lower right", fontsize=20, fancybox=True, frameon=False)
+    legend = ax.legend(loc="upper left", fontsize=12, fancybox=True, frameon=False)
 
     # Styling
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
