@@ -42,6 +42,7 @@ def _context_args(continue_from=None) -> Namespace:
     if continue_from is not None:
         return Namespace(
             continue_from=continue_from,
+            debug=False,
         )
     return Namespace(
         debug=True,
@@ -528,12 +529,21 @@ def test_child_context_loading_matches_array_index(
     assert selected.unique_out_dir == contexts[1].unique_out_dir
 
 
-def test_continuation_is_the_only_accepted_option(capsys):
+def test_continuation_accepts_only_the_optional_debug_flag(capsys):
     config_paths, args = parse_config_from_args(["--continue", "results/run"])
 
     assert config_paths is None
     assert args.continue_from == Path("results/run")
+    assert not args.debug
+
+    config_paths, args = parse_config_from_args(
+        ["--continue", "results/run", "--debug"]
+    )
+
+    assert config_paths is None
+    assert args.continue_from == Path("results/run")
+    assert args.debug
 
     with pytest.raises(SystemExit):
-        parse_config_from_args(["--continue", "results/run", "--debug"])
+        parse_config_from_args(["--continue", "results/run", "--no-build"])
     capsys.readouterr()
