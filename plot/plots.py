@@ -6,6 +6,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from matplotlib import patches
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
@@ -86,6 +87,7 @@ def t_train_percentile_progression_plot(
 
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
+    chi2_dof = model_degrees_of_freedom(config)
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
         ax = axes[row, 0]
@@ -101,22 +103,38 @@ def t_train_percentile_progression_plot(
             )
             if row == 0:
                 legend_handles.append(line)
-        ax.set_title(rf"{sample_name}: $t=-2\,N+2\,D$")
+            ax.axhline(
+                chi2.ppf(quantile / 100, df=chi2_dof),
+                color=color,
+                linestyle="--",
+                linewidth=1.5,
+            )
         ax.set_ylabel(HistoryKeys.T.value)
         ax.set_ylim(bottom=0)
         ax.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
         if row == len(sample_names) - 1:
             ax.set_xlabel("Training epochs")
 
+    legend_handles.append(
+        Line2D(
+            [],
+            [],
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label=fr"$\chi^2_{{{chi2_dof}}}$ quantiles",
+        )
+    )
     fig.suptitle("Training percentile progression", fontsize=24)
     fig.legend(
         handles=legend_handles,
         labels=[handle.get_label() for handle in legend_handles],
-        frameon=False,
+        frameon=True,
         loc="upper center",
-        ncol=len(quantiles),
+        bbox_to_anchor=(0.5, 0.94),
+        ncol=3,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
 
     return fig
 

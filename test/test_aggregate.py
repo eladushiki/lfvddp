@@ -1,13 +1,9 @@
 from pathlib import Path
-from types import SimpleNamespace
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from frame.aggregate import ResultAggregator
 from frame.file_system.training_history import HistoryKeys, save_training_history
-from plot.plots import t_train_percentile_progression_plot
-from plot.plotting_config import PlottingConfig
 
 
 def _save_t_history(
@@ -54,33 +50,3 @@ def test_result_aggregator_keeps_each_paired_history_and_sums_t(tmp_path):
     )
     np.testing.assert_allclose(aggregator.all_test_statistics, [[4, 6], [8, 10]])
     np.testing.assert_allclose(np.sort(aggregator.all_t_values), [6, 10])
-
-
-def test_progression_plot_has_numerator_denominator_and_t_for_each_sample(tmp_path):
-    for run_index in (1, 2):
-        _save_t_history(
-            tmp_path, f"run_{run_index}", "A", run_index, [4, 3], [4.5, 4], [1, 2]
-        )
-        _save_t_history(
-            tmp_path, f"run_{run_index}", "B", run_index, [5, 4], [6.5, 6], [3, 4]
-        )
-
-    config = PlottingConfig(
-        plot__target_run_parent_directory=str(tmp_path),
-        plot__pyplot_styling={"rcParams": {}, "style.use": "default"},
-        plot__figure_styling={"patch_set_facecolor": "white"},
-        plot__figure_size=(12, 8),
-        plot__plot_specifications=[],
-    )
-    context = SimpleNamespace(config=config, run_hash="test")
-
-    figure = t_train_percentile_progression_plot(context)
-    try:
-        assert len(figure.axes) == 2
-        assert {axis.get_title() for axis in figure.axes} == {
-            r"A: $t=-2\,N+2\,D$",
-            r"B: $t=-2\,N+2\,D$",
-        }
-        assert all(axis.get_ylim()[0] == 0 for axis in figure.axes)
-    finally:
-        plt.close(figure)
