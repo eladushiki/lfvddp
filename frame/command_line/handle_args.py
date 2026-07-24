@@ -64,10 +64,13 @@ def parse_config_from_args(
 
     if args.continue_from is not None and (
         unknown
-        or len(parsed_args) != 2
+        or len(parsed_args) not in (2, 3)
         or parsed_args[0] != "--continue"
+        or (len(parsed_args) == 3 and parsed_args[2] != "--debug")
     ):
-        parser.error("--continue LOCATION must be the sole command-line option")
+        parser.error(
+            "--continue LOCATION may only be followed by the optional --debug flag"
+        )
 
     # Keep accepting notebook-injected arguments for fresh runs.
     if unknown:

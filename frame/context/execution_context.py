@@ -468,6 +468,8 @@ def version_controlled_execution_context(
                 entrypoint=entrypoint,
                 array_index=array_index,
             )
+        if args.debug:
+            context.is_debug_mode = True
         if not context.is_debug_mode and not is_git_head_clean():
             raise RuntimeError("Commit changes before running the script.")
 

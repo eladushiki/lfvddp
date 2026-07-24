@@ -183,9 +183,9 @@ although `plot__plot_specifications` may be omitted when no configured batch plo
 are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
 generated otherwise.
 
-Continue a saved run with `--continue <run-directory-or-context.json>`. This must
-be the only option: configuration paths and all runtime settings are restored from
-the saved context.
+Continue a saved run with `--continue <run-directory-or-context.json>`. The
+optional `--debug` flag may follow it; configuration paths and all other runtime
+settings are restored from the saved context.
 
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 
