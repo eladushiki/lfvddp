@@ -9,7 +9,25 @@ from frame.context.execution_context import (
     create_config_from_paramters,
     version_controlled_execution_context,
 )
+from frame.file_structure import CONFIG_FILE_EXTENSIONS
 from frame.file_system.textual_data import load_config_params_from_paths
+
+
+def _expand_config_paths(config_paths: list[Path]) -> list[Path]:
+    """Replace config directories with their recursively discovered files."""
+    expanded_paths = []
+    for config_path in config_paths:
+        if config_path.is_dir():
+            expanded_paths.extend(
+                path
+                for path in sorted(config_path.rglob("*"))
+                if path.is_file()
+                and path.suffix.lower().removeprefix(".")
+                in CONFIG_FILE_EXTENSIONS
+            )
+        else:
+            expanded_paths.append(config_path)
+    return expanded_paths
 
 
 def parse_config_from_args(
@@ -28,7 +46,10 @@ def parse_config_from_args(
         type=Path,
         nargs="+",
         dest="config_paths",
-        help="Ordered configuration files (JSON/YAML); later files override earlier files",
+        help=(
+            "Ordered configuration files or directories (JSON/YAML); directories "
+            "are searched recursively and later files override earlier files"
+        ),
     )
     configuration_mode.add_argument(
         "--continue",
@@ -75,6 +96,9 @@ def parse_config_from_args(
     # Keep accepting notebook-injected arguments for fresh runs.
     if unknown:
         warning(f"Running with unknown arguments: {unknown}")
+
+    if args.config_paths is not None:
+        args.config_paths = _expand_config_paths(args.config_paths)
 
     return args.config_paths, args
 
