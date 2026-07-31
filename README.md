@@ -178,7 +178,9 @@ The custom file paths here refer to a different file, `settings.json`, of the fo
 Which you create and direct to.
 
 Configuration files passed through `--configs` are shallow-merged from left to
-right, so later files override earlier values. Plotting configuration is required,
+right, so later files override earlier values. A directory passed in place of a
+file is recursively expanded to its JSON and YAML config files in sorted order.
+Plotting configuration is required,
 although `plot__plot_specifications` may be omitted when no configured batch plots
 are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
 generated otherwise.
