@@ -1,9 +1,14 @@
+from math import fsum
 from typing import Callable, Union
 import numpy as np
 from scipy.integrate import quad, IntegrationWarning
 from scipy.special import erfinv
 from scipy.stats import norm, chi2
-from warnings import simplefilter
+from warnings import catch_warnings, simplefilter
+
+
+_MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
+_QUADRATURE_SUBDIVISION_LIMIT = 200
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -89,22 +94,53 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
     """
     if n_signal_events <= 0:
          return 0
-    
-    integrand = lambda x: (
-        n_signal_events * signal_pdf(x) + n_background_events * background_pdf(x)
-    ) * np.log(
-        1 + n_signal_events * signal_pdf(x) / (n_background_events * background_pdf(x))
-    )
 
-        # Convert warnings to exceptions
+    def integrand(x: float) -> float:
+        signal_rate_density = n_signal_events * signal_pdf(x)
+        background_rate_density = n_background_events * background_pdf(x)
+
+        # Both PDFs can underflow to zero in a sufficiently remote tail. The
+        # limiting contribution there is zero, whereas evaluating the original
+        # expression directly produces 0 / 0 and poisons the quadrature.
+        if signal_rate_density == 0:
+            return 0.0
+        if background_rate_density == 0:
+            return np.inf
+
+        return (
+            signal_rate_density + background_rate_density
+        ) * np.log1p(signal_rate_density / background_rate_density)
+
+    if np.isfinite(upper_limit):
+        interval_boundaries = np.arange(
+            0,
+            upper_limit,
+            _MAX_QUADRATURE_INTERVAL_WIDTH,
+        )
+        interval_boundaries = np.append(interval_boundaries, upper_limit)
+    else:
+        interval_boundaries = np.array([0, upper_limit])
+
     try:
-        simplefilter("error", IntegrationWarning)
-        integral, _ = quad(integrand, 0, upper_limit)
-    except IntegrationWarning:
-         raise ValueError(f"Integration unsuccessful, try reducing upper limit from {upper_limit}")
-    finally:
-        # Reset warning filter to default
-        simplefilter("default", IntegrationWarning)
+        with catch_warnings():
+            simplefilter("error", IntegrationWarning)
+            integral = fsum(
+                quad(
+                    integrand,
+                    lower_bound,
+                    upper_bound,
+                    limit=_QUADRATURE_SUBDIVISION_LIMIT,
+                )[0]
+                for lower_bound, upper_bound in zip(
+                    interval_boundaries[:-1],
+                    interval_boundaries[1:],
+                )
+                if lower_bound < upper_bound
+            )
+    except IntegrationWarning as warning:
+         raise ValueError(
+             f"Integration unsuccessful up to upper limit {upper_limit}"
+         ) from warning
     
     q0 = 2 * (-n_signal_events + integral)
 
