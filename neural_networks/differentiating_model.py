@@ -28,14 +28,8 @@ from train.train_config import TrainConfig
 
 
 def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
-    """
-    Prepare per-event detector weights in the canonical DataBatch order.
-
-    Preserve relative detector weights within each region while assigning SR
-    and CR equal total weight. Dataset-size mixture coefficients belong to
-    ``ddp_minimization_loss`` and must not be applied a second time here.
-    """
-    return np.ones_like(data.unified_data.events.squeeze())
+    """Prepare one unit loss weight per event in canonical DataBatch order."""
+    return np.ones((data.unified_data.n_samples, 1))
 
 
 def _expand_masked_predictions(
@@ -320,7 +314,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             g_of_x_sr_est=g_of_x_sr_est,
             eta_of_x_est=eta_of_x_est,
         )
-        return torch.sum(losses * weights, dtype=self._dtype)
+        return torch.sum(losses.unsqueeze(dim=1) * weights, dtype=self._dtype)
 
     @contextmanager
     def binning_context(self, data: DataSet):
