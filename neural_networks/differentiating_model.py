@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from logging import info
 from time import time
 from typing import Dict, List, Optional, Tuple, Union
@@ -25,6 +25,7 @@ from neural_networks.utils import (
 )
 from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
 from train.train_config import TrainConfig
+from train.training_profiler import TrainingProfiler
 
 
 def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
@@ -303,24 +304,31 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         data: torch.Tensor,
         weights: torch.Tensor,
+        profiler: Optional[TrainingProfiler] = None,
     ) -> torch.Tensor:
         sr_data = data[self._sr_mask]
-        f_of_x_sr_est = _expand_masked_predictions(
-            self.f_network(sr_data),
-            self._sr_mask,
-        )
-        g_of_x_sr_est = _expand_masked_predictions(
-            self.g_network(sr_data),
-            self._sr_mask,
-        )
-        eta_of_x_est = self.eta(data).squeeze()
+        profile_region = profiler.region if profiler is not None else nullcontext
+        with profile_region("training/f_network"):
+            f_of_x_sr_est = _expand_masked_predictions(
+                self.f_network(sr_data),
+                self._sr_mask,
+            )
+        with profile_region("training/g_network"):
+            g_of_x_sr_est = _expand_masked_predictions(
+                self.g_network(sr_data),
+                self._sr_mask,
+            )
+        with profile_region("training/nuisance_eta"):
+            eta_of_x_est = self.eta(data).squeeze()
 
-        losses = self.ddp_minimization_loss(
-            f_of_x_sr_est=f_of_x_sr_est,
-            g_of_x_sr_est=g_of_x_sr_est,
-            eta_of_x_est=eta_of_x_est,
-        )
-        return torch.sum(losses * weights, dtype=self._dtype)
+        with profile_region("training/loss_expression"):
+            losses = self.ddp_minimization_loss(
+                f_of_x_sr_est=f_of_x_sr_est,
+                g_of_x_sr_est=g_of_x_sr_est,
+                eta_of_x_est=eta_of_x_est,
+            )
+        with profile_region("training/loss_reduction"):
+            return torch.sum(losses * weights, dtype=self._dtype)
 
     @contextmanager
     def binning_context(self, data: DataSet):
@@ -430,15 +438,21 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         optimizer: Optional[optim.Optimizer],
         data: torch.Tensor,
         weights: torch.Tensor,
+        profiler: TrainingProfiler,
     ) -> torch.Tensor:
         """Run one optimization step and return the batch loss."""
-        loss = self(data=data, weights=weights)
+        with profiler.region("training/forward_and_loss"):
+            loss = self(data=data, weights=weights, profiler=profiler)
 
         if optimizer is not None:
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            optimizer.step()
-            self._clamp_nuisance_parameters()
+            with profiler.region("training/zero_grad"):
+                optimizer.zero_grad(set_to_none=True)
+            with profiler.region("training/backward"):
+                loss.backward()
+            with profiler.region("training/optimizer_step"):
+                optimizer.step()
+            with profiler.region("training/clamp_nuisances"):
+                self._clamp_nuisance_parameters()
 
         return loss
 
@@ -462,25 +476,38 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if self._config.train__enable_progress_bar:
             epoch_iterator = tqdm(epoch_iterator, desc=f"{self._name} training")
 
-        # Training with binning context
-        with self.binning_context(data.unified_data):
-            for epoch in epoch_iterator:
-                epoch_last_predictions = self._train_step(
-                    optimizer=optimizer,
-                    data=data_tensor,
-                    weights=weights_tensor,
-                )
+        profiler = TrainingProfiler(
+            context=self._context,
+            model_name=self._name,
+            number_of_observables=data.unified_data.n_observables,
+            number_of_events=data.unified_data.n_samples,
+            number_of_training_epochs=target_epochs - start_epoch,
+        )
+        with profiler:
+            # Training with binning context
+            with self.binning_context(data.unified_data):
+                for epoch in epoch_iterator:
+                    with profiler.region("training/epoch"):
+                        epoch_last_predictions = self._train_step(
+                            optimizer=optimizer,
+                            data=data_tensor,
+                            weights=weights_tensor,
+                            profiler=profiler,
+                        )
 
-                if self._is_history_epoch(epoch):
-                    self._log(epoch, epoch_last_predictions)
-                    save_training_checkpoint(
-                        context=self._context,
-                        model_name=self._name,
-                        model=self,
-                        optimizer=optimizer,
-                        epoch=epoch,
-                        training_history=self._training_history,
-                    )
+                        if self._is_history_epoch(epoch):
+                            with profiler.region("training/history"):
+                                self._log(epoch, epoch_last_predictions)
+                            with profiler.region("training/checkpoint"):
+                                save_training_checkpoint(
+                                    context=self._context,
+                                    model_name=self._name,
+                                    model=self,
+                                    optimizer=optimizer,
+                                    epoch=epoch,
+                                    training_history=self._training_history,
+                                )
+                    profiler.step()
 
         # Collect history from training
         return self._training_history
