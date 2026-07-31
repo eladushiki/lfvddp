@@ -10,4 +10,5 @@ Implementing ML machinery to differentiate between similar and different pairs o
   - Testing logic should never be tested, its validation comes from succeeding to run the project.
   - No testing needed for plots.
   When adding a test, examine `conftest.py`, `test_train.py:test_learning` and it's use of fixtures. Mimic config file creation and fixture use rather than adding filename variables and/or editing configuration values in runtime.
+- DOCUMENTATION: Change README.md indicating any significant user facing change.
 - DIMENSIONAL PLOT PARITY: When changing a 1D graph or its n-dimensional equivalent, locate the corresponding graph function and apply the equivalent change where appropriate, or explicitly verify that no corresponding change is needed.
