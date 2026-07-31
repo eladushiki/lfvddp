@@ -39,7 +39,7 @@ def _load_checkpoint_state_dict(function_execution_context, model_name):
     return checkpoint["model_state_dict"]
 
 
-def test_loss_weights_follow_batch_order_and_equally_weight_regions():
+def test_loss_weights_are_one_column_for_multidimensional_events():
     category_sizes = {
         DataSet.DataSetCategory.A_SR: 1,
         DataSet.DataSetCategory.A_CR: 2,
@@ -49,8 +49,8 @@ def test_loss_weights_follow_batch_order_and_equally_weight_regions():
     datasets = []
     for category, size in reversed(category_sizes.items()):
         dataset = DataSet(
-            data=np.full((size, 1), category.value),
-            observable_names=["observable"],
+            data=np.full((size, 2), category.value),
+            observable_names=["observable_1", "observable_2"],
             category=category,
         )
         datasets.append((dataset, None))
@@ -61,9 +61,9 @@ def test_loss_weights_follow_batch_order_and_equally_weight_regions():
         data_batch.unified_data.events[:, 0],
         [1, 2, 2, 3, 3, 3, 4, 4, 4, 4],
     )
-    np.testing.assert_allclose(
+    np.testing.assert_array_equal(
         _calculate_loss_weights(data_batch),
-        [1.0 / 8.0] * 1 + [1.0 / 12.0] * 2 + [1.0 / 8.0] * 3 + [1.0 / 12.0] * 4,
+        np.ones((10, 1)),
     )
 
 
