@@ -402,6 +402,32 @@ def performance_plot(
             fmt="none",
         )
 
+    if any(
+        np.any(
+            (curve.gaussian_fit_significances
+             < curve.observed_significance_lower_bounds)
+            | (curve.gaussian_fit_significances
+               > curve.observed_significance_upper_bounds)
+        )
+        for curve in curves
+    ):
+        ax.text(
+            0.99,
+            0.01,
+            "Warning: Gaussian-fit curve falls outside empirical error bounds.",
+            transform=ax.transAxes,
+            horizontalalignment="right",
+            verticalalignment="bottom",
+            color="darkred",
+            fontsize=11,
+            bbox={
+                "boxstyle": "round",
+                "facecolor": "white",
+                "edgecolor": "darkred",
+                "alpha": 0.9,
+            },
+        )
+
     # Texting
     ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel("measured significance", fontsize=21)
