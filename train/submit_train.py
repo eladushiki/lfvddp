@@ -34,7 +34,6 @@ def submit_process(context: ExecutionContext) -> None:
         raise ValueError(f"Expected ClusterConfig, got {context.config.__class__.__name__}")
 
     selected_walltime = context.prepare_next_qsub_walltime_chunk()
-    uses_continuation = context.config.cluster__qsub_needs_continuation
 
     config_path_mapping = {}
     if not context.is_continue:
@@ -89,13 +88,14 @@ def submit_process(context: ExecutionContext) -> None:
         dependent_on_jobid=build_job_id,
     )
 
-    if uses_continuation:
-        context.record_qsub_submission(
-            selected_walltime,
-            train_jobid,
-            context.unique_out_dir,
-        )
-        context.save_self_to_out_file()
+    context.record_qsub_submission(
+        selected_walltime,
+        train_jobid,
+        context.unique_out_dir,
+    )
+    context.save_self_to_out_file()
+
+    if context.next_qsub_walltime_chunk() is not None:
         return
 
     if context.is_only_train:

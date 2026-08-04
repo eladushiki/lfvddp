@@ -18,6 +18,7 @@ from configs.x_validate import cross_configure, cross_validate
 from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
+from frame.cluster.walltime import parse_walltime
 from frame.config_handle import UserConfig
 from frame.context.execution_products import ExecutionProducts, stamp_product_path
 from frame.context.run_descriptor import (
@@ -249,12 +250,29 @@ class ExecutionContext:
     def qsub_submitted_chunk_count(self) -> int:
         return len(self.qsub_submissions)
 
+    @property
+    def qsub_submitted_walltime_seconds(self) -> int:
+        return sum(
+            parse_walltime(submission["walltime"])
+            for submission in self.qsub_submissions
+        )
+
     def next_qsub_walltime_chunk(self) -> Optional[str]:
         if not isinstance(self.config, ClusterConfig):
             raise TypeError(
                 f"Expected ClusterConfig, got {self.config.__class__.__name__}"
             )
-        return self.config.next_walltime_chunk(self.qsub_submitted_chunk_count)
+        return self.config.next_walltime_chunk(
+            self.qsub_submitted_walltime_seconds
+        )
+
+    def add_qsub_walltime(self, extra_walltime: str) -> None:
+        """Extend the total cluster walltime budget."""
+        if not isinstance(self.config, ClusterConfig):
+            raise TypeError(
+                f"Expected ClusterConfig, got {self.config.__class__.__name__}"
+            )
+        self.config.add_walltime(extra_walltime)
 
     def prepare_next_qsub_walltime_chunk(self) -> str:
         """Select and retain the chunk attempted by this submit invocation."""
@@ -472,6 +490,11 @@ def version_controlled_execution_context(
             context.is_debug_mode = True
         if not context.is_debug_mode and not is_git_head_clean():
             raise RuntimeError("Commit changes before running the script.")
+
+        extra_time = getattr(args, "extra_time", None)
+        if extra_time is not None:
+            context.add_qsub_walltime(extra_time)
+            cross_validate(context.config)
 
         context.is_continue = True
         context.continue_from = args.continue_from

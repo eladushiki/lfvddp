@@ -186,8 +186,23 @@ are needed. A top-level `random_seed` can reproduce a fresh run if provided and 
 generated otherwise.
 
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
-optional `--debug` flag may follow it; configuration paths and all other runtime
-settings are restored from the saved context.
+optional `--debug` flag may be combined with it; configuration paths and all
+other runtime settings are restored from the saved context.
+
+If the original walltime was insufficient, add more time to the saved budget and
+continue from the latest LFVNN/PyTorch checkpoint with:
+
+```bash
+python train/submit_train.py --continue <run-directory-or-context.json> --extra-time 24:00:00
+```
+
+The extra time uses `HH:MM:SS` format. It is added to the original total rather
+than replacing it, and the next submission is capped by
+`cluster__qsub_walltime_limit` (72 hours by default). Repeat `--continue` without
+`--extra-time` if the enlarged budget requires another scheduler chunk.
+The option is accepted by every entry point that supports `--continue`; cluster
+submission history is updated for every job submitted through `submit_train.py`,
+including jobs whose total walltime fits in a single chunk.
 
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 
