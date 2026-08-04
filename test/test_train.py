@@ -126,6 +126,51 @@ def test_learning(
     assert t_a_loss != 0
 
 
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{
+        ConfigType.DATASET.value: Path(
+            "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+        ),
+        ConfigType.DETECTOR.value: Path(
+            "test/configs/detector/basic_1D_detector_config.json"
+        ),
+        ConfigType.TRAIN.value: Path(
+            "test/configs/train/profile_1D_train_config_with_nuisance.json"
+        ),
+    }],
+    indirect=True,
+)
+def test_training_profile_is_saved(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    _train_numerator(
+        function_execution_context,
+        detected_batch,
+        detector_effect,
+        "profiled_model",
+    )
+
+    profile_stem = "profiled_model.1D.profile"
+    trace_path = (
+        function_execution_context.training_outcomes_dir
+        / f"{profile_stem}.trace.json"
+    )
+    summary_path = (
+        function_execution_context.training_outcomes_dir / f"{profile_stem}.txt"
+    )
+
+    assert trace_path.is_file()
+    summary = summary_path.read_text()
+    assert "observables: 1" in summary
+    assert "training/forward_and_loss" in summary
+    assert "training/nuisance_eta" in summary
+    assert "training/backward" in summary
+
+
 def test_t_history_is_logged_to_tensorboard():
     recorder = _TensorboardRecorder()
     history = {
