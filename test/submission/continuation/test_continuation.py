@@ -7,7 +7,7 @@ import torch
 import train.submit_train as submit_train
 
 from frame.cluster.cluster_config import ClusterConfig
-from frame.cluster.walltime import split_walltime
+from frame.cluster.walltime import parse_walltime, split_walltime
 from frame.context.execution_context import (
     ExecutionContext,
     create_config_from_paramters,
@@ -90,10 +90,23 @@ def test_cluster_config_serves_walltime_chunks():
     assert config.cluster__qsub_needs_continuation
 
     first_chunk = config.next_walltime_chunk()
-    second_chunk = config.next_walltime_chunk(1)
+    second_chunk = config.next_walltime_chunk(
+        submitted_walltime_seconds=parse_walltime(first_chunk)
+    )
 
     assert first_chunk == "72:00:00"
     assert second_chunk == "1:00:00"
+
+
+def test_cluster_config_adds_walltime_after_a_short_original_chunk():
+    config = _cluster_config("12:00:00")
+
+    config.add_walltime("24:00:00")
+
+    assert config.cluster__qsub_total_walltime == "36:00:00"
+    assert config.next_walltime_chunk(
+        submitted_walltime_seconds=parse_walltime("12:00:00")
+    ) == "24:00:00"
 
 
 def test_cluster_config_uses_configured_walltime_limit():
@@ -153,6 +166,8 @@ def test_continued_submission_uses_only_the_saved_context(
     assert submitted_commands == [
         "python train/single_train.py --continue prior-run"
     ]
+    assert context.qsub_submissions[0]["walltime"] == "0:01:00"
+    assert context.next_qsub_walltime_chunk() == "0:01:00"
     assert not (context.unique_out_dir / "configs").exists()
 
 

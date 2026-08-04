@@ -1,16 +1,25 @@
-from logging import warning
-from sys import argv
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from functools import wraps
+from logging import warning
 from pathlib import Path
+from sys import argv
 from typing import Callable, Optional
 
+from frame.cluster.walltime import parse_walltime
 from frame.context.execution_context import (
     create_config_from_paramters,
     version_controlled_execution_context,
 )
 from frame.file_structure import CONFIG_FILE_EXTENSIONS
 from frame.file_system.textual_data import load_config_params_from_paths
+
+
+def _walltime_argument(value: str) -> str:
+    try:
+        parse_walltime(value)
+    except (TypeError, ValueError) as error:
+        raise ArgumentTypeError(str(error)) from error
+    return value
 
 
 def _expand_config_paths(config_paths: list[Path]) -> list[Path]:
@@ -58,6 +67,13 @@ def parse_config_from_args(
         metavar="LOCATION",
         help="Continue using only the context saved below LOCATION",
     )
+    parser.add_argument(
+        "--extra-time",
+        type=_walltime_argument,
+        dest="extra_time",
+        metavar="HH:MM:SS",
+        help="Add walltime to a saved submission before continuing it",
+    )
 
     ## Running options
     parser.add_argument(
@@ -83,15 +99,20 @@ def parse_config_from_args(
     parsed_args = argv[1:] if command_line_args is None else command_line_args
     args, unknown = parser.parse_known_args(parsed_args)
 
+    disallowed_continue_options_used = (
+        args.no_build
+        or args.only_train
+        or args.out_dir is not None
+        or args.plot_in_place
+    )
     if args.continue_from is not None and (
-        unknown
-        or len(parsed_args) not in (2, 3)
-        or parsed_args[0] != "--continue"
-        or (len(parsed_args) == 3 and parsed_args[2] != "--debug")
+        unknown or disallowed_continue_options_used
     ):
         parser.error(
-            "--continue LOCATION may only be followed by the optional --debug flag"
+            "--continue LOCATION may only be combined with --extra-time and --debug"
         )
+    if args.continue_from is None and args.extra_time is not None:
+        parser.error("--extra-time requires --continue LOCATION")
 
     # Keep accepting notebook-injected arguments for fresh runs.
     if unknown:

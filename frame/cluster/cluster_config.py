@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from frame.cluster.walltime import parse_walltime, split_walltime
+from frame.cluster.walltime import format_walltime, parse_walltime, split_walltime
 
 
 @dataclass
@@ -23,12 +23,23 @@ class ClusterConfig:
     cluster__qsub_walltime_chunks: list[str] = field(init=False)
 
     def __post_init__(self) -> None:
-        self.cluster__qsub_total_walltime = self.cluster__qsub_total_walltime or self.cluster__qsub_walltime
+        self._set_total_walltime(
+            self.cluster__qsub_total_walltime or self.cluster__qsub_walltime
+        )
+
+    def _set_total_walltime(self, total_walltime: str) -> None:
+        """Set the total budget and derive every per-submission walltime value."""
+        self.cluster__qsub_total_walltime = total_walltime
         self.cluster__qsub_walltime_chunks = split_walltime(
             self.cluster__qsub_total_walltime,
             max_seconds=parse_walltime(self.cluster__qsub_walltime_limit),
         )
         self.cluster__qsub_walltime = self.cluster__qsub_walltime_chunks[0]
+
+    def add_walltime(self, extra_walltime: str) -> None:
+        total_seconds = parse_walltime(self.cluster__qsub_total_walltime)
+        extra_seconds = parse_walltime(extra_walltime)
+        self._set_total_walltime(format_walltime(total_seconds + extra_seconds))
 
     @property
     def repo_name(self) -> str:
@@ -38,10 +49,18 @@ class ClusterConfig:
     def cluster__qsub_needs_continuation(self) -> bool:
         return len(self.cluster__qsub_walltime_chunks) > 1
 
-    def next_walltime_chunk(self, submitted_chunk_count: int = 0) -> Optional[str]:
-        if submitted_chunk_count < len(self.cluster__qsub_walltime_chunks):
-            return self.cluster__qsub_walltime_chunks[submitted_chunk_count]
-        return None
+    def next_walltime_chunk(
+        self, submitted_walltime_seconds: int = 0
+    ) -> Optional[str]:
+        remaining_seconds = (
+            parse_walltime(self.cluster__qsub_total_walltime)
+            - submitted_walltime_seconds
+        )
+        if remaining_seconds <= 0:
+            return None
+
+        walltime_limit_seconds = parse_walltime(self.cluster__qsub_walltime_limit)
+        return format_walltime(min(remaining_seconds, walltime_limit_seconds))
 
     def use_walltime_chunk(self, walltime: str) -> None:
         self.cluster__qsub_walltime = walltime

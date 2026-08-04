@@ -38,17 +38,19 @@ def _config_for_out_dir(function_execution_context, out_dir: Path):
     )
 
 
-def _context_args(continue_from=None) -> Namespace:
+def _context_args(continue_from=None, extra_time=None) -> Namespace:
     if continue_from is not None:
         return Namespace(
             continue_from=continue_from,
             debug=False,
+            extra_time=extra_time,
         )
     return Namespace(
         debug=True,
         no_build=True,
         only_train=False,
         continue_from=None,
+        extra_time=extra_time,
     )
 
 
@@ -248,6 +250,114 @@ def test_continuation_prepares_next_chunk_before_yield(
         assert not continued_context.run_successful
         assert saved_context["qsub_walltime_chunk"] == "0:01:00"
         assert not saved_context["run_successful"]
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.CLUSTER.value: Path(
+                "test/context/configs/walltime_1_minute.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
+def test_extra_time_extends_a_recorded_single_chunk_submission(
+    tmp_path,
+    function_execution_context,
+):
+    config = _config_for_out_dir(function_execution_context, tmp_path)
+    context = ExecutionContext(
+        commit_hash="abc",
+        config=config,
+        config_paths=function_execution_context.config_paths,
+        command_line_args=["submit_train.py", "--configs"],
+        run_descriptor=build_run_descriptor(
+            stamp="submit",
+            dirsafe_runtag=config.config__dirsafe_runtag,
+            entrypoint=SUBMIT_TRAIN_SCRIPT_NAME,
+            pid=1,
+        ),
+        is_debug_mode=True,
+        is_no_build=True,
+    )
+    context.record_qsub_submission(
+        "0:01:00",
+        "12345",
+        context.unique_out_dir,
+    )
+    context.close()
+
+    with version_controlled_execution_context(
+        config=None,
+        config_paths=None,
+        command_line_args=[
+            SUBMIT_TRAIN_SCRIPT_NAME,
+            "--continue",
+            str(context.unique_out_dir),
+            "--extra-time",
+            "0:00:30",
+        ],
+        args=_context_args(
+            continue_from=context.unique_out_dir,
+            extra_time="0:00:30",
+        ),
+    ) as continued_context:
+        assert continued_context.config.cluster__qsub_total_walltime == "0:01:30"
+        assert continued_context.qsub_submissions[0]["job_id"] == "12345"
+        assert continued_context.qsub_walltime_chunk == "0:00:30"
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.CLUSTER.value: Path(
+                "test/context/configs/walltime_1_minute.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
+def test_extra_time_is_available_to_non_submit_continuations(
+    tmp_path,
+    function_execution_context,
+):
+    config = _config_for_out_dir(function_execution_context, tmp_path)
+    context = ExecutionContext(
+        commit_hash="abc",
+        config=config,
+        config_paths=function_execution_context.config_paths,
+        command_line_args=[SINGLE_TRAIN_SCRIPT_NAME, "--configs"],
+        run_descriptor=build_run_descriptor(
+            stamp="train",
+            dirsafe_runtag=config.config__dirsafe_runtag,
+            entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
+            pid=1,
+        ),
+        is_debug_mode=True,
+        is_no_build=True,
+    )
+    context.close()
+
+    with version_controlled_execution_context(
+        config=None,
+        config_paths=None,
+        command_line_args=[
+            SINGLE_TRAIN_SCRIPT_NAME,
+            "--continue",
+            str(context.unique_out_dir),
+            "--extra-time",
+            "0:00:30",
+        ],
+        args=_context_args(
+            continue_from=context.unique_out_dir,
+            extra_time="0:00:30",
+        ),
+    ) as continued_context:
+        assert continued_context.config.cluster__qsub_total_walltime == "0:01:30"
+        assert continued_context.qsub_submissions == []
 
 
 @pytest.mark.parametrize(
@@ -529,7 +639,7 @@ def test_child_context_loading_matches_array_index(
     assert selected.unique_out_dir == contexts[1].unique_out_dir
 
 
-def test_continuation_accepts_only_the_optional_debug_flag(capsys):
+def test_continuation_accepts_extra_time_and_the_optional_debug_flag(capsys):
     config_paths, args = parse_config_from_args(["--continue", "results/run"])
 
     assert config_paths is None
@@ -544,6 +654,29 @@ def test_continuation_accepts_only_the_optional_debug_flag(capsys):
     assert args.continue_from == Path("results/run")
     assert args.debug
 
+    config_paths, args = parse_config_from_args(
+        [
+            "--continue",
+            "results/run",
+            "--extra-time",
+            "24:00:00",
+            "--debug",
+        ]
+    )
+
+    assert config_paths is None
+    assert args.extra_time == "24:00:00"
+    assert args.debug
+
     with pytest.raises(SystemExit):
         parse_config_from_args(["--continue", "results/run", "--no-build"])
+    with pytest.raises(SystemExit):
+        parse_config_from_args(["--continue", "results/run", "--extra-time", "24"])
+    with pytest.raises(SystemExit):
+        parse_config_from_args([
+            "--configs",
+            "configs/user/basic_user_config.json",
+            "--extra-time",
+            "24:00:00",
+        ])
     capsys.readouterr()
