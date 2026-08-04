@@ -39,7 +39,7 @@ def _load_checkpoint_state_dict(function_execution_context, model_name):
     return checkpoint["model_state_dict"]
 
 
-def test_loss_weights_are_one_column_for_multidimensional_events():
+def test_loss_weights_follow_weight_order():
     category_sizes = {
         DataSet.DataSetCategory.A_SR: 1,
         DataSet.DataSetCategory.A_CR: 2,

@@ -196,7 +196,7 @@ def utils__calculate_performance_curve(
         gaussian_fit_significances.append(
             calc_t_significance_by_gaussian_fit_percentile(
                 background_only_distribution=background_t_dist,
-                t_value=np.median(signal_t_dist),
+                t_value=np.mean(signal_t_dist),
             )
         )
 
