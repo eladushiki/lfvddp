@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from tqdm.auto import tqdm
 
@@ -34,8 +35,9 @@ class _PreparedTrainingData:
     """Static tensors and category sizes reused by every training epoch."""
 
     sr_data: torch.Tensor
-    sr_bin_indices: Optional[torch.Tensor]
-    cr_bin_indices: Optional[torch.Tensor]
+    nuisance_bin_indices: Optional[torch.Tensor]
+    a_cr_bin_counts: Optional[torch.Tensor]
+    b_cr_bin_counts: Optional[torch.Tensor]
     number_of_a_sr_events: int
     number_of_b_sr_events: int
     number_of_a_cr_events: int
@@ -51,6 +53,10 @@ class _PreparedTrainingData:
     @property
     def number_of_cr_events(self) -> int:
         return self.number_of_a_cr_events + self.number_of_b_cr_events
+
+    @property
+    def number_of_cr_bins(self) -> int:
+        return 0 if self.a_cr_bin_counts is None else self.a_cr_bin_counts.numel()
 
 
 class _PairedEstimator(nn.Module):
@@ -74,8 +80,16 @@ class _PairedEstimator(nn.Module):
 
     def forward(self, events: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         hidden = self.activation(self.hidden(events))
-        f_hidden, g_hidden = hidden.split(self.hidden_size, dim=1)
-        return self.f_output(f_hidden), self.g_output(g_hidden)
+        paired_weight = torch.cat(
+            (
+                F.pad(self.f_output.weight, (0, self.hidden_size)),
+                F.pad(self.g_output.weight, (self.hidden_size, 0)),
+            ),
+            dim=0,
+        )
+        paired_bias = torch.cat((self.f_output.bias, self.g_output.bias))
+        estimates = F.linear(hidden, paired_weight, paired_bias)
+        return estimates[:, :1], estimates[:, 1:]
 
 
 def _compact_no_nuisance_loss(
@@ -96,19 +110,44 @@ def _compact_no_nuisance_loss(
     )
 
 
+def _compact_nuisance_common_terms(
+    eta_of_x_sr: torch.Tensor,
+    eta_of_x_cr_bins: torch.Tensor,
+    a_cr_bin_counts: torch.Tensor,
+    b_cr_bin_counts: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_cr_events: int,
+    cr_eta_coefficient: float,
+) -> torch.Tensor:
+    """Evaluate nuisance log terms and the compressed CR contribution."""
+    eta_cr_sum = torch.dot(
+        eta_of_x_cr_bins,
+        a_cr_bin_counts + b_cr_bin_counts,
+    )
+    return (
+        number_of_cr_events
+        + cr_eta_coefficient * eta_cr_sum
+        - torch.log1p(eta_of_x_sr[:number_of_a_sr_events]).sum()
+        - torch.dot(torch.log1p(eta_of_x_cr_bins), a_cr_bin_counts)
+        - torch.log1p(-eta_of_x_sr[number_of_a_sr_events:]).sum()
+        - torch.dot(torch.log1p(-eta_of_x_cr_bins), b_cr_bin_counts)
+    )
+
+
 def _compact_nuisance_loss(
     f_of_x_sr: torch.Tensor,
     g_of_x_sr: torch.Tensor,
     eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr: torch.Tensor,
+    eta_of_x_cr_bins: torch.Tensor,
+    a_cr_bin_counts: torch.Tensor,
+    b_cr_bin_counts: torch.Tensor,
     number_of_a_sr_events: int,
-    number_of_a_cr_events: int,
     number_of_cr_events: int,
     a_sr_coefficient: float,
     b_sr_coefficient: float,
     cr_eta_coefficient: float,
 ) -> torch.Tensor:
-    """Evaluate the unit-weight loss on compact SR and CR tensors."""
+    """Evaluate the unit-weight numerator loss with compressed CR bins."""
     a_sr_term = a_sr_coefficient * torch.exp(f_of_x_sr)
     b_sr_term = b_sr_coefficient * torch.exp(g_of_x_sr)
     sr_density = torch.addcmul(
@@ -121,12 +160,43 @@ def _compact_nuisance_loss(
         sr_density.sum()
         - f_of_x_sr[:number_of_a_sr_events].sum()
         - g_of_x_sr[number_of_a_sr_events:].sum()
-        + number_of_cr_events
-        + cr_eta_coefficient * eta_of_x_cr.sum()
-        - torch.log1p(eta_of_x_sr[:number_of_a_sr_events]).sum()
-        - torch.log1p(eta_of_x_cr[:number_of_a_cr_events]).sum()
-        - torch.log1p(-eta_of_x_sr[number_of_a_sr_events:]).sum()
-        - torch.log1p(-eta_of_x_cr[number_of_a_cr_events:]).sum()
+        + _compact_nuisance_common_terms(
+            eta_of_x_sr=eta_of_x_sr,
+            eta_of_x_cr_bins=eta_of_x_cr_bins,
+            a_cr_bin_counts=a_cr_bin_counts,
+            b_cr_bin_counts=b_cr_bin_counts,
+            number_of_a_sr_events=number_of_a_sr_events,
+            number_of_cr_events=number_of_cr_events,
+            cr_eta_coefficient=cr_eta_coefficient,
+        )
+    )
+
+
+def _compact_nuisance_denominator_loss(
+    eta_of_x_sr: torch.Tensor,
+    eta_of_x_cr_bins: torch.Tensor,
+    a_cr_bin_counts: torch.Tensor,
+    b_cr_bin_counts: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_sr_events: int,
+    number_of_cr_events: int,
+    a_sr_coefficient: float,
+    b_sr_coefficient: float,
+    cr_eta_coefficient: float,
+) -> torch.Tensor:
+    """Evaluate the nuisance denominator without zero-network tensors."""
+    return (
+        number_of_sr_events
+        + (a_sr_coefficient - b_sr_coefficient) * eta_of_x_sr.sum()
+        + _compact_nuisance_common_terms(
+            eta_of_x_sr=eta_of_x_sr,
+            eta_of_x_cr_bins=eta_of_x_cr_bins,
+            a_cr_bin_counts=a_cr_bin_counts,
+            b_cr_bin_counts=b_cr_bin_counts,
+            number_of_a_sr_events=number_of_a_sr_events,
+            number_of_cr_events=number_of_cr_events,
+            cr_eta_coefficient=cr_eta_coefficient,
+        )
     )
 
 
@@ -287,13 +357,38 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             raise RuntimeError("At least one detector observable is required.")
         return eta
 
+    def _compressed_cr_bin_indices(
+        self,
+        a_cr: DataSet,
+        b_cr: DataSet,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return shared unique CR bins and per-category event counts."""
+        cr_bin_indices = torch.cat(
+            (self._bin_indices(a_cr), self._bin_indices(b_cr)),
+            dim=0,
+        )
+        unique_bin_indices, inverse_indices = torch.unique(
+            cr_bin_indices,
+            dim=0,
+            return_inverse=True,
+        )
+        number_of_unique_bins = unique_bin_indices.shape[0]
+        a_cr_bin_counts = torch.bincount(
+            inverse_indices[: a_cr.n_samples],
+            minlength=number_of_unique_bins,
+        ).to(dtype=self._dtype)
+        b_cr_bin_counts = torch.bincount(
+            inverse_indices[a_cr.n_samples :],
+            minlength=number_of_unique_bins,
+        ).to(dtype=self._dtype)
+        return unique_bin_indices, a_cr_bin_counts, b_cr_bin_counts
+
     def _network_estimates(
         self,
         sr_data: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.paired_network is None:
-            zeros = sr_data.new_zeros(sr_data.shape[0])
-            return zeros, zeros
+            raise RuntimeError("The denominator has no f/g estimator.")
         f_estimate, g_estimate = self.paired_network(sr_data)
         return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
 
@@ -304,20 +399,38 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/f_and_g_networks"):
-            f_of_x_sr_est, g_of_x_sr_est = self._network_estimates(data.sr_data)
+            if self.paired_network is None:
+                f_of_x_sr_est = None
+                g_of_x_sr_est = None
+            else:
+                f_of_x_sr_est, g_of_x_sr_est = self._network_estimates(
+                    data.sr_data
+                )
 
         with profile_region("training/nuisance_eta"):
             if self._config.train__data_is_train_for_nuisances:
-                if data.sr_bin_indices is None or data.cr_bin_indices is None:
+                if data.nuisance_bin_indices is None:
                     raise RuntimeError("Training bin indices were not prepared.")
-                eta_of_x_sr = self._eta_from_bin_indices(data.sr_bin_indices)
-                eta_of_x_cr = self._eta_from_bin_indices(data.cr_bin_indices)
+                eta_values = self._eta_from_bin_indices(
+                    data.nuisance_bin_indices
+                )
+                eta_of_x_sr, eta_of_x_cr_bins = torch.split(
+                    eta_values,
+                    (
+                        data.number_of_sr_events,
+                        data.number_of_cr_bins,
+                    ),
+                )
             else:
                 eta_of_x_sr = None
-                eta_of_x_cr = None
+                eta_of_x_cr_bins = None
 
         with profile_region("training/loss_expression"):
-            if eta_of_x_sr is None or eta_of_x_cr is None:
+            if eta_of_x_sr is None:
+                if f_of_x_sr_est is None or g_of_x_sr_est is None:
+                    return data.sr_data.new_tensor(
+                        data.number_of_sr_events + data.number_of_cr_events
+                    )
                 return _compact_no_nuisance_loss(
                     f_of_x_sr=f_of_x_sr_est,
                     g_of_x_sr=g_of_x_sr_est,
@@ -326,13 +439,33 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     a_sr_coefficient=data.a_sr_coefficient,
                     b_sr_coefficient=data.b_sr_coefficient,
                 )
+            if (
+                eta_of_x_cr_bins is None
+                or data.a_cr_bin_counts is None
+                or data.b_cr_bin_counts is None
+            ):
+                raise RuntimeError("Compressed CR nuisance data was not prepared.")
+            if f_of_x_sr_est is None or g_of_x_sr_est is None:
+                return _compact_nuisance_denominator_loss(
+                    eta_of_x_sr=eta_of_x_sr,
+                    eta_of_x_cr_bins=eta_of_x_cr_bins,
+                    a_cr_bin_counts=data.a_cr_bin_counts,
+                    b_cr_bin_counts=data.b_cr_bin_counts,
+                    number_of_a_sr_events=data.number_of_a_sr_events,
+                    number_of_sr_events=data.number_of_sr_events,
+                    number_of_cr_events=data.number_of_cr_events,
+                    a_sr_coefficient=data.a_sr_coefficient,
+                    b_sr_coefficient=data.b_sr_coefficient,
+                    cr_eta_coefficient=data.cr_eta_coefficient,
+                )
             return _compact_nuisance_loss(
                 f_of_x_sr=f_of_x_sr_est,
                 g_of_x_sr=g_of_x_sr_est,
                 eta_of_x_sr=eta_of_x_sr,
-                eta_of_x_cr=eta_of_x_cr,
+                eta_of_x_cr_bins=eta_of_x_cr_bins,
+                a_cr_bin_counts=data.a_cr_bin_counts,
+                b_cr_bin_counts=data.b_cr_bin_counts,
                 number_of_a_sr_events=data.number_of_a_sr_events,
-                number_of_a_cr_events=data.number_of_a_cr_events,
                 number_of_cr_events=data.number_of_cr_events,
                 a_sr_coefficient=data.a_sr_coefficient,
                 b_sr_coefficient=data.b_sr_coefficient,
@@ -368,21 +501,28 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 (self._bin_indices(a_sr), self._bin_indices(b_sr)),
                 dim=0,
             )
-            cr_bin_indices = torch.cat(
-                (self._bin_indices(a_cr), self._bin_indices(b_cr)),
+            (
+                cr_bin_indices,
+                a_cr_bin_counts,
+                b_cr_bin_counts,
+            ) = self._compressed_cr_bin_indices(a_cr, b_cr)
+            nuisance_bin_indices = torch.cat(
+                (sr_bin_indices, cr_bin_indices),
                 dim=0,
             )
         else:
-            sr_bin_indices = None
-            cr_bin_indices = None
+            nuisance_bin_indices = None
+            a_cr_bin_counts = None
+            b_cr_bin_counts = None
 
         number_of_sr_events = a_sr.n_samples + b_sr.n_samples
         number_of_cr_events = a_cr.n_samples + b_cr.n_samples
 
         return _PreparedTrainingData(
             sr_data=sr_data,
-            sr_bin_indices=sr_bin_indices,
-            cr_bin_indices=cr_bin_indices,
+            nuisance_bin_indices=nuisance_bin_indices,
+            a_cr_bin_counts=a_cr_bin_counts,
+            b_cr_bin_counts=b_cr_bin_counts,
             number_of_a_sr_events=a_sr.n_samples,
             number_of_b_sr_events=b_sr.n_samples,
             number_of_a_cr_events=a_cr.n_samples,
