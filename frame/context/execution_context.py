@@ -149,6 +149,8 @@ class ExecutionContext:
             tfrandom.set_seed(self.random_seed)
         else:
             torch.manual_seed(self.random_seed)
+        if isinstance(self.config, DatasetConfig):
+            self.config.load_dataset_parameters()
 
     def _make_unique_descriptor(self) -> str:
         return build_run_descriptor(
@@ -184,6 +186,8 @@ class ExecutionContext:
                 series["cluster__qsub_walltime"] = object.cluster__qsub_total_walltime
             series.pop("cluster__qsub_total_walltime", None)
             series.pop("cluster__qsub_walltime_chunks", None)
+        if isinstance(object, DatasetConfig):
+            series.pop("_dataset__parameters_by_category", None)
 
         # Convert non-serializable objects
         for key, value in series.items():
