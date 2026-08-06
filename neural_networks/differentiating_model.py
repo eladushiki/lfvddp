@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from contextlib import contextmanager, nullcontext
+from contextlib import nullcontext
+from dataclasses import dataclass
 from logging import info
 from time import time
 from typing import Dict, List, Optional, Tuple, Union
@@ -28,29 +29,105 @@ from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
 
-def _calculate_loss_weights(data: DataBatch) -> npt.NDArray:
-    """Prepare one unit loss weight per event in canonical DataBatch order."""
-    return np.ones((data.unified_data.n_samples, 1))
+@dataclass(frozen=True)
+class _PreparedTrainingData:
+    """Static tensors and category sizes reused by every training epoch."""
+
+    sr_data: torch.Tensor
+    sr_bin_indices: Optional[torch.Tensor]
+    cr_bin_indices: Optional[torch.Tensor]
+    number_of_a_sr_events: int
+    number_of_b_sr_events: int
+    number_of_a_cr_events: int
+    number_of_b_cr_events: int
+    a_sr_coefficient: float
+    b_sr_coefficient: float
+    cr_eta_coefficient: float
+
+    @property
+    def number_of_sr_events(self) -> int:
+        return self.number_of_a_sr_events + self.number_of_b_sr_events
+
+    @property
+    def number_of_cr_events(self) -> int:
+        return self.number_of_a_cr_events + self.number_of_b_cr_events
 
 
-def _expand_masked_predictions(
-    predictions: torch.Tensor,
-    mask: torch.Tensor,
+class _PairedEstimator(nn.Module):
+    """Evaluate the independent f and g networks with one shared input GEMM."""
+
+    def __init__(
+        self,
+        input_dimension: int,
+        hidden_size: int,
+        output_dimension: int,
+        dtype: torch.dtype,
+    ) -> None:
+        super().__init__()
+        if output_dimension != 1:
+            raise ValueError("The paired estimator requires scalar f and g outputs.")
+        self.hidden_size = hidden_size
+        self.hidden = nn.Linear(input_dimension, 2 * hidden_size, dtype=dtype)
+        self.activation = nn.Sigmoid()
+        self.f_output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
+        self.g_output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
+
+    def forward(self, events: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        hidden = self.activation(self.hidden(events))
+        f_hidden, g_hidden = hidden.split(self.hidden_size, dim=1)
+        return self.f_output(f_hidden), self.g_output(g_hidden)
+
+
+def _compact_no_nuisance_loss(
+    f_of_x_sr: torch.Tensor,
+    g_of_x_sr: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_cr_events: int,
+    a_sr_coefficient: float,
+    b_sr_coefficient: float,
 ) -> torch.Tensor:
-    """Restore predictions made on a masked subset to full-batch positions."""
-    return predictions.new_zeros(mask.shape).masked_scatter(
-        mask,
-        predictions.reshape(-1),
+    """Evaluate the unit-weight loss when detector nuisances are disabled."""
+    return (
+        a_sr_coefficient * torch.exp(f_of_x_sr).sum()
+        + b_sr_coefficient * torch.exp(g_of_x_sr).sum()
+        - f_of_x_sr[:number_of_a_sr_events].sum()
+        - g_of_x_sr[number_of_a_sr_events:].sum()
+        + number_of_cr_events
     )
 
 
-class _ZeroEstimator(nn.Module):
-    def __init__(self, output_dimension: int):
-        super().__init__()
-        self._output_dimension = output_dimension
+def _compact_nuisance_loss(
+    f_of_x_sr: torch.Tensor,
+    g_of_x_sr: torch.Tensor,
+    eta_of_x_sr: torch.Tensor,
+    eta_of_x_cr: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_a_cr_events: int,
+    number_of_cr_events: int,
+    a_sr_coefficient: float,
+    b_sr_coefficient: float,
+    cr_eta_coefficient: float,
+) -> torch.Tensor:
+    """Evaluate the unit-weight loss on compact SR and CR tensors."""
+    a_sr_term = a_sr_coefficient * torch.exp(f_of_x_sr)
+    b_sr_term = b_sr_coefficient * torch.exp(g_of_x_sr)
+    sr_density = torch.addcmul(
+        a_sr_term + b_sr_term,
+        eta_of_x_sr,
+        a_sr_term - b_sr_term,
+    )
 
-    def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return events.new_zeros((events.shape[0], self._output_dimension))
+    return (
+        sr_density.sum()
+        - f_of_x_sr[:number_of_a_sr_events].sum()
+        - g_of_x_sr[number_of_a_sr_events:].sum()
+        + number_of_cr_events
+        + cr_eta_coefficient * eta_of_x_cr.sum()
+        - torch.log1p(eta_of_x_sr[:number_of_a_sr_events]).sum()
+        - torch.log1p(eta_of_x_cr[:number_of_a_cr_events]).sum()
+        - torch.log1p(-eta_of_x_sr[number_of_a_sr_events:]).sum()
+        - torch.log1p(-eta_of_x_cr[number_of_a_cr_events:]).sum()
+    )
 
 
 class DifferentiatingModel(nn.Module, ContextedModel):
@@ -65,7 +142,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         detector_effect: DetectorEffect,
         is_numerator: bool,
         name: str,
-        dtype: torch.dtype = torch.float64
+        dtype: torch.dtype = torch.float64,
     ):
         super().__init__()
         self._context = context
@@ -80,76 +157,32 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         # Add detector uncertainty nuisance parameters
         self._build_eta()
-        self._bins_of_events = None  # Set in context
 
         # Initialize NN parameters according to strategy
         self._initialize_parameters()
 
-        # Store training data and weights for metrics computation
-        self._train_data = None
-        self._train_target_classifier = None
-        self._train_weights = None
         self._norm_factor = None
         self._training_history = defaultdict(list)
-        self._a_sr_mask = None
-        self._b_sr_mask = None
-        self._a_cr_mask = None
-        self._b_cr_mask = None
 
     @property
     def _device(self) -> torch.device:
         return torch.device("cpu")
 
-    @property
-    def _a_mask(self) -> torch.Tensor:
-        if self._a_sr_mask is None or self._a_cr_mask is None:
-            raise RuntimeError("Access to an uninitialized mask")
-        return self._a_sr_mask | self._a_cr_mask
-
-    @property
-    def _b_mask(self) -> torch.Tensor:
-        if self._b_sr_mask is None or self._b_cr_mask is None:
-            raise RuntimeError("Access to an uninitialized mask")
-        return self._b_sr_mask | self._b_cr_mask
-
-    @property
-    def _sr_mask(self) -> torch.Tensor:
-        if self._a_sr_mask is None or self._b_sr_mask is None:
-            raise RuntimeError("Access to an uninitialized mask")
-        return self._a_sr_mask | self._b_sr_mask
-
-    @property
-    def _cr_mask(self) -> torch.Tensor:
-        if self._a_cr_mask is None or self._b_cr_mask is None:
-            raise RuntimeError("Access to an uninitialized mask")
-        return self._a_cr_mask | self._b_cr_mask
-
     def _build_layers(self):
-        # Fully connected 2-layer network:
-        input_dim = self._config.train__nn_input_dimension
-        hidden_size = self._config.train__nn_inner_layer_nodes
-        output_size = self._config.train__nn_output_dimension
-
-        if not self._is_numerator:
-            self.f_network = _ZeroEstimator(output_size)
-            self.g_network = _ZeroEstimator(output_size)
-            return
-
-        self.f_network = nn.Sequential(
-            nn.Linear(input_dim, hidden_size, dtype=self._dtype),
-            nn.Sigmoid(),
-            nn.Linear(hidden_size, output_size, dtype=self._dtype),
-        )
-        self.g_network = nn.Sequential(
-            nn.Linear(input_dim, hidden_size, dtype=self._dtype),
-            nn.Sigmoid(),
-            nn.Linear(hidden_size, output_size, dtype=self._dtype),
+        self.paired_network = (
+            _PairedEstimator(
+                input_dimension=self._config.train__nn_input_dimension,
+                hidden_size=self._config.train__nn_inner_layer_nodes,
+                output_dimension=self._config.train__nn_output_dimension,
+                dtype=self._dtype,
+            )
+            if self._is_numerator
+            else None
         )
 
     def _build_eta(self):
         self._detector_deltas = {}
         if not self._config.train__data_is_train_for_nuisances:
-            self.eta = _ZeroEstimator(1)
             return
 
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
@@ -166,20 +199,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
             self._detector_deltas[self._observable_names[i]] = nuisance_var
 
-        def eta(events: torch.Tensor) -> torch.Tensor:
-            if self._bins_of_events is None:
-                raise RuntimeError(
-                    "eta can only be evaluated inside a binning_context."
-                )
-            dimensional_deltas = []
-            for i, obs in enumerate(self._observable_names):
-                dimensional_deltas.append(
-                    self._detector_deltas[obs][self._bins_of_events[:, i]]
-                )
-            return torch.stack(dimensional_deltas, dim=1).prod(dim=1, keepdim=True)
-
-        self.eta = eta
-
     def _initialize_parameters(self) -> None:
         """
         Create newly initialized weights matching the training strategy.
@@ -189,15 +208,27 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__nn_xavier_gain
 
-        if self._is_numerator:
-            for network in self.f_network, self.g_network:
-                # Layer 0: Input to hidden
-                hidden_layer = network[0]
-                nn.init.xavier_uniform_(hidden_layer.weight, gain=gain)
-                nn.init.uniform_(hidden_layer.bias, a=-0.3, b=0.3)
-
-                # Layer 2: Hidden to output (skipping LeakyReLU at index 1)
-                output_layer = network[2]
+        if self.paired_network is not None:
+            hidden_size = self.paired_network.hidden_size
+            for hidden_slice, output_layer in (
+                (
+                    slice(0, hidden_size),
+                    self.paired_network.f_output,
+                ),
+                (
+                    slice(hidden_size, 2 * hidden_size),
+                    self.paired_network.g_output,
+                ),
+            ):
+                nn.init.xavier_uniform_(
+                    self.paired_network.hidden.weight[hidden_slice],
+                    gain=gain,
+                )
+                nn.init.uniform_(
+                    self.paired_network.hidden.bias[hidden_slice],
+                    a=-0.3,
+                    b=0.3,
+                )
                 nn.init.xavier_uniform_(output_layer.weight, gain=gain)
                 nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
@@ -229,150 +260,138 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _observable_names(self) -> List[str]:
         return self._detector_effect._observable_names
 
-    def ddp_minimization_loss(
-        self,
-        f_of_x_sr_est: torch.Tensor,
-        g_of_x_sr_est: torch.Tensor,
-        eta_of_x_est: torch.Tensor,
-    ) -> torch.Tensor:
-        """
-        The loss function for minimizing any expression in lfvddp.
-
-        From the t values expression in the paper, use:
-        - with or without f, g for numerator or denominator expression.
-        - with or without nuisance parameters at will.
-        Enter a zeros vector for each for it not to be use. This is the default
-        behavior of DifferentiatingModel fit.
-
-        Returns torch.Tensor of the same shape as either input to be summed.
-        """
-        # Setting the subsets we need for the element-wise loss calculation
-        f_of_x_a_sr = f_of_x_sr_est * self._a_sr_mask
-        g_of_x_b_sr = g_of_x_sr_est * self._b_sr_mask
-        eta_a_sr = eta_of_x_est * self._a_sr_mask
-        eta_b_sr = eta_of_x_est * self._b_sr_mask
-        eta_sr = eta_a_sr + eta_b_sr
-        eta_a_cr = eta_of_x_est * self._a_cr_mask
-        eta_b_cr = eta_of_x_est * self._b_cr_mask
-        eta_of_x_cr = eta_a_cr + eta_b_cr
-        eta_of_x_a = eta_a_sr + eta_a_cr
-        eta_of_x_b = eta_b_sr + eta_b_cr
-
-        # Number constants
-        N_A_SR = torch.count_nonzero(self._a_sr_mask)
-        N_B_SR = torch.count_nonzero(self._b_sr_mask)
-        N_A_CR = torch.count_nonzero(self._a_cr_mask)
-        N_B_CR = torch.count_nonzero(self._b_cr_mask)
-        N_SR = torch.count_nonzero(self._sr_mask)
-        N_CR = torch.count_nonzero(self._cr_mask)
-
-        e_to_the_f_sr = torch.exp(f_of_x_sr_est)
-        eta_plus_term_sr = (1 + eta_sr) * self._sr_mask
-        e_to_the_g_sr = torch.exp(g_of_x_sr_est)
-        eta_minus_term_sr = (1 - eta_sr) * self._sr_mask
-        sr_sum_term = (
-            N_A_SR * e_to_the_f_sr * eta_plus_term_sr
-            + N_B_SR * e_to_the_g_sr * eta_minus_term_sr
-        ) / N_SR
-
-        # CR sum term
-        eta_plus_term_cr = (1 + eta_of_x_cr) * self._cr_mask
-        eta_minus_term_cr = (1 - eta_of_x_cr) * self._cr_mask
-        cr_sum_term = (N_A_CR * eta_plus_term_cr + N_B_CR * eta_minus_term_cr) / N_CR
-
-        # eta log terms
-        eta_plus_a_sum_term = torch.log(1 + eta_of_x_a)
-        eta_minus_b_sum_term = torch.log(1 - eta_of_x_b)
-
-        # Total loss is sum of log-likelihoods
-        return (
-            sr_sum_term
-            + cr_sum_term
-            - f_of_x_a_sr
-            - g_of_x_b_sr
-            - eta_plus_a_sum_term
-            - eta_minus_b_sum_term
+    def _bin_indices(self, data: DataSet) -> torch.Tensor:
+        return torch.tensor(
+            self._detector_effect.get_event_bin_centers(data, indexed=True),
+            dtype=torch.long,
+            device=self._device,
         )
+
+    def _eta_from_bin_indices(self, bin_indices: torch.Tensor) -> torch.Tensor:
+        if not self._config.train__data_is_train_for_nuisances:
+            return torch.zeros(
+                bin_indices.shape[0],
+                dtype=self._dtype,
+                device=self._device,
+            )
+
+        eta: Optional[torch.Tensor] = None
+        for dimension, observable_name in enumerate(self._observable_names):
+            dimensional_eta = torch.index_select(
+                self._detector_deltas[observable_name],
+                dim=0,
+                index=bin_indices[:, dimension],
+            )
+            eta = dimensional_eta if eta is None else eta * dimensional_eta
+        if eta is None:
+            raise RuntimeError("At least one detector observable is required.")
+        return eta
+
+    def _network_estimates(
+        self,
+        sr_data: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.paired_network is None:
+            zeros = sr_data.new_zeros(sr_data.shape[0])
+            return zeros, zeros
+        f_estimate, g_estimate = self.paired_network(sr_data)
+        return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
 
     def forward(
         self,
-        data: torch.Tensor,
-        weights: torch.Tensor,
+        data: _PreparedTrainingData,
         profiler: Optional[TrainingProfiler] = None,
     ) -> torch.Tensor:
-        sr_data = data[self._sr_mask]
         profile_region = profiler.region if profiler is not None else nullcontext
-        with profile_region("training/f_network"):
-            f_of_x_sr_est = _expand_masked_predictions(
-                self.f_network(sr_data),
-                self._sr_mask,
-            )
-        with profile_region("training/g_network"):
-            g_of_x_sr_est = _expand_masked_predictions(
-                self.g_network(sr_data),
-                self._sr_mask,
-            )
+        with profile_region("training/f_and_g_networks"):
+            f_of_x_sr_est, g_of_x_sr_est = self._network_estimates(data.sr_data)
+
         with profile_region("training/nuisance_eta"):
-            eta_of_x_est = self.eta(data).squeeze()
+            if self._config.train__data_is_train_for_nuisances:
+                if data.sr_bin_indices is None or data.cr_bin_indices is None:
+                    raise RuntimeError("Training bin indices were not prepared.")
+                eta_of_x_sr = self._eta_from_bin_indices(data.sr_bin_indices)
+                eta_of_x_cr = self._eta_from_bin_indices(data.cr_bin_indices)
+            else:
+                eta_of_x_sr = None
+                eta_of_x_cr = None
 
         with profile_region("training/loss_expression"):
-            losses = self.ddp_minimization_loss(
-                f_of_x_sr_est=f_of_x_sr_est,
-                g_of_x_sr_est=g_of_x_sr_est,
-                eta_of_x_est=eta_of_x_est,
+            if eta_of_x_sr is None or eta_of_x_cr is None:
+                return _compact_no_nuisance_loss(
+                    f_of_x_sr=f_of_x_sr_est,
+                    g_of_x_sr=g_of_x_sr_est,
+                    number_of_a_sr_events=data.number_of_a_sr_events,
+                    number_of_cr_events=data.number_of_cr_events,
+                    a_sr_coefficient=data.a_sr_coefficient,
+                    b_sr_coefficient=data.b_sr_coefficient,
+                )
+            return _compact_nuisance_loss(
+                f_of_x_sr=f_of_x_sr_est,
+                g_of_x_sr=g_of_x_sr_est,
+                eta_of_x_sr=eta_of_x_sr,
+                eta_of_x_cr=eta_of_x_cr,
+                number_of_a_sr_events=data.number_of_a_sr_events,
+                number_of_a_cr_events=data.number_of_a_cr_events,
+                number_of_cr_events=data.number_of_cr_events,
+                a_sr_coefficient=data.a_sr_coefficient,
+                b_sr_coefficient=data.b_sr_coefficient,
+                cr_eta_coefficient=data.cr_eta_coefficient,
             )
-        with profile_region("training/loss_reduction"):
-            return torch.sum(input=losses.unsqueeze(dim=1) * weights, dtype=self._dtype)
-
-    @contextmanager
-    def binning_context(self, data: DataSet):
-        try:
-            self._bins_of_events = torch.tensor(
-                self._detector_effect.get_event_bin_centers(data, indexed=True),
-                dtype=torch.long,
-                device=self._device,
-            )
-            yield
-        finally:
-            self._bins_of_events = None
 
     def _prepare_training_data(
         self,
         data: DataBatch,
-        weights: npt.NDArray,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Organize input data into masks and tensor for further processing.
-        Initialize region masks for this train.
-        """
+    ) -> _PreparedTrainingData:
+        """Prepare compact, immutable tensors for repeated full-batch training."""
         normalized_data, self._norm_factor = data.get_normalized()
+        categories = DataSet.DataSetCategory
+        normalized_a_sr = normalized_data.datasets[categories.A_SR]
+        normalized_b_sr = normalized_data.datasets[categories.B_SR]
+        a_sr = data.datasets[categories.A_SR]
+        b_sr = data.datasets[categories.B_SR]
+        a_cr = data.datasets[categories.A_CR]
+        b_cr = data.datasets[categories.B_CR]
 
-        data_parts = []
-        mask_parts = []
-        for ds, params in normalized_data:
-            data_parts.append(ds.events)
-            mask_parts.append(
-                np.full(ds.n_samples, params.category.value, dtype=np.int64)
+        if a_sr.n_samples + b_sr.n_samples == 0:
+            raise ValueError("Training requires at least one SR event.")
+        if a_cr.n_samples + b_cr.n_samples == 0:
+            raise ValueError("Training requires at least one CR event.")
+
+        sr_data = torch.tensor(
+            np.concatenate((normalized_a_sr.events, normalized_b_sr.events)),
+            dtype=self._dtype,
+            device=self._device,
+        )
+        if self._config.train__data_is_train_for_nuisances:
+            sr_bin_indices = torch.cat(
+                (self._bin_indices(a_sr), self._bin_indices(b_sr)),
+                dim=0,
             )
+            cr_bin_indices = torch.cat(
+                (self._bin_indices(a_cr), self._bin_indices(b_cr)),
+                dim=0,
+            )
+        else:
+            sr_bin_indices = None
+            cr_bin_indices = None
 
-        data_tensor = torch.tensor(
-            np.concatenate(data_parts),
-            dtype=self._dtype,
-            device=self._device,
+        number_of_sr_events = a_sr.n_samples + b_sr.n_samples
+        number_of_cr_events = a_cr.n_samples + b_cr.n_samples
+
+        return _PreparedTrainingData(
+            sr_data=sr_data,
+            sr_bin_indices=sr_bin_indices,
+            cr_bin_indices=cr_bin_indices,
+            number_of_a_sr_events=a_sr.n_samples,
+            number_of_b_sr_events=b_sr.n_samples,
+            number_of_a_cr_events=a_cr.n_samples,
+            number_of_b_cr_events=b_cr.n_samples,
+            a_sr_coefficient=a_sr.n_samples / number_of_sr_events,
+            b_sr_coefficient=b_sr.n_samples / number_of_sr_events,
+            cr_eta_coefficient=(a_cr.n_samples - b_cr.n_samples)
+            / number_of_cr_events,
         )
-        mask_tensor = torch.from_numpy(np.concatenate(mask_parts)).to(self._device)
-        weights_tensor = torch.tensor(
-            weights,
-            dtype=self._dtype,
-            device=self._device,
-        )
-
-        self._a_sr_mask = mask_tensor == DataSet.DataSetCategory.A_SR.value
-        self._b_sr_mask = mask_tensor == DataSet.DataSetCategory.B_SR.value
-        self._a_cr_mask = mask_tensor == DataSet.DataSetCategory.A_CR.value
-        self._b_cr_mask = mask_tensor == DataSet.DataSetCategory.B_CR.value
-
-        return data_tensor, weights_tensor
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
         self._training_history[HistoryKeys.LOSS.value].append(
@@ -430,13 +449,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _train_step(
         self,
         optimizer: Optional[optim.Optimizer],
-        data: torch.Tensor,
-        weights: torch.Tensor,
+        data: _PreparedTrainingData,
         profiler: TrainingProfiler,
     ) -> torch.Tensor:
         """Run one optimization step and return the batch loss."""
         with profiler.region("training/forward_and_loss"):
-            loss = self(data=data, weights=weights, profiler=profiler)
+            loss = self(data=data, profiler=profiler)
 
         if optimizer is not None:
             with profiler.region("training/zero_grad"):
@@ -453,10 +471,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def fit(
         self,
         data: DataBatch,
-        weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
-
-        data_tensor, weights_tensor = self._prepare_training_data(data, weights)
+        training_data = self._prepare_training_data(data)
 
         self.train()
         optimizer = self.configure_optimizers()
@@ -478,30 +494,27 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             number_of_training_epochs=target_epochs - start_epoch,
         )
         with profiler:
-            # Training with binning context
-            with self.binning_context(data.unified_data):
-                for epoch in epoch_iterator:
-                    with profiler.region("training/epoch"):
-                        epoch_last_predictions = self._train_step(
-                            optimizer=optimizer,
-                            data=data_tensor,
-                            weights=weights_tensor,
-                            profiler=profiler,
-                        )
+            for epoch in epoch_iterator:
+                with profiler.region("training/epoch"):
+                    epoch_last_predictions = self._train_step(
+                        optimizer=optimizer,
+                        data=training_data,
+                        profiler=profiler,
+                    )
 
-                        if self._is_history_epoch(epoch):
-                            with profiler.region("training/history"):
-                                self._log(epoch, epoch_last_predictions)
-                            with profiler.region("training/checkpoint"):
-                                save_training_checkpoint(
-                                    context=self._context,
-                                    model_name=self._name,
-                                    model=self,
-                                    optimizer=optimizer,
-                                    epoch=epoch,
-                                    training_history=self._training_history,
-                                )
-                    profiler.step()
+                    if self._is_history_epoch(epoch):
+                        with profiler.region("training/history"):
+                            self._log(epoch, epoch_last_predictions)
+                        with profiler.region("training/checkpoint"):
+                            save_training_checkpoint(
+                                context=self._context,
+                                model_name=self._name,
+                                model=self,
+                                optimizer=optimizer,
+                                epoch=epoch,
+                                training_history=self._training_history,
+                            )
+                profiler.step()
 
         # Collect history from training
         return self._training_history
@@ -509,16 +522,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def calculate_loss_statically(
         self,
         data: DataBatch,
-        weights: npt.NDArray,
     ) -> Dict[str, List[float]]:
-        data_tensor, weights_tensor = self._prepare_training_data(data, weights)
+        training_data = self._prepare_training_data(data)
         self.eval()
         with torch.no_grad():
-            with self.binning_context(data.unified_data):
-                loss = self(
-                    data=data_tensor,
-                    weights=weights_tensor,
-                )
+            loss = self(data=training_data)
 
         epochs = self._history_epochs()
         loss_value = float(loss.detach().cpu())
@@ -530,7 +538,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _predict_ndf(
         self,
         data: DataSet,
-        network: nn.Module,
+        secondary: bool,
         eta_sign: float,
     ) -> npt.NDArray:
         if self._norm_factor is None:
@@ -543,27 +551,38 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         self.eval()
         with torch.no_grad():
-            with self.binning_context(data):
-                eta_term = torch.clamp(1 + eta_sign * self.eta(x_tensor), min=1e-12)
-                predictions = torch.exp(network(x_tensor)) * eta_term
+            if self.paired_network is None:
+                network_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
+            else:
+                f_estimate, g_estimate = self.paired_network(x_tensor)
+                network_estimate = g_estimate if secondary else f_estimate
+            if self._config.train__data_is_train_for_nuisances:
+                eta = self._eta_from_bin_indices(
+                    self._bin_indices(data)
+                ).unsqueeze(1)
+            else:
+                eta = x_tensor.new_zeros((x_tensor.shape[0], 1))
+            eta_term = torch.clamp(1 + eta_sign * eta, min=1e-12)
+            predictions = torch.exp(network_estimate) * eta_term
         return predictions.detach().cpu().numpy()
 
     def predict(self, data: DataSet) -> npt.NDArray:
-        return self._predict_ndf(data, self.f_network, eta_sign=1.0)
+        return self._predict_ndf(data, secondary=False, eta_sign=1.0)
 
     def predict_secondary(self, data: DataSet) -> npt.NDArray:
-        return self._predict_ndf(data, self.g_network, eta_sign=-1.0)
+        return self._predict_ndf(data, secondary=True, eta_sign=-1.0)
 
     def predict_eta(self, data: DataSet) -> npt.NDArray:
-        x_tensor = torch.tensor(
-            data.events,
-            dtype=self._dtype,
-            device=self._device,
-        )
         self.eval()
         with torch.no_grad():
-            with self.binning_context(data):
-                predictions = self.eta(x_tensor)
+            if self._config.train__data_is_train_for_nuisances:
+                predictions = self._eta_from_bin_indices(
+                    self._bin_indices(data)
+                ).unsqueeze(1)
+            else:
+                predictions = torch.zeros(
+                    (data.n_samples, 1), dtype=self._dtype, device=self._device
+                )
         return predictions.detach().cpu().numpy()
 
     def save_parameters(self, file_path) -> None:
@@ -578,8 +597,6 @@ def calc_min_LFVNN(
     is_numerator: bool,
     name: str,
 ) -> Tuple[ContextedModel, float, Dict[str, List[float]]]:
-    loss_weights = _calculate_loss_weights(data)
-
     model = DifferentiatingModel(
         context=context,
         detector_effect=detector_effect,
@@ -589,23 +606,17 @@ def calc_min_LFVNN(
 
     if not model.has_trainable_parameters():
         info("No trainable parameters in the model, calculating static expression.")
-        model_history = model.calculate_loss_statically(
-            data=data,
-            weights=loss_weights,
-        )
+        model_history = model.calculate_loss_statically(data=data)
 
     else:
         info("Starting training")
         t0 = time()
-        model_history = model.fit(
-            data=data,
-            weights=loss_weights,
-        )
+        model_history = model.fit(data=data)
         info(f"Training time (seconds): {time() - t0}")
 
     # Calculate minimum loss from training history
     final_loss = model_history[HistoryKeys.LOSS.value][-1]
-    info(f"Minimum weighted loss achieved: {final_loss:.6f}")
+    info(f"Minimum loss achieved: {final_loss:.6f}")
 
     save_model_parameters_outcome(context, model)
 
