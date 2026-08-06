@@ -185,6 +185,11 @@ although `plot__plot_specifications` may be omitted when no configured batch plo
 are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
 generated otherwise.
 
+Fresh cluster submissions reuse the existing container by default and submit
+the training job followed by the plotting job. Pass `--build-container` to
+`train/submit_train.py` to build a new container first; the training job will
+wait for that build to succeed before starting.
+
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
 optional `--debug` flag may be combined with it; configuration paths and all
 other runtime settings are restored from the saved context.

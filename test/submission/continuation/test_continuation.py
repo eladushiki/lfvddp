@@ -67,7 +67,7 @@ def _specific_train_context(
         run_descriptor=run_descriptor,
         array_index=array_index,
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
         is_only_train=True,
     )
 
@@ -143,7 +143,7 @@ def test_continued_submission_uses_only_the_saved_context(
         config_paths=[tmp_path / "source-that-must-not-be-read.json"],
         command_line_args=["submit_train.py", "--configs", "original.json", "--debug"],
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
         is_only_train=True,
         is_continue=True,
         continue_from=tmp_path,

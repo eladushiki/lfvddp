@@ -47,7 +47,7 @@ def _context_args(continue_from=None, extra_time=None) -> Namespace:
         )
     return Namespace(
         debug=True,
-        no_build=True,
+        build_container=False,
         only_train=False,
         continue_from=None,
         extra_time=extra_time,
@@ -118,7 +118,7 @@ def test_execution_context_persists_qsub_submission_state(
         config_paths=function_execution_context.config_paths,
         command_line_args=[],
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
 
     first_walltime = context.next_qsub_walltime_chunk()
@@ -175,7 +175,7 @@ def test_execution_context_persists_qsub_walltime_limit(
         config_paths=function_execution_context.config_paths,
         command_line_args=[],
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
 
     assert context.next_qsub_walltime_chunk() == "0:01:00"
@@ -223,7 +223,7 @@ def test_continuation_prepares_next_chunk_before_yield(
             pid=1,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
     context.record_qsub_submission(
         "0:01:00",
@@ -280,7 +280,7 @@ def test_extra_time_extends_a_recorded_single_chunk_submission(
             pid=1,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
     context.record_qsub_submission(
         "0:01:00",
@@ -337,7 +337,7 @@ def test_extra_time_is_available_to_non_submit_continuations(
             pid=1,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
     context.close()
 
@@ -389,7 +389,7 @@ def test_find_stamped_run_context_skips_parent_pytest_context(
             pid=1,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
     parent_context.save_self_to_out_file()
 
@@ -408,7 +408,7 @@ def test_find_stamped_run_context_skips_parent_pytest_context(
             pid=2,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
     submit_context.record_qsub_submission(
         "0:01:00", "12345", submit_context.unique_out_dir
@@ -465,7 +465,7 @@ def test_discover_run_contexts_finds_single_train_context(
             pid=1,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
 
     single_train_context = ExecutionContext(
@@ -483,7 +483,7 @@ def test_discover_run_contexts_finds_single_train_context(
             pid=2,
         ),
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
     )
     single_train_context.save_self_to_out_file()
 
@@ -624,7 +624,7 @@ def test_child_context_loading_matches_array_index(
             array_index=array_index,
             random_seed=random_seed,
             is_debug_mode=True,
-            is_no_build=True,
+            is_build_container=False,
         )
         context.save_self_to_out_file()
         contexts.append(context)
@@ -669,7 +669,7 @@ def test_continuation_accepts_extra_time_and_the_optional_debug_flag(capsys):
     assert args.debug
 
     with pytest.raises(SystemExit):
-        parse_config_from_args(["--continue", "results/run", "--no-build"])
+        parse_config_from_args(["--continue", "results/run", "--build-container"])
     with pytest.raises(SystemExit):
         parse_config_from_args(["--continue", "results/run", "--extra-time", "24"])
     with pytest.raises(SystemExit):

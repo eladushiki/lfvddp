@@ -18,7 +18,7 @@ from test.environment import DEFAULT_CONFIG_PATHS, wrap_with_command_line_args
 def session_execution_context():
     args = Namespace(
         debug=True,
-        no_build=True,
+        build_container=False,
         out_dir="results",
         only_train=False,
         continue_from=None,
@@ -67,7 +67,7 @@ def function_execution_context(
 
     args = Namespace(
         debug=session_execution_context.is_debug_mode,
-        no_build=session_execution_context.is_no_build,
+        build_container=session_execution_context.is_build_container,
         out_dir=session_execution_context.unique_out_dir,
         only_train=session_execution_context.is_only_train,
         continue_from=None,
