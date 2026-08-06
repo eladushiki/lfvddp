@@ -81,8 +81,10 @@ def parse_config_from_args(
         help="Run in debug mode. NOTE: Does not verify running on strict commits"
     )
     parser.add_argument(
-        "--no-build", action="store_true",
-        help="Do not build the container before running. Useful for debug, prone to errors.", dest="no_build"
+        "--build-container",
+        action="store_true",
+        help="Build the container before running.",
+        dest="build_container",
     )
     parser.add_argument(
         "--only-train", action="store_true",
@@ -100,7 +102,7 @@ def parse_config_from_args(
     args, unknown = parser.parse_known_args(parsed_args)
 
     disallowed_continue_options_used = (
-        args.no_build
+        args.build_container
         or args.only_train
         or args.out_dir is not None
         or args.plot_in_place

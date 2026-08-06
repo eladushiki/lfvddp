@@ -111,7 +111,7 @@ class ExecutionContext:
         default_factory=lambda: get_unix_timestamp() ^ (getpid() << 5)
     )
     is_debug_mode: bool = False
-    is_no_build: bool = False
+    is_build_container: bool = False
     is_only_train: bool = False
     is_continue: bool = False
     continue_from: Optional[Path] = None
@@ -517,7 +517,7 @@ def version_controlled_execution_context(
             config_paths,
             command_line_args,
             is_debug_mode=args.debug,
-            is_no_build=args.no_build,
+            is_build_container=args.build_container,
             is_only_train=args.only_train,
             array_index=array_index,
             **context_kwargs,

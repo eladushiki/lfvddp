@@ -49,8 +49,8 @@ def submit_process(context: ExecutionContext) -> None:
                 path_as_in_container(bound_dest_path.absolute())
             )
 
-    # Build (or re-build) a container (if needed). Continuations reuse the existing build.
-    if not context.is_continue and not context.is_no_build and not context.is_only_train:
+    # Build a container when explicitly requested. Continuations reuse the existing build.
+    if context.is_build_container and not context.is_continue and not context.is_only_train:
         build_job_id = submit_container_build(context=context)
     else:
         build_job_id = None

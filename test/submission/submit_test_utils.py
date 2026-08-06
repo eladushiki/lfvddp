@@ -41,7 +41,6 @@ def build_submit_command(
     command.extend(
         [
             "--debug",
-            "--no-build",
             "--only-train",
             "--out-dir",
             str(out_dir),
