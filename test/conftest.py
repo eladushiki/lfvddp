@@ -94,6 +94,16 @@ def data_generation(request, function_execution_context):
 
 
 @fixture(scope="function")
+def isolated_data_generation(function_execution_context):
+    """Create data from the current dimensional config, independent of singleton state."""
+    original_instance = DataGeneration._instance
+    DataGeneration._instance = None
+    generator = DataGeneration(function_execution_context)
+    yield generator
+    DataGeneration._instance = original_instance
+
+
+@fixture(scope="function")
 def data_batch_events():
     """Return reproducible batch events without leaking DataGeneration state."""
     original_instance = DataGeneration._instance
