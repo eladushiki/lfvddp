@@ -5,6 +5,7 @@ from typing import ContextManager, Optional
 import torch
 
 from frame.context.execution_context import ExecutionContext
+from train.cpu_runtime import cpu_runtime_metadata
 
 
 class TrainingProfiler:
@@ -79,13 +80,20 @@ class TrainingProfiler:
             raise RuntimeError("Profile output paths were not initialized.")
 
         profiler.export_chrome_trace(str(self._trace_path))
-        metadata = (
-            f"model: {self._model_name}\n"
-            f"observables: {self._number_of_observables}\n"
-            f"events: {self._number_of_events}\n"
-            f"warmup epochs: {self._warmup_epochs}\n"
-            f"profiled epochs: {self._active_epochs}\n\n"
+        metadata_lines = [
+            f"model: {self._model_name}",
+            f"observables: {self._number_of_observables}",
+            f"events: {self._number_of_events}",
+            f"warmup epochs: {self._warmup_epochs}",
+            f"profiled epochs: {self._active_epochs}",
+        ]
+        metadata_lines.extend(
+            f"{key}: {value}"
+            for key, value in cpu_runtime_metadata(
+                self._context.config.cluster__qsub_ncpus
+            ).items()
         )
+        metadata = "\n".join(metadata_lines) + "\n\n"
         summary = profiler.key_averages(group_by_input_shape=True).table(
             sort_by="self_cpu_time_total",
             row_limit=200,

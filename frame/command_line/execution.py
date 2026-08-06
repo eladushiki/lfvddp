@@ -40,6 +40,39 @@ exit $?
 # --cleanenv: avoids messing with host environment, i.e. python stuff
 
 SINGULARITY_EXECUTION_LINES = r"""
+THREADS_PER_PROCESS={ncpus}
+export SINGULARITYENV_OMP_NUM_THREADS="$THREADS_PER_PROCESS"
+export SINGULARITYENV_MKL_NUM_THREADS="$THREADS_PER_PROCESS"
+export SINGULARITYENV_OPENBLAS_NUM_THREADS="$THREADS_PER_PROCESS"
+export SINGULARITYENV_OMP_DYNAMIC=FALSE
+export SINGULARITYENV_MKL_DYNAMIC=FALSE
+export APPTAINERENV_OMP_NUM_THREADS="$THREADS_PER_PROCESS"
+export APPTAINERENV_MKL_NUM_THREADS="$THREADS_PER_PROCESS"
+export APPTAINERENV_OPENBLAS_NUM_THREADS="$THREADS_PER_PROCESS"
+export APPTAINERENV_OMP_DYNAMIC=FALSE
+export APPTAINERENV_MKL_DYNAMIC=FALSE
+
+echo "Requested CPUs: $THREADS_PER_PROCESS"
+echo "PBS job ID: ${{PBS_JOBID:-unavailable}}"
+echo "PBS array ID: ${{PBS_ARRAYID:-${{PBS_ARRAY_INDEX:-unavailable}}}}"
+echo "Host-visible CPUs: $(nproc 2>/dev/null || true)"
+echo "Process affinity: $(taskset -pc $$ 2>/dev/null || true)"
+if [ -n "$PBS_NODEFILE" ] && [ -r "$PBS_NODEFILE" ]; then
+    echo "PBS node file: $PBS_NODEFILE"
+    echo "PBS allocated slots: $(wc -l < "$PBS_NODEFILE")"
+    echo "PBS node file contents:"
+    cat "$PBS_NODEFILE"
+    echo "PBS slots grouped by host:"
+    sort "$PBS_NODEFILE" | uniq -c || true
+fi
+echo "CPU topology:"
+lscpu 2>/dev/null || true
+for CGROUP_FILE in /sys/fs/cgroup/cpuset.cpus.effective /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpuset/cpuset.cpus /sys/fs/cgroup/cpu/cpu.cfs_quota_us /sys/fs/cgroup/cpu/cpu.cfs_period_us; do
+    if [ -r "$CGROUP_FILE" ]; then
+        echo "$CGROUP_FILE: $(tr '\n' ' ' < "$CGROUP_FILE")"
+    fi
+done
+
 CONTAINER_SIF_PATH="{container_path}"
 CACHE_ROOT="${{SINGULARITY_NODE_CACHE_DIR:-/tmp/$USER/singularity-node-cache}}"
 mkdir -p "$CACHE_ROOT"

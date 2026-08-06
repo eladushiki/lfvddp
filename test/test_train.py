@@ -1,20 +1,35 @@
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
 
-from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
-    _calculate_loss_weights,
-    _expand_masked_predictions,
+    DifferentiatingModel,
+    _compact_no_nuisance_loss,
+    _compact_nuisance_loss,
+    _PairedEstimator,
 )
 from test.environment import ConfigType
-from train.checkpoints import _torch_load, checkpoint_filename
+from train.checkpoints import (
+    _torch_load,
+    save_training_checkpoint,
+)
 from train.model_trainer import SequentialTrainLauncher
 from train.tensorboard_clutch import log_t_history
+
+ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
+    ConfigType.DATASET.value: Path(
+        "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+    ),
+    ConfigType.DETECTOR.value: Path(
+        "test/configs/detector/basic_1D_detector_config.json"
+    ),
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_without_nuisance.json"
+    ),
+}
 
 
 def _train_numerator(function_execution_context, data_batch, detector_effect, name):
@@ -31,51 +46,324 @@ def _train_numerator(function_execution_context, data_batch, detector_effect, na
     return train_launcher.get_train_result(train_idx)
 
 
-def _load_checkpoint_state_dict(function_execution_context, model_name):
-    checkpoint = _torch_load(
-        function_execution_context.training_outcomes_dir
-        / checkpoint_filename(model_name)
-    )
-    return checkpoint["model_state_dict"]
-
-
-def test_loss_weights_follow_weight_order():
-    category_sizes = {
-        DataSet.DataSetCategory.A_SR: 1,
-        DataSet.DataSetCategory.A_CR: 2,
-        DataSet.DataSetCategory.B_SR: 3,
-        DataSet.DataSetCategory.B_CR: 4,
-    }
-    datasets = []
-    for category, size in reversed(category_sizes.items()):
-        dataset = DataSet(
-            data=np.full((size, 2), category.value),
-            observable_names=["observable_1", "observable_2"],
-            category=category,
+def _reference_loss(
+    f_of_x_sr,
+    g_of_x_sr,
+    eta_of_x_sr,
+    eta_of_x_cr,
+    number_of_a_sr_events,
+    number_of_b_sr_events,
+    number_of_a_cr_events,
+    number_of_b_cr_events,
+):
+    zero_a_cr = f_of_x_sr.new_zeros(number_of_a_cr_events)
+    zero_b_cr = f_of_x_sr.new_zeros(number_of_b_cr_events)
+    f = torch.cat(
+        (
+            f_of_x_sr[:number_of_a_sr_events],
+            zero_a_cr,
+            f_of_x_sr[number_of_a_sr_events:],
+            zero_b_cr,
         )
-        datasets.append((dataset, None))
-
-    data_batch = DataBatch(datasets)
-
-    np.testing.assert_array_equal(
-        data_batch.unified_data.events[:, 0],
-        [1, 2, 2, 3, 3, 3, 4, 4, 4, 4],
     )
-    np.testing.assert_array_equal(
-        _calculate_loss_weights(data_batch),
-        np.ones((10, 1)),
+    g = torch.cat(
+        (
+            g_of_x_sr[:number_of_a_sr_events],
+            zero_a_cr,
+            g_of_x_sr[number_of_a_sr_events:],
+            zero_b_cr,
+        )
+    )
+    eta = torch.cat(
+        (
+            eta_of_x_sr[:number_of_a_sr_events],
+            eta_of_x_cr[:number_of_a_cr_events],
+            eta_of_x_sr[number_of_a_sr_events:],
+            eta_of_x_cr[number_of_a_cr_events:],
+        )
+    )
+    category_sizes = (
+        number_of_a_sr_events,
+        number_of_a_cr_events,
+        number_of_b_sr_events,
+        number_of_b_cr_events,
+    )
+    category_masks = []
+    offset = 0
+    for category_size in category_sizes:
+        mask = torch.zeros_like(eta, dtype=torch.bool)
+        mask[offset : offset + category_size] = True
+        category_masks.append(mask)
+        offset += category_size
+    a_sr_mask, a_cr_mask, b_sr_mask, b_cr_mask = category_masks
+    sr_mask = a_sr_mask | b_sr_mask
+    cr_mask = a_cr_mask | b_cr_mask
+    eta_a = eta * (a_sr_mask | a_cr_mask)
+    eta_b = eta * (b_sr_mask | b_cr_mask)
+    eta_sr = eta * sr_mask
+    eta_cr = eta * cr_mask
+    sr_term = (
+        number_of_a_sr_events * torch.exp(f) * (1 + eta_sr) * sr_mask
+        + number_of_b_sr_events * torch.exp(g) * (1 - eta_sr) * sr_mask
+    ) / (number_of_a_sr_events + number_of_b_sr_events)
+    cr_term = (
+        number_of_a_cr_events * (1 + eta_cr) * cr_mask
+        + number_of_b_cr_events * (1 - eta_cr) * cr_mask
+    ) / (number_of_a_cr_events + number_of_b_cr_events)
+    return (
+        sr_term
+        + cr_term
+        - f * a_sr_mask
+        - g * b_sr_mask
+        - torch.log(1 + eta_a)
+        - torch.log(1 - eta_b)
+    ).sum()
+
+
+@pytest.mark.parametrize("with_nuisance", [False, True])
+@pytest.mark.parametrize("category_sizes", [(2, 3, 4, 5), (4, 2, 3, 6)])
+@pytest.mark.parametrize("input_dimension", [1, 2])
+def test_compact_loss_matches_full_event_value_and_gradients(
+    with_nuisance,
+    category_sizes,
+    input_dimension,
+):
+    number_of_a_sr, number_of_a_cr, number_of_b_sr, number_of_b_cr = category_sizes
+    number_of_sr = number_of_a_sr + number_of_b_sr
+    number_of_cr = number_of_a_cr + number_of_b_cr
+    events = torch.linspace(
+        -0.8,
+        0.9,
+        number_of_sr * input_dimension,
+        dtype=torch.float64,
+    ).reshape(number_of_sr, input_dimension)
+    f_parameters = torch.linspace(
+        -0.4, 0.6, input_dimension, dtype=torch.float64, requires_grad=True
+    )
+    g_parameters = torch.linspace(
+        0.5, -0.3, input_dimension, dtype=torch.float64, requires_grad=True
+    )
+    f = events @ f_parameters
+    g = events @ g_parameters
+    if with_nuisance:
+        eta_sr = torch.linspace(
+            -1.0 + 2e-6,
+            1.0 - 2e-6,
+            number_of_sr,
+            dtype=torch.float64,
+            requires_grad=True,
+        )
+        eta_cr = torch.linspace(
+            1.0 - 3e-6,
+            -1.0 + 3e-6,
+            number_of_cr,
+            dtype=torch.float64,
+            requires_grad=True,
+        )
+        actual = _compact_nuisance_loss(
+            f,
+            g,
+            eta_sr,
+            eta_cr,
+            number_of_a_sr,
+            number_of_a_cr,
+            number_of_cr,
+            number_of_a_sr / number_of_sr,
+            number_of_b_sr / number_of_sr,
+            (number_of_a_cr - number_of_b_cr) / number_of_cr,
+        )
+    else:
+        eta_sr = torch.zeros(
+            number_of_sr, dtype=torch.float64, requires_grad=True
+        )
+        eta_cr = torch.zeros(
+            number_of_cr, dtype=torch.float64, requires_grad=True
+        )
+        actual = _compact_no_nuisance_loss(
+            f,
+            g,
+            number_of_a_sr,
+            number_of_cr,
+            number_of_a_sr / number_of_sr,
+            number_of_b_sr / number_of_sr,
+        )
+    expected = _reference_loss(
+        f,
+        g,
+        eta_sr,
+        eta_cr,
+        number_of_a_sr,
+        number_of_b_sr,
+        number_of_a_cr,
+        number_of_b_cr,
     )
 
+    actual_gradients = torch.autograd.grad(
+        actual,
+        (f_parameters, g_parameters)
+        if not with_nuisance
+        else (f_parameters, g_parameters, eta_sr, eta_cr),
+        retain_graph=True,
+    )
+    expected_gradients = torch.autograd.grad(
+        expected,
+        (f_parameters, g_parameters)
+        if not with_nuisance
+        else (f_parameters, g_parameters, eta_sr, eta_cr),
+    )
+    torch.testing.assert_close(actual, expected, rtol=1e-12, atol=1e-12)
+    for actual_gradient, expected_gradient in zip(
+        actual_gradients, expected_gradients
+    ):
+        torch.testing.assert_close(
+            actual_gradient,
+            expected_gradient,
+            rtol=1e-12,
+            atol=1e-12,
+        )
 
-def test_masked_predictions_are_restored_to_batch_positions():
-    predictions = torch.tensor([[10.0], [30.0]], requires_grad=True)
-    sr_mask = torch.tensor([True, False, True, False])
 
-    expanded = _expand_masked_predictions(predictions, sr_mask)
+@pytest.mark.parametrize("input_dimension", [1, 2])
+def test_paired_estimator_keeps_f_and_g_gradients_independent(input_dimension):
+    estimator = _PairedEstimator(
+        input_dimension=input_dimension,
+        hidden_size=4,
+        output_dimension=1,
+        dtype=torch.float64,
+    )
+    events = torch.ones((7, input_dimension), dtype=torch.float64)
+    f_estimate, g_estimate = estimator(events)
 
-    torch.testing.assert_close(expanded, torch.tensor([10.0, 0.0, 30.0, 0.0]))
-    expanded.sum().backward()
-    torch.testing.assert_close(predictions.grad, torch.ones_like(predictions))
+    assert f_estimate.shape == (7, 1)
+    assert g_estimate.shape == (7, 1)
+    f_estimate.sum().backward()
+    assert torch.count_nonzero(estimator.hidden.weight.grad[:4]) > 0
+    assert torch.count_nonzero(estimator.hidden.weight.grad[4:]) == 0
+    assert estimator.f_output.weight.grad is not None
+    assert estimator.g_output.weight.grad is None
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_static_denominator_behavior(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    denominator = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=False,
+        name="static_denominator",
+    )
+    history = denominator.calculate_loss_statically(detected_batch)
+    assert set(history[HistoryKeys.LOSS.value]) == {
+        float(detected_batch.unified_data.n_samples)
+    }
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_model_initialization_and_prediction(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="prediction_model",
+    )
+    paired_network = model.paired_network
+    assert paired_network is not None
+    assert paired_network.hidden.weight.dtype == torch.float64
+    assert torch.all(paired_network.hidden.bias.abs() <= 0.3)
+    assert torch.all(paired_network.f_output.bias.abs() <= 0.3)
+    assert torch.all(paired_network.g_output.bias.abs() <= 0.3)
+    assert not torch.equal(
+        paired_network.hidden.weight[: paired_network.hidden_size],
+        paired_network.hidden.weight[paired_network.hidden_size :],
+    )
+
+    model.fit(detected_batch)
+    prediction_data = detected_batch.datasets[
+        DataSet.DataSetCategory.A_SR
+    ]
+    prediction = model.predict(prediction_data)
+    secondary_prediction = model.predict_secondary(prediction_data)
+    eta_prediction = model.predict_eta(prediction_data)
+    assert prediction.shape == (prediction_data.n_samples, 1)
+    assert secondary_prediction.shape == prediction.shape
+    assert torch.isfinite(torch.from_numpy(prediction)).all()
+    assert torch.isfinite(torch.from_numpy(secondary_prediction)).all()
+    assert torch.count_nonzero(torch.from_numpy(eta_prediction)) == 0
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_checkpoint_continuation_uses_current_format(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+    monkeypatch,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="checkpoint_model",
+    )
+    optimizer = model.configure_optimizers()
+    assert optimizer is not None
+    loss = model(model._prepare_training_data(detected_batch))
+    loss.backward()
+    optimizer.step()
+
+    checkpoint_path = save_training_checkpoint(
+        context=function_execution_context,
+        model_name="checkpoint_model",
+        model=model,
+        optimizer=optimizer,
+        epoch=4,
+        training_history={
+            HistoryKeys.EPOCH.value: [4],
+            HistoryKeys.LOSS.value: [1.0],
+        },
+    )
+    checkpoint = _torch_load(checkpoint_path)
+    assert checkpoint["epoch"] == 4
+    assert checkpoint["optimizer_state_dict"]["state"]
+
+    reloaded_model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="checkpoint_model",
+    )
+    reloaded_optimizer = reloaded_model.configure_optimizers()
+    monkeypatch.setattr(
+        "neural_networks.differentiating_model.find_latest_training_checkpoint",
+        lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
+    )
+
+    assert reloaded_model._load_training_checkpoint_if_requested(
+        reloaded_optimizer
+    ) == 5
+    for expected, actual in zip(model.parameters(), reloaded_model.parameters()):
+        torch.testing.assert_close(actual, expected)
 
 
 class _TensorboardRecorder:
@@ -104,6 +392,14 @@ class _TensorboardRecorder:
         ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
         ConfigType.DETECTOR.value: Path("test/configs/detector/basic_1D_detector_config.json"),
         ConfigType.TRAIN.value: Path("test/configs/train/short_1D_train_config_without_nuisance_like_nplm.json"),
+    }, {
+        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_2D_generated_dataset_config.json"),
+        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
+        ConfigType.TRAIN.value: Path("test/configs/train/short_2D_train_config_with_nuisance.json"),
+    }, {
+        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_2D_generated_dataset_config.json"),
+        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
+        ConfigType.TRAIN.value: Path("test/configs/train/short_2D_train_config_without_nuisance.json"),
     }],
     indirect=True,
 )
@@ -166,6 +462,10 @@ def test_training_profile_is_saved(
     assert trace_path.is_file()
     summary = summary_path.read_text()
     assert "observables: 1" in summary
+    assert "hostname:" in summary
+    assert "requested CPUs:" in summary
+    assert "CPU affinity:" in summary
+    assert "PyTorch intra-op threads:" in summary
     assert "training/forward_and_loss" in summary
     assert "training/nuisance_eta" in summary
     assert "training/backward" in summary

@@ -10,6 +10,7 @@ from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import save_training_history_outcome
+from train.cpu_runtime import configure_cpu_runtime
 from train.model_trainer import (
     SequentialTrainLauncher,
     TrainLauncher,
@@ -32,6 +33,8 @@ def main(context: ExecutionContext) -> None:
         raise TypeError(f"Expected TrainConfig, got {config.__class__.__name__}")
     if not isinstance(config, DatasetConfig):
         raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
+
+    configure_cpu_runtime(config.cluster__qsub_ncpus)
 
     # Generate data
     gen = DataGeneration(context)
