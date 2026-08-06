@@ -1,23 +1,30 @@
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-import enum
+from inspect import isabstract
+from os.path import isfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type
 from urllib.parse import urlparse
 
-from camel_converter import to_pascal
+import numpy as np
 
 from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
 from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
-from data_tools.event_generation.distribution import DataDistribution
+from data_tools.event_generation.distribution import (
+    DataDistribution,
+    GeneratorSelectionConfig,
+    describe_generator_selection,
+    generator_selection_as_config,
+    normalize_generator_selection,
+    resolve_generator,
+    validate_generated_dataset,
+)
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 from frame.file_system.numpy_events import load_numpy_events
 from frame.file_system.root_reader import load_root_events
 from frame.file_system.textual_data import load_dict_from_json, read_text_file_lines
-from frame.module_retriever import _retrieve_from_module
-import numpy as np
-from os.path import isfile
 
 
 @dataclass
@@ -31,12 +38,6 @@ class DatasetParameters(ABC):
     # Background parameters
     dataset__mean_number_of_background_events: int = field(default=None)
 
-    # Signal parameters
-    dataset__signal_data_generation_function: str = field(default="")
-    dataset__signal_number_of_events_to_generate: int = field(default=None)
-    dataset__mean_number_of_signal_events: int = field(default=0)
-    dataset__signal_parameters: Dict[str, Any] = field(default_factory=dict)
-    
     # Detector simulation
     dataset__detector_efficiency: str = field(default="")
     dataset__detector_efficiency_uncertainty: str = field(default="")
@@ -48,7 +49,6 @@ class DatasetParameters(ABC):
 
     # Created automatically
     ## Picked poissonically based on mean numbers
-    dataset__number_of_signal_events: int = field(default=None)
     dataset__number_of_background_events: int = field(default=None)  # in the case of loaded datasets, None loads the full amount
 
     @classmethod
@@ -61,6 +61,31 @@ class DatasetParameters(ABC):
     def dataset__data(self) -> Tuple[DataSet, DataSet]:
         pass
 
+    @property
+    @abstractmethod
+    def dataset__background_source_type(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def dataset__background_source(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def dataset__has_signal(self) -> bool:
+        pass
+
+    @property
+    @abstractmethod
+    def dataset__signal_source(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def dataset__signal_description(self) -> str:
+        pass
+
     def __post_init__(self):
         # Poisson distribution of event numbers per run given mean
         if not self.dataset__number_of_background_events:
@@ -70,20 +95,72 @@ class DatasetParameters(ABC):
                 lam=self.dataset__mean_number_of_background_events * np.exp(self.dataset__induced_norm_nuisance_value),
                 size=1,
             ).item() if self.dataset__mean_number_of_background_events > 0 else 0
-        
-        if not self.dataset__number_of_signal_events:
-            self.dataset__number_of_signal_events = np.random.poisson(
-                lam=self.dataset__mean_number_of_signal_events * np.exp(self.dataset__induced_norm_nuisance_value),
-                size=1,
-            ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
-        if self.dataset__signal_number_of_events_to_generate:
-            assert self.dataset__signal_number_of_events_to_generate >= self.dataset__number_of_signal_events, \
-                f"Not sufficient number of signal events to generate for signal with {self.dataset__signal_number_of_events_to_generate} events."
-        else:
-            self.dataset__signal_number_of_events_to_generate = self.dataset__number_of_signal_events
 
         if isinstance(self.category, str):
             self.category = DataSet.DataSetCategory.from_string(self.category)
+
+    @property
+    @abstractmethod
+    def dataset__number_of_dimensions(self) -> int:
+        """Number of observables / dimensions in the dataset."""
+        pass
+
+
+
+@dataclass
+class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
+    """Dataset source parameters with an optional generated signal overlay."""
+
+    dataset__signal_generator: Optional[GeneratorSelectionConfig] = field(default=None)
+    dataset__signal_number_of_events_to_generate: int = field(default=None)
+    dataset__mean_number_of_signal_events: int = field(default=0)
+    dataset__number_of_signal_events: int = field(default=None)
+
+    _dataset__signal_source: str = field(init=False, default="", repr=False)
+    _dataset__signal_description: str = field(init=False, default="", repr=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        if not self.dataset__number_of_signal_events:
+            self.dataset__number_of_signal_events = np.random.poisson(
+                lam=self.dataset__mean_number_of_signal_events
+                * np.exp(self.dataset__induced_norm_nuisance_value),
+                size=1,
+            ).item() if self.dataset__mean_number_of_signal_events > 0 else 0
+
+        if self.dataset__signal_number_of_events_to_generate:
+            if (
+                self.dataset__signal_number_of_events_to_generate
+                < self.dataset__number_of_signal_events
+            ):
+                raise ValueError(
+                    "Not sufficient number of generated signal events for the "
+                    f"requested {self.dataset__number_of_signal_events} events."
+                )
+        else:
+            self.dataset__signal_number_of_events_to_generate = (
+                self.dataset__number_of_signal_events
+            )
+
+        if self.dataset__signal_generator is None:
+            if self.dataset__signal_number_of_events_to_generate > 0:
+                raise ValueError(
+                    "dataset__signal_generator must be configured when signal "
+                    "events are requested."
+                )
+            return
+
+        self.dataset__signal_generator = normalize_generator_selection(
+            self.dataset__signal_generator
+        )
+        self._dataset__signal_source = json.dumps(
+            generator_selection_as_config(self.dataset__signal_generator),
+            sort_keys=True,
+        )
+        self._dataset__signal_description = describe_generator_selection(
+            self.dataset__signal_generator
+        )
 
     @property
     def dataset__has_signal(self) -> bool:
@@ -91,24 +168,24 @@ class DatasetParameters(ABC):
             self.dataset__number_of_signal_events
             or self.dataset__mean_number_of_signal_events
         )
-    
+
     @property
-    @abstractmethod
-    def dataset__number_of_dimensions(self) -> int:
-        """Number of observables / dimensions in the dataset."""
-        pass
-    
+    def dataset__signal_source(self) -> str:
+        return self._dataset__signal_source
+
+    @property
+    def dataset__signal_description(self) -> str:
+        return self._dataset__signal_description
+
     @property
     def _dataset__signal_distribution(self) -> DataDistribution:
-        """
-        Get the signal PDF function based on the configuration.
-        Note that it may accept additional parameters as kwargs.
-        """
-        class_name = to_pascal(self.dataset__signal_data_generation_function)
-
-        distribution_class = _retrieve_from_module(signal, class_name, signal.NoSignal)
-
-        return distribution_class(self.dataset__number_of_dimensions, **self.dataset__signal_parameters)
+        if self.dataset__signal_generator is None:
+            return signal.NoSignal(self.dataset__number_of_dimensions)
+        return resolve_generator(
+            signal,
+            self.dataset__signal_generator,
+            self.dataset__number_of_dimensions,
+        )
 
     @property
     def dataset_generated__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
@@ -116,13 +193,33 @@ class DatasetParameters(ABC):
             x / np.exp(self.dataset__induced_shape_nuisance_value),
         )
 
+    def _dataset__generate_signal(self) -> DataSet:
+        generated_signal = self._dataset__signal_distribution.generate_amount(
+            amount=self.dataset__signal_number_of_events_to_generate,
+        )
+        validate_generated_dataset(
+            generated_signal,
+            self.dataset__signal_number_of_events_to_generate,
+            self.dataset__number_of_dimensions,
+            "signal",
+        )
+        return generated_signal
+
     
 @dataclass
-class LoadedDatasetParameters(DatasetParameters):
+class LoadedDatasetParameters(DatasetWithGeneratedSignalParameters):
     
     @classmethod
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "loaded"
+
+    @property
+    def dataset__background_source_type(self) -> str:
+        return self.DATASET_PARAMETER_TYPE_NAME()
+
+    @property
+    def dataset__background_source(self) -> str:
+        return self.dataset_loaded__file_name
 
     def __post_init__(self):
         super().__post_init__()
@@ -174,9 +271,7 @@ class LoadedDatasetParameters(DatasetParameters):
             self.dataset_loaded__file_name,
             self.dataset_loaded__event_amount_load_limit
         )
-        signal = self._dataset__signal_distribution.generate_amount(
-            amount=self.dataset__signal_number_of_events_to_generate,
-        )
+        signal = self._dataset__generate_signal()
         if not signal.empty:
             signal.observable_names = background.observable_names
         return background, signal
@@ -232,11 +327,21 @@ class LoadedDatasetParameters(DatasetParameters):
 
 
 @dataclass
-class GeneratedDatasetParameters(DatasetParameters, ABC):
+class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
 
     @classmethod
     def DATASET_PARAMETER_TYPE_NAME(cls) -> str:
         return "generated"
+
+    _dataset__background_source: str = field(init=False, default="", repr=False)
+
+    @property
+    def dataset__background_source_type(self) -> str:
+        return self.DATASET_PARAMETER_TYPE_NAME()
+
+    @property
+    def dataset__background_source(self) -> str:
+        return self._dataset__background_source
     
     dataset_generated__number_of_dimensions: int = field(default=1)
 
@@ -250,20 +355,17 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     
     # Additional background parameters
     # This is the defining attribute for the subclass
-    dataset_generated__background_function: str = field(default="")
-    dataset_generated__background_parameters: Dict[str, Any] = field(default_factory=dict)
+    dataset_generated__background_generator: Optional[GeneratorSelectionConfig] = field(
+        default=None
+    )
 
     @property
-    def __dataset_generated__background_distribution(self) -> Union[str, DataDistribution]:
-        """
-        Get the background PDF function based on the configuration.
-        Note that it may accept additional parameters as kwargs.
-        """
-        class_name = to_pascal(self.dataset_generated__background_function)
-
-        distribution_class = _retrieve_from_module(background, class_name)
-        
-        return distribution_class(self.dataset__number_of_dimensions)
+    def __dataset_generated__background_distribution(self) -> DataDistribution:
+        return resolve_generator(
+            background,
+            self.dataset_generated__background_generator,
+            self.dataset__number_of_dimensions,
+        )
 
     @property
     def dataset_generated__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
@@ -275,86 +377,118 @@ class GeneratedDatasetParameters(DatasetParameters, ABC):
     def dataset__data(self) -> Tuple[DataSet, DataSet]:
         background = self.__dataset_generated__background_distribution.generate_amount(
             amount=self.dataset__number_of_background_events,
-            **self.dataset_generated__background_parameters,
         )
-        signal = self._dataset__signal_distribution.generate_amount(
-            amount=self.dataset__signal_number_of_events_to_generate,
+        validate_generated_dataset(
+            background,
+            self.dataset__number_of_background_events,
+            self.dataset__number_of_dimensions,
+            "background",
         )
+        signal = self._dataset__generate_signal()
         return background, signal
     
     def __post_init__(self):
         super().__post_init__()
 
-        # dataset_generated__background_function has to be defined by config,
-        # but class hierarchy forces to set a default. Hence, we check it here
-        assert self.dataset_generated__background_function, \
-            "dataset_generated__background_function must be defined in the configuration"
+        if self.dataset_generated__background_generator is None:
+            raise ValueError(
+                "dataset_generated__background_generator must be configured for "
+                "generated datasets."
+            )
+        self.dataset_generated__background_generator = normalize_generator_selection(
+            self.dataset_generated__background_generator
+        )
+        self._dataset__background_source = json.dumps(
+            generator_selection_as_config(
+                self.dataset_generated__background_generator
+            ),
+            sort_keys=True,
+        )
 
-        assert self.dataset__number_of_dimensions > 0, \
-            "dataset__number_of_dimensions must be defined and greater than 0"
+        if self.dataset__number_of_dimensions <= 0:
+            raise ValueError(
+                "dataset__number_of_dimensions must be defined and greater than 0"
+            )
 
 @dataclass
 class DatasetConfig:
     
     dataset__definitions: List[Dict[str, Any]]
+    _dataset__parameters_by_category: Dict[
+        DataSet.DataSetCategory, DatasetParameters
+    ] = field(init=False, default_factory=dict, repr=False)
 
     # Properties to avoid being documented in context
     @property
     def _dataset__types(self) -> Dict[str, Type[DatasetParameters]]:
-        return {cls.DATASET_PARAMETER_TYPE_NAME(): cls for cls in DatasetParameters.__subclasses__()}
+        parameter_types = {}
+        subclasses = list(DatasetParameters.__subclasses__())
+        while subclasses:
+            subclass = subclasses.pop()
+            subclasses.extend(subclass.__subclasses__())
+            if isabstract(subclass):
+                continue
+            parameter_types[subclass.DATASET_PARAMETER_TYPE_NAME()] = subclass
+        return parameter_types
+
     @property
     def _dataset__name_property(self) -> str:
         return "name"
+
     @property
     def _dataset__type_property(self) -> str:
         return "type"
+
     @property
     def _dataset__category_property(self) -> str:
         return "category"
-    @property
-    def _dataset__names(self) -> List[str]:
-        return [user_dataset_definitions[self._dataset__name_property] for user_dataset_definitions in self.dataset__definitions]
-
-    @property
-    def _dataset__categories(self) -> List[DataSet.DataSetCategory]:
-        return [
-            DataSet.DataSetCategory.from_string(
-                user_dataset_definitions[self._dataset__category_property]
-            )
-            for user_dataset_definitions in self.dataset__definitions
-        ]
 
     @property
     def dataset_parameters(self) -> List[DatasetParameters]:
-        return [
-            self.get_parameters(category)
-            for category in self._dataset__categories
-        ]
+        self._ensure_dataset_parameters_loaded()
+        return list(self._dataset__parameters_by_category.values())
 
-    def _dataset__parameters(self, category: DataSet.DataSetCategory) -> DatasetParameters:
-        # Create datasets definitions from the input arguments
+    def load_dataset_parameters(self) -> None:
+        """Construct each configured dataset once after the context RNG is seeded."""
+        dataset_types = self._dataset__types
+        parameters_by_category: Dict[
+            DataSet.DataSetCategory, DatasetParameters
+        ] = {}
         for user_dataset_definitions in self.dataset__definitions:
             try:
                 dataset_type = user_dataset_definitions[self._dataset__type_property]
                 dataset_category = user_dataset_definitions[self._dataset__category_property]
-            except KeyError:
-                raise KeyError(f"Dataset definition must contain '{self._dataset__name_property}' and '{self._dataset__type_property}' keys")
-        
-            if DataSet.DataSetCategory.from_string(dataset_category) == category:
-                try:
-                    dataset_class = self._dataset__types[dataset_type]
-                except KeyError:
-                    raise KeyError(f"Dataset type '{dataset_type}' not defined")
+                user_dataset_definitions[self._dataset__name_property]
+            except KeyError as error:
+                raise KeyError(
+                    "Dataset definition must contain 'name', 'type', and "
+                    "'category' keys."
+                ) from error
 
-                set = dataset_class(
-                    **user_dataset_definitions,
-                )
-                return set
+            try:
+                dataset_class = dataset_types[dataset_type]
+            except KeyError as error:
+                raise KeyError(f"Dataset type '{dataset_type}' not defined") from error
 
-        raise KeyError(f"Dataset with category '{category}' not defined")
+            category = DataSet.DataSetCategory.from_string(dataset_category)
+            if category == DataSet.DataSetCategory.UNDEFINED:
+                raise ValueError(f"Dataset category '{dataset_category}' is not defined")
+            if category in parameters_by_category:
+                raise ValueError(f"Duplicate dataset category '{dataset_category}'")
+
+            parameters_by_category[category] = dataset_class(
+                **user_dataset_definitions,
+            )
+
+        self._dataset__parameters_by_category = parameters_by_category
+
+    def _ensure_dataset_parameters_loaded(self) -> None:
+        if not self._dataset__parameters_by_category:
+            self.load_dataset_parameters()
 
     def get_parameters(self, item: DataSet.DataSetCategory) -> DatasetParameters:
+        self._ensure_dataset_parameters_loaded()
         try:
-            return self._dataset__parameters(category=item)
-        except KeyError:
-            raise KeyError(f"Dataset '{item}' not defined")
+            return self._dataset__parameters_by_category[item]
+        except KeyError as error:
+            raise KeyError(f"Dataset '{item}' not defined") from error

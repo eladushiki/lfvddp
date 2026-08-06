@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from dataclasses import dataclass
@@ -21,7 +20,6 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
     GeneratedDatasetParameters,
-    LoadedDatasetParameters,
 )
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
@@ -64,35 +62,17 @@ def utils__find_context_parent_directories(
 
 def utils__performance_group_key(
     signal_context: ExecutionContext,
-) -> Tuple[Tuple[str, str, str, str, bool, str], ...]:
+) -> Tuple[Tuple[str, str, str, str, bool], ...]:
     signal_config: DatasetConfig = signal_context.config
     group_key = []
     for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
         parameters = signal_config.get_parameters(category)
-        if isinstance(parameters, LoadedDatasetParameters):
-            background_source_type = "loaded"
-            background_source = parameters.dataset_loaded__file_name
-        elif isinstance(parameters, GeneratedDatasetParameters):
-            background_source_type = "generated"
-            background_source = (
-                parameters.dataset_generated__background_function
-            )
-        else:
-            raise TypeError(
-                f"Unsupported dataset parameters type: {type(parameters)}"
-            )
-        signal_parameters = (
-            json.dumps(parameters.dataset__signal_parameters, sort_keys=True)
-            if parameters.dataset__has_signal
-            else ""
-        )
         group_key.append((
             category.name,
-            background_source_type,
-            background_source,
-            parameters.dataset__signal_data_generation_function or "",
+            parameters.dataset__background_source_type,
+            parameters.dataset__background_source,
+            parameters.dataset__signal_source,
             parameters.dataset__has_signal,
-            signal_parameters,
         ))
 
     return tuple(group_key)
@@ -229,18 +209,7 @@ def utils__performance_group_label(
         parameters = signal_config.get_parameters(category)
         if not parameters.dataset__has_signal:
             continue
-        signal_parameter_values = ", ".join(
-            f"{name}={value}"
-            for name, value in sorted(parameters.dataset__signal_parameters.items())
-        )
-        signal_type = (
-            parameters.dataset__signal_data_generation_function or "signal"
-        )
-        signal_descriptions.append(
-            f"{signal_type}: {signal_parameter_values}"
-            if signal_parameter_values
-            else signal_type
-        )
+        signal_descriptions.append(parameters.dataset__signal_description)
 
     return "; ".join(signal_descriptions) or "no signal"
 

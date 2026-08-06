@@ -69,7 +69,7 @@ class DataSet:
         if data is None:
             self._data = pd.DataFrame()
         elif isinstance(data, np.ndarray):
-            if len(data) == 0:
+            if data.ndim == 1 and len(data) == 0:
                 self._data = pd.DataFrame()
             elif data.ndim == 1 or data.ndim == 2:
                 self._data = pd.DataFrame(data)

@@ -264,6 +264,52 @@ While Config* classes' contents are divided logically to different classes, the 
 
 Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `basic_user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
 
+### Generated dataset dimensions
+
+Generated backgrounds use `dataset_generated__background_generator`, and generated
+signals use `dataset__signal_generator`. Each generator specification contains a class
+name and optional constructor arguments:
+
+```json
+{
+    "function": "gaussian_background",
+    "arguments": {
+        "domain_min": 0,
+        "domain_max": 5,
+        "mean": 2.5
+    }
+}
+```
+
+The specification's JSON shape selects how dimensions are generated:
+
+- A single object is one joint N-dimensional generator. The class receives
+  `dataset_generated__number_of_dimensions` and must generate the entire event in one
+  call, so it can correlate coordinates.
+- A list containing one object repeats that 1D generator independently for every
+  dimension.
+- A list containing exactly N objects uses the corresponding 1D generator for each
+  dimension and concatenates the generated columns in list order.
+
+For example, a correlated two-dimensional signal can be configured as:
+
+```json
+{
+    "dataset_generated__number_of_dimensions": 2,
+    "dataset__signal_generator": {
+        "function": "multivariate_gaussian_signal",
+        "arguments": {
+            "mean": [1.0, 2.0],
+            "covariance": [
+                [1.0, 0.8],
+                [0.8, 1.0]
+            ]
+        }
+    }
+}
+```
+
+
 ## Plotting
 
 Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `basic_plot_config.json` for example).

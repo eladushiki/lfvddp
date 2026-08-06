@@ -1,7 +1,9 @@
+import numpy as np
+from scipy import stats
+
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
-import numpy as np
 
 # Namespace for signal generating functions
 # classes defined here that inherit from DataDistribution
@@ -9,9 +11,7 @@ import numpy as np
 # called from the config file by snake case class name.
 
 class SignalDistribution(DataDistribution):
-    def __init__(self, number_of_dimensions: int, location: float):
-        super().__init__(number_of_dimensions)
-        self._location = location
+    """Base class for distributions defined in the signal namespace."""
 
 
 class NoSignal(SignalDistribution):
@@ -19,15 +19,9 @@ class NoSignal(SignalDistribution):
     No signal distribution.
     """
 
-    def __init__(self, number_of_dimensions: int):
-        super().__init__(number_of_dimensions, location=0)
-
     def generate_amount(
         self,
         amount: int,
-        domain_min: float = 0,
-        domain_max: float = 1e2,
-        domain_granularity: int = 100000,
     ) -> DataSet:
         return DataSet(np.empty(shape=(0, self._number_of_dimensions)))
 
@@ -38,15 +32,13 @@ class NoSignal(SignalDistribution):
 class GaussianSignal(SignalDistribution):
     
     def __init__(self, number_of_dimensions: int, location: float, gaussian_signal_sigma: float):
-        super().__init__(number_of_dimensions, location)
+        super().__init__(number_of_dimensions)
+        self._location = location
         self._gaussian_signal_sigma = gaussian_signal_sigma
 
     def generate_amount(
         self,
         amount: int,
-        domain_min: float = 0,
-        domain_max: float = 1e2,
-        domain_granularity: int = 100000,
     ) -> DataSet:
         return DataSet(np.random.normal(
             loc=self._location,
@@ -56,7 +48,76 @@ class GaussianSignal(SignalDistribution):
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         sigma, mean = self._gaussian_signal_sigma, self._location
-        return 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp( - (x - mean)**2 / (2 * sigma**2))
+        values = np.asarray(x)
+        densities = 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp(
+            -(values - mean) ** 2 / (2 * sigma**2)
+        )
+        if self._number_of_dimensions == 1:
+            return densities
+        if values.ndim == 0:
+            raise ValueError(
+                "An N-D Gaussian PDF requires one coordinate per dimension."
+            )
+        if values.shape[-1] != self._number_of_dimensions:
+            raise ValueError(
+                f"Expected {self._number_of_dimensions} coordinates, got "
+                f"{values.shape[-1]}."
+            )
+        return np.prod(densities, axis=-1)
+
+
+class MultivariateGaussianSignal(SignalDistribution):
+    """A joint Gaussian signal that can correlate observable coordinates."""
+
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        mean: list,
+        covariance: list,
+    ):
+        super().__init__(number_of_dimensions)
+        self._mean = np.asarray(mean, dtype=float)
+        self._covariance = np.asarray(covariance, dtype=float)
+
+        expected_mean_shape = (number_of_dimensions,)
+        expected_covariance_shape = (number_of_dimensions, number_of_dimensions)
+        if self._mean.shape != expected_mean_shape:
+            raise ValueError(
+                f"Multivariate Gaussian mean must have shape {expected_mean_shape}, "
+                f"got {self._mean.shape}."
+            )
+        if self._covariance.shape != expected_covariance_shape:
+            raise ValueError(
+                "Multivariate Gaussian covariance must have shape "
+                f"{expected_covariance_shape}, got {self._covariance.shape}."
+            )
+        if not np.all(np.isfinite(self._mean)) or not np.all(
+            np.isfinite(self._covariance)
+        ):
+            raise ValueError("Multivariate Gaussian parameters must be finite.")
+        if not np.allclose(self._covariance, self._covariance.T):
+            raise ValueError("Multivariate Gaussian covariance must be symmetric.")
+        if np.min(np.linalg.eigvalsh(self._covariance)) < -1e-10:
+            raise ValueError(
+                "Multivariate Gaussian covariance must be positive semidefinite."
+            )
+
+        self._frozen_distribution = stats.multivariate_normal(
+            mean=self._mean,
+            cov=self._covariance,
+            allow_singular=True,
+        )
+
+    def generate_amount(self, amount: int) -> DataSet:
+        return DataSet(np.random.multivariate_normal(
+            mean=self._mean,
+            cov=self._covariance,
+            size=amount,
+            check_valid="raise",
+        ))
+
+    def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
+        return self._frozen_distribution.pdf(x)
 
 
 class NonlocalSignal(SignalDistribution):
@@ -64,14 +125,23 @@ class NonlocalSignal(SignalDistribution):
     def generate_amount(
         self,
         amount: int,
+    ) -> DataSet:
+        return super().generate_amount(amount)
+
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        param_scale: float = 1,
         domain_min: float = 0,
         domain_max: float = 1e2,
         domain_granularity: int = 100000,
-    ) -> DataSet:
-        return super().generate_amount(amount, domain_min, domain_max, domain_granularity)
-
-    def __init__(self, number_of_dimensions: int, param_scale: float = 1):
-        super().__init__(number_of_dimensions, location=0)
+    ):
+        super().__init__(
+            number_of_dimensions,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            domain_granularity=domain_granularity,
+        )
         self._param_scale = param_scale
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
