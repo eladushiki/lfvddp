@@ -22,12 +22,23 @@ QSUB_SCRIPT_HEADER = """#!/bin/bash
 QSUB_ENV_SETUP = """
 # Environment setup
 echo "Job started at: $(date)"
+JOB_STARTED_AT_SECONDS=$(date +%s)
 echo "Running on host: $(hostname)"
 echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
 {task_id_line}{environment_activation_command}
 
 set -eo pipefail
+
+log_job_completion() {{
+    status=$?
+    finished_at=$(date +%s)
+    echo "Job finished at: $(date)"
+    echo "Job elapsed seconds: $((finished_at - JOB_STARTED_AT_SECONDS))"
+    echo "Job exit status: $status"
+    exit "$status"
+}}
+trap log_job_completion EXIT
 """
 
 QSUB_COMPLETION = """
@@ -40,19 +51,67 @@ exit $?
 # --cleanenv: avoids messing with host environment, i.e. python stuff
 
 SINGULARITY_EXECUTION_LINES = r"""
-THREADS_PER_PROCESS={ncpus}
+REQUESTED_CPUS={ncpus}
+THREADS_PER_PROCESS=$(nproc 2>/dev/null || true)
+if [ -z "$THREADS_PER_PROCESS" ] || [ "$THREADS_PER_PROCESS" -lt 1 ]; then
+    # Linux affinity lists can contain both individual CPUs ("40") and ranges
+    # ("0-3,8-11"). Count the expanded list rather than its comma-separated
+    # segments, so this remains correct if coreutils' nproc is unavailable.
+    THREADS_PER_PROCESS=$(taskset -pc $$ 2>/dev/null | awk -F: '
+        {{
+            count = 0
+            item_count = split($2, items, ",")
+            for (item_index = 1; item_index <= item_count; item_index++) {{
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", items[item_index])
+                range_count = split(items[item_index], range, "-")
+                count += range_count == 2 ? range[2] - range[1] + 1 : 1
+            }}
+            print count
+        }}')
+fi
+if [ -z "$THREADS_PER_PROCESS" ] || [ "$THREADS_PER_PROCESS" -lt 1 ]; then
+    echo "ERROR: Could not determine the CPUs exposed to this job."
+    exit 1
+fi
+
+HOST_CUDA_VISIBLE_DEVICES="${{CUDA_VISIBLE_DEVICES:-}}"
+ALLOCATED_GPU_IDS="$HOST_CUDA_VISIBLE_DEVICES"
+if [ -z "$ALLOCATED_GPU_IDS" ] && [ -n "${{PBS_GPUFILE:-}}" ] && [ -r "$PBS_GPUFILE" ]; then
+    ALLOCATED_GPU_IDS=$(awk 'NF {{print $NF}}' "$PBS_GPUFILE" | paste -sd, -)
+fi
+
+export SINGULARITYENV_LFVDDP_ALLOCATED_CPUS="$THREADS_PER_PROCESS"
+export APPTAINERENV_LFVDDP_ALLOCATED_CPUS="$THREADS_PER_PROCESS"
+export SINGULARITYENV_LFVDDP_ALLOCATED_GPU_IDS="$ALLOCATED_GPU_IDS"
+export APPTAINERENV_LFVDDP_ALLOCATED_GPU_IDS="$ALLOCATED_GPU_IDS"
+if [ -n "$HOST_CUDA_VISIBLE_DEVICES" ]; then
+    export SINGULARITYENV_CUDA_VISIBLE_DEVICES="$HOST_CUDA_VISIBLE_DEVICES"
+    export APPTAINERENV_CUDA_VISIBLE_DEVICES="$HOST_CUDA_VISIBLE_DEVICES"
+fi
+for PASSTHROUGH_NAME in PBS_JOBID PBS_ARRAY_INDEX PBS_NCPUS PBS_GPUFILE; do
+    eval "PASSTHROUGH_VALUE=\${{${{PASSTHROUGH_NAME}}:-}}"
+    export "SINGULARITYENV_${{PASSTHROUGH_NAME}}=$PASSTHROUGH_VALUE"
+    export "APPTAINERENV_${{PASSTHROUGH_NAME}}=$PASSTHROUGH_VALUE"
+done
+
 export SINGULARITYENV_OMP_NUM_THREADS="$THREADS_PER_PROCESS"
 export SINGULARITYENV_MKL_NUM_THREADS="$THREADS_PER_PROCESS"
 export SINGULARITYENV_OPENBLAS_NUM_THREADS="$THREADS_PER_PROCESS"
 export SINGULARITYENV_OMP_DYNAMIC=FALSE
 export SINGULARITYENV_MKL_DYNAMIC=FALSE
+export SINGULARITYENV_PYTHONUNBUFFERED=1
+export SINGULARITYENV_PYTHONFAULTHANDLER=1
 export APPTAINERENV_OMP_NUM_THREADS="$THREADS_PER_PROCESS"
 export APPTAINERENV_MKL_NUM_THREADS="$THREADS_PER_PROCESS"
 export APPTAINERENV_OPENBLAS_NUM_THREADS="$THREADS_PER_PROCESS"
 export APPTAINERENV_OMP_DYNAMIC=FALSE
 export APPTAINERENV_MKL_DYNAMIC=FALSE
+export APPTAINERENV_PYTHONUNBUFFERED=1
+export APPTAINERENV_PYTHONFAULTHANDLER=1
 
-echo "Requested CPUs: $THREADS_PER_PROCESS"
+echo "Requested CPUs: $REQUESTED_CPUS"
+echo "Effective CPUs passed to training: $THREADS_PER_PROCESS"
+echo "Scheduler-assigned GPU IDs: ${{ALLOCATED_GPU_IDS:-none}}"
 echo "PBS job ID: ${{PBS_JOBID:-unavailable}}"
 echo "PBS array ID: ${{PBS_ARRAYID:-${{PBS_ARRAY_INDEX:-unavailable}}}}"
 echo "Host-visible CPUs: $(nproc 2>/dev/null || true)"
@@ -67,6 +126,8 @@ if [ -n "$PBS_NODEFILE" ] && [ -r "$PBS_NODEFILE" ]; then
 fi
 echo "CPU topology:"
 lscpu 2>/dev/null || true
+echo "Host GPU diagnostics (not used for allocation):"
+nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader 2>/dev/null || echo "No host CUDA devices reported"
 for CGROUP_FILE in /sys/fs/cgroup/cpuset.cpus.effective /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpuset/cpuset.cpus /sys/fs/cgroup/cpu/cpu.cfs_quota_us /sys/fs/cgroup/cpu/cpu.cfs_period_us; do
     if [ -r "$CGROUP_FILE" ]; then
         echo "$CGROUP_FILE: $(tr '\n' ' ' < "$CGROUP_FILE")"
@@ -152,22 +213,24 @@ if [ -n "$PBS_ARRAY_ID_FOR_CONTAINER" ]; then
     export APPTAINERENV_PBS_ARRAY_INDEX="$PBS_ARRAY_ID_FOR_CONTAINER"
 fi
 
-run_singularity exec --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} "$CONTAINER_RUNTIME_PATH" {command}
+run_singularity exec {gpu_passthrough_flag} --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} "$CONTAINER_RUNTIME_PATH" {command}
 """
 
 
 def format_qsub_execution_script(
-        context: ExecutionContext,
-        command: str,
-        array_jobs: Optional[int] = None,
-        use_gpu_if_needed: bool = True,
-    ) -> str:
+    context: ExecutionContext,
+    command: str,
+    array_jobs: Optional[int] = None,
+    use_gpu_if_needed: bool = True,
+) -> str:
     config: ClusterConfig = context.config
 
     # Handle GPU line
     gpu_line = ""
+    gpu_passthrough_flag = ""
     if use_gpu_if_needed and config.cluster__qsub_ngpus_for_train:
         gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
+        gpu_passthrough_flag = "--nv"
 
     singularity_bindings = ",".join([
         f"{Path(local_path).absolute()}:{container_path}"
@@ -184,6 +247,7 @@ def format_qsub_execution_script(
         singularity_bindings=singularity_bindings,
         container_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
+        gpu_passthrough_flag=gpu_passthrough_flag,
     )
 
 # Singularity build script. A few comments:

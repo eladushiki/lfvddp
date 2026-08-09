@@ -18,6 +18,7 @@ from train.checkpoints import (
     save_training_checkpoint,
 )
 from train.model_trainer import SequentialTrainLauncher
+from train.runtime_resources import RuntimeAllocation
 from train.tensorboard_clutch import log_t_history
 
 ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
@@ -45,8 +46,20 @@ TWO_DIMENSION_WITH_NUISANCE_CONFIG = {
 
 
 def _train_numerator(function_execution_context, data_batch, detector_effect, name):
+    # Unit training stays on one CPU without depending on the developer
+    # machine's resources.
+    allocation = RuntimeAllocation(
+        cpu_count=1,
+        cpu_affinity=(),
+        assigned_gpu_ids=(),
+        visible_gpu_count=0,
+        gpu_names=(),
+        gpu_total_memory_bytes=(),
+    )
     train_launcher = SequentialTrainLauncher(
-        function_execution_context, detector_effect
+        function_execution_context,
+        detector_effect,
+        allocation=allocation,
     )
     train_idx = train_launcher.add_training(
         data_batch=data_batch,
@@ -651,7 +664,7 @@ def test_training_profile_is_saved(
     summary = summary_path.read_text()
     assert "observables: 1" in summary
     assert "hostname:" in summary
-    assert "requested CPUs:" in summary
+    assert "effective CPUs:" in summary
     assert "CPU affinity:" in summary
     assert "PyTorch intra-op threads:" in summary
     assert "training/forward_and_loss" in summary

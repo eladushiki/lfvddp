@@ -1,0 +1,5 @@
+{
+    "cluster__qsub_ncpus": 8,
+    "cluster__qsub_mem": 16,
+    "cluster__qsub_ngpus_for_train": 1
+}

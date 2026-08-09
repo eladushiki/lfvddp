@@ -4,6 +4,9 @@ from typing import Optional
 from frame.cluster.walltime import format_walltime, parse_walltime, split_walltime
 
 
+DEFAULT_QSUB_NCPUS = 32
+
+
 @dataclass
 class ClusterConfig:
     cluster__repo_url: str
@@ -17,12 +20,16 @@ class ClusterConfig:
     cluster__qsub_io: int
     cluster__qsub_mem: int
     cluster__qsub_ngpus_for_train: int
-    cluster__qsub_ncpus: Optional[int] = None
+    cluster__qsub_ncpus: int = DEFAULT_QSUB_NCPUS
     cluster__qsub_walltime_limit: str = "72:00:00"
     cluster__qsub_total_walltime: Optional[str] = None
     cluster__qsub_walltime_chunks: list[str] = field(init=False)
 
     def __post_init__(self) -> None:
+        if self.cluster__qsub_ncpus < 1:
+            raise ValueError("cluster__qsub_ncpus must be positive.")
+        if self.cluster__qsub_ngpus_for_train < 0:
+            raise ValueError("cluster__qsub_ngpus_for_train cannot be negative.")
         self._set_total_walltime(
             self.cluster__qsub_total_walltime or self.cluster__qsub_walltime
         )
