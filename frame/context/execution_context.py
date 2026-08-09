@@ -56,7 +56,6 @@ def _array_index_from_environment() -> Optional[int]:
 def create_config_from_paramters(
     config_params: dict,
     out_dir: Optional[str] = None,
-    plot_in_place: bool = False,
 ):
 
     # Resolve config typing according to deepest hierarchy:
@@ -88,10 +87,7 @@ def create_config_from_paramters(
     # Configuration according to arguments
     if out_dir:
         config_params["config__out_dir"] = out_dir
-    if plot_in_place:
-        config_params["plot__target_run_parent_directory"] = config_params[
-            "config__out_dir"
-        ]
+        config_params["plot__target_run_parent_directory"] = out_dir
 
     config = DynamicConfig(**config_params)
 

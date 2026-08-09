@@ -26,7 +26,6 @@ def session_execution_context():
     config = create_config_from_paths(
         config_paths=list(DEFAULT_CONFIG_PATHS.values()),
         out_dir=args.out_dir,
-        plot_in_place=True,
     )
     with version_controlled_execution_context(
         config=config,
@@ -75,7 +74,6 @@ def function_execution_context(
     config = create_config_from_paths(
         config_paths=list(config_paths.values()),
         out_dir=session_execution_context.unique_out_dir,
-        plot_in_place=True,
     )
     with version_controlled_execution_context(
         config=config,

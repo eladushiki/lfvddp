@@ -6,6 +6,7 @@ from frame.cluster.cluster_config import ClusterConfig
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     CREATE_PLOTS_SCRIPT_RELATIVE,
     SINGLE_TRAIN_SCRIPT_RELATIVE,
     get_relpath_from_local_root,
@@ -13,13 +14,6 @@ from frame.file_structure import (
 )
 from frame.submit import submit_command, submit_container_build
 from train.train_config import TrainConfig
-
-
-def _arguments_for_plotting_training_outputs(args: list[str]) -> list[str]:
-    """Target the output directory mounted for this submitted training batch."""
-    if "--plot-in-place" in args:
-        return args
-    return [*args, "--plot-in-place"]
 
 
 @context_controlled_execution
@@ -37,13 +31,15 @@ def submit_process(context: ExecutionContext) -> None:
 
     config_path_mapping = {}
     if not context.is_continue:
-        staged_configs_directory = context.unique_out_dir / "configs"
+        staged_configs_directory = context.unique_out_dir / CONFIGS_DIR_NAME
         mkdir(staged_configs_directory)
 
         for config_path in context.config_paths:
             copy2(config_path, staged_configs_directory / config_path.name)
             bound_dest_path = (
-                Path(context.config.config__out_dir) / "configs" / config_path.name
+                Path(context.config.config__out_dir)
+                / CONFIGS_DIR_NAME
+                / config_path.name
             )
             config_path_mapping[str(config_path)] = str(
                 path_as_in_container(bound_dest_path.absolute())
@@ -67,17 +63,12 @@ def submit_process(context: ExecutionContext) -> None:
 
     # Construct the python commands to run inside the container
     train_cmd = f"python {SINGLE_TRAIN_SCRIPT_RELATIVE}"
-    plot_cmd = f"python {CREATE_PLOTS_SCRIPT_RELATIVE}"
 
     updated_args = [config_path_mapping.get(arg, arg) for arg in current_args]
 
     # Add the training arguments unchanged.
     for arg in updated_args:
         train_cmd += f" {arg}"
-
-    # Submitted plots always aggregate the outputs of this submitted batch.
-    for arg in _arguments_for_plotting_training_outputs(updated_args):
-        plot_cmd += f" {arg}"
 
     # Submit the job to the cluster
     train_jobid = submit_command(
@@ -101,6 +92,12 @@ def submit_process(context: ExecutionContext) -> None:
     if context.is_only_train:
         return
 
+    container_submission_directory = path_as_in_container(
+        Path(context.config.config__out_dir).absolute()
+    )
+    plot_cmd = (
+        f"python {CREATE_PLOTS_SCRIPT_RELATIVE} {container_submission_directory}"
+    )
     plot_jobid = submit_command(
         context=context,
         command=plot_cmd,
