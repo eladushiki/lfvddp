@@ -57,7 +57,12 @@ def submit_process(context: ExecutionContext) -> None:
                 Path(context.config.config__out_dir).absolute()
             )
         )
-        current_args = ["--continue", container_continue_from]
+        current_args = [
+            "--continue",
+            container_continue_from,
+            "--epochs-target",
+            str(context.config.train__epochs),
+        ]
     else:
         current_args = context.command_line_args[1:]
 

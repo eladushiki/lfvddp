@@ -164,7 +164,8 @@ def test_continued_submission_uses_only_the_saved_context(
     submit_train.submit_process.__wrapped__(context)
 
     assert submitted_commands == [
-        "python train/single_train.py --continue prior-run"
+        "python train/single_train.py --continue prior-run "
+        f"--epochs-target {context.config.train__epochs}"
     ]
     assert context.qsub_submissions[0]["walltime"] == "0:01:00"
     assert context.next_qsub_walltime_chunk() == "0:01:00"

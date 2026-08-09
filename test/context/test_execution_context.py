@@ -37,12 +37,17 @@ def _config_for_out_dir(function_execution_context, out_dir: Path):
     )
 
 
-def _context_args(continue_from=None, extra_time=None) -> Namespace:
+def _context_args(
+    continue_from=None,
+    extra_time=None,
+    epochs_target=None,
+) -> Namespace:
     if continue_from is not None:
         return Namespace(
             continue_from=continue_from,
             debug=False,
             extra_time=extra_time,
+            epochs_target=epochs_target,
         )
     return Namespace(
         debug=True,
@@ -50,6 +55,7 @@ def _context_args(continue_from=None, extra_time=None) -> Namespace:
         only_train=False,
         continue_from=None,
         extra_time=extra_time,
+        epochs_target=epochs_target,
     )
 
 
@@ -349,13 +355,17 @@ def test_extra_time_is_available_to_non_submit_continuations(
             str(context.unique_out_dir),
             "--extra-time",
             "0:00:30",
+            "--epochs-target",
+            "750000",
         ],
         args=_context_args(
             continue_from=context.unique_out_dir,
             extra_time="0:00:30",
+            epochs_target=750000,
         ),
     ) as continued_context:
         assert continued_context.config.cluster__qsub_total_walltime == "0:01:30"
+        assert continued_context.config.train__epochs == 750000
         assert continued_context.qsub_submissions == []
 
 
@@ -638,7 +648,7 @@ def test_child_context_loading_matches_array_index(
     assert selected.unique_out_dir == contexts[1].unique_out_dir
 
 
-def test_continuation_accepts_extra_time_and_the_optional_debug_flag(capsys):
+def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
     config_paths, args = parse_config_from_args(["--continue", "results/run"])
 
     assert config_paths is None
@@ -659,23 +669,40 @@ def test_continuation_accepts_extra_time_and_the_optional_debug_flag(capsys):
             "results/run",
             "--extra-time",
             "24:00:00",
+            "--epochs-target",
+            "750000",
             "--debug",
         ]
     )
 
     assert config_paths is None
     assert args.extra_time == "24:00:00"
+    assert args.epochs_target == 750000
     assert args.debug
+
+    _, args = parse_config_from_args(
+        ["--continue", "results/run", "--epochs-target", "750000"]
+    )
+    assert args.epochs_target == 750000
 
     with pytest.raises(SystemExit):
         parse_config_from_args(["--continue", "results/run", "--build-container"])
     with pytest.raises(SystemExit):
         parse_config_from_args(["--continue", "results/run", "--extra-time", "24"])
     with pytest.raises(SystemExit):
+        parse_config_from_args(["--continue", "results/run", "--epochs-target", "0"])
+    with pytest.raises(SystemExit):
         parse_config_from_args([
             "--configs",
             "configs/user/basic_user_config.json",
             "--extra-time",
             "24:00:00",
+        ])
+    with pytest.raises(SystemExit):
+        parse_config_from_args([
+            "--configs",
+            "configs/user/basic_user_config.json",
+            "--epochs-target",
+            "750000",
         ])
     capsys.readouterr()
