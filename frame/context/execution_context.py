@@ -494,6 +494,12 @@ def version_controlled_execution_context(
         extra_time = getattr(args, "extra_time", None)
         if extra_time is not None:
             context.add_qsub_walltime(extra_time)
+
+        epochs_target = getattr(args, "epochs_target", None)
+        if epochs_target is not None:
+            context.config.train__epochs = epochs_target
+
+        if extra_time is not None or epochs_target is not None:
             cross_validate(context.config)
 
         context.is_continue = True

@@ -22,6 +22,18 @@ def _walltime_argument(value: str) -> str:
     return value
 
 
+def _positive_integer_argument(value: str) -> int:
+    try:
+        parsed_value = int(value)
+    except ValueError as error:
+        raise ArgumentTypeError(
+            f"Expected a positive integer, got {value!r}"
+        ) from error
+    if parsed_value <= 0:
+        raise ArgumentTypeError(f"Expected a positive integer, got {value!r}")
+    return parsed_value
+
+
 def _expand_config_paths(config_paths: list[Path]) -> list[Path]:
     """Replace config directories with their recursively discovered files."""
     expanded_paths = []
@@ -74,6 +86,13 @@ def parse_config_from_args(
         metavar="HH:MM:SS",
         help="Add walltime to a saved submission before continuing it",
     )
+    parser.add_argument(
+        "--epochs-target",
+        type=_positive_integer_argument,
+        dest="epochs_target",
+        metavar="EPOCHS",
+        help="Replace the saved training epoch target before continuing it",
+    )
 
     ## Running options
     parser.add_argument(
@@ -106,10 +125,13 @@ def parse_config_from_args(
         unknown or disallowed_continue_options_used
     ):
         parser.error(
-            "--continue LOCATION may only be combined with --extra-time and --debug"
+            "--continue LOCATION may only be combined with --extra-time, "
+            "--epochs-target, and --debug"
         )
     if args.continue_from is None and args.extra_time is not None:
         parser.error("--extra-time requires --continue LOCATION")
+    if args.continue_from is None and args.epochs_target is not None:
+        parser.error("--epochs-target requires --continue LOCATION")
 
     # Keep accepting notebook-injected arguments for fresh runs.
     if unknown:

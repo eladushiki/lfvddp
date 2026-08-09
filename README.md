@@ -196,7 +196,16 @@ wait for that build to succeed before starting.
 
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
 optional `--debug` flag may be combined with it; configuration paths and all
-other runtime settings are restored from the saved context.
+other runtime settings are restored from the saved context. If training reached
+its saved epoch target without converging, replace that target for the continued
+run with:
+
+```bash
+python train/submit_train.py --continue <run-directory-or-context.json> --epochs-target 750000
+```
+
+`--epochs-target` accepts a positive integer and may be used with or without
+`--extra-time`.
 
 If the original walltime was insufficient, add more time to the saved budget and
 continue from the latest LFVNN/PyTorch checkpoint with:
