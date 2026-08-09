@@ -132,6 +132,7 @@ def submit_process(context: ExecutionContext) -> None:
         "python",
         str(CREATE_PLOTS_SCRIPT_RELATIVE),
         str(container_submission_directory),
+        *(["--debug"] if context.is_debug_mode else []),
     ])
     plot_jobid = submit_command(
         context=context,

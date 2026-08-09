@@ -343,7 +343,7 @@ Any function that is implemented in `plot/plots.py` can be called by name from t
 Generate the configured plots for a submitted training batch with:
 
 ```bash
-python plot/create_plots.py <submission-directory>
+python plot/create_plots.py <submission-directory> [<additional-config> ...] [--debug]
 ```
 
 The submission directory must contain the staged `configs` directory and the
@@ -365,4 +365,4 @@ Training entry points:
 - `submit_train.py` for remote submission of multiple copies of `single_train.py` [Currently only in-place, when running at the ATLAS cluster]
 
 ## Plotting
-- `create_plots.py <submission-directory>` follows the staged configuration files to gather data from the completed trainings and produce the plots
+- `create_plots.py <submission-directory> [<additional-config> ...] [--debug]` follows the staged configuration files to gather data from the completed trainings and produce the plots. Additional JSON/YAML files or directories are merged afterward from left to right, so they can override the staged plotting configuration.
