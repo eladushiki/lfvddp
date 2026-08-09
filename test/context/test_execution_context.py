@@ -34,7 +34,6 @@ def _config_for_out_dir(function_execution_context, out_dir: Path):
     return create_config_from_paths(
         function_execution_context.config_paths,
         out_dir=str(out_dir),
-        plot_in_place=True,
     )
 
 

@@ -14,6 +14,7 @@ from frame.context.execution_context import (
 )
 from frame.context.run_descriptor import build_run_descriptor
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     SINGLE_TRAIN_SCRIPT_NAME,
     TRAINING_OUTCOMES_DIR_NAME,
 )
@@ -50,7 +51,6 @@ def _quick_termination_config(
     return create_config_from_paramters(
         config_params,
         out_dir=str(parent_dir),
-        plot_in_place=True,
     )
 
 
@@ -168,7 +168,7 @@ def test_continued_submission_uses_only_the_saved_context(
     ]
     assert context.qsub_submissions[0]["walltime"] == "0:01:00"
     assert context.next_qsub_walltime_chunk() == "0:01:00"
-    assert not (context.unique_out_dir / "configs").exists()
+    assert not (context.unique_out_dir / CONFIGS_DIR_NAME).exists()
 
 
 def test_checkpoint_discovery_uses_single_latest_path_per_array_index(tmp_path):

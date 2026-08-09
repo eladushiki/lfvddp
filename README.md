@@ -144,23 +144,25 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
                 "${config:myConfig.plotConfig}",
             ]
         },
-        { // DEBUG plot
-        "name": "[DEBUG] plot",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "plot/create_plots.py",
-        "console": "integratedTerminal",
-        "args": [
-            "--configs",
-            "${config:myConfig.clusterConfig}",
-            "${config:myConfig.datasetConfig}",
-            "${config:myConfig.detectorConfig}",
-            "${config:myConfig.trainConfig}",
-            "${config:myConfig.userConfig}",
-            "${config:myConfig.plotConfig}",
-            "--debug",
-        ]
-    }
+        { // Plot a submitted training batch
+            "name": "[DEBUG] Plot submission with prompt",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "plot/create_plots.py",
+            "console": "integratedTerminal",
+            "args": [
+                "${input:submissionDirectory}"
+            ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "submissionDirectory",
+            "type": "promptString",
+            "description": "Enter the submitted training directory",
+            "default": ""
+        }
+    ]
 }
 ```
 
@@ -180,6 +182,8 @@ Which you create and direct to.
 Configuration files passed through `--configs` are shallow-merged from left to
 right, so later files override earlier values. A directory passed in place of a
 file is recursively expanded to its JSON and YAML config files in sorted order.
+The plotting entry point does not accept `--configs`; it reads the staged
+configuration files from the selected submission's `configs` directory.
 Plotting configuration is required,
 although `plot__plot_specifications` may be omitted when no configured batch plots
 are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
@@ -314,6 +318,16 @@ For example, a correlated two-dimensional signal can be configured as:
 
 Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `basic_plot_config.json` for example).
 
+Generate the configured plots for a submitted training batch with:
+
+```bash
+python plot/create_plots.py <submission-directory>
+```
+
+The submission directory must contain the staged `configs` directory and the
+individual training runs. Plotting reads those configs, aggregates the runs, and
+creates its normal stamped output directory inside the submission directory.
+
 To implement any new plot, simply define its generating function there in the form of:
 ```python
 def plot_something_new(context: ExecutionContext, **kwargs) -> matplotlib.figure.Figure:
@@ -329,4 +343,4 @@ Training entry points:
 - `submit_train.py` for remote submission of multiple copies of `single_train.py` [Currently only in-place, when running at the ATLAS cluster]
 
 ## Plotting
-- `create_plots.py` would follow the instruction in the configuration files to gather the necessary data from completed trainings and producte the plots
+- `create_plots.py <submission-directory>` follows the staged configuration files to gather data from the completed trainings and produce the plots

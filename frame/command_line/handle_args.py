@@ -94,10 +94,6 @@ def parse_config_from_args(
         "--out-dir", type=str,
         help="Output directory for results. Overrides one in config file. Useful for aggregating batch jobs", dest="out_dir"
     )
-    parser.add_argument(
-        "--plot-in-place", action="store_true",
-        help="Should create plots in the output directory? Else, in a dedicated one", dest="plot_in_place"
-    )
     parsed_args = argv[1:] if command_line_args is None else command_line_args
     args, unknown = parser.parse_known_args(parsed_args)
 
@@ -105,7 +101,6 @@ def parse_config_from_args(
         args.build_container
         or args.only_train
         or args.out_dir is not None
-        or args.plot_in_place
     )
     if args.continue_from is not None and (
         unknown or disallowed_continue_options_used
@@ -129,12 +124,10 @@ def parse_config_from_args(
 def create_config_from_paths(
         config_paths: list[Path],
         out_dir: Optional[str] = None,
-        plot_in_place: bool = False,
     ):
     return create_config_from_paramters(
         load_config_params_from_paths(config_paths),
         out_dir=out_dir,
-        plot_in_place=plot_in_place,
     )
 
 
@@ -154,7 +147,6 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
             config = create_config_from_paths(
                 config_paths,
                 out_dir=args.out_dir,
-                plot_in_place=args.plot_in_place,
             )
         with version_controlled_execution_context(
             config,
