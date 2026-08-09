@@ -5,6 +5,7 @@ from frame.cluster.cluster_config import ClusterConfig
 from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -119,6 +120,8 @@ export APPTAINERENV_OMP_DYNAMIC=FALSE
 export APPTAINERENV_MKL_DYNAMIC=FALSE
 export APPTAINERENV_PYTHONUNBUFFERED=1
 export APPTAINERENV_PYTHONFAULTHANDLER=1
+export SINGULARITYENV_{commit_hash_environment_variable}="{commit_hash}"
+export APPTAINERENV_{commit_hash_environment_variable}="{commit_hash}"
 
 echo "Requested CPUs: $REQUESTED_CPUS"
 echo "Effective CPUs passed to training: $THREADS_PER_PROCESS"
@@ -323,6 +326,8 @@ def format_qsub_execution_script(
         container_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
         gpu_passthrough_flag=gpu_passthrough_flag,
+        commit_hash_environment_variable=COMMIT_HASH_ENVIRONMENT_VARIABLE,
+        commit_hash=context.commit_hash,
     )
 
 # Singularity build script. A few comments:

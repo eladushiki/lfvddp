@@ -164,6 +164,10 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert "THREADS_PER_PROCESS=$(nproc" in script
     assert "SINGULARITYENV_LFVDDP_ALLOCATED_CPUS" in script
     assert "SINGULARITYENV_LFVDDP_ALLOCATED_GPU_IDS" in script
+    assert (
+        f'SINGULARITYENV_LFVDDP_COMMIT_HASH="'
+        f'{function_execution_context.commit_hash}"'
+    ) in script
     assert "SINGULARITYENV_PYTHONUNBUFFERED=1" in script
     assert "SINGULARITYENV_PYTHONFAULTHANDLER=1" in script
     assert "singularity exec --nv" in script
