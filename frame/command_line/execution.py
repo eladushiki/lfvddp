@@ -315,11 +315,6 @@ def format_qsub_script(
     array_jobs: Optional[int] = None,
     **additional_template_kwargs,
 ) -> str:
-    if isinstance(config, ClusterConfig) and config.cluster__qsub_ncpus is None:
-        raise ValueError(
-            "Set cluster__qsub_ncpus explicitly before submitting a cluster job. "
-            "The value is a PBS request; training will size itself from the actual allocation."
-        )
     script = wrap_lines_with_qsub_script(core_script_lines)
     
     # Handle array jobs

@@ -176,14 +176,17 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
 
 
 @pytest.mark.parametrize("function_execution_context", [{}], indirect=True)
-def test_cluster_submission_requires_explicit_cpu_request(
+def test_cluster_submission_defaults_to_32_requested_cpus(
     function_execution_context,
 ):
-    with pytest.raises(ValueError, match="Set cluster__qsub_ncpus explicitly"):
-        format_qsub_execution_script(
-            context=function_execution_context,
-            command="python train/single_train.py --continue run",
-        )
+    script = format_qsub_execution_script(
+        context=function_execution_context,
+        command="python train/single_train.py --continue run",
+    )
+
+    assert function_execution_context.config.cluster__qsub_ncpus == 32
+    assert "#PBS -l ncpus=32" in script
+    assert "REQUESTED_CPUS=32" in script
 
 
 @pytest.mark.parametrize(

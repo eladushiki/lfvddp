@@ -199,7 +199,9 @@ wait for that build to succeed before starting.
 Cluster configuration describes the resources to request from PBS; it does not
 describe the capacity that training is allowed to assume it received. In
 particular, `cluster__qsub_ncpus`, `cluster__qsub_ngpus_for_train`, and
-`cluster__qsub_mem` remain user-chosen scheduler requests.
+`cluster__qsub_mem` remain scheduler requests. The CPU request defaults to 32
+when `cluster__qsub_ncpus` is omitted and can be overridden in cluster
+configuration.
 
 After the job starts, the execution script passes its affinity-aware CPU count
 and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
