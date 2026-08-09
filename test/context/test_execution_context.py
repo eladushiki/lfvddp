@@ -25,6 +25,7 @@ from frame.file_structure import (
     SUBMIT_TRAIN_SCRIPT_NAME,
 )
 from frame.file_system.textual_data import (
+    load_config_file,
     load_dict_from_json,
 )
 from test.environment import ConfigType
@@ -706,3 +707,33 @@ def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
             "750000",
         ])
     capsys.readouterr()
+
+
+def test_config_directories_only_expand_supported_files(tmp_path):
+    nested_directory = tmp_path / "nested"
+    nested_directory.mkdir()
+    json_path = tmp_path / "first.json"
+    yaml_path = nested_directory / "second.yaml"
+    json_path.write_text("{}")
+    yaml_path.write_text("{}")
+    (tmp_path / ".hidden").write_text("not a config")
+    (tmp_path / "notes.txt").write_text("not a config")
+
+    config_paths, _ = parse_config_from_args(["--configs", str(tmp_path)])
+
+    assert config_paths == [json_path, yaml_path]
+
+
+def test_missing_config_path_is_reported_before_format_detection(tmp_path):
+    missing_path = tmp_path / "temporarily-unavailable-configs"
+
+    with pytest.raises(FileNotFoundError, match=str(missing_path)):
+        parse_config_from_args(["--configs", str(missing_path)])
+
+
+def test_unsupported_config_error_identifies_extensionless_path(tmp_path):
+    extensionless_path = tmp_path / ".config"
+    extensionless_path.write_text("{}")
+
+    with pytest.raises(ValueError, match=r"<none>.*\.config"):
+        load_config_file(extensionless_path)

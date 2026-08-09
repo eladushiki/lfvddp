@@ -3,7 +3,11 @@ from pathlib import Path
 from typing import List, Dict, Any
 import yaml
 
-from frame.file_structure import JSON_FILE_EXTENSION, YAML_FILE_EXTENSIONS
+from frame.file_structure import (
+    CONFIG_FILE_EXTENSIONS,
+    JSON_FILE_EXTENSION,
+    YAML_FILE_EXTENSIONS,
+)
 
 
 def load_dict_from_json(file_path: Path) -> dict:
@@ -37,7 +41,14 @@ def load_config_file(file_path: Path) -> Dict[str, Any]:
     elif file_extension in YAML_FILE_EXTENSIONS:
         return load_dict_from_yaml(file_path)
     else:
-        raise ValueError(f"Unsupported configuration file format: {file_extension}. Supported formats: .json, .yaml, .yml")
+        displayed_extension = f".{file_extension}" if file_extension else "<none>"
+        supported_formats = ", ".join(
+            f".{extension}" for extension in CONFIG_FILE_EXTENSIONS
+        )
+        raise ValueError(
+            f"Unsupported configuration file format {displayed_extension} for "
+            f"{file_path}. Supported formats: {supported_formats}"
+        )
 
 
 def load_config_params_from_paths(config_paths: List[Path]) -> Dict[str, Any]:

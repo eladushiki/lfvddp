@@ -5,6 +5,7 @@ from frame.cluster.cluster_config import ClusterConfig
 from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -32,6 +33,15 @@ set -eo pipefail
 
 log_job_completion() {{
     status=$?
+    trap - EXIT
+    set +e
+    if declare -F release_sandbox >/dev/null; then
+        release_sandbox
+        cleanup_status=$?
+        if [ "$cleanup_status" -ne 0 ]; then
+            echo "WARNING: Sandbox cleanup failed with exit status $cleanup_status"
+        fi
+    fi
     finished_at=$(date +%s)
     echo "Job finished at: $(date)"
     echo "Job elapsed seconds: $((finished_at - JOB_STARTED_AT_SECONDS))"
@@ -39,6 +49,8 @@ log_job_completion() {{
     exit "$status"
 }}
 trap log_job_completion EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 """
 
 QSUB_COMPLETION = """
@@ -108,6 +120,8 @@ export APPTAINERENV_OMP_DYNAMIC=FALSE
 export APPTAINERENV_MKL_DYNAMIC=FALSE
 export APPTAINERENV_PYTHONUNBUFFERED=1
 export APPTAINERENV_PYTHONFAULTHANDLER=1
+export SINGULARITYENV_{commit_hash_environment_variable}="{commit_hash}"
+export APPTAINERENV_{commit_hash_environment_variable}="{commit_hash}"
 
 echo "Requested CPUs: $REQUESTED_CPUS"
 echo "Effective CPUs passed to training: $THREADS_PER_PROCESS"
@@ -139,11 +153,17 @@ CACHE_ROOT="${{SINGULARITY_NODE_CACHE_DIR:-/tmp/$USER/singularity-node-cache}}"
 mkdir -p "$CACHE_ROOT"
 
 IMG_BASENAME=$(basename "$CONTAINER_SIF_PATH")
-IMG_MTIME=$(stat -c %Y "$CONTAINER_SIF_PATH" 2>/dev/null || echo 0)
-SANDBOX_KEY="${{IMG_BASENAME}}.${{IMG_MTIME}}"
+if ! IMG_ID=$(stat -Lc '%i.%s.%Y' "$CONTAINER_SIF_PATH"); then
+    echo "ERROR: Container image is missing or inaccessible: $CONTAINER_SIF_PATH"
+    exit 1
+fi
+SANDBOX_KEY="${{IMG_BASENAME}}.${{IMG_ID}}"
 SANDBOX_DIR="${{CACHE_ROOT}}/${{SANDBOX_KEY}}.sandbox"
 READY_FILE="${{SANDBOX_DIR}}/.ready"
 LOCK_DIR="${{SANDBOX_DIR}}.lock"
+LEASES_DIR="${{SANDBOX_DIR}}.leases"
+LEASE_HOST=$(hostname)
+LEASE_FILE="${{LEASES_DIR}}/${{LEASE_HOST}}.$$"
 LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-1800}}"
 
 run_singularity() {{
@@ -151,56 +171,114 @@ run_singularity() {{
 }}
 
 build_sandbox() {{
-    TMP_SANDBOX="${{SANDBOX_DIR}}.tmp.$$"
-    rm -rf "$TMP_SANDBOX"
+    BUILD_ROOT=$(mktemp -d "${{CACHE_ROOT}}/.${{SANDBOX_KEY}}.build.XXXXXX")
+    TMP_SANDBOX="${{BUILD_ROOT}}/sandbox"
     if run_singularity build --sandbox "$TMP_SANDBOX" "$CONTAINER_SIF_PATH"; then
-        rm -rf "$SANDBOX_DIR"
-        mv "$TMP_SANDBOX" "$SANDBOX_DIR"
-        touch "$READY_FILE"
+        # Include the marker in the atomic rename. Once published, a sandbox is
+        # immutable so another PBS job can never remove files from a live runtime.
+        if ! touch "${{TMP_SANDBOX}}/.ready"; then
+            rm -rf "$BUILD_ROOT"
+            return 1
+        fi
+        if [ -e "$SANDBOX_DIR" ]; then
+            if [ -f "$READY_FILE" ]; then
+                rm -rf "$BUILD_ROOT"
+                return 0
+            fi
+            echo "ERROR: Refusing to replace incomplete sandbox cache: $SANDBOX_DIR"
+            rm -rf "$BUILD_ROOT"
+            return 1
+        fi
+        if ! mv "$TMP_SANDBOX" "$SANDBOX_DIR"; then
+            rm -rf "$BUILD_ROOT"
+            return 1
+        fi
+        rmdir "$BUILD_ROOT" || true
         return 0
     fi
-    rm -rf "$TMP_SANDBOX"
+    rm -rf "$BUILD_ROOT"
     return 1
 }}
 
-if [ ! -f "$READY_FILE" ]; then
-    SANDBOX_RETRY_MAX=${{SINGULARITY_SANDBOX_RETRY_MAX:-6}}
-    SANDBOX_RETRY_BASE_SLEEP_SEC=${{SINGULARITY_SANDBOX_RETRY_BASE_SLEEP_SEC:-20}}
-    SANDBOX_RETRY_JITTER_SEC=${{SINGULARITY_SANDBOX_RETRY_JITTER_SEC:-40}}
-    SANDBOX_ATTEMPT=1
-
-    while [ ! -f "$READY_FILE" ] && [ "$SANDBOX_ATTEMPT" -le "$SANDBOX_RETRY_MAX" ]; do
-        if mkdir "$LOCK_DIR" 2>/dev/null; then
-            build_sandbox || true
-            rmdir "$LOCK_DIR" 2>/dev/null || true
-        else
-            START_WAIT=$(date +%s)
-            while [ -d "$LOCK_DIR" ] && [ ! -f "$READY_FILE" ]; do
-                NOW=$(date +%s)
-                if [ $((NOW - START_WAIT)) -ge "$LOCK_TIMEOUT_SEC" ]; then
-                    break
-                fi
-                sleep 2
-            done
+acquire_cache_lock() {{
+    START_WAIT=$(date +%s)
+    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+        NOW=$(date +%s)
+        if [ $((NOW - START_WAIT)) -ge "$LOCK_TIMEOUT_SEC" ]; then
+            return 1
         fi
-
-        if [ -f "$READY_FILE" ]; then
-            break
-        fi
-
-        SLEEP_SEC=$((SANDBOX_RETRY_BASE_SLEEP_SEC + RANDOM % (SANDBOX_RETRY_JITTER_SEC + 1)))
-        echo "Sandbox not ready (attempt $SANDBOX_ATTEMPT/$SANDBOX_RETRY_MAX). Retrying in ${{SLEEP_SEC}}s."
-        sleep "$SLEEP_SEC"
-        SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
+        sleep 2
     done
-fi
+}}
+
+release_cache_lock() {{
+    rmdir "$LOCK_DIR"
+}}
+
+acquire_sandbox_lease() {{
+    if ! acquire_cache_lock; then
+        return 1
+    fi
+
+    lease_acquired=false
+    if [ -f "$READY_FILE" ] || build_sandbox; then
+        if mkdir -p "$LEASES_DIR" && touch "$LEASE_FILE"; then
+            lease_acquired=true
+        fi
+    fi
+    if ! release_cache_lock; then
+        lease_acquired=false
+    fi
+    "$lease_acquired"
+}}
+
+release_sandbox() {{
+    if [ ! -f "$LEASE_FILE" ]; then
+        return 0
+    fi
+    if ! acquire_cache_lock; then
+        echo "WARNING: Timed out waiting to clean sandbox: $SANDBOX_DIR"
+        return 1
+    fi
+
+    rm -f "$LEASE_FILE"
+    for lease_candidate in "${{LEASES_DIR}}/${{LEASE_HOST}}."*; do
+        [ -e "$lease_candidate" ] || continue
+        lease_pid="${{lease_candidate##*.}}"
+        if ! kill -0 "$lease_pid" 2>/dev/null; then
+            rm -f "$lease_candidate"
+        fi
+    done
+
+    if [ -z "$(find "$LEASES_DIR" -type f -print -quit 2>/dev/null)" ]; then
+        rm -rf "$SANDBOX_DIR" "$LEASES_DIR"
+        echo "Removed unused sandbox cache: $SANDBOX_DIR"
+    fi
+    release_cache_lock
+}}
+
+SANDBOX_RETRY_MAX=${{SINGULARITY_SANDBOX_RETRY_MAX:-6}}
+SANDBOX_RETRY_BASE_SLEEP_SEC=${{SINGULARITY_SANDBOX_RETRY_BASE_SLEEP_SEC:-20}}
+SANDBOX_RETRY_JITTER_SEC=${{SINGULARITY_SANDBOX_RETRY_JITTER_SEC:-40}}
+SANDBOX_ATTEMPT=1
+
+while [ "$SANDBOX_ATTEMPT" -le "$SANDBOX_RETRY_MAX" ]; do
+    if acquire_sandbox_lease; then
+        break
+    fi
+
+    SLEEP_SEC=$((SANDBOX_RETRY_BASE_SLEEP_SEC + RANDOM % (SANDBOX_RETRY_JITTER_SEC + 1)))
+    echo "Sandbox not ready (attempt $SANDBOX_ATTEMPT/$SANDBOX_RETRY_MAX). Retrying in ${{SLEEP_SEC}}s."
+    sleep "$SLEEP_SEC"
+    SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
+done
 
 echo "Singularity executable: {singularity_executable}"
 run_singularity --version || true
 echo "Container SIF path: $CONTAINER_SIF_PATH"
 echo "Sandbox cache root: $CACHE_ROOT"
 
-if [ -f "$READY_FILE" ]; then
+if [ -f "$READY_FILE" ] && [ -f "$LEASE_FILE" ]; then
     CONTAINER_RUNTIME_PATH="$SANDBOX_DIR"
 else
     echo "ERROR: sandbox not available at $SANDBOX_DIR after retries."
@@ -248,6 +326,8 @@ def format_qsub_execution_script(
         container_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
         gpu_passthrough_flag=gpu_passthrough_flag,
+        commit_hash_environment_variable=COMMIT_HASH_ENVIRONMENT_VARIABLE,
+        commit_hash=context.commit_hash,
     )
 
 # Singularity build script. A few comments:

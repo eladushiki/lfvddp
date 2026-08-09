@@ -38,6 +38,11 @@ def _expand_config_paths(config_paths: list[Path]) -> list[Path]:
     """Replace config directories with their recursively discovered files."""
     expanded_paths = []
     for config_path in config_paths:
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Configuration path does not exist or is inaccessible: "
+                f"{config_path}"
+            )
         if config_path.is_dir():
             expanded_paths.extend(
                 path
@@ -46,8 +51,13 @@ def _expand_config_paths(config_paths: list[Path]) -> list[Path]:
                 and path.suffix.lower().removeprefix(".")
                 in CONFIG_FILE_EXTENSIONS
             )
-        else:
+        elif config_path.is_file():
             expanded_paths.append(config_path)
+        else:
+            raise ValueError(
+                f"Configuration path is neither a regular file nor a directory: "
+                f"{config_path}"
+            )
     return expanded_paths
 
 

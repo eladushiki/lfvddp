@@ -172,6 +172,37 @@ def test_continued_submission_uses_only_the_saved_context(
     assert not (context.unique_out_dir / CONFIGS_DIR_NAME).exists()
 
 
+def test_staged_configs_preserve_order_and_equal_basenames(tmp_path, monkeypatch):
+    first_source = tmp_path / "first" / "config.json"
+    second_source = tmp_path / "second" / "config.json"
+    first_source.parent.mkdir()
+    second_source.parent.mkdir()
+    first_source.write_text('{"value": 1}')
+    second_source.write_text('{"value": 2}')
+    run_directory = tmp_path / "run"
+    run_directory.mkdir()
+    context = SimpleNamespace(
+        unique_out_dir=run_directory,
+        config_paths=[first_source, second_source],
+        config=SimpleNamespace(config__out_dir="results/run"),
+    )
+    monkeypatch.setattr(
+        submit_train,
+        "path_as_in_container",
+        lambda _: Path("/app/results/run/configs"),
+    )
+
+    staged_directory = submit_train._stage_config_files(context)
+
+    assert staged_directory == "/app/results/run/configs"
+    assert (run_directory / "configs" / "0000_config.json").read_text() == (
+        '{"value": 1}'
+    )
+    assert (run_directory / "configs" / "0001_config.json").read_text() == (
+        '{"value": 2}'
+    )
+
+
 def test_checkpoint_discovery_uses_single_latest_path_per_array_index(tmp_path):
     model = torch.nn.Linear(1, 1)
     optimizer = torch.optim.SGD(model.parameters(), lr=0.1)

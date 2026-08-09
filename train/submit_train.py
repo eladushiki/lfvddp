@@ -1,5 +1,6 @@
 from os import mkdir
 from pathlib import Path
+from shlex import join
 from shutil import copy2
 
 from frame.cluster.cluster_config import ClusterConfig
@@ -16,6 +17,49 @@ from frame.submit import submit_command, submit_container_build
 from train.train_config import TrainConfig
 
 
+def _stage_config_files(context: ExecutionContext) -> str:
+    """Copy configs and return their bound directory inside the container."""
+    staged_configs_directory = context.unique_out_dir / CONFIGS_DIR_NAME
+    mkdir(staged_configs_directory)
+
+    for index, config_path in enumerate(context.config_paths):
+        # The index preserves merge order and prevents equal basenames from
+        # separate pack directories from overwriting one another.
+        staged_name = f"{index:04d}_{config_path.name}"
+        copy2(config_path, staged_configs_directory / staged_name)
+
+    bound_configs_directory = (
+        Path(context.config.config__out_dir) / CONFIGS_DIR_NAME
+    )
+    return str(path_as_in_container(bound_configs_directory.absolute()))
+
+
+def _replace_config_arguments(
+    command_line_args: list[str],
+    container_configs_directory: str,
+) -> list[str]:
+    """Replace host config arguments with staged paths visible in the container."""
+    arguments = command_line_args[1:]
+    try:
+        configs_index = arguments.index("--configs")
+    except ValueError as error:
+        raise ValueError("Fresh submissions require --configs arguments.") from error
+
+    configs_end = configs_index + 1
+    while (
+        configs_end < len(arguments)
+        and not arguments[configs_end].startswith("-")
+    ):
+        configs_end += 1
+
+    return [
+        *arguments[:configs_index],
+        "--configs",
+        container_configs_directory,
+        *arguments[configs_end:],
+    ]
+
+
 @context_controlled_execution
 def submit_process(context: ExecutionContext) -> None:
     """
@@ -29,21 +73,8 @@ def submit_process(context: ExecutionContext) -> None:
 
     selected_walltime = context.prepare_next_qsub_walltime_chunk()
 
-    config_path_mapping = {}
     if not context.is_continue:
-        staged_configs_directory = context.unique_out_dir / CONFIGS_DIR_NAME
-        mkdir(staged_configs_directory)
-
-        for config_path in context.config_paths:
-            copy2(config_path, staged_configs_directory / config_path.name)
-            bound_dest_path = (
-                Path(context.config.config__out_dir)
-                / CONFIGS_DIR_NAME
-                / config_path.name
-            )
-            config_path_mapping[str(config_path)] = str(
-                path_as_in_container(bound_dest_path.absolute())
-            )
+        container_configs_directory = _stage_config_files(context)
 
     # Build a container when explicitly requested. Continuations reuse the existing build.
     if context.is_build_container and not context.is_continue and not context.is_only_train:
@@ -64,16 +95,13 @@ def submit_process(context: ExecutionContext) -> None:
             str(context.config.train__epochs),
         ]
     else:
-        current_args = context.command_line_args[1:]
+        current_args = _replace_config_arguments(
+            context.command_line_args,
+            container_configs_directory,
+        )
 
     # Construct the python commands to run inside the container
-    train_cmd = f"python {SINGLE_TRAIN_SCRIPT_RELATIVE}"
-
-    updated_args = [config_path_mapping.get(arg, arg) for arg in current_args]
-
-    # Add the training arguments unchanged.
-    for arg in updated_args:
-        train_cmd += f" {arg}"
+    train_cmd = join(["python", str(SINGLE_TRAIN_SCRIPT_RELATIVE), *current_args])
 
     # Submit the job to the cluster
     train_jobid = submit_command(
@@ -100,9 +128,11 @@ def submit_process(context: ExecutionContext) -> None:
     container_submission_directory = path_as_in_container(
         Path(context.config.config__out_dir).absolute()
     )
-    plot_cmd = (
-        f"python {CREATE_PLOTS_SCRIPT_RELATIVE} {container_submission_directory}"
-    )
+    plot_cmd = join([
+        "python",
+        str(CREATE_PLOTS_SCRIPT_RELATIVE),
+        str(container_submission_directory),
+    ])
     plot_jobid = submit_command(
         context=context,
         command=plot_cmd,

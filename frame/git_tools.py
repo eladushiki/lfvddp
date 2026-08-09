@@ -1,11 +1,22 @@
 import subprocess
+from os import environ
+
+
+COMMIT_HASH_ENVIRONMENT_VARIABLE = "LFVDDP_COMMIT_HASH"
 
 
 def get_commit_hash() -> str:
+    if commit_hash := environ.get(COMMIT_HASH_ENVIRONMENT_VARIABLE):
+        return commit_hash
     return subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
 
 
 def is_git_head_clean() -> bool:
+    # Cluster jobs use the commit already validated by the submission process.
+    # Their /app bind may be a worktree whose external Git metadata is not bound.
+    if COMMIT_HASH_ENVIRONMENT_VARIABLE in environ:
+        return True
+
     # Run `git update-index --assume-unchanged` for the unignored NPLM pycache
     subprocess.run(['git', 'update-index', '--assume-unchanged', 'neural_networks/NPLM/src/NPLM/__pycache__/'], check=True)
     

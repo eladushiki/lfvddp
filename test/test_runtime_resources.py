@@ -164,9 +164,25 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert "THREADS_PER_PROCESS=$(nproc" in script
     assert "SINGULARITYENV_LFVDDP_ALLOCATED_CPUS" in script
     assert "SINGULARITYENV_LFVDDP_ALLOCATED_GPU_IDS" in script
+    assert (
+        f'SINGULARITYENV_LFVDDP_COMMIT_HASH="'
+        f'{function_execution_context.commit_hash}"'
+    ) in script
     assert "SINGULARITYENV_PYTHONUNBUFFERED=1" in script
     assert "SINGULARITYENV_PYTHONFAULTHANDLER=1" in script
     assert "singularity exec --nv" in script
+    assert 'touch "${TMP_SANDBOX}/.ready"' in script
+    assert script.index('touch "${TMP_SANDBOX}/.ready"') < script.index(
+        'mv "$TMP_SANDBOX" "$SANDBOX_DIR"'
+    )
+    build_function = script.split("build_sandbox()", 1)[1].split(
+        "acquire_cache_lock()", 1
+    )[0]
+    assert 'rm -rf "$SANDBOX_DIR"' not in build_function
+    assert 'touch "$LEASE_FILE"' in script
+    assert 'rm -rf "$SANDBOX_DIR" "$LEASES_DIR"' in script
+    assert "declare -F release_sandbox" in script
+    assert "trap 'exit 143' TERM" in script
     subprocess.run(
         ["bash", "-n"],
         input=script,
