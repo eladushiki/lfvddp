@@ -52,6 +52,9 @@ _PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
     "wspace": 0.001,
 }
 
+_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 6
+_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
+
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
 # Implement any new plot function here, and you will be able to call it automatically.
 # This being said, the format for implementation has to be:
@@ -139,10 +142,48 @@ def t_train_percentile_progression_plot(
     return fig
 
 
+def _t_distribution_outlier_masks(
+    t_values: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Identify failed low-tail and overfitted high-tail training results."""
+    lower_reference_boundary = np.percentile(
+        t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    upper_reference_boundary = np.percentile(
+        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    lower_reference = t_values[t_values >= lower_reference_boundary]
+    upper_reference = t_values[t_values <= upper_reference_boundary]
+
+    lower_threshold = np.mean(lower_reference) - (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
+    )
+    upper_threshold = np.mean(upper_reference) + (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
+    )
+    return t_values < lower_threshold, t_values > upper_threshold
+
+
+def _filter_t_distribution_outliers(
+    t_values: np.ndarray,
+    cut_non_converged: bool,
+    cut_overfitted: bool,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply the configured t-distribution tail exclusions."""
+    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
+    excluded = np.zeros(t_values.shape, dtype=bool)
+    if cut_non_converged:
+        excluded |= did_not_converge
+    if cut_overfitted:
+        excluded |= overfitted
+    return t_values[~excluded], did_not_converge, overfitted
+
+
 def t_distribution_plot(
     context: ExecutionContext,
     number_of_bins: int,
     cut_non_converged: bool = True,
+    cut_overfitted: bool = True,
 ) -> Figure:
     """
     Plot the histogram of a test statistics sample (t) and the target chi2 distribution.
@@ -168,17 +209,19 @@ def t_distribution_plot(
     ax = fig.add_subplot(111)
 
     agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
-    t = agg.all_t_values
+    all_finite_t = agg.all_t_values
 
-    # Convergence statistics
-    fifth_percentile = np.percentile(t, 5)
-    critical_mass_t = t >= fifth_percentile
-    distribution_std = np.std(t[critical_mass_t])
-    distribution_mean = np.mean(t[critical_mass_t])
-    n_std = 6
-    did_not_converge = t < (distribution_mean - n_std * distribution_std)
-    if cut_non_converged:
-        t = t[~did_not_converge]
+    # Training-result quality statistics
+    t, did_not_converge, overfitted = _filter_t_distribution_outliers(
+        all_finite_t,
+        cut_non_converged=cut_non_converged,
+        cut_overfitted=cut_overfitted,
+    )
+    if t.size == 0:
+        raise ValueError("No finite t values remain after outlier filtering.")
+
+    distribution_mean = np.mean(t)
+    distribution_std = np.std(t)
 
     # Limits
     chi2_begin = 0
@@ -198,9 +241,23 @@ def t_distribution_plot(
         f"std: {str(np.around(distribution_std, 2))}"
     )
 
-    invalid_t_num = did_not_converge.sum() + agg.nan_t_values
-    if invalid_t_num > 0:
-        label += f"\ndid not converge: {invalid_t_num / t.size * 100:.2f}%"
+    total_t_num = all_finite_t.size + agg.nan_t_values
+    did_not_converge_num = did_not_converge.sum() + agg.nan_t_values
+    if did_not_converge_num > 0:
+        convergence_note = (
+            "removed as non-converged" if cut_non_converged else "did not converge"
+        )
+        label += (
+            f"\n{convergence_note}: "
+            f"{did_not_converge_num / total_t_num * 100:.2f}%"
+        )
+    if np.any(overfitted):
+        overfitting_note = (
+            "removed as overfitted" if cut_overfitted else "overfitted"
+        )
+        label += (
+            f"\n{overfitting_note}: {overfitted.sum() / total_t_num * 100:.2f}%"
+        )
 
     h, _, _ = ax.hist(
         t,
