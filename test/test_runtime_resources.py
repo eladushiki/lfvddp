@@ -11,6 +11,7 @@ from frame.command_line.execution import format_qsub_execution_script
 from frame.file_system.textual_data import load_dict_from_json
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
+from train import cpu_runtime
 from train.model_trainer import ParallelTrainLauncher, SequentialTrainLauncher
 from train.runtime_resources import (
     ALLOCATED_CPUS_ENV,
@@ -76,6 +77,20 @@ def _allocation(cpus, gpus=0):
         requested_cpus=cpus,
         requested_gpus=gpus,
     )
+
+
+def test_cpu_runtime_configures_interop_threads_only_once(monkeypatch):
+    interop_calls = []
+    intraop_calls = []
+    monkeypatch.setattr(cpu_runtime, "_INTEROP_THREADS_CONFIGURED", False)
+    monkeypatch.setattr(torch, "set_num_interop_threads", interop_calls.append)
+    monkeypatch.setattr(torch, "set_num_threads", intraop_calls.append)
+
+    cpu_runtime.configure_cpu_runtime(8, log_metadata=False)
+    cpu_runtime.configure_cpu_runtime(3, log_metadata=False)
+
+    assert interop_calls == [1]
+    assert intraop_calls == [8, 3]
 
 
 def test_runtime_cpu_count_uses_export_and_affinity(monkeypatch):
