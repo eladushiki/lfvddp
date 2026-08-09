@@ -149,6 +149,8 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert "THREADS_PER_PROCESS=$(nproc" in script
     assert "SINGULARITYENV_LFVDDP_ALLOCATED_CPUS" in script
     assert "SINGULARITYENV_LFVDDP_ALLOCATED_GPU_IDS" in script
+    assert "SINGULARITYENV_PYTHONUNBUFFERED=1" in script
+    assert "SINGULARITYENV_PYTHONFAULTHANDLER=1" in script
     assert "singularity exec --nv" in script
     subprocess.run(
         ["bash", "-n"],
@@ -389,6 +391,7 @@ def test_parallel_launcher_runs_trainable_branches_in_cpu_workers(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
+    capsys,
 ):
     detected_batch = detector_effect.affect_batch(
         isolated_data_generation.get_batch()
@@ -416,6 +419,20 @@ def test_parallel_launcher_runs_trainable_branches_in_cpu_workers(
         assert training.history is not None
         assert training.result is not None
         assert training.model._epochs_executed == 100
+
+    output = capsys.readouterr().out
+    numerator_begin = output.index("BEGIN TRAINING OUTPUT: parallel_True")
+    numerator_end = output.index("END TRAINING OUTPUT: parallel_True")
+    denominator_begin = output.index("BEGIN TRAINING OUTPUT: parallel_False")
+    denominator_end = output.index("END TRAINING OUTPUT: parallel_False")
+    assert numerator_begin < numerator_end < denominator_begin < denominator_end
+    for model_name in ("parallel_True", "parallel_False"):
+        worker_output_path = (
+            function_execution_context.training_outcomes_dir
+            / f"{model_name}.worker_output.txt"
+        )
+        assert worker_output_path.is_file()
+        assert "Training worker started" in worker_output_path.read_text()
 
 
 @pytest.mark.parametrize(
@@ -472,6 +489,7 @@ def test_parallel_worker_failure_is_propagated(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
+    capsys,
 ):
     detected_batch = detector_effect.affect_batch(
         isolated_data_generation.get_batch()
@@ -510,6 +528,15 @@ def test_parallel_worker_failure_is_propagated(
 
     with pytest.raises(RuntimeError, match="failing_numerator failed"):
         launcher.execute_trainings()
+
+    output = capsys.readouterr().out
+    failing_begin = output.index("BEGIN TRAINING OUTPUT: failing_numerator")
+    failing_traceback = output.index("Traceback (most recent call last)")
+    failing_end = output.index("END TRAINING OUTPUT: failing_numerator (FAILED)")
+    successful_begin = output.index(
+        "BEGIN TRAINING OUTPUT: successful_denominator"
+    )
+    assert failing_begin < failing_traceback < failing_end < successful_begin
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")

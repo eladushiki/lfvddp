@@ -19,17 +19,22 @@ contract rather than dynamically changing strategies.
 """
 
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
+import logging
 from logging import info
 from multiprocessing import get_context
+import os
 from pathlib import Path
 import resource
+import sys
 from time import perf_counter
 import traceback
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 import torch
+from werkzeug.utils import secure_filename
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
@@ -218,9 +223,40 @@ def _state_dict_on_cpu(model: DifferentiatingModel) -> dict[str, Any]:
     }
 
 
+@contextmanager
+def _capture_worker_output(output_path: Path) -> Iterator[None]:
+    """Redirect one worker's combined stdout/stderr to its own text file.
+
+    File-descriptor redirection captures Python, logging, tqdm, and native-library
+    output.  Separate files prevent concurrently running workers from writing
+    interleaved bytes to the single PBS output stream.
+    """
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    saved_stdout = os.dup(1)
+    saved_stderr = os.dup(2)
+    try:
+        with output_path.open("w", buffering=1) as output_file:
+            os.dup2(output_file.fileno(), 1)
+            os.dup2(output_file.fileno(), 2)
+            yield
+    finally:
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            os.dup2(saved_stdout, 1)
+            os.dup2(saved_stderr, 2)
+            os.close(saved_stdout)
+            os.close(saved_stderr)
+
+
 def _parallel_training_worker(
     connection,
     context_path: Path,
+    output_path: Path,
     data_batch: DataBatch,
     is_numerator: bool,
     model_name: str,
@@ -235,51 +271,76 @@ def _parallel_training_worker(
     saved context, reconstructs detector state, and sends results or a complete
     traceback through the one-way connection.
     """
+    payload: dict[str, Any]
     try:
-        configure_cpu_runtime(cpu_threads, log_metadata=False)
-        context = ExecutionContext.naive_load_from_file(context_path)
-        torch.manual_seed(seed)
-        detector_effect = DetectorEffect(context)
-        existing_products = len(context.products.products)
-        started_at = perf_counter()
-        model, final_value, history = calc_min_LFVNN(
-            context=context,
-            data=data_batch,
-            detector_effect=detector_effect,
-            is_numerator=is_numerator,
-            name=model_name,
-            device=device,
-        )
-        elapsed_seconds = perf_counter() - started_at
-        cuda_index = torch.device(device).index if device.startswith("cuda") else None
-        connection.send(
-            {
-                "error": None,
-                "result": final_value,
-                "history": history,
-                "state_dict": _state_dict_on_cpu(model),
-                "norm_factor": model._norm_factor,
-                "epochs_executed": model._epochs_executed,
-                "elapsed_seconds": elapsed_seconds,
-                "peak_rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
-                "peak_cuda_allocated_bytes": (
-                    torch.cuda.max_memory_allocated(cuda_index)
-                    if cuda_index is not None
-                    else None
-                ),
-                "peak_cuda_reserved_bytes": (
-                    torch.cuda.max_memory_reserved(cuda_index)
-                    if cuda_index is not None
-                    else None
-                ),
-                "products": [
-                    str(product.descriptor)
-                    for product in context.products.products[existing_products:]
-                ],
-            }
-        )
+        with _capture_worker_output(output_path):
+            try:
+                configure_cpu_runtime(cpu_threads, log_metadata=False)
+                context = ExecutionContext.naive_load_from_file(context_path)
+                logging.basicConfig(
+                    level=getattr(logging, context.config.config__log_level),
+                    force=True,
+                )
+                info(
+                    "Training worker started: %s on %s with %s CPU thread(s).",
+                    model_name,
+                    device,
+                    cpu_threads,
+                )
+                torch.manual_seed(seed)
+                detector_effect = DetectorEffect(context)
+                existing_products = len(context.products.products)
+                started_at = perf_counter()
+                model, final_value, history = calc_min_LFVNN(
+                    context=context,
+                    data=data_batch,
+                    detector_effect=detector_effect,
+                    is_numerator=is_numerator,
+                    name=model_name,
+                    device=device,
+                )
+                elapsed_seconds = perf_counter() - started_at
+                cuda_index = (
+                    torch.device(device).index if device.startswith("cuda") else None
+                )
+                info(
+                    "Training worker finished: %s in %.3f seconds.",
+                    model_name,
+                    elapsed_seconds,
+                )
+                payload = {
+                    "error": None,
+                    "result": final_value,
+                    "history": history,
+                    "state_dict": _state_dict_on_cpu(model),
+                    "norm_factor": model._norm_factor,
+                    "epochs_executed": model._epochs_executed,
+                    "elapsed_seconds": elapsed_seconds,
+                    "peak_rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+                    "peak_cuda_allocated_bytes": (
+                        torch.cuda.max_memory_allocated(cuda_index)
+                        if cuda_index is not None
+                        else None
+                    ),
+                    "peak_cuda_reserved_bytes": (
+                        torch.cuda.max_memory_reserved(cuda_index)
+                        if cuda_index is not None
+                        else None
+                    ),
+                    "products": [
+                        str(product.descriptor)
+                        for product in context.products.products[existing_products:]
+                    ],
+                }
+            except Exception:
+                error_traceback = traceback.format_exc()
+                print(error_traceback, file=sys.stderr, flush=True)
+                payload = {"error": error_traceback}
     except Exception:
-        connection.send({"error": traceback.format_exc()})
+        payload = {"error": traceback.format_exc()}
+
+    try:
+        connection.send(payload)
     finally:
         connection.close()
 
@@ -502,6 +563,96 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             peak_cuda_reserved_bytes=payload["peak_cuda_reserved_bytes"],
         )
 
+    def _worker_output_path(self, model_name: str) -> Path:
+        """Return a stable per-training combined stdout/stderr path."""
+
+        safe_model_name = secure_filename(model_name) or "training"
+        return (
+            self._context.training_outcomes_dir
+            / f"{safe_model_name}.worker_output.txt"
+        )
+
+    @staticmethod
+    def _emit_available_worker_output(
+        output_path: Path,
+        position: int,
+    ) -> int:
+        """Replay newly written worker output and return its new file position."""
+
+        if not output_path.exists():
+            return position
+        with output_path.open("r", errors="replace") as output_file:
+            output_file.seek(position)
+            output = output_file.read()
+            new_position = output_file.tell()
+        if not output:
+            return new_position
+        print(output, end="", flush=True)
+        return new_position
+
+    def _collect_worker(
+        self,
+        assignment: _TrainingAssignment,
+        process,
+        parent_connection,
+        output_path: Path,
+    ) -> dict:
+        """Stream one worker block to PBS stdout while collecting its result.
+
+        Workers run concurrently, but the parent calls this method in assignment
+        order.  Later workers continue writing their private files until their
+        turn, preventing their output from interleaving with the current block.
+        """
+
+        model_name = self._training_model_name(
+            self._train_stack[assignment.index]
+        )
+        print(
+            f"\n===== BEGIN TRAINING OUTPUT: {model_name} "
+            f"(device={assignment.device}, CPU threads={assignment.cpu_threads}) =====",
+            flush=True,
+        )
+        position = 0
+        payload = None
+        try:
+            while process.is_alive() or payload is None:
+                position = self._emit_available_worker_output(
+                    output_path,
+                    position,
+                )
+                if payload is None:
+                    if parent_connection.poll(0.1):
+                        try:
+                            payload = parent_connection.recv()
+                        except EOFError:
+                            payload = {
+                                "error": "Worker exited without returning a result."
+                            }
+                    elif not process.is_alive():
+                        payload = {
+                            "error": "Worker exited without returning a result."
+                        }
+                else:
+                    process.join(timeout=0.1)
+
+            process.join()
+            position = self._emit_available_worker_output(
+                output_path,
+                position,
+            )
+            print(flush=True)
+        finally:
+            parent_connection.close()
+
+        status = "FAILED" if payload.get("error") is not None else "COMPLETED"
+        print(
+            f"===== END TRAINING OUTPUT: {model_name} ({status}) =====\n",
+            flush=True,
+        )
+        if output_path.exists():
+            self._context.document_created_product(output_path)
+        return payload
+
     def _execute_concurrently(self, assignments: list[_TrainingAssignment]) -> None:
         """Spawn independent assignments and collect results or tracebacks.
 
@@ -517,11 +668,13 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             training = self._train_stack[assignment.index]
             parent_connection, child_connection = mp_context.Pipe(duplex=False)
             model_name = self._training_model_name(training)
+            output_path = self._worker_output_path(model_name)
             process = mp_context.Process(
                 target=_parallel_training_worker,
                 args=(
                     child_connection,
                     context_path,
+                    output_path,
                     training.data_batch,
                     training.is_numerator,
                     model_name,
@@ -531,24 +684,27 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
                 ),
             )
             workers.append(
-                (assignment, process, parent_connection, child_connection)
+                (
+                    assignment,
+                    process,
+                    parent_connection,
+                    child_connection,
+                    output_path,
+                )
             )
 
-        for _, process, _, child_connection in workers:
+        for _, process, _, child_connection, _ in workers:
             process.start()
             child_connection.close()
 
         errors = []
-        for assignment, process, parent_connection, _ in workers:
-            try:
-                payload = parent_connection.recv()
-            except EOFError:
-                payload = {
-                    "error": f"Worker exited without returning a result (exit code {process.exitcode})."
-                }
-            finally:
-                parent_connection.close()
-            process.join()
+        for assignment, process, parent_connection, _, output_path in workers:
+            payload = self._collect_worker(
+                assignment,
+                process,
+                parent_connection,
+                output_path,
+            )
             if payload.get("error") is not None:
                 errors.append(
                     f"{self._training_model_name(self._train_stack[assignment.index])} "
