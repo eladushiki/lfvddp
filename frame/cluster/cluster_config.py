@@ -23,6 +23,10 @@ class ClusterConfig:
     cluster__qsub_walltime_chunks: list[str] = field(init=False)
 
     def __post_init__(self) -> None:
+        if self.cluster__qsub_ncpus is not None and self.cluster__qsub_ncpus < 1:
+            raise ValueError("cluster__qsub_ncpus must be positive when provided.")
+        if self.cluster__qsub_ngpus_for_train < 0:
+            raise ValueError("cluster__qsub_ngpus_for_train cannot be negative.")
         self._set_total_walltime(
             self.cluster__qsub_total_walltime or self.cluster__qsub_walltime
         )

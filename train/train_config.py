@@ -23,8 +23,6 @@ class TrainConfig:
     train__nn_xavier_gain: float = 4
     train__learning_rate: float = 0.001  # optimizer learning rate
     train__enable_progress_bar: bool = True
-    train__run_symmetric_in_parallel: bool = False
-
     # Opt-in CPU profiling. The warmup epochs are observed by the profiler but
     # omitted from its measurements; the following active epochs are recorded.
     train__profiling_enabled: bool = False

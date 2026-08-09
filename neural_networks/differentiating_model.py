@@ -30,6 +30,9 @@ from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
 
+LFVNN_DTYPE = torch.float64
+
+
 @dataclass(frozen=True)
 class _PreparedTrainingData:
     """Static tensors and category sizes reused by every training epoch."""
@@ -212,7 +215,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         detector_effect: DetectorEffect,
         is_numerator: bool,
         name: str,
-        dtype: torch.dtype = torch.float64,
+        dtype: torch.dtype = LFVNN_DTYPE,
+        device: Union[str, torch.device] = "cpu",
     ):
         super().__init__()
         self._context = context
@@ -221,6 +225,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._is_numerator = is_numerator
         self._name = name
         self._dtype = dtype
+        self._assigned_device = torch.device(device)
 
         # Add layers by spec. We would add two NNs to express f, g separately.
         self._build_layers()
@@ -230,13 +235,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         # Initialize NN parameters according to strategy
         self._initialize_parameters()
+        self.to(self._assigned_device)
 
         self._norm_factor = None
         self._training_history = defaultdict(list)
+        self._epochs_executed = 0
 
     @property
     def _device(self) -> torch.device:
-        return torch.device("cpu")
+        return self._assigned_device
 
     def _build_layers(self):
         self.paired_network = (
@@ -569,6 +576,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
             optimizer.load_state_dict(optimizer_state_dict)
+            for state in optimizer.state.values():
+                for key, value in state.items():
+                    if isinstance(value, torch.Tensor):
+                        state[key] = value.to(self._device)
         self._training_history = {
             key: list(value)
             for key, value in checkpoint.get("training_history", {}).items()
@@ -621,6 +632,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
         if start_epoch >= target_epochs:
             return self._training_history
+        self._epochs_executed = target_epochs - start_epoch
 
         epoch_iterator = range(start_epoch, target_epochs)
         if self._config.train__enable_progress_bar:
@@ -632,6 +644,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             number_of_observables=data.unified_data.n_observables,
             number_of_events=data.unified_data.n_samples,
             number_of_training_epochs=target_epochs - start_epoch,
+            device=self._device,
         )
         with profiler:
             for epoch in epoch_iterator:
@@ -736,12 +749,14 @@ def calc_min_LFVNN(
     detector_effect: DetectorEffect,
     is_numerator: bool,
     name: str,
+    device: Union[str, torch.device] = "cpu",
 ) -> Tuple[ContextedModel, float, Dict[str, List[float]]]:
     model = DifferentiatingModel(
         context=context,
         detector_effect=detector_effect,
         is_numerator=is_numerator,
         name=name,
+        device=device,
     )
 
     if not model.has_trainable_parameters():
@@ -752,6 +767,8 @@ def calc_min_LFVNN(
         info("Starting training")
         t0 = time()
         model_history = model.fit(data=data)
+        if model._device.type == "cuda":
+            torch.cuda.synchronize(model._device)
         info(f"Training time (seconds): {time() - t0}")
 
     # Calculate minimum loss from training history

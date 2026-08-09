@@ -194,6 +194,17 @@ the training job followed by the plotting job. Pass `--build-container` to
 `train/submit_train.py` to build a new container first; the training job will
 wait for that build to succeed before starting.
 
+### Runtime resource placement
+
+Cluster configuration describes the resources to request from PBS; it does not
+describe the capacity that training is allowed to assume it received. In
+particular, `cluster__qsub_ncpus`, `cluster__qsub_ngpus_for_train`, and
+`cluster__qsub_mem` remain user-chosen scheduler requests.
+
+After the job starts, the execution script passes its affinity-aware CPU count
+and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
+uses those observed values to choose its execution mode.
+
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
 optional `--debug` flag may be combined with it; configuration paths and all
 other runtime settings are restored from the saved context. If training reached

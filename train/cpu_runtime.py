@@ -35,7 +35,7 @@ def _cpu_model() -> str:
     return "unknown"
 
 
-def cpu_runtime_metadata(requested_cpus: Optional[int] = None) -> dict[str, str]:
+def cpu_runtime_metadata(effective_cpus: Optional[int] = None) -> dict[str, str]:
     """Return stable CPU allocation and PyTorch runtime diagnostics."""
     try:
         affinity = ",".join(str(cpu) for cpu in sorted(os.sched_getaffinity(0)))
@@ -44,8 +44,10 @@ def cpu_runtime_metadata(requested_cpus: Optional[int] = None) -> dict[str, str]
 
     metadata = {
         "hostname": socket.gethostname(),
-        "requested CPUs": str(
-            requested_cpus if requested_cpus is not None else "unknown"
+        "effective CPUs": str(
+            effective_cpus
+            if effective_cpus is not None
+            else torch.get_num_threads()
         ),
         "CPU affinity": affinity,
         "CPU model": _cpu_model(),
@@ -76,8 +78,8 @@ def cpu_runtime_metadata(requested_cpus: Optional[int] = None) -> dict[str, str]
     return metadata
 
 
-def configure_cpu_runtime(number_of_cpus: int) -> None:
-    """Match PyTorch and CPU-library thread pools to the PBS allocation."""
+def configure_cpu_runtime(number_of_cpus: int, log_metadata: bool = True) -> None:
+    """Match PyTorch and CPU-library thread pools to the observed allocation."""
     if number_of_cpus < 1:
         raise ValueError("The CPU thread count must be positive.")
 
@@ -93,6 +95,7 @@ def configure_cpu_runtime(number_of_cpus: int) -> None:
     except RuntimeError as error:
         warning("Could not set PyTorch inter-op threads: %s", error)
 
-    for key, value in cpu_runtime_metadata(number_of_cpus).items():
-        info("CPU runtime %s: %s", key, value)
-    info("PyTorch backend configuration:\n%s", torch.__config__.show())
+    if log_metadata:
+        for key, value in cpu_runtime_metadata(number_of_cpus).items():
+            info("CPU runtime %s: %s", key, value)
+        info("PyTorch backend configuration:\n%s", torch.__config__.show())
