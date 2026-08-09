@@ -513,6 +513,28 @@ def utils__normalize_histogram_values(
     return np.asarray(histogram_values) / normalization
 
 
+def _log10_positive_output_values(output_values: npt.ArrayLike) -> np.ndarray:
+    """Map positive 3D output heights to log10 coordinates, hiding zero bins."""
+    output_values = np.asarray(output_values)
+    logarithmic_values = np.full(output_values.shape, np.nan, dtype=float)
+    np.log10(
+        output_values,
+        out=logarithmic_values,
+        where=output_values > 0,
+    )
+    return logarithmic_values
+
+
+def _format_log10_output_tick(exponent: float, _position: float) -> str:
+    rounded_exponent = round(exponent)
+    displayed_exponent = (
+        str(int(rounded_exponent))
+        if np.isclose(exponent, rounded_exponent)
+        else f"{exponent:g}"
+    )
+    return rf"$10^{{{displayed_exponent}}}$"
+
+
 def utils__datset_histogram_sliced(
         ax: plt.Axes,
         bins: np.ndarray,
@@ -915,16 +937,20 @@ def _configure_region_histogram_panel_sliced(
                 for dataset in datasets
                 if dataset.n_samples > 0
             )
-            output_limits = (
-                minimum_output / 2.0,
-                max(minimum_output, ax.get_zlim()[1]),
-            )
+            minimum_visible_output = minimum_output / 2.0
+            maximum_visible_output = minimum_output
         else:
-            output_limits = (0.1, max(1.0, ax.get_zlim()[1]))
+            minimum_visible_output = 0.1
+            maximum_visible_output = 1.0
+        output_limits = (
+            np.log10(minimum_visible_output),
+            max(np.log10(maximum_visible_output), ax.get_zlim()[1]),
+        )
         ax.set_zlim(output_limits)
-        ax.set_zscale("log")
-        ax.zaxis.set_major_locator(ticker.LogLocator(base=10, numticks=4))
-        ax.zaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10))
+        # Axes3D formats logarithmic ticks but does not transform 3D artist
+        # coordinates. The meshes and markers are transformed explicitly.
+        ax.zaxis.set_major_locator(ticker.MaxNLocator(nbins=4, integer=True))
+        ax.zaxis.set_major_formatter(ticker.FuncFormatter(_format_log10_output_tick))
 
     utils__set_subplot_labels_sliced(
         ax=ax,
@@ -993,12 +1019,12 @@ def utils__plot_region_histogram_meshes_2d(
             bins=bins,
             weights=weights,
         )
-        positive_counts = np.where(counts > 0, counts, np.nan)
+        logarithmic_counts = _log10_positive_output_values(counts)
         _plot_bordered_wireframe(
             ax,
             mesh_x,
             mesh_y,
-            positive_counts,
+            logarithmic_counts,
             color=color,
             linewidth=linewidth,
             alpha=alpha,
@@ -1070,10 +1096,13 @@ def utils__plot_weighted_histogram_predictions_sliced(
             continue
 
         positive_counts = predicted_counts.ravel() > 0
+        logarithmic_counts = _log10_positive_output_values(
+            predicted_counts.ravel()[positive_counts]
+        )
         ax.scatter(
             prediction_xx.ravel()[positive_counts],
             prediction_yy.ravel()[positive_counts],
-            predicted_counts.ravel()[positive_counts],
+            logarithmic_counts,
             label=label,
             color=color,
             marker=marker,
@@ -1081,6 +1110,12 @@ def utils__plot_weighted_histogram_predictions_sliced(
             edgecolor="black",
             linewidth=0.4,
         )
+        if logarithmic_counts.size:
+            current_lower_limit, current_upper_limit = ax.get_zlim()
+            ax.set_zlim(
+                current_lower_limit,
+                max(current_upper_limit, float(np.max(logarithmic_counts))),
+            )
 
 
 def utils__synchronize_output_axis_limits(
