@@ -32,6 +32,7 @@ from plot.plot_utils import (
     utils__discover_performance_contexts,
     utils__model_prediction_values,
     utils__performance_group_label,
+    utils__prediction_mesh_mask,
     utils__plot_model_predictions_sliced,
     utils__plot_region_histogram_meshes_2d,
     utils__plot_region_histograms_sliced,
@@ -329,6 +330,7 @@ def performance_plot(
     context: ExecutionContext,
     background_only_t_values_parent_directory: str,
     signal_t_values_parent_directory: str,
+    excluded_signal_context_directory: Optional[str] = None,
 ):
     """
     Create a plot of the measured significance as a function of
@@ -383,7 +385,8 @@ def performance_plot(
     )
 
     signal_groups = utils__group_signal_contexts(
-        signal_t_values_parent_directory
+        signal_t_values_parent_directory,
+        excluded_context_directory=excluded_signal_context_directory,
     )
     if not signal_groups:
         raise ValueError(
@@ -1414,6 +1417,18 @@ def plot_prediction_process_2d(
     projected_cr_predictions = project_predictions(
         cr_prediction_specs, prediction_spanning_dataset
     )
+    prediction_mesh_mask = utils__prediction_mesh_mask(
+        coordinates=next(iter(projected_sr_predictions.values()))[0],
+        data_points=data_batch.unified_data.slice_along_observables(
+            selected_observables
+        ).events,
+    )
+    for projected_predictions in (
+        projected_sr_predictions,
+        projected_cr_predictions,
+    ):
+        for _, contour in projected_predictions.values():
+            contour[~prediction_mesh_mask] = np.nan
 
     def prediction_axis_limits(
         projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],

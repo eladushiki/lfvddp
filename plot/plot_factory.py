@@ -1,15 +1,30 @@
 from inspect import isfunction
 from types import FunctionType
+from typing import Optional
 
 from matplotlib.figure import Figure
 
 from data_tools.detector.detector_config import DetectorConfig
 from frame.context.execution_context import ExecutionContext
 import plot.plots as plots
+from plot.plot_utils import utils__discover_background_only_parent_directory
 from plot.plotting_config import PlotInstructions, PlottingConfig
 
 
 class PlotFactory:
+    SINGLE_SUBMISSION_ENTRYPOINT = "single_submission"
+    MULTI_RUN_ENTRYPOINT = "multi_run"
+    _PLOT_NAMES_BY_ENTRYPOINT = {
+        SINGLE_SUBMISSION_ENTRYPOINT: frozenset({
+            "t_distribution_plot",
+            "t_train_percentile_progression_plot",
+            "plot_samples_over_background_sliced",
+            "plot_data_generation_sliced",
+            "plot_prediction_process",
+        }),
+        MULTI_RUN_ENTRYPOINT: frozenset({"performance_plot"}),
+    }
+
     _instance = None
     _context: ExecutionContext
 
@@ -62,6 +77,43 @@ class PlotFactory:
                 f"Could not find a {required_dimensions}D implementation for plot "
                 f"'{plot_name}'. Expected function '{dimension_specific_name}'."
             ) from None
+
+    def plot_instructions_for_entrypoint(
+        self,
+        entrypoint: str,
+        performance_directory: Optional[str] = None,
+    ) -> list[PlotInstructions]:
+        if entrypoint not in self._PLOT_NAMES_BY_ENTRYPOINT:
+            raise ValueError(f"Unknown plot entrypoint: {entrypoint}.")
+        if entrypoint == self.MULTI_RUN_ENTRYPOINT and performance_directory is None:
+            raise ValueError("Multi-run plots require a performance directory.")
+
+        allowed_plot_names = self._PLOT_NAMES_BY_ENTRYPOINT[entrypoint]
+        background_directory = (
+            utils__discover_background_only_parent_directory(performance_directory)
+            if entrypoint == self.MULTI_RUN_ENTRYPOINT
+            else None
+        )
+        selected_instructions = []
+        for instructions in self._config:
+            if instructions.name not in allowed_plot_names:
+                continue
+            if entrypoint == self.MULTI_RUN_ENTRYPOINT:
+                instructions = PlotInstructions(
+                    name=instructions.name,
+                    instructions={
+                        **instructions.instructions,
+                        "background_only_t_values_parent_directory": str(
+                            background_directory
+                        ),
+                        "signal_t_values_parent_directory": performance_directory,
+                        "excluded_signal_context_directory": str(
+                            background_directory
+                        ),
+                    },
+                )
+            selected_instructions.append(instructions)
+        return selected_instructions
 
     def generate_plot(self, plot_instructions: PlotInstructions) -> Figure:
         generating_function = self[plot_instructions.name]

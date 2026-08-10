@@ -64,19 +64,28 @@ def _context_arguments_for_submission_directory(
     return context_arguments
 
 
-@context_controlled_execution
-def create_plots(context: ExecutionContext):
-    # Make sure we have a plot config
-    if not isinstance(plotting_config := context.config, PlottingConfig):
+def create_configured_plots(
+    context: ExecutionContext,
+    entrypoint: str,
+    performance_directory: Optional[Path] = None,
+) -> None:
+    """Create and persist the plots assigned to one hardcoded entry point."""
+    if not isinstance(context.config, PlottingConfig):
         raise TypeError("The configuration must be a PlotConfig")
 
-    # Draw all plots
     plot_factory = PlotFactory(context=context)
-    for plot in plotting_config:
+    for plot in plot_factory.plot_instructions_for_entrypoint(
+        entrypoint,
+        performance_directory=(str(performance_directory) if performance_directory else None),
+    ):
         figure = plot_factory.generate_plot(plot)
-
         image_filename = context.unique_out_dir / plot.plot_filename
         context.save_and_document_figure(figure, image_filename)
+
+
+@context_controlled_execution
+def create_plots(context: ExecutionContext):
+    create_configured_plots(context, PlotFactory.SINGLE_SUBMISSION_ENTRYPOINT)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, to_rgba
 from matplotlib.legend_handler import HandlerPatch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy.spatial import Delaunay
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
@@ -43,6 +44,15 @@ _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
 
 
+def utils__prediction_mesh_mask(
+    coordinates: np.ndarray,
+    data_points: np.ndarray,
+) -> np.ndarray:
+    """Keep mesh points inside the convex hull of data points and the origin."""
+    polygon_points = np.vstack((np.zeros((1, 2)), data_points))
+    return Delaunay(polygon_points).find_simplex(coordinates) >= 0
+
+
 def utils__discover_performance_contexts(
     parent_directory: str,
 ) -> List[Tuple[ExecutionContext, Path]]:
@@ -51,6 +61,47 @@ def utils__discover_performance_contexts(
         Path(parent_directory),
         outermost_only=True,
     )
+
+
+def utils__context_has_signal(context: ExecutionContext) -> bool:
+    """Return whether any required dataset category contains signal events."""
+    if not isinstance(context.config, DatasetConfig):
+        raise TypeError("Performance contexts must have a DatasetConfig.")
+    return any(
+        context.config.get_parameters(category).dataset__has_signal
+        for category in DataBatch.REQUIRED_DATASET_CATEGORIES
+    )
+
+
+def utils__discover_background_only_parent_directory(
+    performance_directory: str,
+) -> Path:
+    """Find the outermost directory whose descendant runs are background-only."""
+    root_directory = Path(performance_directory)
+    contexts = ExecutionContext.discover_run_contexts(root_directory)
+    if not contexts:
+        raise ValueError(f"No run contexts found below {root_directory}.")
+
+    contexts_by_directory: Dict[Path, List[ExecutionContext]] = {}
+    for context, context_path in contexts:
+        directory = context_path.parent
+        while directory.is_relative_to(root_directory):
+            contexts_by_directory.setdefault(directory, []).append(context)
+            if directory == root_directory:
+                break
+            directory = directory.parent
+
+    background_directories = [
+        directory
+        for directory, nested_contexts in contexts_by_directory.items()
+        if nested_contexts
+        and not any(utils__context_has_signal(context) for context in nested_contexts)
+    ]
+    if not background_directories:
+        raise ValueError(
+            f"No background-only run directory found below {root_directory}."
+        )
+    return min(background_directories, key=lambda directory: len(directory.parts))
 
 
 def utils__aggregate_context_t_values(
@@ -114,14 +165,22 @@ def utils__performance_group_key(
 
 def utils__group_signal_contexts(
     signal_t_values_parent_directory: str,
+    excluded_context_directory: Optional[str] = None,
 ) -> List[List[Tuple[ExecutionContext, Path]]]:
     groups: Dict[
         Tuple[Tuple[str, str, str, str, bool], ...],
         List[Tuple[ExecutionContext, Path]],
     ] = {}
+    excluded_directory = (
+        Path(excluded_context_directory)
+        if excluded_context_directory is not None
+        else None
+    )
     for signal_context, context_path in utils__discover_performance_contexts(
         signal_t_values_parent_directory
     ):
+        if excluded_directory and context_path.is_relative_to(excluded_directory):
+            continue
         group_key = utils__performance_group_key(signal_context)
         groups.setdefault(group_key, []).append((signal_context, context_path))
 
