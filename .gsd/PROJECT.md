@@ -2,26 +2,39 @@
 
 ## What This Is
 
-<!-- Describe the project in plain language. -->
+We develop a statistical method to look at pairs of allegedly physically equivalent datasets of collider events, and estimate the probability with which they did not stem from the same probability distribution function.
 
 ## Core Value
 
-<!-- State the one thing that must remain valuable if scope shrinks. -->
+Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discrepancies from the Standard Model, without assuming the form or quality of a potential mismatch, and estimate the probability that it signals new physics.
 
 ## Project Shape
 
-- **Complexity:**
-- **Why:**
-- **Web stack:**
+- **Complexity:** complex
+- **Why:** The method must provide scientifically meaningful, model-agnostic new-physics evidence from HEP event data and be validated against injected-signal benchmarks.
+- **Web stack:** not a web UI; Python workflow running locally and on the WIS ATLAS cluster through Singularity
 
 ## Users
 
-<!-- Identify the users and their primary goals. -->
+- Experimentalists use observed discrepancies to direct theory development and may create or modify configurations.
+- Developers maintain the code and may also create or modify configurations.
+
+## Canonical Workflow
+
+1. Choose dataset, detector, training, and plotting configurations.
+2. Run or submit training for a lepton-flavor-differentiated dataset pair.
+3. Aggregate test-statistic distributions from run outputs to calculate the reported significance `Z`, and produce diagnostic plots.
 
 ## Constraints
 
-<!-- Add scientific, infrastructure, compatibility, and delivery constraints. -->
+- The probability estimate must distinguish potential new physics from statistical fluctuations and detector effects; detector effects are controlled before comparison.
+- Dataset-pair matching is currently enforced through manually maintained paired configurations.
+- The method must not assume a predefined new-physics mismatch hypothesis.
 
 ## Current State
 
-<!-- Record the current milestone, working behavior, and known limitations. -->
+The project develops and benchmarks a statistical method that compares pairs of lepton-flavor-differentiated collider-event datasets. Its primary benchmark is measured significance as a function of injected signal significance.
+
+## Known Limitations
+
+- The number of chi-squared degrees of freedom inferred while training the test-statistic `t` distribution is not yet explained; this does not currently prevent interpreting Z.
