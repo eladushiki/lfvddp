@@ -21,12 +21,15 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
+    SIGNAL_CONFIGURATION_FIELDS,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
+    utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
-    utils__group_signal_t_values_directories,
+    utils__group_signal_contexts,
+    utils__discover_performance_contexts,
     utils__model_prediction_values,
     utils__performance_group_label,
     utils__plot_model_predictions_sliced,
@@ -37,6 +40,7 @@ from plot.plot_utils import (
     utils__project_prediction_values_sliced,
     utils__remove_eta_from_prediction_values,
     utils__synchronize_output_axis_limits,
+    utils__warn_for_context_discrepancies,
 )
 from plot.plotting_config import PlottingConfig
 from train.model_trainer import TrainLauncher
@@ -332,9 +336,9 @@ def performance_plot(
     types.
 
     Data needed to generate the plot:
-    - t values distribution for a run with background only.
-        contained in a single directory and is used as a
-        reference for all signal distributions.
+    - t values distributions for runs with background only.
+        Every outermost directory containing a context below the
+        supplied parent is gathered into one reference distribution.
     - A parent directory containing t value distributions. Each
         outermost directory containing a context file is one
         distribution. Compatible dataset configurations are grouped,
@@ -348,32 +352,49 @@ def performance_plot(
             f"Expected context.config to be of type {PlottingConfig}, got {type(plot_config)}"
         )
 
-    # Validate background configuration
-    ## this has to be a generated type, else the distribution is not well known
-    background_context = ExecutionContext.naive_load_from_file(
-        Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME
+    background_contexts = utils__discover_performance_contexts(
+        background_only_t_values_parent_directory
     )
-    background_config: DatasetConfig = background_context.config
-    for background_dataset_properties in background_config.dataset_parameters:
-        assert not background_dataset_properties.dataset__has_signal, (
-            f"background dataset expected to have only background events, "
-            f"{background_dataset_properties.category} is configured with "
-            f"{background_dataset_properties.dataset__number_of_signal_events} "
-            "signal events and a mean of "
-            f"{background_dataset_properties.dataset__mean_number_of_signal_events}"
+    if not background_contexts:
+        raise ValueError(
+            f"No directories containing {CONTEXT_FILE_NAME} were found under "
+            f"{background_only_t_values_parent_directory}."
         )
 
-    # Gather background data
-    background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
-    background_t_dist = background_agg.all_t_values
+    # Validate every background submission before merging its results.
+    for background_context, _ in background_contexts:
+        background_config: DatasetConfig = background_context.config
+        for background_dataset_properties in background_config.dataset_parameters:
+            assert not background_dataset_properties.dataset__has_signal, (
+                f"background dataset expected to have only background events, "
+                f"{background_dataset_properties.category} is configured with "
+                f"{background_dataset_properties.dataset__number_of_signal_events} "
+                "signal events and a mean of "
+                f"{background_dataset_properties.dataset__mean_number_of_signal_events}"
+            )
+    utils__warn_for_context_discrepancies(
+        background_contexts,
+        "one background dataset",
+    )
 
-    signal_groups = utils__group_signal_t_values_directories(
+    # Gather background data
+    background_t_dist = utils__aggregate_context_t_values(
+        background_contexts
+    )
+
+    signal_groups = utils__group_signal_contexts(
         signal_t_values_parent_directory
     )
     if not signal_groups:
         raise ValueError(
             f"No directories containing {CONTEXT_FILE_NAME} were found under "
             f"{signal_t_values_parent_directory}."
+        )
+    for group_index, signal_group in enumerate(signal_groups, start=1):
+        utils__warn_for_context_discrepancies(
+            [background_contexts[0], signal_group[0]],
+            f"the background reference and signal curve {group_index}",
+            ignored_fields=SIGNAL_CONFIGURATION_FIELDS,
         )
     curves = [
         utils__calculate_performance_curve(signal_group, background_t_dist)
@@ -419,7 +440,7 @@ def performance_plot(
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
     for signal_group, curve, color in zip(signal_groups, curves, colors):
         group_label = utils__performance_group_label(
-            signal_group[0][1],
+            signal_group[0][0],
         )
         ax.plot(
             curve.x_values,

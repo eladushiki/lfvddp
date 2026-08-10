@@ -2,13 +2,13 @@ import logging
 import random
 from argparse import Namespace
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from inspect import signature
 from logging import basicConfig, info
-from os import environ, getpid, makedirs
+from os import environ, getpid, makedirs, walk
 from pathlib import Path
 from sys import argv
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ClassVar, Dict, FrozenSet, Iterable, List, Optional, Tuple
 
 import torch
 from matplotlib.figure import Figure
@@ -96,6 +96,12 @@ def create_config_from_paramters(
 
 @dataclass
 class ExecutionContext:
+    DATASET_RUN_VARIATION_FIELDS: ClassVar[FrozenSet[str]] = frozenset({
+        "dataset__number_of_background_events",
+        "dataset__number_of_signal_events",
+        "dataset__signal_number_of_events_to_generate",
+    })
+
     commit_hash: str
     config: UserConfig
     config_paths: List[Path]
@@ -314,7 +320,9 @@ class ExecutionContext:
         entrypoint: Optional[str] = None,
         dirsafe_runtag: Optional[str] = None,
         require_continuation: bool = False,
+        outermost_only: bool = False,
     ) -> List[Tuple["ExecutionContext", Path]]:
+        """Load matching contexts, optionally stopping below the first in each branch."""
         parent_directory = Path(parent_directory)
         if not parent_directory.exists():
             return []
@@ -323,8 +331,16 @@ class ExecutionContext:
             context_paths = [parent_directory]
         elif parent_directory.is_file():
             return []
+        elif outermost_only:
+            context_paths = []
+            for directory, subdirectories, filenames in walk(parent_directory):
+                subdirectories.sort()
+                if CONTEXT_FILE_NAME not in filenames:
+                    continue
+                context_paths.append(Path(directory) / CONTEXT_FILE_NAME)
+                subdirectories.clear()
         else:
-            context_paths = list(parent_directory.rglob(CONTEXT_FILE_NAME))
+            context_paths = sorted(parent_directory.rglob(CONTEXT_FILE_NAME))
 
         contexts = []
         for context_path in context_paths:
@@ -343,6 +359,95 @@ class ExecutionContext:
             contexts.append((context, context_path))
 
         return contexts
+
+    @staticmethod
+    def _flatten_comparison_value(
+        value: Any,
+        path: str,
+        flattened: Dict[str, Any],
+    ) -> None:
+        if is_dataclass(value):
+            value = {
+                value_field.name: getattr(value, value_field.name)
+                for value_field in fields(value)
+            }
+        if isinstance(value, dict):
+            for key, child in sorted(value.items(), key=lambda item: str(item[0])):
+                ExecutionContext._flatten_comparison_value(
+                    child,
+                    f"{path}.{key}" if path else str(key),
+                    flattened,
+                )
+            return
+        if isinstance(value, (list, tuple)):
+            for index, child in enumerate(value):
+                ExecutionContext._flatten_comparison_value(
+                    child,
+                    f"{path}[{index}]",
+                    flattened,
+                )
+            return
+        flattened[path] = value
+
+    def comparison_values(
+        self,
+        ignored_dataset_fields: Iterable[str] = (),
+    ) -> Dict[str, Any]:
+        """Return loaded scientific settings suitable for context comparison."""
+        ignored_dataset_fields = (
+            self.DATASET_RUN_VARIATION_FIELDS | set(ignored_dataset_fields)
+        )
+        comparable_values: Dict[str, Any] = {"commit_hash": self.commit_hash}
+
+        if isinstance(self.config, DatasetConfig):
+            comparable_values["datasets"] = {
+                parameters.category.name: {
+                    parameter_field.name: getattr(
+                        parameters,
+                        parameter_field.name,
+                    )
+                    for parameter_field in fields(parameters)
+                    if parameter_field.init
+                    and parameter_field.name not in ignored_dataset_fields
+                }
+                for parameters in self.config.dataset_parameters
+            }
+
+        for config_type in (DetectorConfig, TrainConfig):
+            if not isinstance(self.config, config_type):
+                continue
+            comparable_values[config_type.__name__] = {
+                config_field.name: getattr(self.config, config_field.name)
+                for config_field in fields(config_type)
+                if config_field.init
+            }
+
+        flattened: Dict[str, Any] = {}
+        self._flatten_comparison_value(comparable_values, "", flattened)
+        return flattened
+
+    @classmethod
+    def comparison_discrepancies(
+        cls,
+        contexts: Iterable["ExecutionContext"],
+        ignored_dataset_fields: Iterable[str] = (),
+    ) -> List[str]:
+        """List differing loaded scientific attributes across contexts."""
+        context_values = [
+            context.comparison_values(ignored_dataset_fields)
+            for context in contexts
+        ]
+        if len(context_values) < 2:
+            return []
+
+        all_paths = set().union(*(values.keys() for values in context_values))
+        missing = object()
+        return sorted(
+            path
+            for path in all_paths
+            if len({repr(values.get(path, missing)) for values in context_values})
+            > 1
+        )
 
     @classmethod
     def find_stamped_run_context(
