@@ -4,6 +4,16 @@
 # Python environment
 .venv/
 
+# GSD
+.gsd/*.db
+.gsd/*.db-*
+.gsd/audit/
+.gsd/exec/
+.gsd/journal/
+.gsd/runtime/
+.gsd/notifications.jsonl
+.bg-shell/
+
 # Python tests
 .coverage
 
