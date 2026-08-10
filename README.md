@@ -350,16 +350,17 @@ The submission directory must contain the staged `configs` directory and the
 individual training runs. Plotting reads those configs, aggregates the runs, and
 creates its normal stamped output directory inside the submission directory.
 
-`create_plots.py` creates only single-submission overview plots. To create
-multi-run plots such as `performance_plot`, use:
+`create_plots.py` creates single-submission overview plots by default. To create
+multi-run plots such as `performance_plot`, add `--multi-run-plots` and provide
+a plot configuration path when the runs directory has no `configs` directory:
 
 ```bash
-python plot/create_performance_plots.py <runs-directory> <plot-config> [<additional-config> ...] [--debug]
+python plot/create_plots.py <runs-directory> <plot-config> --multi-run-plots [--debug]
 ```
 
-The multi-run entry point locates the outermost directory containing only
-background runs and treats contexts outside it as signal contexts automatically.
-The plot factory hardcodes which plot types belong to each entry point.
+In multi-run mode, plotting locates the outermost directory containing only
+background runs and identifies signal contexts from their dataset configuration.
+Each plot declares its execution scope next to its implementation.
 
 To implement any new plot, simply define its generating function there in the form of:
 ```python

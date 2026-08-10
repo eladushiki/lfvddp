@@ -63,16 +63,6 @@ def utils__discover_performance_contexts(
     )
 
 
-def utils__context_has_signal(context: ExecutionContext) -> bool:
-    """Return whether any required dataset category contains signal events."""
-    if not isinstance(context.config, DatasetConfig):
-        raise TypeError("Performance contexts must have a DatasetConfig.")
-    return any(
-        context.config.get_parameters(category).dataset__has_signal
-        for category in DataBatch.REQUIRED_DATASET_CATEGORIES
-    )
-
-
 def utils__discover_background_only_parent_directory(
     performance_directory: str,
 ) -> Path:
@@ -95,7 +85,7 @@ def utils__discover_background_only_parent_directory(
         directory
         for directory, nested_contexts in contexts_by_directory.items()
         if nested_contexts
-        and not any(utils__context_has_signal(context) for context in nested_contexts)
+        and not any(context.config.dataset__has_signal for context in nested_contexts)
     ]
     if not background_directories:
         raise ValueError(
@@ -165,21 +155,15 @@ def utils__performance_group_key(
 
 def utils__group_signal_contexts(
     signal_t_values_parent_directory: str,
-    excluded_context_directory: Optional[str] = None,
 ) -> List[List[Tuple[ExecutionContext, Path]]]:
     groups: Dict[
         Tuple[Tuple[str, str, str, str, bool], ...],
         List[Tuple[ExecutionContext, Path]],
     ] = {}
-    excluded_directory = (
-        Path(excluded_context_directory)
-        if excluded_context_directory is not None
-        else None
-    )
     for signal_context, context_path in utils__discover_performance_contexts(
         signal_t_values_parent_directory
     ):
-        if excluded_directory and context_path.is_relative_to(excluded_directory):
+        if not signal_context.config.dataset__has_signal:
             continue
         group_key = utils__performance_group_key(signal_context)
         groups.setdefault(group_key, []).append((signal_context, context_path))

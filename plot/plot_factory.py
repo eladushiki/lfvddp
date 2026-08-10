@@ -8,23 +8,10 @@ from data_tools.detector.detector_config import DetectorConfig
 from frame.context.execution_context import ExecutionContext
 import plot.plots as plots
 from plot.plot_utils import utils__discover_background_only_parent_directory
-from plot.plotting_config import PlotInstructions, PlottingConfig
+from plot.plotting_config import PlotInstructions, PlotScope, PlottingConfig
 
 
 class PlotFactory:
-    SINGLE_SUBMISSION_ENTRYPOINT = "single_submission"
-    MULTI_RUN_ENTRYPOINT = "multi_run"
-    _PLOT_NAMES_BY_ENTRYPOINT = {
-        SINGLE_SUBMISSION_ENTRYPOINT: frozenset({
-            "t_distribution_plot",
-            "t_train_percentile_progression_plot",
-            "plot_samples_over_background_sliced",
-            "plot_data_generation_sliced",
-            "plot_prediction_process",
-        }),
-        MULTI_RUN_ENTRYPOINT: frozenset({"performance_plot"}),
-    }
-
     _instance = None
     _context: ExecutionContext
 
@@ -78,27 +65,24 @@ class PlotFactory:
                 f"'{plot_name}'. Expected function '{dimension_specific_name}'."
             ) from None
 
-    def plot_instructions_for_entrypoint(
+    def plot_instructions_for_scope(
         self,
-        entrypoint: str,
+        scope: PlotScope,
         performance_directory: Optional[str] = None,
     ) -> list[PlotInstructions]:
-        if entrypoint not in self._PLOT_NAMES_BY_ENTRYPOINT:
-            raise ValueError(f"Unknown plot entrypoint: {entrypoint}.")
-        if entrypoint == self.MULTI_RUN_ENTRYPOINT and performance_directory is None:
+        if scope is PlotScope.MULTI_RUN and performance_directory is None:
             raise ValueError("Multi-run plots require a performance directory.")
 
-        allowed_plot_names = self._PLOT_NAMES_BY_ENTRYPOINT[entrypoint]
         background_directory = (
             utils__discover_background_only_parent_directory(performance_directory)
-            if entrypoint == self.MULTI_RUN_ENTRYPOINT
+            if scope is PlotScope.MULTI_RUN
             else None
         )
         selected_instructions = []
         for instructions in self._config:
-            if instructions.name not in allowed_plot_names:
+            if getattr(self[instructions.name], "plot_scope", None) is not scope:
                 continue
-            if entrypoint == self.MULTI_RUN_ENTRYPOINT:
+            if scope is PlotScope.MULTI_RUN:
                 instructions = PlotInstructions(
                     name=instructions.name,
                     instructions={
@@ -107,9 +91,6 @@ class PlotFactory:
                             background_directory
                         ),
                         "signal_t_values_parent_directory": performance_directory,
-                        "excluded_signal_context_directory": str(
-                            background_directory
-                        ),
                     },
                 )
             selected_instructions.append(instructions)

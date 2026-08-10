@@ -168,12 +168,13 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
     A wrapper for any entry point in the project, to ensure context control.
     """
     @wraps(function)
-    def context_controlled_function(*inner_args, **inner_kwargs):
-        """
-        Run any decorated function in this run with the documentation of the
-        configuration file parsed above.
-        """
-        config_paths, args = parse_config_from_args()
+    def context_controlled_function(
+        *inner_args,
+        command_line_args: Optional[list[str]] = None,
+        **inner_kwargs,
+    ):
+        """Run the function in a context built from explicit or process arguments."""
+        config_paths, args = parse_config_from_args(command_line_args)
         config = None
         if config_paths is not None:
             config = create_config_from_paths(
@@ -183,7 +184,7 @@ def context_controlled_execution(function: Callable):# -> _Wrapped[Callable[...,
         with version_controlled_execution_context(
             config,
             config_paths,
-            argv,
+            ([argv[0], *command_line_args] if command_line_args else argv),
             args,
         ) as context:
             function(*inner_args, **inner_kwargs, context=context)

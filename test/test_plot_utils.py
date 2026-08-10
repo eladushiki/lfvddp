@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -33,8 +34,12 @@ def test_discover_background_only_parent_directory_selects_outermost(
 ):
     background_directory = tmp_path / "background"
     signal_directory = tmp_path / "signal"
-    background_context = object()
-    signal_context = object()
+    background_context = SimpleNamespace(
+        config=SimpleNamespace(dataset__has_signal=False)
+    )
+    signal_context = SimpleNamespace(
+        config=SimpleNamespace(dataset__has_signal=True)
+    )
     context_paths = [
         (background_context, background_directory / "run" / "context.json"),
         (signal_context, signal_directory / "run" / "context.json"),
@@ -44,11 +49,6 @@ def test_discover_background_only_parent_directory_selects_outermost(
         "plot.plot_utils.ExecutionContext.discover_run_contexts",
         lambda _: context_paths,
     )
-    monkeypatch.setattr(
-        "plot.plot_utils.utils__context_has_signal",
-        lambda context: context is signal_context,
-    )
-
     assert utils__discover_background_only_parent_directory(str(tmp_path)) == (
         background_directory
     )
@@ -59,10 +59,14 @@ def test_discover_background_only_parent_directory_requires_background(
 ):
     monkeypatch.setattr(
         "plot.plot_utils.ExecutionContext.discover_run_contexts",
-        lambda _: [(object(), tmp_path / "signal" / "context.json")],
-    )
-    monkeypatch.setattr(
-        "plot.plot_utils.utils__context_has_signal", lambda _: True
+        lambda _: [
+            (
+                SimpleNamespace(
+                    config=SimpleNamespace(dataset__has_signal=True)
+                ),
+                tmp_path / "signal" / "context.json",
+            )
+        ],
     )
 
     with pytest.raises(ValueError, match="No background-only"):

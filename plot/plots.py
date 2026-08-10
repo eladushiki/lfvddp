@@ -43,7 +43,7 @@ from plot.plot_utils import (
     utils__synchronize_output_axis_limits,
     utils__warn_for_context_discrepancies,
 )
-from plot.plotting_config import PlottingConfig
+from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import model_degrees_of_freedom
@@ -70,6 +70,7 @@ _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 # Should not save the figure by itself!!! It is done in a well documented way in the calling function.
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_train_percentile_progression_plot(
     context: ExecutionContext,
 ):
@@ -184,6 +185,7 @@ def _filter_t_distribution_outliers(
     return t_values[~excluded], did_not_converge, overfitted
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_distribution_plot(
     context: ExecutionContext,
     number_of_bins: int,
@@ -326,11 +328,11 @@ def t_distribution_plot(
     return fig
 
 
+@plot_for_scope(PlotScope.MULTI_RUN)
 def performance_plot(
     context: ExecutionContext,
     background_only_t_values_parent_directory: str,
     signal_t_values_parent_directory: str,
-    excluded_signal_context_directory: Optional[str] = None,
 ):
     """
     Create a plot of the measured significance as a function of
@@ -385,8 +387,7 @@ def performance_plot(
     )
 
     signal_groups = utils__group_signal_contexts(
-        signal_t_values_parent_directory,
-        excluded_context_directory=excluded_signal_context_directory,
+        signal_t_values_parent_directory
     )
     if not signal_groups:
         raise ValueError(
@@ -527,6 +528,7 @@ def performance_plot(
     return fig
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_samples_over_background_sliced(
     context: ExecutionContext,
     background_solid_datasets: List[DataSet] = [],
@@ -563,6 +565,7 @@ def plot_samples_over_background_sliced(
     return fig
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_data_generation_sliced(
     context: ExecutionContext,
     original_sample: DataSet,
@@ -684,6 +687,7 @@ def _spanning_dataset_from_observable_values(
     )
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_prediction_process_1d(
     context: ExecutionContext,
     numerator_training: TrainLauncher.Training,
@@ -1105,6 +1109,7 @@ def plot_prediction_process_1d(
     return fig
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_prediction_process_2d(
     context: ExecutionContext,
     numerator_training: TrainLauncher.Training,

@@ -1,33 +1,34 @@
 from argparse import ArgumentParser
 from pathlib import Path
-from sys import argv
 from typing import Optional
 
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONFIGS_DIR_NAME
 from plot.plot_factory import PlotFactory
-from plot.plotting_config import PlottingConfig
+from plot.plotting_config import PlotScope, PlottingConfig
 
 
 def _plot_options_from_args(
     command_line_args: Optional[list[str]] = None,
-) -> tuple[Path, list[Path], bool]:
+) -> tuple[Path, list[Path], bool, bool]:
     parser = ArgumentParser()
     parser.add_argument(
         "submission_directory",
         type=Path,
-        help="Submitted training directory containing configs and individual runs",
+        help="Submitted training directory or recursive multi-run directory",
     )
     parser.add_argument(
         "additional_config_paths",
         type=Path,
         nargs="*",
         metavar="CONFIG",
-        help=(
-            "Additional JSON/YAML config files or directories, merged after "
-            "the submission configs in the supplied order"
-        ),
+        help="Additional JSON/YAML config files or directories",
+    )
+    parser.add_argument(
+        "--multi-run-plots",
+        action="store_true",
+        help="Create aggregate plots across recursive background and signal runs",
     )
     parser.add_argument(
         "--debug",
@@ -38,24 +39,42 @@ def _plot_options_from_args(
     submission_directory = args.submission_directory
     if not submission_directory.is_dir():
         parser.error(f"Submission directory does not exist: {submission_directory}")
-    if not (submission_directory / CONFIGS_DIR_NAME).is_dir():
+    if not args.multi_run_plots and not (
+        submission_directory / CONFIGS_DIR_NAME
+    ).is_dir():
         parser.error(
             f"Submission directory does not contain a configs directory: "
             f"{submission_directory}"
         )
-    return submission_directory, args.additional_config_paths, args.debug
+    if args.multi_run_plots and not args.additional_config_paths and not (
+        submission_directory / CONFIGS_DIR_NAME
+    ).is_dir():
+        parser.error(
+            "Multi-run plots require CONFIG paths when the supplied directory "
+            "does not contain configs."
+        )
+    return (
+        submission_directory,
+        args.additional_config_paths,
+        args.multi_run_plots,
+        args.debug,
+    )
 
 
-def _context_arguments_for_submission_directory(
+def _context_arguments(
     submission_directory: Path,
-    additional_config_paths: Optional[list[Path]] = None,
-    debug: bool = False,
+    additional_config_paths: list[Path],
+    multi_run_plots: bool,
+    debug: bool,
 ) -> list[str]:
-    """Translate the plotting CLI into the existing context-controlled inputs."""
+    """Build explicit context arguments without mutating process arguments."""
+    config_paths = list(additional_config_paths)
+    if not multi_run_plots or not config_paths:
+        config_paths.insert(0, submission_directory / CONFIGS_DIR_NAME)
+
     context_arguments = [
         "--configs",
-        str(submission_directory / CONFIGS_DIR_NAME),
-        *(str(path) for path in additional_config_paths or []),
+        *(str(path) for path in config_paths),
         "--out-dir",
         str(submission_directory),
     ]
@@ -66,16 +85,16 @@ def _context_arguments_for_submission_directory(
 
 def create_configured_plots(
     context: ExecutionContext,
-    entrypoint: str,
+    scope: PlotScope,
     performance_directory: Optional[Path] = None,
 ) -> None:
-    """Create and persist the plots assigned to one hardcoded entry point."""
+    """Create and persist plots assigned to one declared plot scope."""
     if not isinstance(context.config, PlottingConfig):
         raise TypeError("The configuration must be a PlotConfig")
 
     plot_factory = PlotFactory(context=context)
-    for plot in plot_factory.plot_instructions_for_entrypoint(
-        entrypoint,
+    for plot in plot_factory.plot_instructions_for_scope(
+        scope,
         performance_directory=(str(performance_directory) if performance_directory else None),
     ):
         figure = plot_factory.generate_plot(plot)
@@ -84,15 +103,33 @@ def create_configured_plots(
 
 
 @context_controlled_execution
-def create_plots(context: ExecutionContext):
-    create_configured_plots(context, PlotFactory.SINGLE_SUBMISSION_ENTRYPOINT)
+def create_plots(
+    multi_run_plots: bool,
+    submission_directory: Path,
+    context: ExecutionContext,
+) -> None:
+    scope = PlotScope.MULTI_RUN if multi_run_plots else PlotScope.SINGLE_SUBMISSION
+    create_configured_plots(
+        context,
+        scope,
+        performance_directory=submission_directory if multi_run_plots else None,
+    )
 
 
 if __name__ == "__main__":
-    submission_directory, additional_config_paths, debug = _plot_options_from_args()
-    argv[1:] = _context_arguments_for_submission_directory(
+    (
         submission_directory,
-        additional_config_paths=additional_config_paths,
-        debug=debug,
+        additional_config_paths,
+        multi_run_plots,
+        debug,
+    ) = _plot_options_from_args()
+    create_plots(
+        multi_run_plots=multi_run_plots,
+        submission_directory=submission_directory,
+        command_line_args=_context_arguments(
+            submission_directory,
+            additional_config_paths,
+            multi_run_plots,
+            debug,
+        ),
     )
-    create_plots()

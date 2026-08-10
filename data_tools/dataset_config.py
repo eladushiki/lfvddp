@@ -486,6 +486,15 @@ class DatasetConfig:
         if not self._dataset__parameters_by_category:
             self.load_dataset_parameters()
 
+    @property
+    def dataset__has_signal(self) -> bool:
+        """Whether any configured dataset category contains signal events."""
+        self._ensure_dataset_parameters_loaded()
+        return any(
+            parameters.dataset__has_signal
+            for parameters in self._dataset__parameters_by_category.values()
+        )
+
     def get_parameters(self, item: DataSet.DataSetCategory) -> DatasetParameters:
         self._ensure_dataset_parameters_loaded()
         try:
