@@ -104,14 +104,6 @@ def utils__aggregate_context_t_values(
     ])
 
 
-SIGNAL_EVENT_CONFIGURATION_FIELDS = {
-    "dataset__mean_number_of_signal_events",
-}
-SIGNAL_CONFIGURATION_FIELDS = {
-    *SIGNAL_EVENT_CONFIGURATION_FIELDS,
-    "dataset__signal_generator",
-}
-
 
 def utils__warn_for_context_discrepancies(
     contexts: List[Tuple[ExecutionContext, Path]],
@@ -173,7 +165,7 @@ def utils__group_signal_contexts(
         utils__warn_for_context_discrepancies(
             signal_group,
             "one signal dataset curve",
-            ignored_fields=SIGNAL_EVENT_CONFIGURATION_FIELDS,
+            ignored_fields=DatasetConfig.SIGNAL_EVENT_CONFIGURATION_FIELDS,
         )
     return signal_groups
 

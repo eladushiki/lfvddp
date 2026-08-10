@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from inspect import isabstract
 from os.path import isfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type
+from typing import Any, Callable, ClassVar, Dict, Iterable, List, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 import numpy as np
@@ -412,6 +412,14 @@ class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
 
 @dataclass
 class DatasetConfig:
+    SIGNAL_EVENT_CONFIGURATION_FIELDS: ClassVar[set[str]] = {
+        "dataset__mean_number_of_signal_events",
+    }
+    SIGNAL_CONFIGURATION_FIELDS: ClassVar[set[str]] = {
+        *SIGNAL_EVENT_CONFIGURATION_FIELDS,
+        "dataset__signal_generator",
+    }
+
     
     dataset__definitions: List[Dict[str, Any]]
     _dataset__parameters_by_category: Dict[

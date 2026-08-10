@@ -21,7 +21,6 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
-    SIGNAL_CONFIGURATION_FIELDS,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     utils__aggregate_context_t_values,
@@ -398,7 +397,7 @@ def performance_plot(
         utils__warn_for_context_discrepancies(
             [background_contexts[0], signal_group[0]],
             f"the background reference and signal curve {group_index}",
-            ignored_fields=SIGNAL_CONFIGURATION_FIELDS,
+            ignored_fields=DatasetConfig.SIGNAL_CONFIGURATION_FIELDS,
         )
     curves = [
         utils__calculate_performance_curve(signal_group, background_t_dist)
