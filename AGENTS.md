@@ -12,3 +12,10 @@ Implementing ML machinery to differentiate between similar and different pairs o
   When adding a test, examine `conftest.py`, `test_train.py:test_learning` and it's use of fixtures. Mimic config file creation and fixture use rather than adding filename variables and/or editing configuration values in runtime.
 - DOCUMENTATION: Change README.md indicating any significant user facing change.
 - DIMENSIONAL PLOT PARITY: When changing a 1D graph or its n-dimensional equivalent, locate the corresponding graph function and apply the equivalent change where appropriate, or explicitly verify that no corresponding change is needed.
+
+## Git and Pull Request Workflow
+- Use one branch per issue, created directly from the latest `main` branch.
+- Open exactly one pull request per issue, from that dedicated branch to `main`.
+- Do not add unrelated work to an existing feature branch or pull request.
+- For independent issues, use separate isolated worktrees and parallel workers when doing so reduces elapsed time without coupling their changes.
+- Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`.
