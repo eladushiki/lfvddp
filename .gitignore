@@ -1,8 +1,9 @@
 # Mac
 **/.DS_Store
 
-# Python environment
+# Python environment and local secrets
 .venv/
+.env
 
 # GSD
 .gsd/*.db
@@ -12,6 +13,7 @@
 .gsd/journal/
 .gsd/runtime/
 .gsd/notifications.jsonl
+.gsd/audit-log.jsonl
 .bg-shell/
 
 # Python tests

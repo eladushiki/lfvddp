@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-10T14:19:21Z | Files: 277 | Described: 0/277
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-10T14:19:21Z","fingerprint":"539688141d338d90a69b7a9946396011277f84d9","fileCount":277,"truncated":false} -->
+Generated: 2026-08-10T21:53:33Z | Files: 277 | Described: 0/277
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-10T21:53:33Z","fingerprint":"be7f269335fb49d2f719eaee5426c52eef8f4b38","fileCount":277,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -207,7 +207,6 @@ Generated: 2026-08-10T14:19:21Z | Files: 277 | Described: 0/277
 ### plot/
 - `plot/__init__.py`
 - `plot/carpenter.py`
-- `plot/create_performance_plots.py`
 - `plot/create_plots.py`
 - `plot/plot_factory.py`
 - `plot/plot_utils.py`
@@ -220,6 +219,7 @@ Generated: 2026-08-10T14:19:21Z | Files: 277 | Described: 0/277
 - `test/environment.py`
 - `test/test_aggregate.py`
 - `test/test_basic.py`
+- `test/test_create_plots.py`
 - `test/test_datasets.py`
 - `test/test_file_input.py`
 - `test/test_plot_factory.py`
