@@ -8,7 +8,7 @@ from logging import basicConfig, info
 from os import environ, getpid, makedirs, walk
 from pathlib import Path
 from sys import argv
-from typing import Any, ClassVar, Dict, FrozenSet, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import torch
 from matplotlib.figure import Figure
@@ -96,12 +96,6 @@ def create_config_from_paramters(
 
 @dataclass
 class ExecutionContext:
-    DATASET_RUN_VARIATION_FIELDS: ClassVar[FrozenSet[str]] = frozenset({
-        "dataset__number_of_background_events",
-        "dataset__number_of_signal_events",
-        "dataset__signal_number_of_events_to_generate",
-    })
-
     commit_hash: str
     config: UserConfig
     config_paths: List[Path]
@@ -395,7 +389,7 @@ class ExecutionContext:
     ) -> Dict[str, Any]:
         """Return loaded scientific settings suitable for context comparison."""
         ignored_dataset_fields = (
-            self.DATASET_RUN_VARIATION_FIELDS | set(ignored_dataset_fields)
+            DatasetConfig.RUN_VARIATION_FIELDS | set(ignored_dataset_fields)
         )
         comparable_values: Dict[str, Any] = {"commit_hash": self.commit_hash}
 

@@ -412,6 +412,11 @@ class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
 
 @dataclass
 class DatasetConfig:
+    RUN_VARIATION_FIELDS: ClassVar[set[str]] = {
+        "dataset__number_of_background_events",
+        "dataset__number_of_signal_events",
+        "dataset__signal_number_of_events_to_generate",
+    }
     SIGNAL_EVENT_CONFIGURATION_FIELDS: ClassVar[set[str]] = {
         "dataset__mean_number_of_signal_events",
     }
