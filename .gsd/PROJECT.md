@@ -39,6 +39,13 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 - Cluster execution validates the repository revision and runs through Singularity.
 - Work exceeding a walltime chunk continues through the saved run state.
 
+## Result Aggregation
+
+- The aggregator recursively discovers persisted run contexts and loads their HDF5 training histories.
+- Final test-statistic values from completed runs form the distributions used to calculate and report Z.
+- Aggregated contexts are grouped by compatible dataset configuration for performance curves over injected signal significance.
+- The performance plot consumes these grouped distributions alongside the background reference distribution.
+
 ## Statistical Training Invariant
 
 The paper's symmetrized test statistic with efficiency weights is minimized in two parts: one over \(f(x)\) for dataset A and one over \(g(x)\) for dataset B. This mathematical objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
