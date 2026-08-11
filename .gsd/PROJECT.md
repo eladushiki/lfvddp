@@ -32,6 +32,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 - The CR is used to learn nuisance parameters under a no-new-physics assumption. For real data, its cut is chosen to suppress a possible signal; for generated toy data, the assumption is made directly. Residual signal contamination is the physicist's analysis responsibility, not an LFVDDP warning or modeling responsibility.
 - The SR is used to test for a deviation between A and B. Generated signal injection is independently configurable per dataset category.
 - Users may configure every dataset category independently, subject to pre-execution validation of invalid values and contradictory combinations.
+- A loaded dataset must specify its observables and dimensionality in dataset configuration. A generated dataset may do so; otherwise, process-level dimensionality and generated-data dimensionality default to the number of detected physical observables in detector configuration.
 - Swapping A and B theoretically swaps the f and g module predictions, while leaving the t distribution and Z invariant up to intrinsic Poisson fluctuations.
 
 ## Implemented Training Architecture
