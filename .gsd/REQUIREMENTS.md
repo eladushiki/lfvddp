@@ -65,7 +65,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Detector asymmetry can mimic or hide a physics discrepancy and must not invalidate the comparison method.
 - Source: user
 - Validation: Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs.
-- Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets.
+- Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets. One benchmark compares Z-versus-injected-significance curves with unequal effects against equal or absent effects; further robustness measures are allowed.
 
 ## Validated
 
