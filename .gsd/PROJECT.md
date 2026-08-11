@@ -32,6 +32,13 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 - Training behavior is configured through epoch, checkpoint, network-width, input-dimension, initialization, learning-rate, and runtime settings.
 - The run persists model weights and test-statistic history for later aggregation.
 
+## Cluster Submission
+
+- `submit_train` orchestrates container build, training, walltime continuation, and plotting for cluster work.
+- PBS/qsub submission uses configured compute resources and persists the generated job scripts and serialized run context.
+- Cluster execution validates the repository revision and runs through Singularity.
+- Work exceeding a walltime chunk continues through the saved run state.
+
 ## Statistical Training Invariant
 
 The paper's symmetrized test statistic with efficiency weights is minimized in two parts: one over \(f(x)\) for dataset A and one over \(g(x)\) for dataset B. This mathematical objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
