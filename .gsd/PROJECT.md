@@ -32,6 +32,10 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 - Training behavior is configured through epoch, checkpoint, network-width, input-dimension, initialization, learning-rate, and runtime settings.
 - The run persists model weights and test-statistic history for later aggregation.
 
+## Statistical Training Invariant
+
+The LFVNN mathematical objective is minimized in its two defined parts. This objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
+
 ## Constraints
 
 - The probability estimate must distinguish potential new physics from statistical fluctuations and detector effects; detector effects are controlled before comparison.
