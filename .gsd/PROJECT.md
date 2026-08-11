@@ -29,7 +29,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 
 - A and B are symmetric datasets, distinguished by lepton flavor.
 - Each dataset is divided into similar but disjoint control-region (CR) and signal-region (SR) event sets, generally by a slightly different selection cut.
-- The CR assumes no new physics and is used to learn nuisance parameters.
+- The CR is used to learn nuisance parameters under a no-new-physics assumption. For real data, its cut is chosen to suppress a possible signal; for generated toy data, the assumption is made directly.
 - The SR is used to test for a deviation between A and B.
 
 ## Implemented Training Architecture
