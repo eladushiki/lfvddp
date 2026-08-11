@@ -6,13 +6,14 @@
 
 \subsubsection{Loss Mechanics for Calculating $t$}
 
-As seen before in \cite{LastDDPPaper}, we use a simple 3-layer neural net's ability to minimize an arbitrary function with a set number of parameters to approximate each minimization expression. Expanding to more than one physical observable describing each event, we can express f and g with by choosing an arbitrary number of neurons $N$, to give:
+As in \cite{LastDDPPaper}, we use a simple 3-layer neural net's ability to minimize an arbitrary function with a set number of parameters to approximate each minimization expression. Expanding to more than one physical observable describing each event, we can express $f$ and $g$ by choosing an arbitrary number of neurons $N$ and write
 
 \begin{equation}
-    f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha)
+\label{eq:neural_net_explicit}
+    f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha),
 \end{equation}
 
-\noindent and balance it for $f$'s expressiveness. Similar expression holds for $g$.
+\noindent with a similar expression holds for $g$.
 
 The loss expression stems directly from the test statistic minimization parts, as:
 
@@ -43,7 +44,7 @@ A quick look convinces us that this function is indeed differentiable and finite
 
 \begin{equation}
 \label{eq:t_value_from_two_losses}
-    t = -2 \cdot L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] + 2 \cdot L^{denom}[\nparam]
+    \invllratio = -2 \cdot L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] + 2 \cdot L^{denom}[\nparam]
 \end{equation}.
 
 \end{document}

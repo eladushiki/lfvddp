@@ -7,22 +7,20 @@
 \subsection{Building an Observed Dataset}
 \label{sec:building_an_observed_dataset}
 
-During a HEP experiment, large amounts of collision events occur inside the detector.
-
-When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components, and angles. Due to limited detector efficiency not all events that occur inside the detector are observed. We denote by $\detector(\event)$ the probability with which an event is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\meas{A}$ to be the dataset after stochastically removing events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\detector(\event)$. We denote the observed number of events by $|\meas{A}| = N_\meas{A}$. As we see soon, the absolute effect of a detector would not matter, but the difference between its effect on two datasets.
+During a HEP experiment, large amounts of collision events occur inside the detector. When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components, and angles. Due to limited detector efficiency, not all events that occur inside the detector are observed. We denote by $\detector(\event)$ the probability with which an event is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\meas{A}$ to be the dataset after stochastically removing events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\detector(\event)$. We denote the observed number of events by $|\meas{A}| = N_\meas{A}$. 
 
 \subsection{Modeling our Knowledge of the Detector Efficiency}
 
-We know our model of the detector's behavior is not perfect. Moreover, we know the detector might not behave exactly the same detecting two otherwise-physically-equivalent samples, say, electrons and muons. We now formulate our accounting to uncertainties of this process.
+We know our model of the detector's behavior is not perfect and is prone to error that can be caused even when detecting two otherwise-physically-equivalent samples, say, electrons and muons. We now formulate our accounting to uncertainties of this process.
 
-Given two such sets, we denote by $2\nparam(\anyevent)$ the difference between the probability to detect an event of either within a specific point in the observable space
+We denote by $\nparam(\anyevent)$ half of the difference between the probability to detect an event of either within a specific point in the observable space
 
 \begin{equation}
 \label{eq:nuisance_from_detector_efficiencies}
-    \detector_{A}(\anyevent) - \detector_{B}(\anyevent) \coloneqq 2 \nparam(\anyevent)
+    \nparam(\anyevent) \coloneqq \frac{\detector_{A}(\anyevent) - \detector_{B}(\anyevent)}{2}   
 \end{equation}
 
-That is, given some constant distribution, we'll expect the two detected datasets be of the sort
+That is, given some constant distribution, we expect the two detected datasets be of the sort
 
 \begin{equation}
 \begin{aligned}
