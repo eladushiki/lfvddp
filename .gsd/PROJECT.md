@@ -27,7 +27,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 
 ## Dataset Configuration
 
-- A and B are symmetric datasets, distinguished by lepton flavor.
+- A and B are symmetric datasets, distinguished by lepton flavor. Loaded inputs need not arrive pre-separated; configuration cuts construct the comparison categories.
 - Each dataset is divided into similar but disjoint control-region (CR) and signal-region (SR) event sets, generally by a slightly different selection cut.
 - The CR is used to learn nuisance parameters under a no-new-physics assumption. For real data, its cut is chosen to suppress a possible signal; for generated toy data, the assumption is made directly. Residual signal contamination is the physicist's analysis responsibility, not an LFVDDP warning or modeling responsibility.
 - The SR is used to test for a deviation between A and B.
