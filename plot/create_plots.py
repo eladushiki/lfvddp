@@ -1,9 +1,13 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from sys import argv
 from typing import Optional
 
-from frame.command_line.handle_args import context_controlled_execution
-from frame.context.execution_context import ExecutionContext
+from frame.command_line.handle_args import create_config_from_paths
+from frame.context.execution_context import (
+    ExecutionContext,
+    version_controlled_execution_context,
+)
 from frame.file_structure import CONFIGS_DIR_NAME
 from plot.plot_factory import PlotFactory
 from plot.plotting_config import PlotScope, PlottingConfig
@@ -61,26 +65,16 @@ def _plot_options_from_args(
     )
 
 
-def _context_arguments(
+def _config_paths_for_plots(
     submission_directory: Path,
     additional_config_paths: list[Path],
     multi_run_plots: bool,
-    debug: bool,
-) -> list[str]:
-    """Build explicit context arguments without mutating process arguments."""
+) -> list[Path]:
+    """Return the configuration paths needed for the requested plot scope."""
     config_paths = list(additional_config_paths)
     if not multi_run_plots or not config_paths:
         config_paths.insert(0, submission_directory / CONFIGS_DIR_NAME)
-
-    context_arguments = [
-        "--configs",
-        *(str(path) for path in config_paths),
-        "--out-dir",
-        str(submission_directory),
-    ]
-    if debug:
-        context_arguments.append("--debug")
-    return context_arguments
+    return config_paths
 
 
 def create_configured_plots(
@@ -102,18 +96,39 @@ def create_configured_plots(
         context.save_and_document_figure(figure, image_filename)
 
 
-@context_controlled_execution
 def create_plots(
     multi_run_plots: bool,
     submission_directory: Path,
-    context: ExecutionContext,
+    additional_config_paths: list[Path],
+    debug: bool,
 ) -> None:
-    scope = PlotScope.MULTI_RUN if multi_run_plots else PlotScope.SINGLE_SUBMISSION
-    create_configured_plots(
-        context,
-        scope,
-        performance_directory=submission_directory if multi_run_plots else None,
+    """Build a plotting context directly and create the requested plot scope."""
+    config_paths = _config_paths_for_plots(
+        submission_directory,
+        additional_config_paths,
+        multi_run_plots,
     )
+    config = create_config_from_paths(config_paths, out_dir=str(submission_directory))
+    context_options = Namespace(
+        continue_from=None,
+        debug=debug,
+        build_container=False,
+        only_train=False,
+    )
+    with version_controlled_execution_context(
+        config,
+        config_paths,
+        argv,
+        context_options,
+    ) as context:
+        scope = (
+            PlotScope.MULTI_RUN if multi_run_plots else PlotScope.SINGLE_SUBMISSION
+        )
+        create_configured_plots(
+            context,
+            scope,
+            performance_directory=submission_directory if multi_run_plots else None,
+        )
 
 
 if __name__ == "__main__":
@@ -126,10 +141,6 @@ if __name__ == "__main__":
     create_plots(
         multi_run_plots=multi_run_plots,
         submission_directory=submission_directory,
-        command_line_args=_context_arguments(
-            submission_directory,
-            additional_config_paths,
-            multi_run_plots,
-            debug,
-        ),
+        additional_config_paths=additional_config_paths,
+        debug=debug,
     )
