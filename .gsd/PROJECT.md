@@ -25,6 +25,13 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 2. Run or submit training for a lepton-flavor-differentiated dataset pair.
 3. Aggregate test-statistic distributions from run outputs to calculate the reported significance `Z`, and produce diagnostic plots.
 
+## Implemented Training Architecture
+
+- LFVNN is the single implemented model family.
+- One training job orchestrates each run, training paired numerator and denominator instances over the required `A_SR`, `A_CR`, `B_SR`, and `B_CR` dataset categories.
+- Training behavior is configured through epoch, checkpoint, network-width, input-dimension, initialization, learning-rate, and runtime settings.
+- The run persists model weights and test-statistic history for later aggregation.
+
 ## Constraints
 
 - The probability estimate must distinguish potential new physics from statistical fluctuations and detector effects; detector effects are controlled before comparison.
