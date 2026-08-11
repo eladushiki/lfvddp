@@ -25,6 +25,13 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 2. Run or submit training for a lepton-flavor-differentiated dataset pair.
 3. Aggregate test-statistic distributions from run outputs to calculate the reported significance `Z`, and produce diagnostic plots.
 
+## Dataset Configuration
+
+- A and B are symmetric datasets, distinguished by lepton flavor.
+- Each dataset is divided into a control region (CR) and a signal region (SR).
+- The CR assumes no new physics and is used to learn nuisance parameters.
+- The SR is used to test for a deviation between A and B.
+
 ## Implemented Training Architecture
 
 - LFVNN is the single implemented model family.
