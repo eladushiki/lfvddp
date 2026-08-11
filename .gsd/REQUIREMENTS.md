@@ -38,7 +38,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Experimentalists need plots to assess findings and structured outputs to incorporate them into downstream analysis.
 - Source: user
 - Validation: Run an end-to-end injected-signal comparison and verify the saved configuration and seed, test-statistic distributions, derived Z result, performance plot, and trained model weights.
-- Notes: Configuration and seed reproduce the run. The test-statistic distribution enables later Z recalculation through both an empirical percentile and a fitted chi-squared distribution. Trained model weights are preserved but are secondary to the configuration/seed and statistical artifacts for reproducibility. The output remains model-agnostic with respect to the new-physics mismatch.
+- Notes: Configuration and seed reproduce the run. The test-statistic distribution enables later Z recalculation through both an empirical percentile and a fitted chi-squared distribution; both results must be reported because the empirical estimate is not always available. Trained model weights are preserved but are secondary to the configuration/seed and statistical artifacts for reproducibility. The output remains model-agnostic with respect to the new-physics mismatch.
 
 ### R005 — The established workflow supports local execution and WIS ATLAS cluster execution through Singularity containers.
 - Class: operability
