@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-10T21:23:00Z | Files: 275 | Described: 0/275
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-10T21:23:00Z","fingerprint":"56b5e70954394f8d367d074b20329a005a68b1a3","fileCount":275,"truncated":false} -->
+Generated: 2026-08-11T08:47:30Z | Files: 277 | Described: 0/277
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-11T08:47:30Z","fingerprint":"a693e15d9d19ca1eff67328f52f331229040e6be","fileCount":277,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -277,6 +277,11 @@ Generated: 2026-08-10T21:23:00Z | Files: 275 | Described: 0/275
 - `test/detector/configs/detector_affected_basic_ds_2.json`
 - `test/detector/configs/detector_affected_basic_ds.json`
 - `test/detector/configs/detector_perfect_basic_ds.json`
+
+### test/plot/
+- `test/plot/test_create_plots.py`
+- `test/plot/test_plot_factory.py`
+- `test/plot/test_plot_utils.py`
 
 ### test/submission/
 - `test/submission/submit_test_utils.py`

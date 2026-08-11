@@ -1,7 +1,23 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from enum import Enum
+from types import FunctionType
+from typing import Any, Callable, Dict, List, Tuple
 
 from frame.file_structure import PLOT_FILE_EXTENSION
+
+
+class PlotScope(Enum):
+    SINGLE_SUBMISSION = "single_submission"
+    MULTI_RUN = "multi_run"
+
+
+def plot_for_scope(scope: PlotScope) -> Callable[[FunctionType], FunctionType]:
+    """Declare the execution scope of a plot next to its implementation."""
+    def decorate(plot_function: FunctionType) -> FunctionType:
+        plot_function.plot_scope = scope
+        return plot_function
+
+    return decorate
 
 
 @dataclass

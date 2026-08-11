@@ -13,9 +13,10 @@ Implementing ML machinery to differentiate between similar and different pairs o
 - DOCUMENTATION: Change README.md indicating any significant user facing change.
 - DIMENSIONAL PLOT PARITY: When changing a 1D graph or its n-dimensional equivalent, locate the corresponding graph function and apply the equivalent change where appropriate, or explicitly verify that no corresponding change is needed.
 
-## Git and Pull Request Workflow
+## Development Workflow
 - Use one branch per issue, created directly from the latest `main` branch.
-- Open exactly one pull request per issue, from that dedicated branch to `main`.
+- Open exactly one pull request per issue, from that dedicated branch to `main`. Answer questions inside Github threads, if threads are solved comment that it's so there and not mark as resolved yourself.
 - Do not add unrelated work to an existing feature branch or pull request.
 - For independent issues, use separate isolated worktrees and parallel workers when doing so reduces elapsed time without coupling their changes.
+- When issues are done, use `git mv` to move to done directory, in the same pr that solves them, for traceability. Add brief explanation on what was done.
 - Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`.

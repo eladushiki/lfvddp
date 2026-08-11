@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from inspect import isabstract
 from os.path import isfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type
+from typing import Any, Callable, ClassVar, Dict, Iterable, List, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 import numpy as np
@@ -412,6 +412,19 @@ class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
 
 @dataclass
 class DatasetConfig:
+    RUN_VARIATION_FIELDS: ClassVar[set[str]] = {
+        "dataset__number_of_background_events",
+        "dataset__number_of_signal_events",
+        "dataset__signal_number_of_events_to_generate",
+    }
+    SIGNAL_EVENT_CONFIGURATION_FIELDS: ClassVar[set[str]] = {
+        "dataset__mean_number_of_signal_events",
+    }
+    SIGNAL_CONFIGURATION_FIELDS: ClassVar[set[str]] = {
+        *SIGNAL_EVENT_CONFIGURATION_FIELDS,
+        "dataset__signal_generator",
+    }
+
     
     dataset__definitions: List[Dict[str, Any]]
     _dataset__parameters_by_category: Dict[
@@ -485,6 +498,15 @@ class DatasetConfig:
     def _ensure_dataset_parameters_loaded(self) -> None:
         if not self._dataset__parameters_by_category:
             self.load_dataset_parameters()
+
+    @property
+    def dataset__has_signal(self) -> bool:
+        """Whether any configured dataset category contains signal events."""
+        self._ensure_dataset_parameters_loaded()
+        return any(
+            parameters.dataset__has_signal
+            for parameters in self._dataset__parameters_by_category.values()
+        )
 
     def get_parameters(self, item: DataSet.DataSetCategory) -> DatasetParameters:
         self._ensure_dataset_parameters_loaded()

@@ -23,12 +23,15 @@ from plot.plot_utils import (
     HandlerRect,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
+    utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
-    utils__group_signal_t_values_directories,
+    utils__group_signal_contexts,
+    utils__discover_performance_contexts,
     utils__model_prediction_values,
     utils__performance_group_label,
+    utils__prediction_mesh_mask,
     utils__plot_model_predictions_sliced,
     utils__plot_region_histogram_meshes_2d,
     utils__plot_region_histograms_sliced,
@@ -37,8 +40,9 @@ from plot.plot_utils import (
     utils__project_prediction_values_sliced,
     utils__remove_eta_from_prediction_values,
     utils__synchronize_output_axis_limits,
+    utils__warn_for_context_discrepancies,
 )
-from plot.plotting_config import PlottingConfig
+from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import model_degrees_of_freedom
@@ -65,6 +69,7 @@ _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 # Should not save the figure by itself!!! It is done in a well documented way in the calling function.
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_train_percentile_progression_plot(
     context: ExecutionContext,
 ):
@@ -179,6 +184,7 @@ def _filter_t_distribution_outliers(
     return t_values[~excluded], did_not_converge, overfitted
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_distribution_plot(
     context: ExecutionContext,
     number_of_bins: int,
@@ -321,6 +327,7 @@ def t_distribution_plot(
     return fig
 
 
+@plot_for_scope(PlotScope.MULTI_RUN)
 def performance_plot(
     context: ExecutionContext,
     background_only_t_values_parent_directory: str,
@@ -332,9 +339,9 @@ def performance_plot(
     types.
 
     Data needed to generate the plot:
-    - t values distribution for a run with background only.
-        contained in a single directory and is used as a
-        reference for all signal distributions.
+    - t values distributions for runs with background only.
+        Every outermost directory containing a context below the
+        supplied parent is gathered into one reference distribution.
     - A parent directory containing t value distributions. Each
         outermost directory containing a context file is one
         distribution. Compatible dataset configurations are grouped,
@@ -348,32 +355,49 @@ def performance_plot(
             f"Expected context.config to be of type {PlottingConfig}, got {type(plot_config)}"
         )
 
-    # Validate background configuration
-    ## this has to be a generated type, else the distribution is not well known
-    background_context = ExecutionContext.naive_load_from_file(
-        Path(background_only_t_values_parent_directory) / CONTEXT_FILE_NAME
+    background_contexts = utils__discover_performance_contexts(
+        background_only_t_values_parent_directory
     )
-    background_config: DatasetConfig = background_context.config
-    for background_dataset_properties in background_config.dataset_parameters:
-        assert not background_dataset_properties.dataset__has_signal, (
-            f"background dataset expected to have only background events, "
-            f"{background_dataset_properties.category} is configured with "
-            f"{background_dataset_properties.dataset__number_of_signal_events} "
-            "signal events and a mean of "
-            f"{background_dataset_properties.dataset__mean_number_of_signal_events}"
+    if not background_contexts:
+        raise ValueError(
+            f"No directories containing {CONTEXT_FILE_NAME} were found under "
+            f"{background_only_t_values_parent_directory}."
         )
 
-    # Gather background data
-    background_agg = ResultAggregator(Path(background_only_t_values_parent_directory))
-    background_t_dist = background_agg.all_t_values
+    # Validate every background submission before merging its results.
+    for background_context, _ in background_contexts:
+        background_config: DatasetConfig = background_context.config
+        for background_dataset_properties in background_config.dataset_parameters:
+            assert not background_dataset_properties.dataset__has_signal, (
+                f"background dataset expected to have only background events, "
+                f"{background_dataset_properties.category} is configured with "
+                f"{background_dataset_properties.dataset__number_of_signal_events} "
+                "signal events and a mean of "
+                f"{background_dataset_properties.dataset__mean_number_of_signal_events}"
+            )
+    utils__warn_for_context_discrepancies(
+        background_contexts,
+        "one background dataset",
+    )
 
-    signal_groups = utils__group_signal_t_values_directories(
+    # Gather background data
+    background_t_dist = utils__aggregate_context_t_values(
+        background_contexts
+    )
+
+    signal_groups = utils__group_signal_contexts(
         signal_t_values_parent_directory
     )
     if not signal_groups:
         raise ValueError(
             f"No directories containing {CONTEXT_FILE_NAME} were found under "
             f"{signal_t_values_parent_directory}."
+        )
+    for group_index, signal_group in enumerate(signal_groups, start=1):
+        utils__warn_for_context_discrepancies(
+            [background_contexts[0], signal_group[0]],
+            f"the background reference and signal curve {group_index}",
+            ignored_fields=DatasetConfig.SIGNAL_CONFIGURATION_FIELDS,
         )
     curves = [
         utils__calculate_performance_curve(signal_group, background_t_dist)
@@ -419,7 +443,7 @@ def performance_plot(
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
     for signal_group, curve, color in zip(signal_groups, curves, colors):
         group_label = utils__performance_group_label(
-            signal_group[0][1],
+            signal_group[0][0],
         )
         ax.plot(
             curve.x_values,
@@ -503,6 +527,7 @@ def performance_plot(
     return fig
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_samples_over_background_sliced(
     context: ExecutionContext,
     background_solid_datasets: List[DataSet] = [],
@@ -539,6 +564,7 @@ def plot_samples_over_background_sliced(
     return fig
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_data_generation_sliced(
     context: ExecutionContext,
     original_sample: DataSet,
@@ -660,6 +686,7 @@ def _spanning_dataset_from_observable_values(
     )
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_prediction_process_1d(
     context: ExecutionContext,
     numerator_training: TrainLauncher.Training,
@@ -1081,6 +1108,7 @@ def plot_prediction_process_1d(
     return fig
 
 
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_prediction_process_2d(
     context: ExecutionContext,
     numerator_training: TrainLauncher.Training,
@@ -1393,6 +1421,18 @@ def plot_prediction_process_2d(
     projected_cr_predictions = project_predictions(
         cr_prediction_specs, prediction_spanning_dataset
     )
+    prediction_mesh_mask = utils__prediction_mesh_mask(
+        coordinates=next(iter(projected_sr_predictions.values()))[0],
+        data_points=data_batch.unified_data.slice_along_observables(
+            selected_observables
+        ).events,
+    )
+    for projected_predictions in (
+        projected_sr_predictions,
+        projected_cr_predictions,
+    ):
+        for _, contour in projected_predictions.values():
+            contour[~prediction_mesh_mask] = np.nan
 
     def prediction_axis_limits(
         projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],

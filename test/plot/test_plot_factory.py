@@ -5,7 +5,7 @@ import pytest
 from data_tools.detector.detector_config import DetectorConfig
 import plot.plots as plots
 from plot.plot_factory import PlotFactory
-from plot.plotting_config import PlotInstructions, PlottingConfig
+from plot.plotting_config import PlotInstructions, PlotScope, PlottingConfig
 
 
 def _plotting_config() -> PlottingConfig:
@@ -104,3 +104,41 @@ def test_missing_exact_name_requires_detector_config_for_inference():
 
     with pytest.raises(KeyError, match="without a DetectorConfig"):
         plot_factory["missing_plot"]
+
+
+def test_scope_selects_plots_declared_for_single_submission():
+    config = _plotting_config()
+    config.plot__plot_specifications = [
+        {"name": "t_distribution_plot", "instructions": {}},
+        {"name": "performance_plot", "instructions": {}},
+    ]
+    plot_factory = PlotFactory(context=SimpleNamespace(config=config))
+
+    assert [
+        instructions.name
+        for instructions in plot_factory.plot_instructions_for_scope(
+            PlotScope.SINGLE_SUBMISSION
+        )
+    ] == ["t_distribution_plot"]
+
+
+def test_multi_run_scope_supplies_discovered_context_directories(monkeypatch, tmp_path):
+    config = _plotting_config()
+    config.plot__plot_specifications = [
+        {"name": "performance_plot", "instructions": {}}
+    ]
+    plot_factory = PlotFactory(context=SimpleNamespace(config=config))
+    background_directory = tmp_path / "background"
+    monkeypatch.setattr(
+        "plot.plot_factory.utils__discover_background_only_parent_directory",
+        lambda _: background_directory,
+    )
+
+    [instructions] = plot_factory.plot_instructions_for_scope(
+        PlotScope.MULTI_RUN, performance_directory=str(tmp_path)
+    )
+
+    assert instructions.instructions == {
+        "background_only_t_values_parent_directory": str(background_directory),
+        "signal_t_values_parent_directory": str(tmp_path),
+    }

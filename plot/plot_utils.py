@@ -1,11 +1,11 @@
-import os
 import re
+import warnings
 from dataclasses import dataclass
 from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, to_rgba
 from matplotlib.legend_handler import HandlerPatch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy.spatial import Delaunay
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
@@ -31,7 +32,6 @@ from data_tools.profile_likelihood import (
 from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
-    CONTEXT_FILE_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
@@ -44,20 +44,87 @@ _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
 
 
-def utils__find_context_parent_directories(
+def utils__prediction_mesh_mask(
+    coordinates: np.ndarray,
+    data_points: np.ndarray,
+) -> np.ndarray:
+    """Keep mesh points inside the convex hull of data points and the origin."""
+    polygon_points = np.vstack((np.zeros((1, 2)), data_points))
+    return Delaunay(polygon_points).find_simplex(coordinates) >= 0
+
+
+def utils__discover_performance_contexts(
     parent_directory: str,
-) -> List[Path]:
-    """Find outermost directories containing a saved execution context."""
-    context_parent_directories = []
-    for directory, subdirectories, filenames in os.walk(parent_directory):
-        subdirectories.sort()
-        if CONTEXT_FILE_NAME not in filenames:
-            continue
+) -> List[Tuple[ExecutionContext, Path]]:
+    """Discover the outermost saved contexts used by performance plots."""
+    return ExecutionContext.discover_run_contexts(
+        Path(parent_directory),
+        outermost_only=True,
+    )
 
-        context_parent_directories.append(Path(directory))
-        subdirectories.clear()
 
-    return context_parent_directories
+def utils__discover_background_only_parent_directory(
+    performance_directory: str,
+) -> Path:
+    """Find the outermost directory whose descendant runs are background-only."""
+    root_directory = Path(performance_directory)
+    contexts = ExecutionContext.discover_run_contexts(root_directory)
+    if not contexts:
+        raise ValueError(f"No run contexts found below {root_directory}.")
+
+    contexts_by_directory: Dict[Path, List[ExecutionContext]] = {}
+    for context, context_path in contexts:
+        directory = context_path.parent
+        while directory.is_relative_to(root_directory):
+            contexts_by_directory.setdefault(directory, []).append(context)
+            if directory == root_directory:
+                break
+            directory = directory.parent
+
+    background_directories = [
+        directory
+        for directory, nested_contexts in contexts_by_directory.items()
+        if nested_contexts
+        and not any(context.config.dataset__has_signal for context in nested_contexts)
+    ]
+    if not background_directories:
+        raise ValueError(
+            f"No background-only run directory found below {root_directory}."
+        )
+    return min(background_directories, key=lambda directory: len(directory.parts))
+
+
+def utils__aggregate_context_t_values(
+    contexts: List[Tuple[ExecutionContext, Path]],
+) -> np.ndarray:
+    """Combine t values below disjoint, outermost context directories."""
+    return np.concatenate([
+        ResultAggregator(context_path.parent).all_t_values
+        for _, context_path in contexts
+    ])
+
+
+
+def utils__warn_for_context_discrepancies(
+    contexts: List[Tuple[ExecutionContext, Path]],
+    displayed_dataset: str,
+    ignored_fields: Optional[Set[str]] = None,
+) -> None:
+    """Warn when contexts shown as one dataset use different machinery."""
+    discrepancies = ExecutionContext.comparison_discrepancies(
+        (context for context, _ in contexts),
+        ignored_dataset_fields=ignored_fields or set(),
+    )
+    if not discrepancies:
+        return
+
+    context_paths = ", ".join(str(path.parent) for _, path in contexts)
+    warnings.warn(
+        f"Contexts displayed as {displayed_dataset} differ in relevant settings: "
+        f"{', '.join(discrepancies)}. Context directories: {context_paths}",
+        UserWarning,
+        stacklevel=2,
+    )
 
 
 def utils__performance_group_key(
@@ -78,23 +145,29 @@ def utils__performance_group_key(
     return tuple(group_key)
 
 
-def utils__group_signal_t_values_directories(
+def utils__group_signal_contexts(
     signal_t_values_parent_directory: str,
-) -> List[List[Tuple[Path, ExecutionContext]]]:
+) -> List[List[Tuple[ExecutionContext, Path]]]:
     groups: Dict[
-        Tuple[Tuple[str, str, str, str, bool, str], ...],
-        List[Tuple[Path, ExecutionContext]],
+        Tuple[Tuple[str, str, str, str, bool], ...],
+        List[Tuple[ExecutionContext, Path]],
     ] = {}
-    for signal_directory in utils__find_context_parent_directories(
+    for signal_context, context_path in utils__discover_performance_contexts(
         signal_t_values_parent_directory
     ):
-        signal_context = ExecutionContext.naive_load_from_file(
-            signal_directory / CONTEXT_FILE_NAME
-        )
+        if not signal_context.config.dataset__has_signal:
+            continue
         group_key = utils__performance_group_key(signal_context)
-        groups.setdefault(group_key, []).append((signal_directory, signal_context))
+        groups.setdefault(group_key, []).append((signal_context, context_path))
 
-    return [groups[group_key] for group_key in sorted(groups)]
+    signal_groups = [groups[group_key] for group_key in sorted(groups)]
+    for signal_group in signal_groups:
+        utils__warn_for_context_discrepancies(
+            signal_group,
+            "one signal dataset curve",
+            ignored_fields=DatasetConfig.SIGNAL_EVENT_CONFIGURATION_FIELDS,
+        )
+    return signal_groups
 
 
 @dataclass
@@ -109,7 +182,7 @@ class _PerformanceCurve:
 
 
 def utils__calculate_performance_curve(
-    signal_group: List[Tuple[Path, ExecutionContext]],
+    signal_group: List[Tuple[ExecutionContext, Path]],
     background_t_dist: np.ndarray,
 ) -> _PerformanceCurve:
     x_values = []
@@ -120,7 +193,8 @@ def utils__calculate_performance_curve(
     gaussian_fit_significances = []
     uses_injected_significance = None
 
-    for signal_t_values_dir, signal_context in signal_group:
+    for signal_context, context_path in signal_group:
+        signal_t_values_dir = context_path.parent
         signal_dataset_parameters = utils__get_signal_dataset_parameters(
             signal_context
         )
