@@ -19,3 +19,4 @@ Implementing ML machinery to differentiate between similar and different pairs o
 - Do not add unrelated work to an existing feature branch or pull request.
 - For independent issues, use separate isolated worktrees and parallel workers when doing so reduces elapsed time without coupling their changes.
 - When issues are done, use `git mv` to move to done directory, in the same pr that solves them, for traceability. Add brief explanation on what was done.
+- Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`.

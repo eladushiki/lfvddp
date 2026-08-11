@@ -38,7 +38,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Experimentalists need plots to assess findings and structured outputs to incorporate them into downstream analysis.
 - Source: user
 - Validation: Run an end-to-end injected-signal comparison and verify the saved configuration and seed, test-statistic distributions, derived Z result, performance plot, and trained model weights.
-- Notes: Configuration and seed reproduce the run. The test-statistic distribution enables later Z recalculation. Trained model weights are preserved but are secondary to the configuration/seed and statistical artifacts for reproducibility. The output remains model-agnostic with respect to the new-physics mismatch.
+- Notes: Configuration and seed reproduce the run. The test-statistic distribution enables later Z recalculation through both an empirical percentile and a fitted chi-squared distribution; both results must be reported because the empirical estimate is not always available. Trained model weights are preserved but are secondary to the configuration/seed and statistical artifacts for reproducibility. The output remains model-agnostic with respect to the new-physics mismatch.
 
 ### R005 — The established workflow supports local execution and WIS ATLAS cluster execution through Singularity containers.
 - Class: operability
@@ -65,7 +65,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Detector asymmetry can mimic or hide a physics discrepancy and must not invalidate the comparison method.
 - Source: user
 - Validation: Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs.
-- Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets.
+- Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets. One benchmark compares Z-versus-injected-significance curves with unequal effects against equal or absent effects; further robustness measures are allowed.
 
 ## Validated
 
@@ -87,7 +87,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 7
+- Active requirements: 6
 - Mapped to slices: 0
 - Validated: 0
-- Unmapped active requirements: 7
+- Unmapped active requirements: 6

@@ -221,6 +221,7 @@ Generated: 2026-08-11T08:47:30Z | Files: 277 | Described: 0/277
 - `test/test_basic.py`
 - `test/test_datasets.py`
 - `test/test_file_input.py`
+- `test/test_plot_factory.py`
 - `test/test_profile_likelihood.py`
 - `test/test_runtime_resources.py`
 - `test/test_train.py`
