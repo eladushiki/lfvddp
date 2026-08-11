@@ -34,7 +34,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 
 ## Statistical Training Invariant
 
-The LFVNN mathematical objective is minimized in its two defined parts. This objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
+The paper's symmetrized test statistic with efficiency weights is minimized in two parts: one over \(f(x)\) for dataset A and one over \(g(x)\) for dataset B. This mathematical objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
 
 ## Constraints
 
