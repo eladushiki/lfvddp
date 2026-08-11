@@ -38,7 +38,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Experimentalists need plots to assess findings and structured outputs to incorporate them into downstream analysis.
 - Source: user
 - Validation: Run an end-to-end injected-signal comparison and verify the saved configuration and seed, test-statistic distributions, derived Z result, performance plot, and trained model weights.
-- Notes: Configuration and seed reproduce the run. The test-statistic distribution enables later Z recalculation. Trained model weights are preserved but are secondary to the configuration/seed and statistical artifacts for reproducibility. The output remains model-agnostic with respect to the new-physics mismatch.
+- Notes: Configuration and seed reproduce the run. The test-statistic distribution enables later Z recalculation through both an empirical percentile and a fitted chi-squared distribution; both results must be reported because the empirical estimate is not always available. Trained model weights are preserved but are secondary to the configuration/seed and statistical artifacts for reproducibility. The output remains model-agnostic with respect to the new-physics mismatch.
 
 ### R005 — The established workflow supports local execution and WIS ATLAS cluster execution through Singularity containers.
 - Class: operability
@@ -58,6 +58,15 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: Run a configuration containing multiple independent invalid values and contradictions; verify that validation fails before execution and reports every violated condition.
 - Notes: Applies to configurations created by experimentalists and developers.
 
+### R007 — The method is evaluated for robustness to unequal detector effects across a dataset pair, measuring whether such effects impair distinction between physically different datasets.
+- Class: quality-attribute
+- Status: active
+- Description: The method is evaluated for robustness to unequal detector effects across a dataset pair, measuring whether such effects impair distinction between physically different datasets.
+- Why it matters: Detector asymmetry can mimic or hide a physics discrepancy and must not invalidate the comparison method.
+- Source: user
+- Validation: Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs.
+- Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets. One benchmark compares Z-versus-injected-significance curves with unequal effects against equal or absent effects; further robustness measures are allowed.
+
 ## Validated
 
 ## Deferred
@@ -74,6 +83,7 @@ This file is the explicit capability and coverage contract for the project.
 | R004 | integration | active | none | none | Run an end-to-end injected-signal comparison and verify the saved configuration and seed, test-statistic distributions, derived Z result, performance plot, and trained model weights. |
 | R005 | operability | active | none | none | Run the documented workflow locally and submit the corresponding Singularity-backed cluster execution. |
 | R006 | failure-visibility | active | none | none | Run a configuration containing multiple independent invalid values and contradictions; verify that validation fails before execution and reports every violated condition. |
+| R007 | quality-attribute | active | none | none | Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs. |
 
 ## Coverage Summary
 
