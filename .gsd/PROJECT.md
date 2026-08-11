@@ -34,6 +34,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 - Users may configure every dataset category independently, subject to pre-execution validation of invalid values and contradictory combinations.
 - A loaded dataset must specify its observables and dimensionality in dataset configuration. A generated dataset may do so; otherwise, process-level dimensionality and generated-data dimensionality default to the number of detected physical observables in detector configuration.
 - Per-event weighting is deprecated and is not part of the active dataset or training contract.
+- Active loaded-data formats are ROOT for CERN Open Data, JSON for multi-file inputs, and NumPy as an additional option.
 - Swapping A and B theoretically swaps the f and g module predictions, while leaving the t distribution and Z invariant up to intrinsic Poisson fluctuations.
 
 ## Implemented Training Architecture
