@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-10T21:53:33Z | Files: 277 | Described: 0/277
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-10T21:53:33Z","fingerprint":"be7f269335fb49d2f719eaee5426c52eef8f4b38","fileCount":277,"truncated":false} -->
+Generated: 2026-08-11T08:47:30Z | Files: 277 | Described: 0/277
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-11T08:47:30Z","fingerprint":"a693e15d9d19ca1eff67328f52f331229040e6be","fileCount":277,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -219,11 +219,8 @@ Generated: 2026-08-10T21:53:33Z | Files: 277 | Described: 0/277
 - `test/environment.py`
 - `test/test_aggregate.py`
 - `test/test_basic.py`
-- `test/test_create_plots.py`
 - `test/test_datasets.py`
 - `test/test_file_input.py`
-- `test/test_plot_factory.py`
-- `test/test_plot_utils.py`
 - `test/test_profile_likelihood.py`
 - `test/test_runtime_resources.py`
 - `test/test_train.py`
@@ -279,6 +276,11 @@ Generated: 2026-08-10T21:53:33Z | Files: 277 | Described: 0/277
 - `test/detector/configs/detector_affected_basic_ds_2.json`
 - `test/detector/configs/detector_affected_basic_ds.json`
 - `test/detector/configs/detector_perfect_basic_ds.json`
+
+### test/plot/
+- `test/plot/test_create_plots.py`
+- `test/plot/test_plot_factory.py`
+- `test/plot/test_plot_utils.py`
 
 ### test/submission/
 - `test/submission/submit_test_utils.py`
