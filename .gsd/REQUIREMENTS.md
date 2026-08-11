@@ -67,6 +67,15 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs.
 - Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets. One benchmark compares Z-versus-injected-significance curves with unequal effects against equal or absent effects; further robustness measures are allowed.
 
+### R008 — Swapping symmetric datasets A and B preserves the t distribution and Z up to intrinsic Poisson fluctuations, while exchanging f and g predictions.
+- Class: quality-attribute
+- Status: active
+- Description: Swapping symmetric datasets A and B preserves the t distribution and Z up to intrinsic Poisson fluctuations, while exchanging f and g predictions.
+- Why it matters: Dataset-label symmetry is a mathematical property of the method and prevents arbitrary assignment of physical meaning to A or B.
+- Source: user
+- Validation: Run paired A/B-swapped studies and compare t distributions and Z within the expected Poisson variation, while verifying exchanged f and g predictions.
+- Notes: This is a theoretical invariance requirement, not exact equality for finite Poisson samples.
+
 ## Validated
 
 ## Deferred
@@ -84,6 +93,7 @@ This file is the explicit capability and coverage contract for the project.
 | R005 | operability | active | none | none | Run the documented workflow locally and submit the corresponding Singularity-backed cluster execution. |
 | R006 | failure-visibility | active | none | none | Run a configuration containing multiple independent invalid values and contradictions; verify that validation fails before execution and reports every violated condition. |
 | R007 | quality-attribute | active | none | none | Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs. |
+| R008 | quality-attribute | active | none | none | Run paired A/B-swapped studies and compare t distributions and Z within expected Poisson variation. |
 
 ## Coverage Summary
 

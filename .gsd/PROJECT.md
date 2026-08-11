@@ -31,6 +31,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 - Each dataset is divided into similar but disjoint control-region (CR) and signal-region (SR) event sets, generally by a slightly different selection cut.
 - The CR is used to learn nuisance parameters under a no-new-physics assumption. For real data, its cut is chosen to suppress a possible signal; for generated toy data, the assumption is made directly. Residual signal contamination is the physicist's analysis responsibility, not an LFVDDP warning or modeling responsibility.
 - The SR is used to test for a deviation between A and B.
+- Swapping A and B theoretically swaps the f and g module predictions, while leaving the t distribution and Z invariant up to intrinsic Poisson fluctuations.
 
 ## Implemented Training Architecture
 
