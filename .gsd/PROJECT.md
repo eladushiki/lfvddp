@@ -28,7 +28,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 ## Dataset Configuration
 
 - A and B are symmetric datasets, distinguished by lepton flavor.
-- Each dataset is divided into a control region (CR) and a signal region (SR).
+- Each dataset is divided into similar but disjoint control-region (CR) and signal-region (SR) event sets, generally by a slightly different selection cut.
 - The CR assumes no new physics and is used to learn nuisance parameters.
 - The SR is used to test for a deviation between A and B.
 
