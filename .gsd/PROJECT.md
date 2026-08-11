@@ -29,7 +29,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 
 - The probability estimate must distinguish potential new physics from statistical fluctuations and detector effects; detector effects are controlled before comparison.
 - Dataset-pair matching is currently enforced through manually maintained paired configurations.
-- Mock detector effects are examples only; the method and its theory must support arbitrary detector effects.
+- Mock detector effects are examples only; the method and its theory must support arbitrary detector effects. Current effects are predefined stochastic functions that misdetect events and omit them from the final compared datasets.
 - The method must not assume a predefined new-physics mismatch hypothesis.
 
 ## Current State
