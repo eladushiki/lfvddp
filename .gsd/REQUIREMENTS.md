@@ -58,6 +58,15 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: Run a configuration containing multiple independent invalid values and contradictions; verify that validation fails before execution and reports every violated condition.
 - Notes: Applies to configurations created by experimentalists and developers.
 
+### R007 — The method is evaluated for robustness to unequal detector effects across a dataset pair, measuring whether such effects impair distinction between physically different datasets.
+- Class: quality-attribute
+- Status: active
+- Description: The method is evaluated for robustness to unequal detector effects across a dataset pair, measuring whether such effects impair distinction between physically different datasets.
+- Why it matters: Detector asymmetry can mimic or hide a physics discrepancy and must not invalidate the comparison method.
+- Source: user
+- Validation: Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs.
+- Notes: Detector effects are stochastic event-misdetection functions that omit affected events from the final compared datasets.
+
 ## Validated
 
 ## Deferred
@@ -74,6 +83,7 @@ This file is the explicit capability and coverage contract for the project.
 | R004 | integration | active | none | none | Run an end-to-end injected-signal comparison and verify the saved configuration and seed, test-statistic distributions, derived Z result, performance plot, and trained model weights. |
 | R005 | operability | active | none | none | Run the documented workflow locally and submit the corresponding Singularity-backed cluster execution. |
 | R006 | failure-visibility | active | none | none | Run a configuration containing multiple independent invalid values and contradictions; verify that validation fails before execution and reports every violated condition. |
+| R007 | quality-attribute | active | none | none | Run controlled studies with unequal detector effects and assess measured significance for physically different dataset pairs. |
 
 ## Coverage Summary
 
