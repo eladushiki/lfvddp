@@ -74,7 +74,7 @@ This file is the explicit capability and coverage contract for the project.
 - Why it matters: Dataset-label symmetry is a mathematical property of the method and prevents arbitrary assignment of physical meaning to A or B.
 - Source: user
 - Validation: Run paired A/B-swapped studies and compare t distributions and Z within the expected Poisson variation, while verifying exchanged f and g predictions.
-- Notes: This is a theoretical invariance requirement, not exact equality for finite Poisson samples.
+- Notes: This is a theoretical invariance requirement, not exact equality for finite Poisson samples or a routine automated regression test.
 
 ## Validated
 
