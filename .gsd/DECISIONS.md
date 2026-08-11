@@ -7,3 +7,4 @@
 | # | When | Scope | Decision | Choice | Rationale | Revisable? | Made By |
 |---|------|-------|----------|--------|-----------|------------|---------|
 | D001 |  | scientific use | Interpretation of high significance Z | Use high Z to prioritize follow-up theory and experimental investigation, not to claim discovery. | The method provides model-agnostic evidence of a discrepancy and is intended to direct theory development. | Yes | human |
+| D002 | 2026-08-10 | theory implementation | Paper-equation equivalence | Keep code mathematically equivalent to the paper's equations; permit implementation choices not specified there to evolve. | The paper is the authoritative mathematical formulation, while implementation remains an engineering concern. | Yes | human |
