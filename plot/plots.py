@@ -45,7 +45,7 @@ from plot.plot_utils import (
 from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
-from train.train_utils import model_degrees_of_freedom
+from train.train_utils import statistic_degrees_of_freedom
 
 _PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
     "left": 0.005,
@@ -231,7 +231,10 @@ def t_distribution_plot(
 
     # Limits
     chi2_begin = 0
-    chi2_end = chi2.ppf(0.9999, chi2_dof := model_degrees_of_freedom(config))
+    chi2_end = chi2.ppf(
+        0.9999,
+        chi2_dof := statistic_degrees_of_freedom(config),
+    )
     xmin = min(0.0, float(np.min(t)))
     xmax = max(0.0, float(np.max(t)))
     if xmin == xmax:
