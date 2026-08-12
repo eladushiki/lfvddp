@@ -38,7 +38,6 @@ def model_degrees_of_freedom(
     return (
         config.train__nn_significant_degrees_of_freedom
         + nuisance_degrees_of_freedom
-        + 1
     )
 
 
