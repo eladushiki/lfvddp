@@ -1,7 +1,8 @@
+from itertools import product
 from math import fsum
 from typing import Callable, Union
 import numpy as np
-from scipy.integrate import quad, IntegrationWarning
+from scipy.integrate import IntegrationWarning, nquad
 from scipy.special import erfinv
 from scipy.stats import norm, chi2
 from warnings import catch_warnings, simplefilter
@@ -76,28 +77,79 @@ def calc_median_t_significance_relative_to_background(
     )
 
 
+def _normalize_integration_upper_limits(
+        upper_limit: Union[float, np.ndarray],
+) -> np.ndarray:
+    """Return one positive upper bound for each observable dimension."""
+    upper_limits = np.asarray(upper_limit, dtype=float)
+    if upper_limits.ndim == 0:
+        upper_limits = upper_limits.reshape(1)
+    if upper_limits.ndim != 1 or upper_limits.size == 0:
+        raise ValueError("upper_limit must be a non-empty scalar or 1-D array")
+    if np.any(np.isnan(upper_limits)) or np.any(upper_limits <= 0):
+        raise ValueError("upper_limit values must be positive numbers or infinity")
+    return upper_limits
+
+
+def _pdf_density_at_coordinates(
+        pdf: Callable[[Union[float, np.ndarray]], float],
+        coordinates: tuple[float, ...],
+) -> float:
+    """Evaluate a PDF at one point and validate its scalar density."""
+    evaluation_point = coordinates[0] if len(coordinates) == 1 else np.asarray(coordinates)
+    density = np.asarray(pdf(evaluation_point))
+    if density.ndim != 0 or not np.isfinite(density):
+        raise ValueError("PDF must return a finite scalar density")
+    if density < 0:
+        raise ValueError("PDF must return a non-negative density")
+    return float(density)
+
+
+def _integration_intervals(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
+    """Split finite integration dimensions for reliable narrow-PDF quadrature."""
+    intervals = []
+    for upper_limit in upper_limits:
+        if np.isfinite(upper_limit):
+            boundaries = np.append(
+                np.arange(0, upper_limit, _MAX_QUADRATURE_INTERVAL_WIDTH),
+                upper_limit,
+            )
+            intervals.append([
+                (lower_bound, upper_bound)
+                for lower_bound, upper_bound in zip(boundaries[:-1], boundaries[1:])
+                if lower_bound < upper_bound
+            ])
+        else:
+            intervals.append([(0.0, np.inf)])
+    return intervals
+
+
 def calc_injected_t_significance_by_sqrt_q0_continuous(
-        background_pdf: Callable[[float], float],
-        signal_pdf: Callable[[float], float],
+        background_pdf: Callable[[Union[float, np.ndarray]], float],
+        signal_pdf: Callable[[Union[float, np.ndarray]], float],
         n_background_events: int,
         n_signal_events: int,
-        upper_limit: float = np.inf,
+        upper_limit: Union[float, np.ndarray] = np.inf,
 ):
-    """
-    Calculate significance by formula (33) from our Symmetrized Approach paper.
+    """Calculate formula (33) significance for PDFs over one or more observables.
 
-    The method is integrating over analytic signal and background pdfs instead
-    of bin-wise.
-
-    Upper limit is needed especially for long tails, say, decaying exponentials
-    division.
+    A scalar ``upper_limit`` defines the existing one-dimensional domain
+    ``[0, upper_limit]``. A one-dimensional array supplies one upper bound per
+    observable; multidimensional PDF callables receive a coordinate array in
+    that same observable order.
     """
     if n_signal_events <= 0:
-         return 0
+        return 0
 
-    def integrand(x: float) -> float:
-        signal_rate_density = n_signal_events * signal_pdf(x)
-        background_rate_density = n_background_events * background_pdf(x)
+    upper_limits = _normalize_integration_upper_limits(upper_limit)
+
+    def integrand(*coordinates: float) -> float:
+        signal_rate_density = n_signal_events * _pdf_density_at_coordinates(
+            signal_pdf, coordinates
+        )
+        background_rate_density = n_background_events * _pdf_density_at_coordinates(
+            background_pdf, coordinates
+        )
 
         # Both PDFs can underflow to zero in a sufficiently remote tail. The
         # limiting contribution there is zero, whereas evaluating the original
@@ -111,39 +163,23 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
             signal_rate_density + background_rate_density
         ) * np.log1p(signal_rate_density / background_rate_density)
 
-    if np.isfinite(upper_limit):
-        interval_boundaries = np.arange(
-            0,
-            upper_limit,
-            _MAX_QUADRATURE_INTERVAL_WIDTH,
-        )
-        interval_boundaries = np.append(interval_boundaries, upper_limit)
-    else:
-        interval_boundaries = np.array([0, upper_limit])
-
     try:
         with catch_warnings():
             simplefilter("error", IntegrationWarning)
             integral = fsum(
-                quad(
+                nquad(
                     integrand,
-                    lower_bound,
-                    upper_bound,
-                    limit=_QUADRATURE_SUBDIVISION_LIMIT,
+                    interval_bounds,
+                    opts={"limit": _QUADRATURE_SUBDIVISION_LIMIT},
                 )[0]
-                for lower_bound, upper_bound in zip(
-                    interval_boundaries[:-1],
-                    interval_boundaries[1:],
-                )
-                if lower_bound < upper_bound
+                for interval_bounds in product(*_integration_intervals(upper_limits))
             )
     except IntegrationWarning as warning:
-         raise ValueError(
-             f"Integration unsuccessful up to upper limit {upper_limit}"
-         ) from warning
-    
-    q0 = 2 * (-n_signal_events + integral)
+        raise ValueError(
+            f"Integration unsuccessful up to upper limit {upper_limit}"
+        ) from warning
 
+    q0 = 2 * (-n_signal_events + integral)
     return np.sqrt(q0)
 
 
