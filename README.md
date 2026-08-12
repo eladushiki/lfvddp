@@ -220,6 +220,12 @@ python train/submit_train.py --continue <run-directory-or-context.json> --epochs
 `--epochs-target` accepts a positive integer and may be used with or without
 `--extra-time`.
 
+Training configurations may set `train__final_learning_rate` to linearly lower
+`train__learning_rate` over the configured epoch target. Omitting it preserves
+the constant learning rate behavior. A continued run with `--epochs-target`
+uses the replacement target for the entire schedule, then resumes at the
+learning rate for its current absolute epoch.
+
 If the original walltime was insufficient, add more time to the saved budget and
 continue from the latest LFVNN/PyTorch checkpoint with:
 

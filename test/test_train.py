@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from data_tools.data_utils import DataSet
+from frame.command_line.handle_args import create_config_from_paths
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
@@ -12,7 +13,7 @@ from neural_networks.differentiating_model import (
     _compact_nuisance_loss,
     _PairedEstimator,
 )
-from test.environment import ConfigType
+from test.environment import ConfigType, DEFAULT_CONFIG_PATHS
 from train.checkpoints import (
     _torch_load,
     save_training_checkpoint,
@@ -30,6 +31,18 @@ ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
     ),
     ConfigType.TRAIN.value: Path(
         "test/configs/train/short_1D_train_config_without_nuisance.json"
+    ),
+}
+ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG = {
+    **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_with_adaptive_learning_rate.json"
+    ),
+}
+ONE_DIMENSION_WITH_INCREASING_LEARNING_RATE_CONFIG = {
+    **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_with_increasing_learning_rate.json"
     ),
 }
 TWO_DIMENSION_WITH_NUISANCE_CONFIG = {
@@ -565,6 +578,117 @@ def test_checkpoint_continuation_uses_current_format(
     ) == 5
     for expected, actual in zip(model.parameters(), reloaded_model.parameters()):
         torch.testing.assert_close(actual, expected)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_learning_rate_stays_constant_without_final_learning_rate(
+    function_execution_context,
+    detector_effect,
+):
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="constant_learning_rate_model",
+    )
+    optimizer = model.configure_optimizers()
+
+    model._set_learning_rate_for_epoch(optimizer, epoch=50)
+
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(
+        function_execution_context.config.train__learning_rate
+    )
+
+
+def test_config_rejects_final_learning_rate_above_initial_learning_rate():
+    config_paths = (
+        DEFAULT_CONFIG_PATHS | ONE_DIMENSION_WITH_INCREASING_LEARNING_RATE_CONFIG
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="Final learning rate must not exceed the initial learning rate",
+    ):
+        create_config_from_paths(list(config_paths.values()))
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG],
+    indirect=True,
+)
+def test_adaptive_learning_rate_descends_over_training_epochs(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+    monkeypatch,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="adaptive_learning_rate_model",
+    )
+    learning_rates = []
+
+    def capture_learning_rate(optimizer, data, profiler):
+        learning_rates.append(optimizer.param_groups[0]["lr"])
+        return torch.tensor(0.0)
+
+    monkeypatch.setattr(model, "_train_step", capture_learning_rate)
+    monkeypatch.setattr(
+        "neural_networks.differentiating_model.save_training_checkpoint",
+        lambda **_kwargs: None,
+    )
+
+    model.fit(detected_batch)
+
+    assert learning_rates == pytest.approx([0.1, 0.07, 0.04, 0.01])
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG],
+    indirect=True,
+)
+def test_adaptive_learning_rate_continuation_uses_retargeted_epoch_schedule(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+    monkeypatch,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="continued_adaptive_learning_rate_model",
+    )
+    learning_rates = []
+
+    def capture_learning_rate(optimizer, data, profiler):
+        learning_rates.append(optimizer.param_groups[0]["lr"])
+        return torch.tensor(0.0)
+
+    monkeypatch.setattr(model, "_train_step", capture_learning_rate)
+    monkeypatch.setattr(
+        model,
+        "_load_training_checkpoint_if_requested",
+        lambda _optimizer: 2,
+    )
+    monkeypatch.setattr(
+        "neural_networks.differentiating_model.save_training_checkpoint",
+        lambda **_kwargs: None,
+    )
+
+    model.fit(detected_batch)
+
+    assert learning_rates == pytest.approx([0.04, 0.01])
 
 
 class _TensorboardRecorder:
