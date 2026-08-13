@@ -69,6 +69,11 @@ Then, it is customary to run
 
 to install the project to run locally with dependecies and being able to run the code locally while editing it in place.
 
+The requirements include the XRootD backend for `fsspec`, which is needed to
+load remote ROOT files whose URLs use the `root://` protocol. If an existing
+environment reports that `fsspec-xrootd` is missing, rerun the requirements
+installation to add the backend.
+
 ## Singularity
 
 Alternatively, either clone project and use `singularity build` or build it directly from repo (for recent enough versions).
