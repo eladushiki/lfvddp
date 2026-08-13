@@ -69,6 +69,15 @@ Then, it is customary to run
 
 to install the project to run locally with dependecies and being able to run the code locally while editing it in place.
 
+The requirements include the XRootD backend for `fsspec`, which is needed to
+load remote ROOT files whose URLs use the `root://` protocol. The loader honors
+`dataset_loaded__event_amount_load_limit` for remote files, so a bounded run
+only requests the metadata and branch baskets needed for that entry range.
+
+Dataset normalization supports constant observables, such as multiplicity
+columns fixed by an event-selection cut. They are mapped to zero for training
+instead of producing a zero normalization scale.
+
 ## Singularity
 
 Alternatively, either clone project and use `singularity build` or build it directly from repo (for recent enough versions).

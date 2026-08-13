@@ -46,12 +46,14 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--run-server-tests"):
-        return
-
-    skip_server = pytest.mark.skip(reason="need --run-server-tests to run server tests")
+    skip_server = pytest.mark.skip(
+        reason="need --run-server-tests to run server tests"
+    )
     for item in items:
-        if "server" in item.keywords:
+        if (
+            "server" in item.keywords
+            and not config.getoption("--run-server-tests")
+        ):
             item.add_marker(skip_server)
 
 
