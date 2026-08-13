@@ -16,6 +16,7 @@
 .gsd/audit-log.jsonl
 .gsd/worktrees
 .bg-shell/
+.gsd/SECRETS.md
 
 # Python tests
 .coverage
