@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-11T08:47:30Z | Files: 277 | Described: 0/277
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-11T08:47:30Z","fingerprint":"a693e15d9d19ca1eff67328f52f331229040e6be","fileCount":277,"truncated":false} -->
+Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-13T11:13:37Z","fingerprint":"7c3e446311a845e44f9da0212c2c8cb65d348093","fileCount":279,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -221,7 +221,6 @@ Generated: 2026-08-11T08:47:30Z | Files: 277 | Described: 0/277
 - `test/test_basic.py`
 - `test/test_datasets.py`
 - `test/test_file_input.py`
-- `test/test_plot_factory.py`
 - `test/test_profile_likelihood.py`
 - `test/test_runtime_resources.py`
 - `test/test_train.py`
@@ -247,6 +246,8 @@ Generated: 2026-08-11T08:47:30Z | Files: 277 | Described: 0/277
 - `test/configs/train/long_1D_train_config_with_nuisance.json`
 - `test/configs/train/long_1D_train_config_without_nuisance.json`
 - `test/configs/train/profile_1D_train_config_with_nuisance.json`
+- `test/configs/train/short_1D_train_config_with_adaptive_learning_rate.json`
+- `test/configs/train/short_1D_train_config_with_increasing_learning_rate.json`
 - `test/configs/train/short_1D_train_config_with_nuisance.json`
 - `test/configs/train/short_1D_train_config_without_nuisance_like_nplm.json`
 - `test/configs/train/short_1D_train_config_without_nuisance.json`

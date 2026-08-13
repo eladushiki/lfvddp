@@ -12,6 +12,7 @@ cycler==0.12.1
 flatbuffers==25.9.23
 fonttools==4.60.1
 fsspec==2025.10.0
+fsspec-xrootd==0.5.5
 gast==0.6.0
 google-pasta==0.2.0
 grpcio==1.76.0
