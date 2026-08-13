@@ -15,6 +15,7 @@
 .gsd/notifications.jsonl
 .gsd/audit-log.jsonl
 .bg-shell/
+.gsd/SECRETS.md
 
 # Python tests
 .coverage
