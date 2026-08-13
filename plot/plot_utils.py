@@ -813,19 +813,20 @@ def utils__contour_model_prediction(
     model_prediction = prediction_function(spanning_dataset)
     contour = prediction_transform(model_prediction)
     
-    # Sum unshown grid points so their predicted excess accumulates in each
-    # displayed bin, matching the projected data and distributions.
-    unique_sliced_bin_centers, inverse_bin_indices = np.unique(
+    # Sum unshown grid points so their predicted excess accumulates at each
+    # projected prediction-grid coordinate. These are not histogram bin
+    # centers: histogram binning is constructed separately by the plotters.
+    unique_sliced_coordinates, inverse_coordinate_indices = np.unique(
         sliced_dataset.events,
         axis=0,
         return_inverse=True,
     )
     projected_contour = np.array([
-        contour[inverse_bin_indices == bin_index].sum()
-        for bin_index in range(len(unique_sliced_bin_centers))
+        contour[inverse_coordinate_indices == coordinate_index].sum()
+        for coordinate_index in range(len(unique_sliced_coordinates))
     ])
 
-    return unique_sliced_bin_centers, projected_contour
+    return unique_sliced_coordinates, projected_contour
 
 
 def utils__add_subplot_sliced(
