@@ -9,6 +9,7 @@ from frame.context.execution_context import (
     version_controlled_execution_context,
 )
 from frame.file_structure import CONFIGS_DIR_NAME
+from frame.file_system.textual_data import expand_config_paths
 from plot.plot_factory import PlotFactory
 from plot.plotting_config import PlotScope, PlottingConfig
 
@@ -74,7 +75,7 @@ def _config_paths_for_plots(
     config_paths = list(additional_config_paths)
     if not multi_run_plots or not config_paths:
         config_paths.insert(0, submission_directory / CONFIGS_DIR_NAME)
-    return config_paths
+    return expand_config_paths(config_paths)
 
 
 def create_configured_plots(

@@ -20,6 +20,7 @@ from frame.context.run_descriptor import (
     run_descriptor_matches,
 )
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     CONTEXT_FILE_NAME,
     SINGLE_TRAIN_SCRIPT_NAME,
     SUBMIT_TRAIN_SCRIPT_NAME,
@@ -710,14 +711,18 @@ def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
 
 
 def test_config_directories_only_expand_supported_files(tmp_path):
-    nested_directory = tmp_path / "nested"
-    nested_directory.mkdir()
-    json_path = tmp_path / "first.json"
+    configs_directory = tmp_path / CONFIGS_DIR_NAME
+    nested_directory = configs_directory / "nested"
+    nested_directory.mkdir(parents=True)
+    json_path = configs_directory / "first.json"
     yaml_path = nested_directory / "second.yaml"
     json_path.write_text("{}")
     yaml_path.write_text("{}")
-    (tmp_path / ".hidden").write_text("not a config")
-    (tmp_path / "notes.txt").write_text("not a config")
+    (configs_directory / ".hidden").write_text("not a config")
+    (configs_directory / "notes.txt").write_text("not a config")
+    child_run_directory = tmp_path / "run_0000"
+    child_run_directory.mkdir()
+    (child_run_directory / "context.json").write_text("{}")
 
     config_paths, _ = parse_config_from_args(["--configs", str(tmp_path)])
 
