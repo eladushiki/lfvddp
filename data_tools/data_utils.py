@@ -200,11 +200,18 @@ class DataSet:
         result = self.create_copy()
         for obs in result.observable_names:
             obs_slice = result.slice_along_observable_names(obs)
-            
+
             # shift and scale to fit range [-1, 1]
-            offsets[obs] = min(obs_slice) + 1
-            span = max(obs_slice) - min(obs_slice)
-            factors[obs] = span / 2
+            minimum = np.min(obs_slice)
+            span = np.ptp(obs_slice)
+            if span == 0:
+                # A constant observable carries no variation for the model.
+                # Keep its transform finite and map it to zero.
+                offsets[obs] = minimum
+                factors[obs] = 1.0
+            else:
+                offsets[obs] = minimum + 1
+                factors[obs] = span / 2
 
         normalization_factor = ShiftAndNormalizationFactor(factors, offsets)
         return result / normalization_factor, normalization_factor
