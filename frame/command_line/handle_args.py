@@ -10,8 +10,10 @@ from frame.context.execution_context import (
     create_config_from_paramters,
     version_controlled_execution_context,
 )
-from frame.file_structure import CONFIG_FILE_EXTENSIONS
-from frame.file_system.textual_data import load_config_params_from_paths
+from frame.file_system.textual_data import (
+    expand_config_paths,
+    load_config_params_from_paths,
+)
 
 
 def _walltime_argument(value: str) -> str:
@@ -32,33 +34,6 @@ def _positive_integer_argument(value: str) -> int:
     if parsed_value <= 0:
         raise ArgumentTypeError(f"Expected a positive integer, got {value!r}")
     return parsed_value
-
-
-def _expand_config_paths(config_paths: list[Path]) -> list[Path]:
-    """Replace config directories with their recursively discovered files."""
-    expanded_paths = []
-    for config_path in config_paths:
-        if not config_path.exists():
-            raise FileNotFoundError(
-                f"Configuration path does not exist or is inaccessible: "
-                f"{config_path}"
-            )
-        if config_path.is_dir():
-            expanded_paths.extend(
-                path
-                for path in sorted(config_path.rglob("*"))
-                if path.is_file()
-                and path.suffix.lower().removeprefix(".")
-                in CONFIG_FILE_EXTENSIONS
-            )
-        elif config_path.is_file():
-            expanded_paths.append(config_path)
-        else:
-            raise ValueError(
-                f"Configuration path is neither a regular file nor a directory: "
-                f"{config_path}"
-            )
-    return expanded_paths
 
 
 def parse_config_from_args(
@@ -148,7 +123,7 @@ def parse_config_from_args(
         warning(f"Running with unknown arguments: {unknown}")
 
     if args.config_paths is not None:
-        args.config_paths = _expand_config_paths(args.config_paths)
+        args.config_paths = expand_config_paths(args.config_paths)
 
     return args.config_paths, args
 

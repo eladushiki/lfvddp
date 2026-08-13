@@ -35,19 +35,28 @@ def test_multi_run_plots_uses_explicit_config_paths(tmp_path):
 
 def test_single_submission_plots_include_staged_configs(tmp_path):
     submission_directory = tmp_path / "submission"
-    (submission_directory / "configs").mkdir(parents=True)
+    configs_directory = submission_directory / "configs"
+    nested_directory = configs_directory / "nested"
+    nested_directory.mkdir(parents=True)
+    first_config = configs_directory / "0000_cluster_config.json"
+    second_config = nested_directory / "0001_plot_config.yaml"
+    first_config.write_text("{}")
+    second_config.write_text("{}")
+    (configs_directory / "notes.txt").write_text("not a config")
 
     assert _config_paths_for_plots(
         submission_directory, [], multi_run_plots=False
-    ) == [submission_directory / "configs"]
+    ) == [first_config, second_config]
 
 
 def test_create_plots_builds_context_without_reparsing_plot_options(
     monkeypatch, tmp_path
 ):
     submission_directory = tmp_path / "runs"
-    plot_config = tmp_path / "plot.json"
+    configs_directory = tmp_path / "configs"
+    plot_config = configs_directory / "plot.json"
     submission_directory.mkdir()
+    configs_directory.mkdir()
     plot_config.touch()
     config = object()
     context = object()
@@ -91,7 +100,7 @@ def test_create_plots_builds_context_without_reparsing_plot_options(
     create_plots_module.create_plots(
         multi_run_plots=True,
         submission_directory=submission_directory,
-        additional_config_paths=[plot_config],
+        additional_config_paths=[configs_directory],
         debug=True,
     )
 
