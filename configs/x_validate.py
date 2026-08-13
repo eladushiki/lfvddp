@@ -45,3 +45,7 @@ def cross_validate(config: Union[
     assert config.train__nn_input_dimension == config.detector__number_of_dimensions, \
         f"Input dimension {config.train__nn_input_dimension} does not match detector dimension " \
         f"{config.detector__number_of_dimensions}"
+
+    if config.train__final_learning_rate is not None:
+        assert config.train__final_learning_rate <= config.train__learning_rate, \
+            "Final learning rate must not exceed the initial learning rate."

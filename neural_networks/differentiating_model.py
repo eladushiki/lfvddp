@@ -597,6 +597,26 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         return start_epoch
 
+    def _set_learning_rate_for_epoch(
+        self,
+        optimizer: Optional[optim.Optimizer],
+        epoch: int,
+    ) -> None:
+        """Set an adaptive learning rate for an absolute training epoch."""
+        final_learning_rate = self._config.train__final_learning_rate
+        if optimizer is None or final_learning_rate is None:
+            return
+
+        last_epoch = self._config.train__epochs - 1
+        progress = epoch / last_epoch if last_epoch > 0 else 1.0
+        learning_rate = (
+            self._config.train__learning_rate
+            + progress
+            * (final_learning_rate - self._config.train__learning_rate)
+        )
+        for parameter_group in optimizer.param_groups:
+            parameter_group["lr"] = learning_rate
+
     def _train_step(
         self,
         optimizer: Optional[optim.Optimizer],
@@ -649,6 +669,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         with profiler:
             for epoch in epoch_iterator:
                 with profiler.region("training/epoch"):
+                    self._set_learning_rate_for_epoch(optimizer, epoch)
                     epoch_last_predictions = self._train_step(
                         optimizer=optimizer,
                         data=training_data,

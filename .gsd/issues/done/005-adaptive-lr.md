@@ -1,6 +1,6 @@
 # Issue 005: Add adaptive lr to trainings
 
-**Status:** open
+**Status:** done
 
 ## Description
 

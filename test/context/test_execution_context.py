@@ -61,6 +61,15 @@ def _context_args(
     )
 
 
+def test_epochs_target_preserves_continuation_argument():
+    _, args = parse_config_from_args(
+        ["--continue", "saved-run", "--epochs-target", "10"]
+    )
+
+    assert args.continue_from == Path("saved-run")
+    assert args.epochs_target == 10
+
+
 @pytest.mark.parametrize(
     "function_execution_context",
     [
