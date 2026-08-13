@@ -5,9 +5,20 @@ import yaml
 
 from frame.file_structure import (
     CONFIG_FILE_EXTENSIONS,
+    CONFIGS_DIR_NAME,
     JSON_FILE_EXTENSION,
     YAML_FILE_EXTENSIONS,
 )
+
+
+def _config_search_root(config_path: Path) -> Path:
+    """Prefer a run directory's staged configs over its other descendants."""
+    staged_configs_directory = config_path / CONFIGS_DIR_NAME
+    return (
+        staged_configs_directory
+        if staged_configs_directory.is_dir()
+        else config_path
+    )
 
 
 def expand_config_paths(config_paths: list[Path]) -> list[Path]:
@@ -20,9 +31,10 @@ def expand_config_paths(config_paths: list[Path]) -> list[Path]:
                 f"{config_path}"
             )
         if config_path.is_dir():
+            config_search_root = _config_search_root(config_path)
             expanded_paths.extend(
                 path
-                for path in sorted(config_path.rglob("*"))
+                for path in sorted(config_search_root.rglob("*"))
                 if path.is_file()
                 and path.suffix.lower().removeprefix(".")
                 in CONFIG_FILE_EXTENSIONS
