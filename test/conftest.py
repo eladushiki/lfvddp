@@ -43,20 +43,11 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests marked 'server' that submit real scheduler jobs.",
     )
-    parser.addoption(
-        "--run-remote-tests",
-        action="store_true",
-        default=False,
-        help="Run tests marked 'remote' that read public network data.",
-    )
 
 
 def pytest_collection_modifyitems(config, items):
     skip_server = pytest.mark.skip(
         reason="need --run-server-tests to run server tests"
-    )
-    skip_remote = pytest.mark.skip(
-        reason="need --run-remote-tests to run remote tests"
     )
     for item in items:
         if (
@@ -64,11 +55,6 @@ def pytest_collection_modifyitems(config, items):
             and not config.getoption("--run-server-tests")
         ):
             item.add_marker(skip_server)
-        if (
-            "remote" in item.keywords
-            and not config.getoption("--run-remote-tests")
-        ):
-            item.add_marker(skip_remote)
 
 
 @fixture(scope="function")
