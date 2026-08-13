@@ -95,7 +95,7 @@ def t_train_percentile_progression_plot(
 
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
-    chi2_dof = model_degrees_of_freedom(config)
+    chi2_dof = statistic_degrees_of_freedom(config)
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
         ax = axes[row, 0]
@@ -1426,9 +1426,9 @@ def plot_prediction_process_2d(
     )
     prediction_mesh_mask = utils__prediction_mesh_mask(
         coordinates=next(iter(projected_sr_predictions.values()))[0],
-        data_points=data_batch.unified_data.slice_along_observables(
+        data_points=data_batch.unified_data.slice_along_observable_names(
             selected_observables
-        ).events,
+        ),
     )
     for projected_predictions in (
         projected_sr_predictions,
