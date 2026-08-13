@@ -4,9 +4,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from data_tools.data_utils import DataSet
 from plot.plot_utils import (
     utils__discover_background_only_parent_directory,
     utils__prediction_mesh_mask,
+    utils__project_prediction_values_sliced,
 )
 
 
@@ -27,6 +29,51 @@ def test_prediction_mesh_mask_limits_points_to_origin_data_hull():
         False,
         False,
     ]
+
+
+def test_project_prediction_values_sliced_sums_unshown_dimensions():
+    spanning_dataset = DataSet(
+        data=np.array([
+            [0.0, 0.0, 10.0],
+            [0.0, 0.0, 20.0],
+            [1.0, 0.0, 10.0],
+            [1.0, 0.0, 20.0],
+        ]),
+        observable_names=["x", "y", "unshown"],
+    )
+
+    coordinates, projected_values = utils__project_prediction_values_sliced(
+        values=np.array([1.0, 2.0, 3.0, 4.0]),
+        spanning_dataset=spanning_dataset,
+        along_observables=["x", "y"],
+    )
+
+    np.testing.assert_array_equal(
+        coordinates, np.array([[0.0, 0.0], [1.0, 0.0]])
+    )
+    np.testing.assert_array_equal(projected_values, np.array([3.0, 7.0]))
+
+
+def test_project_prediction_values_sliced_accumulates_across_hidden_grid_sizes():
+    for hidden_grid_size in (1, 3):
+        spanning_dataset = DataSet(
+            data=np.array([
+                [shown_value, hidden_value]
+                for shown_value in (0.0, 1.0)
+                for hidden_value in range(hidden_grid_size)
+            ]),
+            observable_names=["shown", "hidden"],
+        )
+
+        _, projected_values = utils__project_prediction_values_sliced(
+            values=np.ones(spanning_dataset.n_samples),
+            spanning_dataset=spanning_dataset,
+            along_observables=["shown"],
+        )
+
+        np.testing.assert_array_equal(
+            projected_values, np.full(2, hidden_grid_size)
+        )
 
 
 def test_discover_background_only_parent_directory_selects_outermost(

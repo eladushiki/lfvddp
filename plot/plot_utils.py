@@ -802,12 +802,7 @@ def utils__contour_model_prediction(
         along_observables: Union[List[str], str, None] = None,
         prediction_transform: Callable[[npt.NDArray], npt.NDArray] = np.exp,
 ):
-    """
-    Generate model prediction contour for 1D or 2D observables.
-
-    For 1D: returns (x_range, contour_1d)
-    For 2D: returns (x_range, y_range, contour_2d)
-    """
+    """Project model values by summing over unshown observables."""
     # Normalize input to list
     if along_observables is None:
         along_observables = [spanning_dataset.observable_names[0]]
@@ -818,19 +813,20 @@ def utils__contour_model_prediction(
     model_prediction = prediction_function(spanning_dataset)
     contour = prediction_transform(model_prediction)
     
-    # Average over bins across projected dimensions
-    unique_sliced_bin_centers, inverse_bin_indices = np.unique(
+    # Sum unshown grid points so their predicted excess accumulates at each
+    # projected prediction-grid coordinate. These are not histogram bin
+    # centers: histogram binning is constructed separately by the plotters.
+    unique_sliced_coordinates, inverse_coordinate_indices = np.unique(
         sliced_dataset.events,
         axis=0,
         return_inverse=True,
     )
-
-    contour_means = np.array([
-        contour[inverse_bin_indices == bin_index].mean()
-        for bin_index in range(len(unique_sliced_bin_centers))
+    projected_contour = np.array([
+        contour[inverse_coordinate_indices == coordinate_index].sum()
+        for coordinate_index in range(len(unique_sliced_coordinates))
     ])
 
-    return unique_sliced_bin_centers, contour_means
+    return unique_sliced_coordinates, projected_contour
 
 
 def utils__add_subplot_sliced(
@@ -1231,7 +1227,7 @@ def utils__project_prediction_values_sliced(
     spanning_dataset: DataSet,
     along_observables: List[str],
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Project already evaluated model values onto selected observables."""
+    """Project evaluated model values by summing over unselected observables."""
     return utils__contour_model_prediction(
         prediction_function=lambda _: values,
         spanning_dataset=spanning_dataset,
