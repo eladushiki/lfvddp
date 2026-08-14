@@ -2,35 +2,56 @@ from argparse import Namespace
 from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
+
 import plot.create_plots as create_plots_module
 from plot.create_plots import _config_paths_for_plots, _plot_options_from_args
 from plot.plotting_config import PlotScope
 
 
-def test_multi_run_plots_uses_explicit_config_paths(tmp_path):
+def test_multi_run_plots_uses_discovered_background_configs(
+    monkeypatch, tmp_path
+):
     runs_directory = tmp_path / "runs"
-    plot_config = tmp_path / "plot.json"
+    background_directory = runs_directory / "background"
+    configs_directory = background_directory / "configs"
+    plot_config = configs_directory / "plot.json"
     runs_directory.mkdir()
-    plot_config.touch()
+    configs_directory.mkdir(parents=True)
+    plot_config.write_text("{}")
+    monkeypatch.setattr(
+        create_plots_module,
+        "utils__discover_background_only_parent_directory",
+        lambda _: background_directory,
+    )
 
     (
         submission_directory,
-        additional_config_paths,
         multi_run_plots,
         debug,
     ) = _plot_options_from_args([
-        str(runs_directory), str(plot_config), "--multi-run-plots", "--debug"
+        str(runs_directory), "--multi-run-plots", "--debug"
     ])
 
     assert submission_directory == runs_directory
-    assert additional_config_paths == [plot_config]
     assert multi_run_plots is True
     assert debug is True
     assert _config_paths_for_plots(
         submission_directory,
-        additional_config_paths,
         multi_run_plots,
     ) == [plot_config]
+
+
+def test_plot_cli_rejects_additional_config_path(capsys, tmp_path):
+    submission_directory = tmp_path / "submission"
+    (submission_directory / "configs").mkdir(parents=True)
+
+    with pytest.raises(SystemExit):
+        _plot_options_from_args([
+            str(submission_directory),
+            str(submission_directory / "configs"),
+        ])
+    assert "unrecognized arguments" in capsys.readouterr().err
 
 
 def test_single_submission_plots_include_staged_configs(tmp_path):
@@ -45,7 +66,7 @@ def test_single_submission_plots_include_staged_configs(tmp_path):
     (configs_directory / "notes.txt").write_text("not a config")
 
     assert _config_paths_for_plots(
-        submission_directory, [], multi_run_plots=False
+        submission_directory, multi_run_plots=False
     ) == [first_config, second_config]
 
 
@@ -53,10 +74,11 @@ def test_create_plots_builds_context_without_reparsing_plot_options(
     monkeypatch, tmp_path
 ):
     submission_directory = tmp_path / "runs"
-    configs_directory = tmp_path / "configs"
+    background_directory = submission_directory / "background"
+    configs_directory = background_directory / "configs"
     plot_config = configs_directory / "plot.json"
     submission_directory.mkdir()
-    configs_directory.mkdir()
+    configs_directory.mkdir(parents=True)
     plot_config.touch()
     config = object()
     context = object()
@@ -96,11 +118,15 @@ def test_create_plots_builds_context_without_reparsing_plot_options(
         "create_configured_plots",
         fake_create_configured_plots,
     )
+    monkeypatch.setattr(
+        create_plots_module,
+        "utils__discover_background_only_parent_directory",
+        lambda _: background_directory,
+    )
 
     create_plots_module.create_plots(
         multi_run_plots=True,
         submission_directory=submission_directory,
-        additional_config_paths=[configs_directory],
         debug=True,
     )
 
