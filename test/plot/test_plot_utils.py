@@ -16,23 +16,20 @@ from plot.plot_utils import (
 @pytest.mark.parametrize(
     ("number_of_dimensions", "expected_upper_limits"),
     [
-        (1, 7.25),
-        (4, np.full(4, 7.25)),
+        (1, np.inf),
+        (4, np.full(4, np.inf)),
     ],
 )
-def test_integration_upper_limits_match_dataset_dimensions(
+def test_integration_upper_limits_cover_generated_pdf_domain(
     number_of_dimensions,
     expected_upper_limits,
 ):
-    upper_limit = 7.25
-
     upper_limits = _integration_upper_limits_for_dimensions(
-        upper_limit,
         number_of_dimensions,
     )
 
     if number_of_dimensions == 1:
-        assert upper_limits is upper_limit
+        assert upper_limits == expected_upper_limits
     else:
         np.testing.assert_array_equal(upper_limits, expected_upper_limits)
 

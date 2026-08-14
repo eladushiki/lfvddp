@@ -185,13 +185,12 @@ class _PerformanceCurve:
 
 
 def _integration_upper_limits_for_dimensions(
-    upper_limit: float,
     number_of_dimensions: int,
 ) -> Union[float, np.ndarray]:
-    """Supply one integration bound per dimension without changing 1-D input."""
+    """Represent the unbounded generated-PDF domain in every dimension."""
     if number_of_dimensions == 1:
-        return upper_limit
-    return np.full(number_of_dimensions, upper_limit)
+        return np.inf
+    return np.full(number_of_dimensions, np.inf)
 
 
 def utils__calculate_performance_curve(
@@ -232,7 +231,6 @@ def utils__calculate_performance_curve(
                     n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
                     n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
                     upper_limit=_integration_upper_limits_for_dimensions(
-                        max(signal_t_dist.max(), background_t_dist.max()),
                         signal_dataset_parameters.dataset__number_of_dimensions,
                     ),
                 )
