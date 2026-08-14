@@ -32,6 +32,7 @@ from data_tools.profile_likelihood import (
 from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
@@ -66,7 +67,7 @@ def utils__discover_performance_contexts(
 def utils__discover_background_only_parent_directory(
     performance_directory: str,
 ) -> Path:
-    """Find the outermost directory whose descendant runs are background-only."""
+    """Find the outermost staged submission containing only background runs."""
     root_directory = Path(performance_directory)
     contexts = ExecutionContext.discover_run_contexts(root_directory)
     if not contexts:
@@ -85,11 +86,13 @@ def utils__discover_background_only_parent_directory(
         directory
         for directory, nested_contexts in contexts_by_directory.items()
         if nested_contexts
+        and (directory / CONFIGS_DIR_NAME).is_dir()
         and not any(context.config.dataset__has_signal for context in nested_contexts)
     ]
     if not background_directories:
         raise ValueError(
-            f"No background-only run directory found below {root_directory}."
+            "No background-only submission with a configs directory found below "
+            f"{root_directory}."
         )
     return min(background_directories, key=lambda directory: len(directory.parts))
 

@@ -11,24 +11,18 @@ from frame.context.execution_context import (
 from frame.file_structure import CONFIGS_DIR_NAME
 from frame.file_system.textual_data import expand_config_paths
 from plot.plot_factory import PlotFactory
+from plot.plot_utils import utils__discover_background_only_parent_directory
 from plot.plotting_config import PlotScope, PlottingConfig
 
 
 def _plot_options_from_args(
     command_line_args: Optional[list[str]] = None,
-) -> tuple[Path, list[Path], bool, bool]:
+) -> tuple[Path, bool, bool]:
     parser = ArgumentParser()
     parser.add_argument(
         "submission_directory",
         type=Path,
         help="Submitted training directory or recursive multi-run directory",
-    )
-    parser.add_argument(
-        "additional_config_paths",
-        type=Path,
-        nargs="*",
-        metavar="CONFIG",
-        help="Additional JSON/YAML config files or directories",
     )
     parser.add_argument(
         "--multi-run-plots",
@@ -51,16 +45,8 @@ def _plot_options_from_args(
             f"Submission directory does not contain a configs directory: "
             f"{submission_directory}"
         )
-    if args.multi_run_plots and not args.additional_config_paths and not (
-        submission_directory / CONFIGS_DIR_NAME
-    ).is_dir():
-        parser.error(
-            "Multi-run plots require CONFIG paths when the supplied directory "
-            "does not contain configs."
-        )
     return (
         submission_directory,
-        args.additional_config_paths,
         args.multi_run_plots,
         args.debug,
     )
@@ -68,14 +54,19 @@ def _plot_options_from_args(
 
 def _config_paths_for_plots(
     submission_directory: Path,
-    additional_config_paths: list[Path],
     multi_run_plots: bool,
 ) -> list[Path]:
     """Return the configuration paths needed for the requested plot scope."""
-    config_paths = list(additional_config_paths)
-    if not multi_run_plots or not config_paths:
-        config_paths.insert(0, submission_directory / CONFIGS_DIR_NAME)
-    return expand_config_paths(config_paths)
+    configured_submission_directory = (
+        utils__discover_background_only_parent_directory(
+            str(submission_directory)
+        )
+        if multi_run_plots
+        else submission_directory
+    )
+    return expand_config_paths(
+        [configured_submission_directory / CONFIGS_DIR_NAME]
+    )
 
 
 def create_configured_plots(
@@ -100,13 +91,11 @@ def create_configured_plots(
 def create_plots(
     multi_run_plots: bool,
     submission_directory: Path,
-    additional_config_paths: list[Path],
     debug: bool,
 ) -> None:
     """Build a plotting context directly and create the requested plot scope."""
     config_paths = _config_paths_for_plots(
         submission_directory,
-        additional_config_paths,
         multi_run_plots,
     )
     config = create_config_from_paths(config_paths, out_dir=str(submission_directory))
@@ -135,13 +124,11 @@ def create_plots(
 if __name__ == "__main__":
     (
         submission_directory,
-        additional_config_paths,
         multi_run_plots,
         debug,
     ) = _plot_options_from_args()
     create_plots(
         multi_run_plots=multi_run_plots,
         submission_directory=submission_directory,
-        additional_config_paths=additional_config_paths,
         debug=debug,
     )

@@ -81,6 +81,8 @@ def test_discover_background_only_parent_directory_selects_outermost(
 ):
     background_directory = tmp_path / "background"
     signal_directory = tmp_path / "signal"
+    (background_directory / "configs").mkdir(parents=True)
+    (signal_directory / "configs").mkdir(parents=True)
     background_context = SimpleNamespace(
         config=SimpleNamespace(dataset__has_signal=False)
     )
@@ -116,5 +118,30 @@ def test_discover_background_only_parent_directory_requires_background(
         ],
     )
 
-    with pytest.raises(ValueError, match="No background-only"):
+    with pytest.raises(ValueError, match="No background-only submission"):
         utils__discover_background_only_parent_directory(str(tmp_path))
+
+
+def test_discover_background_only_parent_directory_ignores_plot_outputs(
+    monkeypatch, tmp_path
+):
+    background_directory = tmp_path / "background"
+    plot_output_directory = tmp_path / "run_from_create_plots"
+    (background_directory / "configs").mkdir(parents=True)
+    background_context = SimpleNamespace(
+        config=SimpleNamespace(dataset__has_signal=False)
+    )
+    plot_context = SimpleNamespace(
+        config=SimpleNamespace(dataset__has_signal=False)
+    )
+    monkeypatch.setattr(
+        "plot.plot_utils.ExecutionContext.discover_run_contexts",
+        lambda _: [
+            (plot_context, plot_output_directory / "context.json"),
+            (background_context, background_directory / "run" / "context.json"),
+        ],
+    )
+
+    assert utils__discover_background_only_parent_directory(str(tmp_path)) == (
+        background_directory
+    )

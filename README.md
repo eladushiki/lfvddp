@@ -358,7 +358,7 @@ Any function that is implemented in `plot/plots.py` can be called by name from t
 Generate the configured plots for a submitted training batch with:
 
 ```bash
-python plot/create_plots.py <submission-directory> [<additional-config> ...] [--debug]
+python plot/create_plots.py <submission-directory> [--debug]
 ```
 
 The submission directory must contain the staged `configs` directory and the
@@ -366,16 +366,16 @@ individual training runs. Plotting reads those configs, aggregates the runs, and
 creates its normal stamped output directory inside the submission directory.
 
 `create_plots.py` creates single-submission overview plots by default. To create
-multi-run plots such as `performance_plot`, add `--multi-run-plots` and provide
-a plot configuration path when the runs directory has no `configs` directory:
+multi-run plots such as `performance_plot`, add `--multi-run-plots`:
 
 ```bash
-python plot/create_plots.py <runs-directory> <plot-config> --multi-run-plots [--debug]
+python plot/create_plots.py <submission-directory> --multi-run-plots [--debug]
 ```
 
-In multi-run mode, plotting locates the outermost directory containing only
-background runs and identifies signal contexts from their dataset configuration.
-Each plot declares its execution scope next to its implementation.
+In multi-run mode, plotting locates the outermost staged submission containing
+only background runs, loads its `configs` directory, and identifies signal
+contexts from their dataset configuration. Each plot declares its execution
+scope next to its implementation.
 
 To implement any new plot, simply define its generating function there in the form of:
 ```python
@@ -392,4 +392,4 @@ Training entry points:
 - `submit_train.py` for remote submission of multiple copies of `single_train.py` [Currently only in-place, when running at the ATLAS cluster]
 
 ## Plotting
-- `create_plots.py <submission-directory> [<additional-config> ...] [--debug]` follows the staged configuration files to gather data from the completed trainings and produce the plots. Additional JSON/YAML files or directories are merged afterward from left to right, so they can override the staged plotting configuration.
+- `create_plots.py <submission-directory> [--debug] [--multi-run-plots]` follows the staged configuration files to gather data from completed trainings and produce the plots. Multi-run plotting discovers the background-only submission and uses its staged configuration.
