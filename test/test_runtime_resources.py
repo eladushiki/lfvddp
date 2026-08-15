@@ -194,7 +194,7 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert 'LOCK_TIMEOUT_SEC="${SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-5}"' in script
     assert 'flock -w "$LOCK_TIMEOUT_SEC" "$CACHE_LOCK_FD"' in script
     assert 'flock -u "$CACHE_LOCK_FD"' in script
-    assert '#PBS -r y' in script
+    assert "qrerun" not in script
     assert f"CACHE_CONTENTION_EXIT_STATUS={CACHE_CONTENTION_EXIT_STATUS}" in script
     assert 'exit "$CACHE_CONTENTION_EXIT_STATUS"' in script
     assert "SINGULARITY_SANDBOX_RETRY_MAX" not in script

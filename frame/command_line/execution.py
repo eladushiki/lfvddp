@@ -15,14 +15,12 @@ from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
-CACHE_CONTENTION_EXIT_STATUS_ENV = "LFVDDP_CACHE_CONTENTION_EXIT_STATUS"
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
 #PBS -m n
 #PBS -S /bin/bash
 #PBS -j oe
-#PBS -r y
 #PBS -N {job_name}
 #PBS -q {queue}
 #PBS -l walltime={walltime}
@@ -325,9 +323,9 @@ acquire_sandbox_lease() {{
 
 yield_allocation_for_cache_contention() {{
     echo "Sandbox cache is busy after ${{LOCK_TIMEOUT_SEC}}s: $SANDBOX_DIR"
-    # The PBS epilogue hook recognizes this dedicated status and requeues the
-    # marked job after its CPU and memory allocation has been released.
-    echo "Exiting with PBS cache-contention status $CACHE_CONTENTION_EXIT_STATUS."
+    # Exiting releases this job's allocation immediately. No automatic requeue
+    # or resubmission is attempted because those require site-level PBS support.
+    echo "Exiting with cache-contention status $CACHE_CONTENTION_EXIT_STATUS."
     exit "$CACHE_CONTENTION_EXIT_STATUS"
 }}
 
