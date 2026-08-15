@@ -364,6 +364,17 @@ For example, a correlated two-dimensional signal can be configured as:
 }
 ```
 
+Continuous injected-significance calculations require every signal and background
+distribution to supply finite, distribution-specific integration bounds. Gaussian
+defaults use six marginal standard deviations, exponential bounds use the point
+where density falls to 1% of its peak, gamma-like bounds use a tail quantile, and
+explicitly truncated distributions use `domain_max`.
+The integration ceiling is the coordinate-wise maximum of the signal and background
+bounds. This keeps SciPy's adaptive quadrature finite and its numerical tolerance
+below the 0.1% accuracy target. Signal generation fails with a clear error if any
+coordinate exceeds its declared bound, indicating that `domain_max` must be
+increased.
+
 
 ## Plotting
 
