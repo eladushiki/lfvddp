@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy import stats
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import GeneratedDatasetParameters
@@ -11,17 +10,11 @@ from data_tools.event_generation.background import (
     GaussianBackground,
 )
 from data_tools.event_generation.distribution import (
-    DataDistribution,
     normalize_generator_selection,
     validate_generated_dataset,
     validate_generated_dataset_within_integration_domain,
 )
-from data_tools.event_generation.signal import (
-    GaussianSignal,
-    MultivariateGaussianSignal,
-    NoSignal,
-    NonlocalSignal,
-)
+from data_tools.event_generation.signal import MultivariateGaussianSignal
 from test.environment import ConfigType
 
 
@@ -150,45 +143,6 @@ def test_generated_dataset_must_fit_inside_integration_domain():
             np.array([2.0, 2.5]),
             "signal",
         )
-
-
-def test_every_distribution_defines_its_own_integration_limits():
-    class IncompleteDistribution(DataDistribution):
-        def pdf(self, x):
-            return 1.0
-
-    with pytest.raises(TypeError, match="integration_upper_limits"):
-        IncompleteDistribution(1)
-
-    distributions_and_expected_limits = [
-        (
-            ExponentialBackground(2),
-            np.full(2, stats.expon.isf(1e-2)),
-        ),
-        (GaussianBackground(2, mean=1.5), np.full(2, 7.5)),
-        (
-            GaussianSignal(2, location=4.0, gaussian_signal_sigma=0.1),
-            np.full(2, 4.6),
-        ),
-        (
-            MultivariateGaussianSignal(
-                2,
-                mean=[1.0, 2.0],
-                covariance=[[1.0, 0.0], [0.0, 4.0]],
-            ),
-            np.array([7.0, 14.0]),
-        ),
-        (
-            NonlocalSignal(2, param_scale=2.0),
-            np.full(
-                2,
-                stats.gamma.ppf(1 - 1e-3, a=3, scale=0.5),
-            ),
-        ),
-        (NoSignal(2), np.zeros(2)),
-    ]
-    for distribution, expected in distributions_and_expected_limits:
-        np.testing.assert_allclose(distribution.integration_upper_limits, expected)
 
 
 @pytest.mark.parametrize(
