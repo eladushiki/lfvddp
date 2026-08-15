@@ -216,6 +216,26 @@ After the job starts, the execution script passes its affinity-aware CPU count
 and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
 uses those observed values to choose its execution mode.
 
+Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
+kernel-managed lock is released automatically if the owning job is interrupted
+or killed, so a failed sandbox build cannot leave later jobs blocked by a stale
+cache lock. A job that cannot acquire the cache lock within five seconds asks
+PBS to requeue it, releasing its CPU and memory allocation instead of waiting in
+the running state. Set `SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job environment
+to override that short contention window.
+
+Requeueing requires the included PBS epilogue hook to be installed once by a
+cluster administrator:
+
+```bash
+qmgr -c "create hook lfvddp_cache_requeue event=execjob_epilogue"
+qmgr -c "import hook lfvddp_cache_requeue application/x-python default /path/to/lfvddp/frame/cluster/pbs_hooks/requeue_cache_contention.py"
+qmgr -c "set hook lfvddp_cache_requeue enabled=true"
+```
+
+Without this hook, a contended job still exits promptly with its dedicated
+status instead of retaining its requested resources.
+
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
 optional `--debug` flag may be combined with it; configuration paths and all
 other runtime settings are restored from the saved context. If training reached

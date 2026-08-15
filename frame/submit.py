@@ -2,7 +2,12 @@ from logging import error
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Optional
-from frame.command_line.execution import format_qsub_build_script, format_qsub_execution_script
+from frame.command_line.execution import (
+    CACHE_CONTENTION_EXIT_STATUS,
+    CACHE_CONTENTION_EXIT_STATUS_ENV,
+    format_qsub_build_script,
+    format_qsub_execution_script,
+)
 from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
 from frame.cluster.cluster_config import ClusterConfig
@@ -81,6 +86,9 @@ def submit_command(
         job_name=exec_job_name,
         max_tries=max_tries,
         depends_on_success_of_jobid=dependent_on_jobid,
+        env_vars={
+            CACHE_CONTENTION_EXIT_STATUS_ENV: str(CACHE_CONTENTION_EXIT_STATUS),
+        },
     )
 
     # Return only the numeric part of the job ID

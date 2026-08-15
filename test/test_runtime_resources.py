@@ -7,7 +7,10 @@ import torch
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
-from frame.command_line.execution import format_qsub_execution_script
+from frame.command_line.execution import (
+    CACHE_CONTENTION_EXIT_STATUS,
+    format_qsub_execution_script,
+)
 from frame.file_system.textual_data import load_dict_from_json
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
@@ -181,6 +184,14 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert 'rm -rf "$SANDBOX_DIR"' not in build_function
     assert 'touch "$LEASE_FILE"' in script
     assert 'rm -rf "$SANDBOX_DIR" "$LEASES_DIR"' in script
+    assert 'LOCK_FILE="${SANDBOX_DIR}.flock"' in script
+    assert 'LOCK_TIMEOUT_SEC="${SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-5}"' in script
+    assert 'flock -w "$LOCK_TIMEOUT_SEC" "$CACHE_LOCK_FD"' in script
+    assert 'flock -u "$CACHE_LOCK_FD"' in script
+    assert '#PBS -r y' in script
+    assert f"CACHE_CONTENTION_EXIT_STATUS={CACHE_CONTENTION_EXIT_STATUS}" in script
+    assert 'exit "$CACHE_CONTENTION_EXIT_STATUS"' in script
+    assert "SINGULARITY_SANDBOX_RETRY_MAX" not in script
     assert "declare -F release_sandbox" in script
     assert "trap 'exit 143' TERM" in script
     subprocess.run(

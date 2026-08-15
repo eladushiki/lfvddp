@@ -8,10 +8,15 @@ from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJ
 from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
 
 
+CACHE_CONTENTION_EXIT_STATUS = 75
+CACHE_CONTENTION_EXIT_STATUS_ENV = "LFVDDP_CACHE_CONTENTION_EXIT_STATUS"
+
+
 QSUB_SCRIPT_HEADER = """#!/bin/bash
 #PBS -m n
 #PBS -S /bin/bash
 #PBS -j oe
+#PBS -r y
 #PBS -N {job_name}
 #PBS -q {queue}
 #PBS -l walltime={walltime}
@@ -160,11 +165,24 @@ fi
 SANDBOX_KEY="${{IMG_BASENAME}}.${{IMG_ID}}"
 SANDBOX_DIR="${{CACHE_ROOT}}/${{SANDBOX_KEY}}.sandbox"
 READY_FILE="${{SANDBOX_DIR}}/.ready"
-LOCK_DIR="${{SANDBOX_DIR}}.lock"
+# Keep this distinct from the legacy .lock directory so stale directory locks
+# left by older execution scripts cannot prevent upgraded jobs from starting.
+LOCK_FILE="${{SANDBOX_DIR}}.flock"
 LEASES_DIR="${{SANDBOX_DIR}}.leases"
 LEASE_HOST=$(hostname)
 LEASE_FILE="${{LEASES_DIR}}/${{LEASE_HOST}}.$$"
-LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-1800}}"
+LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-5}}"
+CACHE_CONTENTION_EXIT_STATUS={cache_contention_exit_status}
+CACHE_LOCK_HELD=false
+
+if ! command -v flock >/dev/null 2>&1; then
+    echo "ERROR: flock is required for safe concurrent sandbox caching."
+    exit 1
+fi
+if ! exec {{CACHE_LOCK_FD}}>"$LOCK_FILE"; then
+    echo "ERROR: Could not open sandbox cache lock: $LOCK_FILE"
+    exit 1
+fi
 
 run_singularity() {{
     {singularity_executable} "$@"
@@ -201,23 +219,29 @@ build_sandbox() {{
 }}
 
 acquire_cache_lock() {{
-    START_WAIT=$(date +%s)
-    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-        NOW=$(date +%s)
-        if [ $((NOW - START_WAIT)) -ge "$LOCK_TIMEOUT_SEC" ]; then
-            return 1
-        fi
-        sleep 2
-    done
+    if "$CACHE_LOCK_HELD"; then
+        return 0
+    fi
+    if ! flock -w "$LOCK_TIMEOUT_SEC" "$CACHE_LOCK_FD"; then
+        return 1
+    fi
+    CACHE_LOCK_HELD=true
 }}
 
 release_cache_lock() {{
-    rmdir "$LOCK_DIR"
+    if ! "$CACHE_LOCK_HELD"; then
+        return 0
+    fi
+    if ! flock -u "$CACHE_LOCK_FD"; then
+        return 1
+    fi
+    CACHE_LOCK_HELD=false
 }}
 
 acquire_sandbox_lease() {{
     if ! acquire_cache_lock; then
-        return 1
+        # Distinguish scheduler-level contention from a failed sandbox build.
+        return "$CACHE_CONTENTION_EXIT_STATUS"
     fi
 
     lease_acquired=false
@@ -232,13 +256,22 @@ acquire_sandbox_lease() {{
     "$lease_acquired"
 }}
 
+requeue_for_cache_contention() {{
+    echo "Sandbox cache is busy after ${{LOCK_TIMEOUT_SEC}}s: $SANDBOX_DIR"
+    echo "Exiting with PBS cache-contention status $CACHE_CONTENTION_EXIT_STATUS."
+    exit "$CACHE_CONTENTION_EXIT_STATUS"
+}}
+
 release_sandbox() {{
     if [ ! -f "$LEASE_FILE" ]; then
-        return 0
+        release_cache_lock
+        return $?
     fi
-    if ! acquire_cache_lock; then
-        echo "WARNING: Timed out waiting to clean sandbox: $SANDBOX_DIR"
-        return 1
+    if ! "$CACHE_LOCK_HELD"; then
+        if ! acquire_cache_lock; then
+            echo "WARNING: Timed out waiting to clean sandbox: $SANDBOX_DIR"
+            return 1
+        fi
     fi
 
     rm -f "$LEASE_FILE"
@@ -257,21 +290,14 @@ release_sandbox() {{
     release_cache_lock
 }}
 
-SANDBOX_RETRY_MAX=${{SINGULARITY_SANDBOX_RETRY_MAX:-6}}
-SANDBOX_RETRY_BASE_SLEEP_SEC=${{SINGULARITY_SANDBOX_RETRY_BASE_SLEEP_SEC:-20}}
-SANDBOX_RETRY_JITTER_SEC=${{SINGULARITY_SANDBOX_RETRY_JITTER_SEC:-40}}
-SANDBOX_ATTEMPT=1
-
-while [ "$SANDBOX_ATTEMPT" -le "$SANDBOX_RETRY_MAX" ]; do
-    if acquire_sandbox_lease; then
-        break
-    fi
-
-    SLEEP_SEC=$((SANDBOX_RETRY_BASE_SLEEP_SEC + RANDOM % (SANDBOX_RETRY_JITTER_SEC + 1)))
-    echo "Sandbox not ready (attempt $SANDBOX_ATTEMPT/$SANDBOX_RETRY_MAX). Retrying in ${{SLEEP_SEC}}s."
-    sleep "$SLEEP_SEC"
-    SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
-done
+SANDBOX_ACQUIRE_STATUS=0
+acquire_sandbox_lease || SANDBOX_ACQUIRE_STATUS=$?
+if [ "$SANDBOX_ACQUIRE_STATUS" -eq "$CACHE_CONTENTION_EXIT_STATUS" ]; then
+    requeue_for_cache_contention || exit 1
+elif [ "$SANDBOX_ACQUIRE_STATUS" -ne 0 ]; then
+    echo "ERROR: Failed to prepare sandbox cache: $SANDBOX_DIR"
+    exit 1
+fi
 
 echo "Singularity executable: {singularity_executable}"
 run_singularity --version || true
@@ -328,6 +354,7 @@ def format_qsub_execution_script(
         gpu_passthrough_flag=gpu_passthrough_flag,
         commit_hash_environment_variable=COMMIT_HASH_ENVIRONMENT_VARIABLE,
         commit_hash=context.commit_hash,
+        cache_contention_exit_status=CACHE_CONTENTION_EXIT_STATUS,
     )
 
 # Singularity build script. A few comments:
