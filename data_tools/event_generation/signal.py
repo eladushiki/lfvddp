@@ -124,7 +124,8 @@ class MultivariateGaussianSignal(SignalDistribution):
             raise ValueError("Multivariate Gaussian parameters must be finite.")
         if not np.allclose(self._covariance, self._covariance.T):
             raise ValueError("Multivariate Gaussian covariance must be symmetric.")
-        if np.min(np.linalg.eigvalsh(self._covariance)) < -1e-10:
+        covariance_eigenvalues = np.linalg.eigvalsh(self._covariance)
+        if np.min(covariance_eigenvalues) < -1e-10:
             raise ValueError(
                 "Multivariate Gaussian covariance must be positive semidefinite."
             )
@@ -151,6 +152,20 @@ class MultivariateGaussianSignal(SignalDistribution):
             cov=self._covariance,
             allow_singular=True,
         )
+        positive_definite_tolerance = (
+            np.finfo(float).eps
+            * number_of_dimensions
+            * np.max(covariance_eigenvalues)
+        )
+        if np.min(covariance_eigenvalues) > positive_definite_tolerance:
+            self._precision = np.linalg.inv(self._covariance)
+            _, covariance_log_determinant = np.linalg.slogdet(self._covariance)
+            self._pdf_log_normalization = -0.5 * (
+                number_of_dimensions * np.log(2 * np.pi)
+                + covariance_log_determinant
+            )
+        else:
+            self._precision = None
 
     @property
     def integration_upper_limits(self) -> np.ndarray:
@@ -165,7 +180,18 @@ class MultivariateGaussianSignal(SignalDistribution):
         ))
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
-        return self._frozen_distribution.pdf(x)
+        if self._precision is None:
+            return self._frozen_distribution.pdf(x)
+
+        centered_coordinates = np.asarray(x) - self._mean
+        squared_mahalanobis_distances = np.sum(
+            (centered_coordinates @ self._precision) * centered_coordinates,
+            axis=-1,
+        )
+        return np.exp(
+            self._pdf_log_normalization
+            - 0.5 * squared_mahalanobis_distances
+        )
 
 
 class NonlocalSignal(SignalDistribution):

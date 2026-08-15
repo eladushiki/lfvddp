@@ -375,6 +375,10 @@ below the 0.1% accuracy target. Signal generation fails with a clear error if an
 coordinate exceeds its declared bound, indicating that `domain_max` must be
 increased.
 
+Positive-definite multivariate Gaussian signals cache their precision and
+normalization for repeated scalar PDF evaluation during adaptive integration.
+Singular covariance matrices continue to use SciPy's singular-aware PDF path.
+
 
 ## Plotting
 

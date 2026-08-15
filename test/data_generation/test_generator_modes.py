@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy import stats
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import GeneratedDatasetParameters
@@ -158,6 +159,31 @@ def test_generated_dataset_must_fit_inside_integration_domain():
 def test_multivariate_gaussian_validates_parameters(mean, covariance, error):
     with pytest.raises(ValueError, match=error):
         MultivariateGaussianSignal(2, mean=mean, covariance=covariance)
+
+
+@pytest.mark.parametrize(
+    "covariance",
+    [
+        [[1.0, 0.4], [0.4, 2.0]],
+        [[1.0, 1.0], [1.0, 1.0]],
+    ],
+)
+def test_multivariate_gaussian_pdf_matches_scipy(covariance):
+    mean = [1.0, 2.0]
+    coordinates = np.array([[0.5, 1.5], [1.0, 2.0], [2.0, 3.0]])
+    distribution = MultivariateGaussianSignal(
+        2,
+        mean=mean,
+        covariance=covariance,
+    )
+
+    expected = stats.multivariate_normal(
+        mean=mean,
+        cov=covariance,
+        allow_singular=True,
+    ).pdf(coordinates)
+    np.testing.assert_allclose(distribution.pdf(coordinates), expected)
+    np.testing.assert_allclose(distribution.pdf(coordinates[0]), expected[0])
 
 
 def test_signal_events_require_a_generator():
