@@ -163,9 +163,10 @@ class DataDistribution(ABC):
         self._domain_granularity = domain_granularity
 
     @property
+    @abstractmethod
     def integration_upper_limits(self) -> np.ndarray:
-        """Return a finite upper integration bound for every coordinate."""
-        return np.full(self._number_of_dimensions, self._domain_max)
+        """Return a distribution-specific finite bound for every coordinate."""
+        pass
 
     def generate_amount(
         self,

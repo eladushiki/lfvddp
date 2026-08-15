@@ -12,7 +12,7 @@
             "dataset__signal_generator": {
                 "function": "multivariate_gaussian_signal",
                 "arguments": {
-                    "mean": [1.0, 2.0],
+                    "mean": [-2.0, 2.0],
                     "covariance": [
                         [1.0, 0.85],
                         [0.85, 1.0]

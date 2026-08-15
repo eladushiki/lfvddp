@@ -8,6 +8,7 @@ from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 
 _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS = 6.0
+_NONLOCAL_INTEGRATION_TAIL_PROBABILITY = 1e-3
 
 # Namespace for signal generating functions
 # classes defined here that inherit from DataDistribution
@@ -32,6 +33,10 @@ class NoSignal(SignalDistribution):
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         return np.zeros_like(x)
 
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.zeros(self._number_of_dimensions)
+
 
 class GaussianSignal(SignalDistribution):
     
@@ -53,6 +58,10 @@ class GaussianSignal(SignalDistribution):
         super().__init__(number_of_dimensions, domain_max=integration_upper_limit)
         self._location = location
         self._gaussian_signal_sigma = gaussian_signal_sigma
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
 
     def generate_amount(
         self,
@@ -172,16 +181,31 @@ class NonlocalSignal(SignalDistribution):
         number_of_dimensions: int,
         param_scale: float = 1,
         domain_min: float = 0,
-        domain_max: float = 1e2,
+        domain_max: Optional[float] = None,
         domain_granularity: int = 100000,
     ):
+        if param_scale <= 0:
+            raise ValueError("param_scale must be positive.")
+        integration_upper_limit = (
+            stats.gamma.ppf(
+                1 - _NONLOCAL_INTEGRATION_TAIL_PROBABILITY,
+                a=3,
+                scale=1 / param_scale,
+            )
+            if domain_max is None
+            else domain_max
+        )
         super().__init__(
             number_of_dimensions,
             domain_min=domain_min,
-            domain_max=domain_max,
+            domain_max=integration_upper_limit,
             domain_granularity=domain_granularity,
         )
         self._param_scale = param_scale
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         x = x * self._param_scale

@@ -9,8 +9,8 @@ from warnings import catch_warnings, simplefilter
 
 _MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
 _QUADRATURE_SUBDIVISION_LIMIT = 200
-_QUADRATURE_ABSOLUTE_TOLERANCE = 1e-4
-_QUADRATURE_RELATIVE_TOLERANCE = 1e-5
+_QUADRATURE_ABSOLUTE_TOLERANCE = 1e-3
+_QUADRATURE_RELATIVE_TOLERANCE = 1e-4
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:

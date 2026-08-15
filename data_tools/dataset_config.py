@@ -209,28 +209,50 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
     def dataset_generated__signal_integration_upper_limits(
         self,
     ) -> FLOAT_OR_ARRAY:
-        upper_limits = (
-            self._dataset__signal_distribution.integration_upper_limits
-            * np.exp(self.dataset__induced_shape_nuisance_value)
+        upper_limits = self._dataset__scaled_integration_upper_limits(
+            self._dataset__signal_distribution,
         )
         if self.dataset__number_of_dimensions == 1:
             return upper_limits.item()
         return upper_limits
+
+    def _dataset__scaled_integration_upper_limits(
+        self,
+        distribution: DataDistribution,
+    ) -> np.ndarray:
+        return (
+            distribution.integration_upper_limits
+            * np.exp(self.dataset__induced_shape_nuisance_value)
+        )
+
+    def _dataset__validate_generated_distribution(
+        self,
+        generated_dataset: DataSet,
+        distribution: DataDistribution,
+        amount: int,
+        generator_name: str,
+    ) -> None:
+        validate_generated_dataset(
+            generated_dataset,
+            amount,
+            self.dataset__number_of_dimensions,
+            generator_name,
+        )
+        validate_generated_dataset_within_integration_domain(
+            generated_dataset,
+            distribution.integration_upper_limits,
+            generator_name,
+        )
 
     def _dataset__generate_signal(self) -> DataSet:
         distribution = self._dataset__signal_distribution
         generated_signal = distribution.generate_amount(
             amount=self.dataset__signal_number_of_events_to_generate,
         )
-        validate_generated_dataset(
+        self._dataset__validate_generated_distribution(
             generated_signal,
+            distribution,
             self.dataset__signal_number_of_events_to_generate,
-            self.dataset__number_of_dimensions,
-            "signal",
-        )
-        validate_generated_dataset_within_integration_domain(
-            generated_signal,
-            distribution.integration_upper_limits,
             "signal",
         )
         return generated_signal
@@ -404,8 +426,23 @@ class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
         )
 
     @property
+    def dataset_generated__integration_upper_limits(self) -> FLOAT_OR_ARRAY:
+        upper_limits = np.maximum(
+            self._dataset__scaled_integration_upper_limits(
+                self._dataset__signal_distribution,
+            ),
+            self._dataset__scaled_integration_upper_limits(
+                self.__dataset_generated__background_distribution,
+            ),
+        )
+        if self.dataset__number_of_dimensions == 1:
+            return upper_limits.item()
+        return upper_limits
+
+    @property
     def dataset__data(self) -> Tuple[DataSet, DataSet]:
-        background = self.__dataset_generated__background_distribution.generate_amount(
+        distribution = self.__dataset_generated__background_distribution
+        background = distribution.generate_amount(
             amount=self.dataset__number_of_background_events,
         )
         validate_generated_dataset(

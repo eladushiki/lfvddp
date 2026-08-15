@@ -221,7 +221,7 @@ def utils__calculate_performance_curve(
                     signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
                     n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
                     n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                    upper_limit=signal_dataset_parameters.dataset_generated__signal_integration_upper_limits,
+                    upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
                 )
             )
             x_errors.append(np.std(signal_agg.all_injected_significances))
