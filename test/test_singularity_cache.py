@@ -86,6 +86,51 @@ fi
     [RESOURCE_CLUSTER_CONFIG],
     indirect=True,
 )
+def test_last_sandbox_lease_removes_extracted_cache(
+    function_execution_context,
+    tmp_path,
+):
+    if shutil.which("flock") is None:
+        pytest.skip("flock is only available on the Linux cluster runtime")
+
+    script = format_qsub_execution_script(
+        context=function_execution_context,
+        command="python train/single_train.py --continue run",
+    )
+    cache_setup = "LOCK_FILE=" + script.split("LOCK_FILE=", 1)[1].split(
+        "run_singularity()", 1
+    )[0]
+    cache_functions = "acquire_cache_lock()" + script.split(
+        "acquire_cache_lock()", 1
+    )[1].split("# Acquire a sandbox lease", 1)[0]
+    cleanup_script = f"""
+set -eo pipefail
+SANDBOX_DIR="$1/sandbox"
+SINGULARITY_CACHE_LOCK_TIMEOUT_SEC=1
+{cache_setup}
+{cache_functions}
+mkdir -p "$SANDBOX_DIR" "$LEASES_DIR"
+touch "$SANDBOX_DIR/extracted-file" "$LEASE_FILE"
+release_sandbox
+test ! -e "$SANDBOX_DIR"
+test ! -e "$LEASES_DIR"
+test -f "$LOCK_FILE"
+"""
+
+    subprocess.run(
+        ["bash", "-c", cleanup_script, "bash", str(tmp_path)],
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=5,
+    )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [RESOURCE_CLUSTER_CONFIG],
+    indirect=True,
+)
 def test_qsub_cache_contention_exits_without_resubmitting(
     function_execution_context,
 ):

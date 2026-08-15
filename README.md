@@ -225,6 +225,11 @@ allocation instead of waiting in the running state. It is not automatically
 requeued or resubmitted. Set `SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job
 environment to override that short contention window.
 
+The final job using a cache entry removes its unpacked sandbox and lease
+directory, so the many extracted files do not remain against a filesystem
+quota after the workflow. The empty `.flock` file is retained intentionally to
+keep lock identity stable across concurrent jobs.
+
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
 optional `--debug` flag may be combined with it; configuration paths and all
 other runtime settings are restored from the saved context. If training reached
