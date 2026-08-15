@@ -101,8 +101,8 @@ def test_qsub_cache_contention_exits_for_pbs_hook(
         context=function_execution_context,
         command="python train/single_train.py --continue run",
     )
-    requeue_function = "requeue_for_cache_contention()" + script.split(
-        "requeue_for_cache_contention()", 1
+    yield_function = "yield_allocation_for_cache_contention()" + script.split(
+        "yield_allocation_for_cache_contention()", 1
     )[1].split("release_sandbox()", 1)[0]
     result = subprocess.run(
         [
@@ -113,8 +113,8 @@ set -eo pipefail
 LOCK_TIMEOUT_SEC=5
 CACHE_CONTENTION_EXIT_STATUS={CACHE_CONTENTION_EXIT_STATUS}
 SANDBOX_DIR=/tmp/sandbox
-{requeue_function}
-requeue_for_cache_contention
+{yield_function}
+yield_allocation_for_cache_contention
 """,
         ],
         text=True,

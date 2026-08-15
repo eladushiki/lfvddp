@@ -164,19 +164,25 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
 
     assert "#PBS -l ncpus=8" in script
     assert "#PBS -l ngpus=1" in script
-    assert "THREADS_PER_PROCESS=$(nproc" in script
-    assert "SINGULARITYENV_LFVDDP_ALLOCATED_CPUS" in script
-    assert "SINGULARITYENV_LFVDDP_ALLOCATED_GPU_IDS" in script
+    assert "THREADS_PER_PROCESS=$(detect_thread_count)" in script
     assert (
-        f'SINGULARITYENV_LFVDDP_COMMIT_HASH="'
+        'export_container_variable LFVDDP_ALLOCATED_CPUS "$THREADS_PER_PROCESS"'
+        in script
+    )
+    assert (
+        'export_container_variable LFVDDP_ALLOCATED_GPU_IDS "$ALLOCATED_GPU_IDS"'
+        in script
+    )
+    assert (
+        f'export_container_variable LFVDDP_COMMIT_HASH "'
         f'{function_execution_context.commit_hash}"'
     ) in script
-    assert "SINGULARITYENV_PYTHONUNBUFFERED=1" in script
-    assert "SINGULARITYENV_PYTHONFAULTHANDLER=1" in script
+    assert "export_container_variable PYTHONUNBUFFERED 1" in script
+    assert "export_container_variable PYTHONFAULTHANDLER 1" in script
     assert "singularity exec --nv" in script
-    assert 'touch "${TMP_SANDBOX}/.ready"' in script
-    assert script.index('touch "${TMP_SANDBOX}/.ready"') < script.index(
-        'mv "$TMP_SANDBOX" "$SANDBOX_DIR"'
+    assert 'touch "${temporary_sandbox}/.ready"' in script
+    assert script.index('touch "${temporary_sandbox}/.ready"') < script.index(
+        'mv "$temporary_sandbox" "$SANDBOX_DIR"'
     )
     build_function = script.split("build_sandbox()", 1)[1].split(
         "acquire_cache_lock()", 1
