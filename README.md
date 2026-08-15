@@ -219,11 +219,12 @@ uses those observed values to choose its execution mode.
 Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
 kernel-managed lock is released automatically if the owning job is interrupted
 or killed, so a failed sandbox build cannot leave later jobs blocked by a stale
-cache lock. A job that cannot acquire the cache lock within five seconds exits
+cache lock. A job that cannot acquire the cache lock within five minutes exits
 with a nonzero cache-contention status, releasing its CPU and memory
 allocation instead of waiting in the running state. It is not automatically
-requeued or resubmitted. Set `SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job
-environment to override that short contention window.
+requeued or resubmitted. This window allows a live owner to extract a
+multi-gigabyte image; dead owners release the kernel lock immediately. Set
+`SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job environment to override it.
 
 The final job using a cache entry removes its unpacked sandbox and lease
 directory, so the many extracted files do not remain against a filesystem
