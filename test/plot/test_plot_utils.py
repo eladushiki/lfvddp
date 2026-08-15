@@ -6,32 +6,10 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from plot.plot_utils import (
-    _integration_upper_limits_for_dimensions,
     utils__discover_background_only_parent_directory,
     utils__prediction_mesh_mask,
     utils__project_prediction_values_sliced,
 )
-
-
-@pytest.mark.parametrize(
-    ("number_of_dimensions", "expected_upper_limits"),
-    [
-        (1, np.inf),
-        (4, np.full(4, np.inf)),
-    ],
-)
-def test_integration_upper_limits_cover_generated_pdf_domain(
-    number_of_dimensions,
-    expected_upper_limits,
-):
-    upper_limits = _integration_upper_limits_for_dimensions(
-        number_of_dimensions,
-    )
-
-    if number_of_dimensions == 1:
-        assert upper_limits == expected_upper_limits
-    else:
-        np.testing.assert_array_equal(upper_limits, expected_upper_limits)
 
 
 def test_prediction_mesh_mask_limits_points_to_origin_data_hull():

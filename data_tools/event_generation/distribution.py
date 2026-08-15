@@ -139,6 +139,11 @@ class DataDistribution(ABC):
         self._domain_max = domain_max
         self._domain_granularity = domain_granularity
 
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        """Return a finite upper integration bound for every coordinate."""
+        return np.full(self._number_of_dimensions, self._domain_max)
+
     def generate_amount(
         self,
         amount: int,
@@ -186,6 +191,13 @@ class IndependentDimensionsDistribution(DataDistribution):
         super().__init__(len(distributions))
         self._distributions = distributions
         self._names = names
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.concatenate([
+            distribution.integration_upper_limits
+            for distribution in self._distributions
+        ])
 
     def generate_amount(self, amount: int) -> DataSet:
         generated_dimensions = []

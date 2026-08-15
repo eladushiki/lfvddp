@@ -187,11 +187,35 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
             self.dataset__number_of_dimensions,
         )
 
+    def _dataset__scaled_pdf(
+        self,
+        distribution: DataDistribution,
+    ) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
+        scale = np.exp(self.dataset__induced_shape_nuisance_value)
+
+        def scaled_pdf(x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
+            return distribution.pdf(x / scale)
+
+        scaled_pdf.supports_batch_evaluation = True
+        return scaled_pdf
+
     @property
     def dataset_generated__signal_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return lambda x: self._dataset__signal_distribution.pdf(
-            x / np.exp(self.dataset__induced_shape_nuisance_value),
+        return self._dataset__scaled_pdf(
+            self._dataset__signal_distribution,
         )
+
+    @property
+    def dataset_generated__signal_integration_upper_limits(
+        self,
+    ) -> FLOAT_OR_ARRAY:
+        upper_limits = (
+            self._dataset__signal_distribution.integration_upper_limits
+            * np.exp(self.dataset__induced_shape_nuisance_value)
+        )
+        if self.dataset__number_of_dimensions == 1:
+            return upper_limits.item()
+        return upper_limits
 
     def _dataset__generate_signal(self) -> DataSet:
         generated_signal = self._dataset__signal_distribution.generate_amount(
@@ -369,8 +393,8 @@ class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
 
     @property
     def dataset_generated__background_pdf(self) -> Callable[[FLOAT_OR_ARRAY], FLOAT_OR_ARRAY]:
-        return lambda x: self.__dataset_generated__background_distribution.pdf(
-            x / np.exp(self.dataset__induced_shape_nuisance_value),
+        return self._dataset__scaled_pdf(
+            self.__dataset_generated__background_distribution,
         )
 
     @property

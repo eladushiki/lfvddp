@@ -45,6 +45,10 @@ def test_joint_repeated_and_per_dimension_generators(
     assert joint_background.events.shape == (8, 2)
     assert correlated_signal.events.shape == (4000, 2)
     assert np.corrcoef(correlated_signal.events, rowvar=False)[0, 1] > 0.8
+    np.testing.assert_allclose(
+        joint.dataset_generated__signal_integration_upper_limits,
+        np.array([5.5, 6.5]),
+    )
 
     repeated = config.get_parameters(DataSet.DataSetCategory.B_SR)
     repeated_background, _ = repeated.dataset__data
@@ -79,6 +83,10 @@ def test_joint_repeated_and_per_dimension_generators(
     assert loaded_background.events.shape == (3, 2)
     assert repeated_signal.events.shape == (20, 2)
     assert loaded_with_signal.events.shape == (23, 2)
+    np.testing.assert_allclose(
+        loaded.dataset_generated__signal_integration_upper_limits,
+        np.array([4.45, 4.45]),
+    )
 
 
 def test_generator_configuration_rejects_invalid_shapes():

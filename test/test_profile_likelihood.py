@@ -43,6 +43,27 @@ def test_continuous_injected_significance_resolves_narrow_signal_on_wide_domain(
     np.testing.assert_allclose(significance, 17.96065413689458)
 
 
+def test_gaussian_tail_limit_preserves_significance_within_point_one_percent():
+    calculation_arguments = {
+        "background_pdf": lambda x: np.exp(-x),
+        "signal_pdf": lambda x: norm.pdf(x, loc=6.4, scale=0.16),
+        "n_background_events": 10_000,
+        "n_signal_events": 100,
+    }
+    unbounded_significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        **calculation_arguments,
+    )
+    finite_significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        **calculation_arguments,
+        upper_limit=6.4 + 4.5 * 0.16,
+    )
+
+    relative_difference = abs(
+        finite_significance / unbounded_significance - 1
+    )
+    assert relative_difference < 0.001
+
+
 def test_continuous_injected_significance_matches_1d_for_uniform_2d_pdf():
     n_background_events = 10_000
     n_signal_events = 100

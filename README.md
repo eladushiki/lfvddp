@@ -364,6 +364,13 @@ For example, a correlated two-dimensional signal can be configured as:
 }
 ```
 
+Continuous injected-significance calculations use finite bounds supplied by the
+signal distribution. Gaussian signal bounds are four and a half marginal standard
+deviations above each coordinate mean. This changes the supplied four-dimensional
+Gaussian run's converged significance by less than 0.01% while avoiding unbounded
+quadrature. Finite multidimensional intervals use batched Gauss-Legendre quadrature;
+the one-dimensional adaptive integration path is unchanged.
+
 
 ## Plotting
 

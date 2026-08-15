@@ -5,6 +5,8 @@ from data_tools.data_utils import DataSet
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 
+_GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS = 4.5
+
 # Namespace for signal generating functions
 # classes defined here that inherit from DataDistribution
 # are automatically recognized by the program and can be
@@ -35,6 +37,15 @@ class GaussianSignal(SignalDistribution):
         super().__init__(number_of_dimensions)
         self._location = location
         self._gaussian_signal_sigma = gaussian_signal_sigma
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        upper_limit = (
+            self._location
+            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS
+            * self._gaussian_signal_sigma
+        )
+        return np.full(self._number_of_dimensions, upper_limit)
 
     def generate_amount(
         self,
@@ -106,6 +117,15 @@ class MultivariateGaussianSignal(SignalDistribution):
             mean=self._mean,
             cov=self._covariance,
             allow_singular=True,
+        )
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        marginal_standard_deviations = np.sqrt(np.diag(self._covariance))
+        return (
+            self._mean
+            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS
+            * marginal_standard_deviations
         )
 
     def generate_amount(self, amount: int) -> DataSet:
