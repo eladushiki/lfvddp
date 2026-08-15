@@ -4,8 +4,17 @@ from typing import Optional, Union
 from frame.cluster.cluster_config import ClusterConfig
 from frame.config_handle import UserConfig
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import CONFIGS_DIR, CONTAINER_PROJECT_ROOT, LOCAL_PROJECT_ROOT, PROJECT_NAME, path_as_in_container
+from frame.file_structure import (
+    CONFIGS_DIR,
+    CONTAINER_PROJECT_ROOT,
+    LOCAL_PROJECT_ROOT,
+    PROJECT_NAME,
+    path_as_in_container,
+)
 from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
+
+
+CACHE_CONTENTION_EXIT_STATUS = 75
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -32,21 +41,23 @@ echo "Current directory: $(pwd)"
 set -eo pipefail
 
 log_job_completion() {{
-    status=$?
+    job_exit_status=$?
     trap - EXIT
     set +e
+
     if declare -F release_sandbox >/dev/null; then
         release_sandbox
-        cleanup_status=$?
-        if [ "$cleanup_status" -ne 0 ]; then
-            echo "WARNING: Sandbox cleanup failed with exit status $cleanup_status"
+        sandbox_cleanup_status=$?
+        if [ "$sandbox_cleanup_status" -ne 0 ]; then
+            echo "WARNING: Sandbox cleanup failed with exit status $sandbox_cleanup_status"
         fi
     fi
+
     finished_at=$(date +%s)
     echo "Job finished at: $(date)"
     echo "Job elapsed seconds: $((finished_at - JOB_STARTED_AT_SECONDS))"
-    echo "Job exit status: $status"
-    exit "$status"
+    echo "Job exit status: $job_exit_status"
+    exit "$job_exit_status"
 }}
 trap log_job_completion EXIT
 trap 'exit 143' TERM
@@ -58,190 +69,283 @@ QSUB_COMPLETION = """
 exit $?
 """
 
-# Singularity exec command. A few comments:
-# --no-mount tmp: relieves pressure on file descriptors when running many jobs in parallel
-# --cleanenv: avoids messing with host environment, i.e. python stuff
+# Singularity execution options:
+# --no-mount tmp reduces file-descriptor pressure across large PBS arrays.
+# --cleanenv prevents the host Python environment from leaking into the container.
 
 SINGULARITY_EXECUTION_LINES = r"""
+# -----------------------------------------------------------------------------
+# Discover the resources that PBS actually exposed to this process.
+# -----------------------------------------------------------------------------
 REQUESTED_CPUS={ncpus}
-THREADS_PER_PROCESS=$(nproc 2>/dev/null || true)
-if [ -z "$THREADS_PER_PROCESS" ] || [ "$THREADS_PER_PROCESS" -lt 1 ]; then
-    # Linux affinity lists can contain both individual CPUs ("40") and ranges
-    # ("0-3,8-11"). Count the expanded list rather than its comma-separated
-    # segments, so this remains correct if coreutils' nproc is unavailable.
-    THREADS_PER_PROCESS=$(taskset -pc $$ 2>/dev/null | awk -F: '
+
+detect_thread_count() {{
+    local thread_count
+    thread_count=$(nproc 2>/dev/null || true)
+    if [ -n "$thread_count" ] && [ "$thread_count" -ge 1 ]; then
+        echo "$thread_count"
+        return 0
+    fi
+
+    # Affinity lists contain individual CPUs ("40") and ranges ("0-3,8-11").
+    # Expand both forms when coreutils' nproc is unavailable.
+    taskset -pc $$ 2>/dev/null | awk -F: '
         {{
-            count = 0
-            item_count = split($2, items, ",")
-            for (item_index = 1; item_index <= item_count; item_index++) {{
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", items[item_index])
-                range_count = split(items[item_index], range, "-")
-                count += range_count == 2 ? range[2] - range[1] + 1 : 1
+            cpu_count = 0
+            affinity_item_count = split($2, affinity_items, ",")
+            for (item_index = 1; item_index <= affinity_item_count; item_index++) {{
+                gsub(
+                    /^[[:space:]]+|[[:space:]]+$/,
+                    "",
+                    affinity_items[item_index]
+                )
+                range_size = split(affinity_items[item_index], cpu_range, "-")
+                cpu_count += range_size == 2 ? cpu_range[2] - cpu_range[1] + 1 : 1
             }}
-            print count
-        }}')
-fi
+            print cpu_count
+        }}'
+}}
+
+detect_allocated_gpu_ids() {{
+    if [ -n "${{CUDA_VISIBLE_DEVICES:-}}" ]; then
+        echo "$CUDA_VISIBLE_DEVICES"
+    elif [ -n "${{PBS_GPUFILE:-}}" ] && [ -r "$PBS_GPUFILE" ]; then
+        awk 'NF {{print $NF}}' "$PBS_GPUFILE" | paste -sd, -
+    fi
+}}
+
+THREADS_PER_PROCESS=$(detect_thread_count)
 if [ -z "$THREADS_PER_PROCESS" ] || [ "$THREADS_PER_PROCESS" -lt 1 ]; then
     echo "ERROR: Could not determine the CPUs exposed to this job."
     exit 1
 fi
 
 HOST_CUDA_VISIBLE_DEVICES="${{CUDA_VISIBLE_DEVICES:-}}"
-ALLOCATED_GPU_IDS="$HOST_CUDA_VISIBLE_DEVICES"
-if [ -z "$ALLOCATED_GPU_IDS" ] && [ -n "${{PBS_GPUFILE:-}}" ] && [ -r "$PBS_GPUFILE" ]; then
-    ALLOCATED_GPU_IDS=$(awk 'NF {{print $NF}}' "$PBS_GPUFILE" | paste -sd, -)
-fi
+ALLOCATED_GPU_IDS=$(detect_allocated_gpu_ids)
 
-export SINGULARITYENV_LFVDDP_ALLOCATED_CPUS="$THREADS_PER_PROCESS"
-export APPTAINERENV_LFVDDP_ALLOCATED_CPUS="$THREADS_PER_PROCESS"
-export SINGULARITYENV_LFVDDP_ALLOCATED_GPU_IDS="$ALLOCATED_GPU_IDS"
-export APPTAINERENV_LFVDDP_ALLOCATED_GPU_IDS="$ALLOCATED_GPU_IDS"
-if [ -n "$HOST_CUDA_VISIBLE_DEVICES" ]; then
-    export SINGULARITYENV_CUDA_VISIBLE_DEVICES="$HOST_CUDA_VISIBLE_DEVICES"
-    export APPTAINERENV_CUDA_VISIBLE_DEVICES="$HOST_CUDA_VISIBLE_DEVICES"
-fi
-for PASSTHROUGH_NAME in PBS_JOBID PBS_ARRAY_INDEX PBS_NCPUS PBS_GPUFILE; do
-    eval "PASSTHROUGH_VALUE=\${{${{PASSTHROUGH_NAME}}:-}}"
-    export "SINGULARITYENV_${{PASSTHROUGH_NAME}}=$PASSTHROUGH_VALUE"
-    export "APPTAINERENV_${{PASSTHROUGH_NAME}}=$PASSTHROUGH_VALUE"
-done
+# -----------------------------------------------------------------------------
+# Pass scheduler state and threading limits into both container runtimes.
+# -----------------------------------------------------------------------------
+export_container_variable() {{
+    local variable_name="$1"
+    local variable_value="$2"
+    export "SINGULARITYENV_${{variable_name}}=$variable_value"
+    export "APPTAINERENV_${{variable_name}}=$variable_value"
+}}
 
-export SINGULARITYENV_OMP_NUM_THREADS="$THREADS_PER_PROCESS"
-export SINGULARITYENV_MKL_NUM_THREADS="$THREADS_PER_PROCESS"
-export SINGULARITYENV_OPENBLAS_NUM_THREADS="$THREADS_PER_PROCESS"
-export SINGULARITYENV_OMP_DYNAMIC=FALSE
-export SINGULARITYENV_MKL_DYNAMIC=FALSE
-export SINGULARITYENV_PYTHONUNBUFFERED=1
-export SINGULARITYENV_PYTHONFAULTHANDLER=1
-export APPTAINERENV_OMP_NUM_THREADS="$THREADS_PER_PROCESS"
-export APPTAINERENV_MKL_NUM_THREADS="$THREADS_PER_PROCESS"
-export APPTAINERENV_OPENBLAS_NUM_THREADS="$THREADS_PER_PROCESS"
-export APPTAINERENV_OMP_DYNAMIC=FALSE
-export APPTAINERENV_MKL_DYNAMIC=FALSE
-export APPTAINERENV_PYTHONUNBUFFERED=1
-export APPTAINERENV_PYTHONFAULTHANDLER=1
-export SINGULARITYENV_{commit_hash_environment_variable}="{commit_hash}"
-export APPTAINERENV_{commit_hash_environment_variable}="{commit_hash}"
+configure_container_environment() {{
+    local passthrough_name
+    local passthrough_value
 
-echo "Requested CPUs: $REQUESTED_CPUS"
-echo "Effective CPUs passed to training: $THREADS_PER_PROCESS"
-echo "Scheduler-assigned GPU IDs: ${{ALLOCATED_GPU_IDS:-none}}"
-echo "PBS job ID: ${{PBS_JOBID:-unavailable}}"
-echo "PBS array ID: ${{PBS_ARRAYID:-${{PBS_ARRAY_INDEX:-unavailable}}}}"
-echo "Host-visible CPUs: $(nproc 2>/dev/null || true)"
-echo "Process affinity: $(taskset -pc $$ 2>/dev/null || true)"
-if [ -n "$PBS_NODEFILE" ] && [ -r "$PBS_NODEFILE" ]; then
-    echo "PBS node file: $PBS_NODEFILE"
-    echo "PBS allocated slots: $(wc -l < "$PBS_NODEFILE")"
-    echo "PBS node file contents:"
-    cat "$PBS_NODEFILE"
-    echo "PBS slots grouped by host:"
-    sort "$PBS_NODEFILE" | uniq -c || true
-fi
-echo "CPU topology:"
-lscpu 2>/dev/null || true
-echo "Host GPU diagnostics (not used for allocation):"
-nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader 2>/dev/null || echo "No host CUDA devices reported"
-for CGROUP_FILE in /sys/fs/cgroup/cpuset.cpus.effective /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpuset/cpuset.cpus /sys/fs/cgroup/cpu/cpu.cfs_quota_us /sys/fs/cgroup/cpu/cpu.cfs_period_us; do
-    if [ -r "$CGROUP_FILE" ]; then
-        echo "$CGROUP_FILE: $(tr '\n' ' ' < "$CGROUP_FILE")"
+    export_container_variable LFVDDP_ALLOCATED_CPUS "$THREADS_PER_PROCESS"
+    export_container_variable LFVDDP_ALLOCATED_GPU_IDS "$ALLOCATED_GPU_IDS"
+    if [ -n "$HOST_CUDA_VISIBLE_DEVICES" ]; then
+        export_container_variable CUDA_VISIBLE_DEVICES "$HOST_CUDA_VISIBLE_DEVICES"
     fi
-done
 
+    for passthrough_name in PBS_JOBID PBS_ARRAY_INDEX PBS_NCPUS PBS_GPUFILE; do
+        # Bash indirect expansion reads the variable named by passthrough_name.
+        passthrough_value="${{!passthrough_name:-}}"
+        export_container_variable "$passthrough_name" "$passthrough_value"
+    done
+
+    export_container_variable OMP_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable MKL_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable OPENBLAS_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable OMP_DYNAMIC FALSE
+    export_container_variable MKL_DYNAMIC FALSE
+    export_container_variable PYTHONUNBUFFERED 1
+    export_container_variable PYTHONFAULTHANDLER 1
+    export_container_variable {commit_hash_environment_variable} "{commit_hash}"
+}}
+
+log_runtime_diagnostics() {{
+    local cgroup_file
+
+    echo "Requested CPUs: $REQUESTED_CPUS"
+    echo "Effective CPUs passed to training: $THREADS_PER_PROCESS"
+    echo "Scheduler-assigned GPU IDs: ${{ALLOCATED_GPU_IDS:-none}}"
+    echo "PBS job ID: ${{PBS_JOBID:-unavailable}}"
+    echo "PBS array ID: ${{PBS_ARRAYID:-${{PBS_ARRAY_INDEX:-unavailable}}}}"
+    echo "Host-visible CPUs: $(nproc 2>/dev/null || true)"
+    echo "Process affinity: $(taskset -pc $$ 2>/dev/null || true)"
+
+    if [ -n "${{PBS_NODEFILE:-}}" ] && [ -r "$PBS_NODEFILE" ]; then
+        echo "PBS node file: $PBS_NODEFILE"
+        echo "PBS allocated slots: $(wc -l < "$PBS_NODEFILE")"
+        echo "PBS node file contents:"
+        cat "$PBS_NODEFILE"
+        echo "PBS slots grouped by host:"
+        sort "$PBS_NODEFILE" | uniq -c || true
+    fi
+
+    echo "CPU topology:"
+    lscpu 2>/dev/null || true
+    echo "Host GPU diagnostics (not used for allocation):"
+    nvidia-smi \
+        --query-gpu=index,uuid,name,memory.total \
+        --format=csv,noheader \
+        2>/dev/null || echo "No host CUDA devices reported"
+
+    for cgroup_file in \
+        /sys/fs/cgroup/cpuset.cpus.effective \
+        /sys/fs/cgroup/cpu.max \
+        /sys/fs/cgroup/cpuset/cpuset.cpus \
+        /sys/fs/cgroup/cpu/cpu.cfs_quota_us \
+        /sys/fs/cgroup/cpu/cpu.cfs_period_us; do
+        if [ -r "$cgroup_file" ]; then
+            echo "$cgroup_file: $(tr '\n' ' ' < "$cgroup_file")"
+        fi
+    done
+}}
+
+configure_container_environment
+log_runtime_diagnostics
+
+# -----------------------------------------------------------------------------
+# Prepare the immutable, node-local Singularity sandbox cache.
+# -----------------------------------------------------------------------------
 CONTAINER_SIF_PATH="{container_path}"
 CACHE_ROOT="${{SINGULARITY_NODE_CACHE_DIR:-/tmp/$USER/singularity-node-cache}}"
 mkdir -p "$CACHE_ROOT"
 
-IMG_BASENAME=$(basename "$CONTAINER_SIF_PATH")
-if ! IMG_ID=$(stat -Lc '%i.%s.%Y' "$CONTAINER_SIF_PATH"); then
+IMAGE_BASENAME=$(basename "$CONTAINER_SIF_PATH")
+if ! IMAGE_ID=$(stat -Lc '%i.%s.%Y' "$CONTAINER_SIF_PATH"); then
     echo "ERROR: Container image is missing or inaccessible: $CONTAINER_SIF_PATH"
     exit 1
 fi
-SANDBOX_KEY="${{IMG_BASENAME}}.${{IMG_ID}}"
+
+# The inode, size, and modification time make each image revision a separate
+# cache entry without hashing a potentially large SIF on every job start.
+SANDBOX_KEY="${{IMAGE_BASENAME}}.${{IMAGE_ID}}"
 SANDBOX_DIR="${{CACHE_ROOT}}/${{SANDBOX_KEY}}.sandbox"
 READY_FILE="${{SANDBOX_DIR}}/.ready"
-LOCK_DIR="${{SANDBOX_DIR}}.lock"
+
+# Older scripts used a mkdir lock ending in .lock. A new .flock path ensures an
+# abandoned legacy directory cannot block jobs after this upgrade.
+LOCK_FILE="${{SANDBOX_DIR}}.flock"
+LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-5}}"
+CACHE_CONTENTION_EXIT_STATUS={cache_contention_exit_status}
+CACHE_LOCK_HELD=0
+
 LEASES_DIR="${{SANDBOX_DIR}}.leases"
 LEASE_HOST=$(hostname)
 LEASE_FILE="${{LEASES_DIR}}/${{LEASE_HOST}}.$$"
-LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-1800}}"
+
+if ! command -v flock >/dev/null 2>&1; then
+    echo "ERROR: flock is required for safe concurrent sandbox caching."
+    exit 1
+fi
+# Keep one descriptor open for the job lifetime. The kernel releases its lock
+# automatically when the owning process (or an in-progress build child) exits.
+if ! exec {{CACHE_LOCK_FD}}>"$LOCK_FILE"; then
+    echo "ERROR: Could not open sandbox cache lock: $LOCK_FILE"
+    exit 1
+fi
 
 run_singularity() {{
     {singularity_executable} "$@"
 }}
 
 build_sandbox() {{
-    BUILD_ROOT=$(mktemp -d "${{CACHE_ROOT}}/.${{SANDBOX_KEY}}.build.XXXXXX")
-    TMP_SANDBOX="${{BUILD_ROOT}}/sandbox"
-    if run_singularity build --sandbox "$TMP_SANDBOX" "$CONTAINER_SIF_PATH"; then
-        # Include the marker in the atomic rename. Once published, a sandbox is
-        # immutable so another PBS job can never remove files from a live runtime.
-        if ! touch "${{TMP_SANDBOX}}/.ready"; then
-            rm -rf "$BUILD_ROOT"
-            return 1
-        fi
-        if [ -e "$SANDBOX_DIR" ]; then
-            if [ -f "$READY_FILE" ]; then
-                rm -rf "$BUILD_ROOT"
-                return 0
-            fi
-            echo "ERROR: Refusing to replace incomplete sandbox cache: $SANDBOX_DIR"
-            rm -rf "$BUILD_ROOT"
-            return 1
-        fi
-        if ! mv "$TMP_SANDBOX" "$SANDBOX_DIR"; then
-            rm -rf "$BUILD_ROOT"
-            return 1
-        fi
-        rmdir "$BUILD_ROOT" || true
-        return 0
+    local build_root
+    local temporary_sandbox
+
+    build_root=$(mktemp -d "${{CACHE_ROOT}}/.${{SANDBOX_KEY}}.build.XXXXXX")
+    temporary_sandbox="${{build_root}}/sandbox"
+
+    if ! run_singularity build --sandbox "$temporary_sandbox" "$CONTAINER_SIF_PATH"; then
+        rm -rf "$build_root"
+        return 1
     fi
-    rm -rf "$BUILD_ROOT"
-    return 1
+
+    # Publish the ready marker and sandbox together via one atomic rename. A
+    # published sandbox is immutable for the remainder of its lease lifetime.
+    if ! touch "${{temporary_sandbox}}/.ready"; then
+        rm -rf "$build_root"
+        return 1
+    fi
+    if [ -e "$SANDBOX_DIR" ]; then
+        if [ -f "$READY_FILE" ]; then
+            rm -rf "$build_root"
+            return 0
+        fi
+        echo "ERROR: Refusing to replace incomplete sandbox cache: $SANDBOX_DIR"
+        rm -rf "$build_root"
+        return 1
+    fi
+    if ! mv "$temporary_sandbox" "$SANDBOX_DIR"; then
+        rm -rf "$build_root"
+        return 1
+    fi
+
+    rmdir "$build_root" || true
 }}
 
 acquire_cache_lock() {{
-    START_WAIT=$(date +%s)
-    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-        NOW=$(date +%s)
-        if [ $((NOW - START_WAIT)) -ge "$LOCK_TIMEOUT_SEC" ]; then
-            return 1
-        fi
-        sleep 2
-    done
+    if [ "$CACHE_LOCK_HELD" -eq 1 ]; then
+        return 0
+    fi
+    if ! flock -w "$LOCK_TIMEOUT_SEC" "$CACHE_LOCK_FD"; then
+        return 1
+    fi
+    CACHE_LOCK_HELD=1
 }}
 
 release_cache_lock() {{
-    rmdir "$LOCK_DIR"
+    if [ "$CACHE_LOCK_HELD" -eq 0 ]; then
+        return 0
+    fi
+    if ! flock -u "$CACHE_LOCK_FD"; then
+        return 1
+    fi
+    CACHE_LOCK_HELD=0
 }}
 
 acquire_sandbox_lease() {{
+    local lease_status=1
+
     if ! acquire_cache_lock; then
-        return 1
+        # Distinguish scheduler-level contention from a failed sandbox build.
+        return "$CACHE_CONTENTION_EXIT_STATUS"
     fi
 
-    lease_acquired=false
     if [ -f "$READY_FILE" ] || build_sandbox; then
         if mkdir -p "$LEASES_DIR" && touch "$LEASE_FILE"; then
-            lease_acquired=true
+            lease_status=0
         fi
     fi
     if ! release_cache_lock; then
-        lease_acquired=false
+        return 1
     fi
-    "$lease_acquired"
+    return "$lease_status"
+}}
+
+yield_allocation_for_cache_contention() {{
+    echo "Sandbox cache is busy after ${{LOCK_TIMEOUT_SEC}}s: $SANDBOX_DIR"
+    # Exiting releases this job's allocation immediately. No automatic requeue
+    # or resubmission is attempted because those require site-level PBS support.
+    echo "Exiting with cache-contention status $CACHE_CONTENTION_EXIT_STATUS."
+    exit "$CACHE_CONTENTION_EXIT_STATUS"
 }}
 
 release_sandbox() {{
+    # A signal can arrive while the sandbox is still being built, before this
+    # job owns a lease. Release any lock already held in that case.
     if [ ! -f "$LEASE_FILE" ]; then
-        return 0
+        release_cache_lock
+        return $?
     fi
-    if ! acquire_cache_lock; then
-        echo "WARNING: Timed out waiting to clean sandbox: $SANDBOX_DIR"
-        return 1
+    if [ "$CACHE_LOCK_HELD" -eq 0 ]; then
+        if ! acquire_cache_lock; then
+            echo "WARNING: Timed out waiting to clean sandbox: $SANDBOX_DIR"
+            return 1
+        fi
     fi
 
     rm -f "$LEASE_FILE"
+    # Leases are node-local. Remove files whose process no longer exists on
+    # this host, while preserving leases held by other live array jobs.
     for lease_candidate in "${{LEASES_DIR}}/${{LEASE_HOST}}."*; do
         [ -e "$lease_candidate" ] || continue
         lease_pid="${{lease_candidate##*.}}"
@@ -250,6 +354,7 @@ release_sandbox() {{
         fi
     done
 
+    # The immutable sandbox can be removed only after its final lease is gone.
     if [ -z "$(find "$LEASES_DIR" -type f -print -quit 2>/dev/null)" ]; then
         rm -rf "$SANDBOX_DIR" "$LEASES_DIR"
         echo "Removed unused sandbox cache: $SANDBOX_DIR"
@@ -257,42 +362,54 @@ release_sandbox() {{
     release_cache_lock
 }}
 
-SANDBOX_RETRY_MAX=${{SINGULARITY_SANDBOX_RETRY_MAX:-6}}
-SANDBOX_RETRY_BASE_SLEEP_SEC=${{SINGULARITY_SANDBOX_RETRY_BASE_SLEEP_SEC:-20}}
-SANDBOX_RETRY_JITTER_SEC=${{SINGULARITY_SANDBOX_RETRY_JITTER_SEC:-40}}
-SANDBOX_ATTEMPT=1
-
-while [ "$SANDBOX_ATTEMPT" -le "$SANDBOX_RETRY_MAX" ]; do
-    if acquire_sandbox_lease; then
-        break
-    fi
-
-    SLEEP_SEC=$((SANDBOX_RETRY_BASE_SLEEP_SEC + RANDOM % (SANDBOX_RETRY_JITTER_SEC + 1)))
-    echo "Sandbox not ready (attempt $SANDBOX_ATTEMPT/$SANDBOX_RETRY_MAX). Retrying in ${{SLEEP_SEC}}s."
-    sleep "$SLEEP_SEC"
-    SANDBOX_ATTEMPT=$((SANDBOX_ATTEMPT + 1))
-done
+# -----------------------------------------------------------------------------
+# Acquire a sandbox lease, then run the requested command in that sandbox.
+# -----------------------------------------------------------------------------
+SANDBOX_ACQUIRE_STATUS=0
+acquire_sandbox_lease || SANDBOX_ACQUIRE_STATUS=$?
+case "$SANDBOX_ACQUIRE_STATUS" in
+    0)
+        ;;
+    "$CACHE_CONTENTION_EXIT_STATUS")
+        yield_allocation_for_cache_contention
+        ;;
+    *)
+        echo "ERROR: Failed to prepare sandbox cache: $SANDBOX_DIR"
+        exit 1
+        ;;
+esac
 
 echo "Singularity executable: {singularity_executable}"
 run_singularity --version || true
 echo "Container SIF path: $CONTAINER_SIF_PATH"
 echo "Sandbox cache root: $CACHE_ROOT"
 
-if [ -f "$READY_FILE" ] && [ -f "$LEASE_FILE" ]; then
-    CONTAINER_RUNTIME_PATH="$SANDBOX_DIR"
-else
-    echo "ERROR: sandbox not available at $SANDBOX_DIR after retries."
+if [ ! -f "$READY_FILE" ] || [ ! -f "$LEASE_FILE" ]; then
+    echo "ERROR: Sandbox cache preparation did not produce a valid lease: $SANDBOX_DIR"
     exit 1
 fi
 
-PBS_ARRAY_ID_FOR_CONTAINER="${{PBS_ARRAY_INDEX:-}}"
-if [ -n "$PBS_ARRAY_ID_FOR_CONTAINER" ]; then
-    export SINGULARITYENV_PBS_ARRAY_INDEX="$PBS_ARRAY_ID_FOR_CONTAINER"
-    export APPTAINERENV_PBS_ARRAY_INDEX="$PBS_ARRAY_ID_FOR_CONTAINER"
-fi
-
-run_singularity exec {gpu_passthrough_flag} --no-mount tmp --cleanenv --pwd {container_project_root} --bind {singularity_bindings} "$CONTAINER_RUNTIME_PATH" {command}
+run_singularity exec {gpu_passthrough_flag} \
+    --no-mount tmp \
+    --cleanenv \
+    --pwd {container_project_root} \
+    --bind {singularity_bindings} \
+    "$SANDBOX_DIR" \
+    {command}
 """
+
+
+def _format_singularity_bindings(context: ExecutionContext) -> str:
+    config = context.config
+    bindings = [
+        f"{Path(local_path).absolute()}:{container_path}"
+        for local_path, container_path in config.config__bind_directories.items()
+    ]
+    bindings.append(
+        f"{context.unique_out_dir.absolute()}:"
+        f"{path_as_in_container(Path(config.config__out_dir).absolute())}"
+    )
+    return ",".join(bindings)
 
 
 def format_qsub_execution_script(
@@ -303,17 +420,11 @@ def format_qsub_execution_script(
 ) -> str:
     config: ClusterConfig = context.config
 
-    # Handle GPU line
     gpu_line = ""
     gpu_passthrough_flag = ""
     if use_gpu_if_needed and config.cluster__qsub_ngpus_for_train:
         gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
         gpu_passthrough_flag = "--nv"
-
-    singularity_bindings = ",".join([
-        f"{Path(local_path).absolute()}:{container_path}"
-        for local_path, container_path in context.config.config__bind_directories.items()
-    ] + [f"{context.unique_out_dir.absolute()}:{path_as_in_container(Path(config.config__out_dir).absolute())}"])
 
     return format_qsub_script(
         config=config,
@@ -322,13 +433,15 @@ def format_qsub_execution_script(
         gpu_line=gpu_line,
         singularity_executable=config.cluster__singularity_executable,
         container_project_root=CONTAINER_PROJECT_ROOT,
-        singularity_bindings=singularity_bindings,
+        singularity_bindings=_format_singularity_bindings(context),
         container_path=LOCAL_PROJECT_ROOT / f"{PROJECT_NAME}.sif",
         command=command,
         gpu_passthrough_flag=gpu_passthrough_flag,
         commit_hash_environment_variable=COMMIT_HASH_ENVIRONMENT_VARIABLE,
         commit_hash=context.commit_hash,
+        cache_contention_exit_status=CACHE_CONTENTION_EXIT_STATUS,
     )
+
 
 # Singularity build script. A few comments:
 # Build command flags:
