@@ -216,6 +216,20 @@ After the job starts, the execution script passes its affinity-aware CPU count
 and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
 uses those observed values to choose its execution mode.
 
+Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
+kernel-managed lock is released automatically if the owning job is interrupted
+or killed, so a failed sandbox build cannot leave later jobs blocked by a stale
+cache lock. A job that cannot acquire the cache lock within five seconds exits
+with a nonzero cache-contention status, releasing its CPU and memory
+allocation instead of waiting in the running state. It is not automatically
+requeued or resubmitted. Set `SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job
+environment to override that short contention window.
+
+The final job using a cache entry removes its unpacked sandbox and lease
+directory, so the many extracted files do not remain against a filesystem
+quota after the workflow. The empty `.flock` file is retained intentionally to
+keep lock identity stable across concurrent jobs.
+
 Continue a saved run with `--continue <run-directory-or-context.json>`. The
 optional `--debug` flag may be combined with it; configuration paths and all
 other runtime settings are restored from the saved context. If training reached
@@ -349,6 +363,17 @@ For example, a correlated two-dimensional signal can be configured as:
     }
 }
 ```
+
+Continuous injected-significance calculations require every signal and background
+distribution to supply finite, distribution-specific integration bounds. Gaussian
+defaults use six marginal standard deviations, exponential bounds use the point
+where density falls to 1% of its peak, gamma-like bounds use a tail quantile, and
+explicitly truncated distributions use `domain_max`.
+The integration ceiling is the coordinate-wise maximum of the signal and background
+bounds. This keeps SciPy's adaptive quadrature finite and its numerical tolerance
+below the 0.1% accuracy target. Signal generation fails with a clear error if any
+coordinate exceeds its declared bound, indicating that `domain_max` must be
+increased.
 
 
 ## Plotting

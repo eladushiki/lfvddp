@@ -1,4 +1,3 @@
-from itertools import product
 from math import fsum
 from typing import Callable, Union
 import numpy as np
@@ -10,6 +9,8 @@ from warnings import catch_warnings, simplefilter
 
 _MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
 _QUADRATURE_SUBDIVISION_LIMIT = 200
+_QUADRATURE_ABSOLUTE_TOLERANCE = 1e-3
+_QUADRATURE_RELATIVE_TOLERANCE = 1e-4
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -105,23 +106,27 @@ def _pdf_density_at_coordinates(
     return float(density)
 
 
-def _integration_intervals(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
-    """Split finite integration dimensions for reliable narrow-PDF quadrature."""
-    intervals = []
-    for upper_limit in upper_limits:
-        if np.isfinite(upper_limit):
-            boundaries = np.append(
-                np.arange(0, upper_limit, _MAX_QUADRATURE_INTERVAL_WIDTH),
-                upper_limit,
-            )
-            intervals.append([
-                (lower_bound, upper_bound)
-                for lower_bound, upper_bound in zip(boundaries[:-1], boundaries[1:])
-                if lower_bound < upper_bound
-            ])
-        else:
-            intervals.append([(0.0, np.inf)])
-    return intervals
+def _integration_regions(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
+    """Build integration regions, subdividing only the legacy 1D path."""
+    if upper_limits.size > 1:
+        return [[
+            (0.0, upper_limit)
+            for upper_limit in upper_limits
+        ]]
+
+    upper_limit = upper_limits.item()
+    if not np.isfinite(upper_limit):
+        return [[(0.0, np.inf)]]
+
+    boundaries = np.append(
+        np.arange(0, upper_limit, _MAX_QUADRATURE_INTERVAL_WIDTH),
+        upper_limit,
+    )
+    return [
+        [(lower_bound, upper_bound)]
+        for lower_bound, upper_bound in zip(boundaries[:-1], boundaries[1:])
+        if lower_bound < upper_bound
+    ]
 
 
 def calc_injected_t_significance_by_sqrt_q0_continuous(
@@ -170,9 +175,13 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
                 nquad(
                     integrand,
                     interval_bounds,
-                    opts={"limit": _QUADRATURE_SUBDIVISION_LIMIT},
+                    opts={
+                        "limit": _QUADRATURE_SUBDIVISION_LIMIT,
+                        "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
+                        "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
+                    },
                 )[0]
-                for interval_bounds in product(*_integration_intervals(upper_limits))
+                for interval_bounds in _integration_regions(upper_limits)
             )
     except IntegrationWarning as warning:
         raise ValueError(

@@ -1,9 +1,14 @@
+from typing import Optional
+
 import numpy as np
 from scipy import stats
 
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
+
+_GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS = 6.0
+_NONLOCAL_INTEGRATION_TAIL_PROBABILITY = 1e-3
 
 # Namespace for signal generating functions
 # classes defined here that inherit from DataDistribution
@@ -28,13 +33,35 @@ class NoSignal(SignalDistribution):
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         return np.zeros_like(x)
 
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.zeros(self._number_of_dimensions)
+
 
 class GaussianSignal(SignalDistribution):
     
-    def __init__(self, number_of_dimensions: int, location: float, gaussian_signal_sigma: float):
-        super().__init__(number_of_dimensions)
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        location: float,
+        gaussian_signal_sigma: float,
+        domain_max: Optional[float] = None,
+    ):
+        integration_upper_limit = (
+            location
+            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS * gaussian_signal_sigma
+            if domain_max is None
+            else domain_max
+        )
+        if not np.isfinite(integration_upper_limit) or integration_upper_limit <= 0:
+            raise ValueError("domain_max must define a positive finite upper limit.")
+        super().__init__(number_of_dimensions, domain_max=integration_upper_limit)
         self._location = location
         self._gaussian_signal_sigma = gaussian_signal_sigma
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
 
     def generate_amount(
         self,
@@ -74,8 +101,8 @@ class MultivariateGaussianSignal(SignalDistribution):
         number_of_dimensions: int,
         mean: list,
         covariance: list,
+        domain_max: Optional[float] = None,
     ):
-        super().__init__(number_of_dimensions)
         self._mean = np.asarray(mean, dtype=float)
         self._covariance = np.asarray(covariance, dtype=float)
 
@@ -102,11 +129,32 @@ class MultivariateGaussianSignal(SignalDistribution):
                 "Multivariate Gaussian covariance must be positive semidefinite."
             )
 
+        marginal_standard_deviations = np.sqrt(np.diag(self._covariance))
+        self._integration_upper_limits = (
+            self._mean
+            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS
+            * marginal_standard_deviations
+            if domain_max is None
+            else np.full(number_of_dimensions, domain_max, dtype=float)
+        )
+        if not np.all(np.isfinite(self._integration_upper_limits)) or np.any(
+            self._integration_upper_limits <= 0
+        ):
+            raise ValueError("domain_max must define positive finite upper limits.")
+        super().__init__(
+            number_of_dimensions,
+            domain_max=float(np.max(self._integration_upper_limits)),
+        )
+
         self._frozen_distribution = stats.multivariate_normal(
             mean=self._mean,
             cov=self._covariance,
             allow_singular=True,
         )
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return self._integration_upper_limits.copy()
 
     def generate_amount(self, amount: int) -> DataSet:
         return DataSet(np.random.multivariate_normal(
@@ -133,16 +181,31 @@ class NonlocalSignal(SignalDistribution):
         number_of_dimensions: int,
         param_scale: float = 1,
         domain_min: float = 0,
-        domain_max: float = 1e2,
+        domain_max: Optional[float] = None,
         domain_granularity: int = 100000,
     ):
+        if param_scale <= 0:
+            raise ValueError("param_scale must be positive.")
+        integration_upper_limit = (
+            stats.gamma.ppf(
+                1 - _NONLOCAL_INTEGRATION_TAIL_PROBABILITY,
+                a=3,
+                scale=1 / param_scale,
+            )
+            if domain_max is None
+            else domain_max
+        )
         super().__init__(
             number_of_dimensions,
             domain_min=domain_min,
-            domain_max=domain_max,
+            domain_max=integration_upper_limit,
             domain_granularity=domain_granularity,
         )
         self._param_scale = param_scale
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         x = x * self._param_scale

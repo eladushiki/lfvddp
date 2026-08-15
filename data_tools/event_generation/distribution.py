@@ -111,6 +111,29 @@ def validate_generated_dataset(
         )
 
 
+def validate_generated_dataset_within_integration_domain(
+    dataset: DataSet,
+    integration_upper_limits: np.ndarray,
+    generator_name: str,
+) -> None:
+    """Reject generated events above the domain used for integration."""
+    upper_limits = np.asarray(integration_upper_limits, dtype=float)
+    expected_shape = (dataset.n_observables,)
+    if upper_limits.shape != expected_shape:
+        raise ValueError(
+            f"Generator '{generator_name}' supplied integration upper limits with "
+            f"shape {upper_limits.shape}; expected {expected_shape}."
+        )
+
+    outside_domain = dataset.events > upper_limits
+    if np.any(outside_domain):
+        dimensions = np.flatnonzero(np.any(outside_domain, axis=0)).tolist()
+        raise ValueError(
+            f"Generator '{generator_name}' produced events above the integration "
+            f"upper limit in dimensions {dimensions}; domain_max is too tight."
+        )
+
+
 class DataDistribution(ABC):
     """
     A distribution with certain properties.
@@ -138,6 +161,12 @@ class DataDistribution(ABC):
         self._domain_min = domain_min
         self._domain_max = domain_max
         self._domain_granularity = domain_granularity
+
+    @property
+    @abstractmethod
+    def integration_upper_limits(self) -> np.ndarray:
+        """Return a distribution-specific finite bound for every coordinate."""
+        pass
 
     def generate_amount(
         self,
@@ -186,6 +215,13 @@ class IndependentDimensionsDistribution(DataDistribution):
         super().__init__(len(distributions))
         self._distributions = distributions
         self._names = names
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.concatenate([
+            distribution.integration_upper_limits
+            for distribution in self._distributions
+        ])
 
     def generate_amount(self, amount: int) -> DataSet:
         generated_dimensions = []

@@ -1,8 +1,13 @@
+from typing import Optional
+
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 import numpy as np
 from scipy import stats
+
+_EXPONENTIAL_INTEGRATION_DENSITY_THRESHOLD = 1e-2
+_GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS = 6.0
 
 # Namespace for background generating functions
 # classes defined here that inherit from DataDistribution
@@ -11,6 +16,24 @@ from scipy import stats
 
 
 class ExponentialBackground(DataDistribution):
+
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        domain_max: Optional[float] = None,
+    ):
+        super().__init__(
+            number_of_dimensions,
+            domain_max=(
+                stats.expon.isf(_EXPONENTIAL_INTEGRATION_DENSITY_THRESHOLD)
+                if domain_max is None
+                else domain_max
+            ),
+        )
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
 
     def generate_amount(self, amount: int) -> DataSet:
         return DataSet(np.random.exponential(
@@ -40,17 +63,26 @@ class GaussianBackground(DataDistribution):
         self,
         number_of_dimensions: int,
         domain_min: float = 0,
-        domain_max: float = 100,
+        domain_max: Optional[float] = None,
         mean: float = 0,
     ):
         """Independent unit-width truncated Gaussians in every dimension."""
+        integration_upper_limit = (
+            mean + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS
+            if domain_max is None
+            else domain_max
+        )
         super().__init__(
             number_of_dimensions,
             domain_min=domain_min,
-            domain_max=domain_max,
+            domain_max=integration_upper_limit,
         )
         self._mean = mean
         self._covariance_matrix = np.eye(number_of_dimensions)
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
   
     def generate_amount(self, amount: int) -> DataSet:
         samples = []

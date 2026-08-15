@@ -5,10 +5,14 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import GeneratedDatasetParameters
-from data_tools.event_generation.background import GaussianBackground
+from data_tools.event_generation.background import (
+    ExponentialBackground,
+    GaussianBackground,
+)
 from data_tools.event_generation.distribution import (
     normalize_generator_selection,
     validate_generated_dataset,
+    validate_generated_dataset_within_integration_domain,
 )
 from data_tools.event_generation.signal import MultivariateGaussianSignal
 from test.environment import ConfigType
@@ -45,6 +49,17 @@ def test_joint_repeated_and_per_dimension_generators(
     assert joint_background.events.shape == (8, 2)
     assert correlated_signal.events.shape == (4000, 2)
     assert np.corrcoef(correlated_signal.events, rowvar=False)[0, 1] > 0.8
+    np.testing.assert_allclose(
+        joint.dataset_generated__signal_integration_upper_limits,
+        np.array([4.0, 8.0]),
+    )
+    np.testing.assert_allclose(
+        joint.dataset_generated__integration_upper_limits,
+        np.maximum(
+            np.array([4.0, 8.0]),
+            ExponentialBackground(2).integration_upper_limits,
+        ),
+    )
 
     repeated = config.get_parameters(DataSet.DataSetCategory.B_SR)
     repeated_background, _ = repeated.dataset__data
@@ -79,6 +94,10 @@ def test_joint_repeated_and_per_dimension_generators(
     assert loaded_background.events.shape == (3, 2)
     assert repeated_signal.events.shape == (20, 2)
     assert loaded_with_signal.events.shape == (23, 2)
+    np.testing.assert_allclose(
+        loaded.dataset_generated__signal_integration_upper_limits,
+        np.array([4.7, 4.7]),
+    )
 
 
 def test_generator_configuration_rejects_invalid_shapes():
@@ -108,6 +127,22 @@ def test_generator_configuration_rejects_invalid_shapes():
 
     with pytest.raises(ValueError, match=r"expected \(2, 2\)"):
         validate_generated_dataset(DataSet(np.ones((2, 1))), 2, 2, "broken")
+
+
+def test_generated_dataset_must_fit_inside_integration_domain():
+    dataset = DataSet(np.array([[0.5, 1.0], [1.5, 3.0]]))
+
+    validate_generated_dataset_within_integration_domain(
+        dataset,
+        np.array([2.0, 3.0]),
+        "signal",
+    )
+    with pytest.raises(ValueError, match="domain_max is too tight"):
+        validate_generated_dataset_within_integration_domain(
+            dataset,
+            np.array([2.0, 2.5]),
+            "signal",
+        )
 
 
 @pytest.mark.parametrize(
