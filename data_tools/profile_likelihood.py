@@ -1,8 +1,6 @@
-from itertools import product
 from math import fsum
 from typing import Callable, Union
 import numpy as np
-from numpy.polynomial.legendre import leggauss
 from scipy.integrate import IntegrationWarning, nquad
 from scipy.special import erfinv
 from scipy.stats import norm, chi2
@@ -11,10 +9,8 @@ from warnings import catch_warnings, simplefilter
 
 _MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
 _QUADRATURE_SUBDIVISION_LIMIT = 200
-_ND_GAUSS_LEGENDRE_ORDER = 8
-_ND_GAUSS_LEGENDRE_NODES, _ND_GAUSS_LEGENDRE_WEIGHTS = leggauss(
-    _ND_GAUSS_LEGENDRE_ORDER
-)
+_QUADRATURE_ABSOLUTE_TOLERANCE = 1e-4
+_QUADRATURE_RELATIVE_TOLERANCE = 1e-5
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -110,102 +106,27 @@ def _pdf_density_at_coordinates(
     return float(density)
 
 
-def _integration_intervals(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
-    """Split finite integration dimensions for reliable narrow-PDF quadrature."""
-    intervals = []
-    for upper_limit in upper_limits:
-        if np.isfinite(upper_limit):
-            boundaries = np.append(
-                np.arange(0, upper_limit, _MAX_QUADRATURE_INTERVAL_WIDTH),
-                upper_limit,
-            )
-            intervals.append([
-                (lower_bound, upper_bound)
-                for lower_bound, upper_bound in zip(boundaries[:-1], boundaries[1:])
-                if lower_bound < upper_bound
-            ])
-        else:
-            intervals.append([(0.0, np.inf)])
-    return intervals
+def _integration_regions(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
+    """Build integration regions, subdividing only the legacy 1D path."""
+    if upper_limits.size > 1:
+        return [[
+            (0.0, upper_limit)
+            for upper_limit in upper_limits
+        ]]
 
+    upper_limit = upper_limits.item()
+    if not np.isfinite(upper_limit):
+        return [[(0.0, np.inf)]]
 
-def _pdf_densities_at_coordinates(
-    pdf: Callable[[Union[float, np.ndarray]], float],
-    coordinates: np.ndarray,
-) -> np.ndarray:
-    """Evaluate a PDF over a coordinate batch, using scalar compatibility when needed."""
-    if getattr(pdf, "supports_batch_evaluation", False):
-        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-            densities = np.asarray(pdf(coordinates))
-    else:
-        densities = np.asarray([
-            _pdf_density_at_coordinates(pdf, tuple(point))
-            for point in coordinates
-        ])
-
-    if densities.shape != (coordinates.shape[0],):
-        raise ValueError("PDF must return one scalar density per coordinate point")
-    if not np.all(np.isfinite(densities)):
-        raise ValueError("PDF must return finite scalar densities")
-    if np.any(densities < 0):
-        raise ValueError("PDF must return non-negative densities")
-    return densities
-
-
-def _asimov_integrand_values(
-    signal_rate_density: Union[float, np.ndarray],
-    background_rate_density: Union[float, np.ndarray],
-) -> Union[float, np.ndarray]:
-    """Evaluate the continuous Asimov integrand for scalar or batched rates."""
-    signal_rates, background_rates = np.broadcast_arrays(
-        signal_rate_density,
-        background_rate_density,
+    boundaries = np.append(
+        np.arange(0, upper_limit, _MAX_QUADRATURE_INTERVAL_WIDTH),
+        upper_limit,
     )
-    values = np.zeros(signal_rates.shape)
-    signal_is_positive = signal_rates != 0
-    background_is_zero = background_rates == 0
-    values[signal_is_positive & background_is_zero] = np.inf
-    regular = signal_is_positive & ~background_is_zero
-    values[regular] = (
-        signal_rates[regular] + background_rates[regular]
-    ) * np.log1p(signal_rates[regular] / background_rates[regular])
-    return values.item() if values.ndim == 0 else values
-
-
-def _integrate_nd_interval(
-    background_pdf: Callable[[Union[float, np.ndarray]], float],
-    signal_pdf: Callable[[Union[float, np.ndarray]], float],
-    n_background_events: int,
-    n_signal_events: int,
-    interval_bounds: tuple[tuple[float, float], ...],
-) -> float:
-    """Integrate one finite N-D interval with tensor Gauss-Legendre quadrature."""
-    nodes = []
-    weights = []
-    for lower_bound, upper_bound in interval_bounds:
-        midpoint = (lower_bound + upper_bound) / 2
-        half_width = (upper_bound - lower_bound) / 2
-        nodes.append(midpoint + half_width * _ND_GAUSS_LEGENDRE_NODES)
-        weights.append(half_width * _ND_GAUSS_LEGENDRE_WEIGHTS)
-
-    coordinate_grids = np.meshgrid(*nodes, indexing="ij")
-    weight_grids = np.meshgrid(*weights, indexing="ij")
-    coordinates = np.stack(coordinate_grids, axis=-1).reshape(
-        -1,
-        len(interval_bounds),
-    )
-    point_weights = np.prod(np.stack(weight_grids, axis=-1), axis=-1).reshape(-1)
-    signal_rates = n_signal_events * _pdf_densities_at_coordinates(
-        signal_pdf,
-        coordinates,
-    )
-    background_rates = n_background_events * _pdf_densities_at_coordinates(
-        background_pdf,
-        coordinates,
-    )
-    return float(np.sum(
-        point_weights * _asimov_integrand_values(signal_rates, background_rates)
-    ))
+    return [
+        [(lower_bound, upper_bound)]
+        for lower_bound, upper_bound in zip(boundaries[:-1], boundaries[1:])
+        if lower_bound < upper_bound
+    ]
 
 
 def calc_injected_t_significance_by_sqrt_q0_continuous(
@@ -235,35 +156,33 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
             background_pdf, coordinates
         )
 
-        return _asimov_integrand_values(
-            signal_rate_density,
-            background_rate_density,
-        )
+        # Both PDFs can underflow to zero in a sufficiently remote tail. The
+        # limiting contribution there is zero, whereas evaluating the original
+        # expression directly produces 0 / 0 and poisons the quadrature.
+        if signal_rate_density == 0:
+            return 0.0
+        if background_rate_density == 0:
+            return np.inf
+
+        return (
+            signal_rate_density + background_rate_density
+        ) * np.log1p(signal_rate_density / background_rate_density)
 
     try:
         with catch_warnings():
             simplefilter("error", IntegrationWarning)
-            interval_bounds = product(*_integration_intervals(upper_limits))
-            if upper_limits.size == 1 or np.any(~np.isfinite(upper_limits)):
-                integral = fsum(
-                    nquad(
-                        integrand,
-                        bounds,
-                        opts={"limit": _QUADRATURE_SUBDIVISION_LIMIT},
-                    )[0]
-                    for bounds in interval_bounds
-                )
-            else:
-                integral = fsum(
-                    _integrate_nd_interval(
-                        background_pdf,
-                        signal_pdf,
-                        n_background_events,
-                        n_signal_events,
-                        tuple(bounds),
-                    )
-                    for bounds in interval_bounds
-                )
+            integral = fsum(
+                nquad(
+                    integrand,
+                    interval_bounds,
+                    opts={
+                        "limit": _QUADRATURE_SUBDIVISION_LIMIT,
+                        "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
+                        "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
+                    },
+                )[0]
+                for interval_bounds in _integration_regions(upper_limits)
+            )
     except IntegrationWarning as warning:
         raise ValueError(
             f"Integration unsuccessful up to upper limit {upper_limit}"

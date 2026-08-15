@@ -55,7 +55,7 @@ def test_gaussian_tail_limit_preserves_significance_within_point_one_percent():
     )
     finite_significance = calc_injected_t_significance_by_sqrt_q0_continuous(
         **calculation_arguments,
-        upper_limit=6.4 + 4.5 * 0.16,
+        upper_limit=6.4 + 6.0 * 0.16,
     )
 
     relative_difference = abs(

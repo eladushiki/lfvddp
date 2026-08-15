@@ -79,7 +79,8 @@
                     "function": "gaussian_signal",
                     "arguments": {
                         "location": 4.0,
-                        "gaussian_signal_sigma": 0.1
+                        "gaussian_signal_sigma": 0.1,
+                        "domain_max": 4.7
                     }
                 }
             ],

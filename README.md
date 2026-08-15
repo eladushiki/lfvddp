@@ -365,11 +365,13 @@ For example, a correlated two-dimensional signal can be configured as:
 ```
 
 Continuous injected-significance calculations use finite bounds supplied by the
-signal distribution. Gaussian signal bounds are four and a half marginal standard
-deviations above each coordinate mean. This changes the supplied four-dimensional
-Gaussian run's converged significance by less than 0.01% while avoiding unbounded
-quadrature. Finite multidimensional intervals use batched Gauss-Legendre quadrature;
-the one-dimensional adaptive integration path is unchanged.
+signal distribution. Gaussian signal bounds default to six marginal standard
+deviations above each coordinate mean, or can be set explicitly with the signal
+generator's `domain_max` argument. This changes the supplied four-dimensional
+Gaussian run's converged significance by far less than 0.1% while keeping SciPy's
+adaptive quadrature finite and setting its numerical tolerance below that accuracy
+target. Signal generation fails with a clear error if any generated coordinate
+exceeds its integration bound, indicating that `domain_max` must be increased.
 
 
 ## Plotting

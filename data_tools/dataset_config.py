@@ -20,6 +20,7 @@ from data_tools.event_generation.distribution import (
     normalize_generator_selection,
     resolve_generator,
     validate_generated_dataset,
+    validate_generated_dataset_within_integration_domain,
 )
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 from frame.file_system.numpy_events import load_numpy_events
@@ -196,7 +197,6 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
         def scaled_pdf(x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
             return distribution.pdf(x / scale)
 
-        scaled_pdf.supports_batch_evaluation = True
         return scaled_pdf
 
     @property
@@ -218,13 +218,19 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
         return upper_limits
 
     def _dataset__generate_signal(self) -> DataSet:
-        generated_signal = self._dataset__signal_distribution.generate_amount(
+        distribution = self._dataset__signal_distribution
+        generated_signal = distribution.generate_amount(
             amount=self.dataset__signal_number_of_events_to_generate,
         )
         validate_generated_dataset(
             generated_signal,
             self.dataset__signal_number_of_events_to_generate,
             self.dataset__number_of_dimensions,
+            "signal",
+        )
+        validate_generated_dataset_within_integration_domain(
+            generated_signal,
+            distribution.integration_upper_limits,
             "signal",
         )
         return generated_signal
