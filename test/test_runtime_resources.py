@@ -9,6 +9,7 @@ from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
 from frame.command_line.execution import (
     CACHE_CONTENTION_EXIT_STATUS,
+    CACHE_LOCK_TIMEOUT_SEC,
     format_qsub_execution_script,
 )
 from frame.file_system.textual_data import load_dict_from_json
@@ -191,7 +192,10 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert 'touch "$LEASE_FILE"' in script
     assert 'rm -rf "$SANDBOX_DIR" "$LEASES_DIR"' in script
     assert 'LOCK_FILE="${SANDBOX_DIR}.flock"' in script
-    assert 'LOCK_TIMEOUT_SEC="${SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-5}"' in script
+    assert (
+        'LOCK_TIMEOUT_SEC="${SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-'
+        f'{CACHE_LOCK_TIMEOUT_SEC}}}"' in script
+    )
     assert 'flock -w "$LOCK_TIMEOUT_SEC" "$CACHE_LOCK_FD"' in script
     assert 'flock -u "$CACHE_LOCK_FD"' in script
     assert "qrerun" not in script

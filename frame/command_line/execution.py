@@ -15,6 +15,7 @@ from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
+CACHE_LOCK_TIMEOUT_SEC = 300
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -224,7 +225,7 @@ READY_FILE="${{SANDBOX_DIR}}/.ready"
 # Older scripts used a mkdir lock ending in .lock. A new .flock path ensures an
 # abandoned legacy directory cannot block jobs after this upgrade.
 LOCK_FILE="${{SANDBOX_DIR}}.flock"
-LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-5}}"
+LOCK_TIMEOUT_SEC="${{SINGULARITY_CACHE_LOCK_TIMEOUT_SEC:-{cache_lock_timeout_sec}}}"
 CACHE_CONTENTION_EXIT_STATUS={cache_contention_exit_status}
 CACHE_LOCK_HELD=0
 
@@ -440,6 +441,7 @@ def format_qsub_execution_script(
         commit_hash_environment_variable=COMMIT_HASH_ENVIRONMENT_VARIABLE,
         commit_hash=context.commit_hash,
         cache_contention_exit_status=CACHE_CONTENTION_EXIT_STATUS,
+        cache_lock_timeout_sec=CACHE_LOCK_TIMEOUT_SEC,
     )
 
 
