@@ -33,8 +33,8 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     export PYTHONUNBUFFERED=1
     export PYTHONPATH=/app
 
-    if [ -f /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh ]; then
-        . /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh
+    if [ -f /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh ]; then
+        . /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
     fi
 
     export TF_USE_LEGACY_KERAS=True

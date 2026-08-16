@@ -1,16 +1,20 @@
 from math import fsum
 from typing import Callable, Union
 import numpy as np
-from scipy.integrate import IntegrationWarning, nquad
-from scipy.special import erfinv
+from scipy.integrate import IntegrationWarning, cubature, nquad
+from scipy.special import erfinv, kl_div, rel_entr
 from scipy.stats import norm, chi2
-from warnings import catch_warnings, simplefilter
+from warnings import catch_warnings, simplefilter, warn
 
 
 _MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
 _QUADRATURE_SUBDIVISION_LIMIT = 200
 _QUADRATURE_ABSOLUTE_TOLERANCE = 1e-3
 _QUADRATURE_RELATIVE_TOLERANCE = 1e-4
+_CUBATURE_RULE = "genz-malik"
+_CUBATURE_MAX_SUBDIVISIONS = 10_000
+_CUBATURE_ABSOLUTE_TOLERANCE = 1e-3
+_CUBATURE_RELATIVE_TOLERANCE = 5e-3
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -106,15 +110,35 @@ def _pdf_density_at_coordinates(
     return float(density)
 
 
-def _integration_regions(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
-    """Build integration regions, subdividing only the legacy 1D path."""
-    if upper_limits.size > 1:
-        return [[
-            (0.0, upper_limit)
-            for upper_limit in upper_limits
-        ]]
+def _pdf_densities_at_points(
+        pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+        points: np.ndarray,
+) -> np.ndarray:
+    """Evaluate a PDF on a batch, falling back to its scalar point contract."""
+    try:
+        densities = np.asarray(pdf(points))
+    except (AssertionError, IndexError, TypeError, ValueError):
+        densities = np.empty(0)
 
-    upper_limit = upper_limits.item()
+    if densities.ndim == 0:
+        densities = np.full(points.shape[0], densities.item())
+    elif densities.shape != (points.shape[0],):
+        densities = np.asarray([
+            _pdf_density_at_coordinates(pdf, tuple(point))
+            for point in points
+        ])
+
+    if not np.all(np.isfinite(densities)):
+        raise ValueError("PDF must return finite scalar densities")
+    if np.any(densities < 0):
+        raise ValueError("PDF must return non-negative densities")
+    return densities.astype(float, copy=False)
+
+
+def _one_dimensional_integration_regions(
+        upper_limit: float,
+) -> list[list[tuple[float, float]]]:
+    """Build bounded-width regions for the legacy 1D quadrature path."""
     if not np.isfinite(upper_limit):
         return [[(0.0, np.inf)]]
 
@@ -130,8 +154,12 @@ def _integration_regions(upper_limits: np.ndarray) -> list[list[tuple[float, flo
 
 
 def calc_injected_t_significance_by_sqrt_q0_continuous(
-        background_pdf: Callable[[Union[float, np.ndarray]], float],
-        signal_pdf: Callable[[Union[float, np.ndarray]], float],
+        background_pdf: Callable[
+            [Union[float, np.ndarray]], Union[float, np.ndarray]
+        ],
+        signal_pdf: Callable[
+            [Union[float, np.ndarray]], Union[float, np.ndarray]
+        ],
         n_background_events: int,
         n_signal_events: int,
         upper_limit: Union[float, np.ndarray] = np.inf,
@@ -141,7 +169,7 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
     A scalar ``upper_limit`` defines the existing one-dimensional domain
     ``[0, upper_limit]``. A one-dimensional array supplies one upper bound per
     observable; multidimensional PDF callables receive a coordinate array in
-    that same observable order.
+    that same observable order. Multidimensional limits must be finite.
     """
     if n_signal_events <= 0:
         return 0
@@ -155,40 +183,76 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_rate_density = n_background_events * _pdf_density_at_coordinates(
             background_pdf, coordinates
         )
+        return rel_entr(  # = a * log(a/b)
+            signal_rate_density + background_rate_density,
+            background_rate_density,
+        )
 
-        # Both PDFs can underflow to zero in a sufficiently remote tail. The
-        # limiting contribution there is zero, whereas evaluating the original
-        # expression directly produces 0 / 0 and poisons the quadrature.
-        if signal_rate_density == 0:
-            return 0.0
-        if background_rate_density == 0:
-            return np.inf
-
-        return (
-            signal_rate_density + background_rate_density
-        ) * np.log1p(signal_rate_density / background_rate_density)
-
-    try:
-        with catch_warnings():
-            simplefilter("error", IntegrationWarning)
-            integral = fsum(
-                nquad(
-                    integrand,
-                    interval_bounds,
-                    opts={
-                        "limit": _QUADRATURE_SUBDIVISION_LIMIT,
-                        "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
-                        "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
-                    },
-                )[0]
-                for interval_bounds in _integration_regions(upper_limits)
+    if upper_limits.size > 1:
+        if not np.all(np.isfinite(upper_limits)):
+            raise ValueError(
+                "Multidimensional integration upper limits must be finite"
             )
-    except IntegrationWarning as warning:
-        raise ValueError(
-            f"Integration unsuccessful up to upper limit {upper_limit}"
-        ) from warning
 
-    q0 = 2 * (-n_signal_events + integral)
+        def q0_integrand(points: np.ndarray) -> np.ndarray:
+            signal_rate_density = n_signal_events * _pdf_densities_at_points(
+                signal_pdf, points
+            )
+            background_rate_density = (
+                n_background_events
+                * _pdf_densities_at_points(background_pdf, points)
+            )
+            return 2 * kl_div(
+                signal_rate_density + background_rate_density,
+                background_rate_density,
+            )
+
+        result = cubature(
+            q0_integrand,
+            np.zeros(upper_limits.size),
+            upper_limits,
+            rule=_CUBATURE_RULE,
+            rtol=_CUBATURE_RELATIVE_TOLERANCE,
+            atol=_CUBATURE_ABSOLUTE_TOLERANCE,
+            max_subdivisions=_CUBATURE_MAX_SUBDIVISIONS,
+        )
+        q0 = np.asarray(result.estimate).item()
+        estimated_error = np.asarray(result.error).item()
+        if not np.isfinite(q0) or not np.isfinite(estimated_error):
+            raise ValueError(
+                "Multidimensional significance integration was non-finite"
+            )
+        if result.status != "converged":
+            warn(
+                "Multidimensional significance reached its cubature subdivision "
+                f"cap with estimated error {estimated_error:g}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    else:
+        try:
+            with catch_warnings():
+                simplefilter("error", IntegrationWarning)
+                integral = fsum(
+                    nquad(
+                        integrand,
+                        interval_bounds,
+                        opts={
+                            "limit": _QUADRATURE_SUBDIVISION_LIMIT,
+                            "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
+                            "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
+                        },
+                    )[0]
+                    for interval_bounds in _one_dimensional_integration_regions(
+                        upper_limits.item()
+                    )
+                )
+        except IntegrationWarning as warning:
+            raise ValueError(
+                f"Integration unsuccessful up to upper limit {upper_limit}"
+            ) from warning
+
+        q0 = 2 * (-n_signal_events + integral)
     return np.sqrt(q0)
 
 
