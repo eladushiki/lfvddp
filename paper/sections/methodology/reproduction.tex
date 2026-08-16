@@ -5,23 +5,21 @@
 \begin{document}
 
 \subsection{Reproducing Previous Results}
+\label{sec:reproduction}
 
 The following results are generated using the new, improved codebase, with a subset of parameters that mimic the conditions for the previous paper \cite{LastDDPPaper}. In Figure~\ref{fig:single_train_visualization} we can see the results of a single calculation, with nuisance values, visualized.
 
 \begin{figure}
 \label{fig:single_train_visualization}
 \centering
-\begin{minipage}{0.48\textwidth}
-\centering
 \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]
 {"plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/A_numerator_data_process_plot_2163321021161639752.png"}
-\end{minipage}
 \hfill
 \caption{Visualization of the outcome of a single run of our procedure. Top: overlaying distributions of $\dataset{A}$ and $\dataset{B}$ of both regions. Bottom: illustration of the learned (minimized) parts of the NN - for the signal hypothesis (first expression in Eq~\ref{eq:discrete_loss_functions}) train at the left, and for the null hypothesis (second expression) to the right. Detector is set to work at perfect efficiency on both datasets.}
 \end{figure}
 
 As can be seen in Figure~\ref{fig:t_distribution_plot_reproduction}, using the same parameters, we achieved a similar convergence of the $t$ values distribution to a $\chi^2_{13}$ distribution.
-\TODO{13 of the chi^2 should change. Also update the t convergence to chi^2 plot.}
+\TODO{is it 12?}
 
 \begin{figure}
 \centering
@@ -42,7 +40,11 @@ As can be seen in Figure~\ref{fig:t_distribution_plot_reproduction}, using the s
 
 We further investigate the correlation between the significance of an injected signal and its significance as detected by our machinery. Again, similarly as what was done before.
 
-\TODO{run and bring here the results of significance plots}
-% We settled on a single curve from each of the 3 graphs in the original paper, one for each signal type, all with 1e5 events
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth, trim=0 12bp 0 0, clip]{paper/sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/performance_plot_-4588680099968231982.png}
+    \caption{Observed significances of the detection process by the injected significance. The process is run several times, with several configuration. The background only detection process is run 1000 times to generate a sample of the $\plratio$. Three signal shapes are picked, each is run for 100 times with varying intensities. The injected significance is calculated directly from the signal and background NDF, as in Eq.~\ref{eq:analytic_significance_from_pdfs}. The observed significance is calculated twice; once by the percentile of the mean of the signal $\plratio$s within the background only distribution (solid line), and the number of STDs it is above the mean of the background distribution (dashed line). All $\plratio$s are calculated from datasets with 1e5 events, learning rate of 0.03 and 5e5 epochs of learning.}
+    \label{fig:observed_vs_injected_significances}
+\end{figure}
 
 \end{document}

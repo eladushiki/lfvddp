@@ -309,6 +309,26 @@ $\odot$
 \end{adjustbox}
 \caption{Implementation of the model optimizing either loss function. In each step, the data propagates through the model, loss is calculated and adjustable parameters in the model are changed accordingly.}
 \end{figure}
+
+\subsubsection{$\chi^2$ Degrees of Freedom (DOF)}
+When considering the free parameters of either hypothesis space the following calculation follows:
+\begin{itemize}
+    \item In $\hypothesis{1}$, the degrees of freedom are in $f$, $g$, $\nparam$ and $\refdist$.
+    \item In $\nullhypothesis$, the degrees of freedom are in $\nparam$ and $\refdist$.
+\end{itemize}
+
+When counting the true DOF, rather than looking at $f$, $g$, we should examine $\Delta = f - g$ and $\Sigma = f + g$. $\hypothesis{1}$ can obviously be restated to use the latter instead of the former. Then, we can see that by choice of $\refdist$, $\Sigma$ is actually swallowed and should amount to 0. We can express $\Delta$ in a form that resembles Equation~\ref{eq:neural_net_explicit}, with the substitution $\omega_\Delta = \omega_f - \omega_g$, and get convinced that the actual DOF represented are those of a single NN.
+All training graphs we show here support this by showing that the converged $f$, $g$ are the inverse of one another.
+Each bin of $\nparam$ add one DOF to both the signal and null hypotheses, and hence does not change the difference.
+
+The total DOF, then, goes by
+
+\begin{equation}
+    N_\text{DOF} = (k + 2) \times N + 1
+\end{equation}
+
+\noindent as the number of resulting weights and biases, and for $N = 4$, amount to 13.
+
 \subsubsection{Description of the Algorithm}
 A single run of our procedure goes as follows:
 
