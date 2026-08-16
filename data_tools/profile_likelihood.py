@@ -183,7 +183,7 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_rate_density = n_background_events * _pdf_density_at_coordinates(
             background_pdf, coordinates
         )
-        return rel_entr(
+        return rel_entr(  # = a * log(a/b)
             signal_rate_density + background_rate_density,
             background_rate_density,
         )

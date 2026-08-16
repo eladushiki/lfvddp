@@ -269,7 +269,7 @@ including jobs whose total walltime fits in a single chunk.
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 
 ```bash
-source  /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh
+source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
 set TF_USE_LEGACY_KERAS=True  # Set legacy Keras usage, needed for NPLM
 ```
 
