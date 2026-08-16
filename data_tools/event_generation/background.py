@@ -1,8 +1,13 @@
+from typing import Optional
+
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.distribution import DataDistribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 import numpy as np
 from scipy import stats
+
+_EXPONENTIAL_INTEGRATION_DENSITY_THRESHOLD = 1e-2
+_GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS = 6.0
 
 # Namespace for background generating functions
 # classes defined here that inherit from DataDistribution
@@ -12,47 +17,85 @@ from scipy import stats
 
 class ExponentialBackground(DataDistribution):
 
-    def generate_amount(
-            self, amount: int,
-            domain_min: float = 0,
-            domain_max: float = 100,
-            domain_granularity: int = 100000
-    ) -> DataSet:
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        domain_max: Optional[float] = None,
+    ):
+        super().__init__(
+            number_of_dimensions,
+            domain_max=(
+                stats.expon.isf(_EXPONENTIAL_INTEGRATION_DENSITY_THRESHOLD)
+                if domain_max is None
+                else domain_max
+            ),
+        )
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
+
+    def generate_amount(self, amount: int) -> DataSet:
         return DataSet(np.random.exponential(
             size=(amount, self._number_of_dimensions),
         ))
     
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
-        return np.exp(-x)
+        values = np.asarray(x)
+        densities = np.exp(-values)
+        if self._number_of_dimensions == 1:
+            return densities
+        if values.ndim == 0:
+            raise ValueError(
+                "An N-D exponential PDF requires one coordinate per dimension."
+            )
+        if values.shape[-1] != self._number_of_dimensions:
+            raise ValueError(
+                f"Expected {self._number_of_dimensions} coordinates, got "
+                f"{values.shape[-1]}."
+            )
+        return np.prod(densities, axis=-1)
 
 
 class GaussianBackground(DataDistribution):
-    
-    def __init__(self, number_of_dimensions: int):
-        """
-        Mean is 0 and covariance matrix is a matrix of ones.
-        """
-        super().__init__(number_of_dimensions)
-        self._covariance_matrix = np.ones((number_of_dimensions, number_of_dimensions))
+
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        domain_min: float = 0,
+        domain_max: Optional[float] = None,
+        mean: float = 0,
+    ):
+        """Independent unit-width truncated Gaussians in every dimension."""
+        integration_upper_limit = (
+            mean + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS
+            if domain_max is None
+            else domain_max
+        )
+        super().__init__(
+            number_of_dimensions,
+            domain_min=domain_min,
+            domain_max=integration_upper_limit,
+        )
+        self._mean = mean
+        self._covariance_matrix = np.eye(number_of_dimensions)
+
+    @property
+    def integration_upper_limits(self) -> np.ndarray:
+        return np.full(self._number_of_dimensions, self._domain_max)
   
-    def generate_amount(
-            self, amount: int,
-            domain_min: float = 0,
-            domain_max: float = 100,
-            domain_granularity: int = 100000,
-            mean: float = 0,
-    ) -> DataSet:
+    def generate_amount(self, amount: int) -> DataSet:
         samples = []
         for dim in range(self._number_of_dimensions):
             # Create truncated normal distribution for each dimension
             std_dev = np.sqrt(self._covariance_matrix[dim, dim])
-            a = (domain_min - mean) / std_dev
-            b = (domain_max - mean) / std_dev
+            a = (self._domain_min - self._mean) / std_dev
+            b = (self._domain_max - self._mean) / std_dev
             
             # Generate samples using truncated normal
             dim_samples = stats.truncnorm.rvs(
                 a=a, b=b,
-                loc=mean,
+                loc=self._mean,
                 scale=self._covariance_matrix[dim, dim]**0.5,
                 size=amount,
             )
@@ -62,7 +105,9 @@ class GaussianBackground(DataDistribution):
         return DataSet(np.column_stack(samples))
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
-        k = self._number_of_dimensions
-        det_std = np.linalg.det(self._covariance_matrix)
-        return (2 * np.pi)**(-k / 2) * det_std**(-1 / 2) * \
-                np.exp(-0.5 * np.dot(x, np.dot(np.linalg.inv(self._covariance_matrix), x)))
+        if self._number_of_dimensions == 1:
+            return stats.norm(loc=self._mean, scale=1).pdf(x)
+        return stats.multivariate_normal(
+            mean=np.full(self._number_of_dimensions, self._mean),
+            cov=self._covariance_matrix,
+        ).pdf(x)

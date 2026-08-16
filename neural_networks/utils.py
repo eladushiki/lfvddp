@@ -80,16 +80,12 @@ def save_training_history_outcome(
 
 def prediction_to_sample_ndf_hypothesis_weights(
     model_prediction: np.ndarray,
-    predicted_distribution_corrected_size: float,
+    predicted_distribution_size: float,
     reference_ndf_estimation: DataSet,
 ) -> np.ndarray:
     model_prediction = np.asarray(model_prediction).reshape(-1)
-    hypothesis_weights = (
-        model_prediction[:, None]
-        * reference_ndf_estimation.histogram_weight_mask
-    )
     return (
-        predicted_distribution_corrected_size
-        / reference_ndf_estimation.corrected_n_samples
-        * hypothesis_weights
+        predicted_distribution_size
+        / reference_ndf_estimation.n_samples
+        * model_prediction[:, None]
     )

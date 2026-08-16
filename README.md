@@ -69,6 +69,15 @@ Then, it is customary to run
 
 to install the project to run locally with dependecies and being able to run the code locally while editing it in place.
 
+The requirements include the XRootD backend for `fsspec`, which is needed to
+load remote ROOT files whose URLs use the `root://` protocol. The loader honors
+`dataset_loaded__event_amount_load_limit` for remote files, so a bounded run
+only requests the metadata and branch baskets needed for that entry range.
+
+Dataset normalization supports constant observables, such as multiplicity
+columns fixed by an event-selection cut. They are mapped to zero for training
+instead of producing a zero normalization scale.
+
 ## Singularity
 
 Alternatively, either clone project and use `singularity build` or build it directly from repo (for recent enough versions).
@@ -118,11 +127,13 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "program": "train/single_train.py",
             "console": "integratedTerminal",
             "args": [
-                "--user-config", "${config:myConfig.userConfig}",
-                "--cluster-config", "${config:myConfig.clusterConfig}",
-                "--dataset-config", "${config:myConfig.datasetConfig}",
-                "--train-config", "${config:myConfig.trainConfig}",
-                "--plot-config", "${config:myConfig.plotConfig}",
+                "--configs",
+                "${config:myConfig.clusterConfig}",
+                "${config:myConfig.datasetConfig}",
+                "${config:myConfig.detectorConfig}",
+                "${config:myConfig.trainConfig}",
+                "${config:myConfig.userConfig}",
+                "${config:myConfig.plotConfig}",
                 "--debug",
             ]
         },
@@ -133,28 +144,34 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "program": "train/submit_train.py",
             "console": "integratedTerminal",
             "args": [
-                "--user-config", "${config:myConfig.userConfig}",
-                "--cluster-config", "${config:myConfig.clusterConfig}",
-                "--dataset-config", "${config:myConfig.datasetConfig}",
-                "--train-config", "${config:myConfig.trainConfig}",
-                "--plot-config", "${config:myConfig.plotConfig}",
+                "--configs",
+                "${config:myConfig.clusterConfig}",
+                "${config:myConfig.datasetConfig}",
+                "${config:myConfig.detectorConfig}",
+                "${config:myConfig.trainConfig}",
+                "${config:myConfig.userConfig}",
+                "${config:myConfig.plotConfig}",
             ]
         },
-        { // DEBUG plot
-        "name": "[DEBUG] plot",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "plot/create_plots.py",
-        "console": "integratedTerminal",
-        "args": [
-            "--user-config", "${config:myConfig.userConfig}",
-            "--cluster-config", "${config:myConfig.clusterConfig}",
-            "--dataset-config", "${config:myConfig.datasetConfig}",
-            "--train-config", "${config:myConfig.trainConfig}",
-            "--plot-config", "${config:myConfig.plotConfig}",
-            "--debug",
-        ]
-    }
+        { // Plot a submitted training batch
+            "name": "[DEBUG] Plot submission with prompt",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "plot/create_plots.py",
+            "console": "integratedTerminal",
+            "args": [
+                "${input:submissionDirectory}"
+            ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "submissionDirectory",
+            "type": "promptString",
+            "description": "Enter the submitted training directory",
+            "default": ""
+        }
+    ]
 }
 ```
 
@@ -164,11 +181,89 @@ The custom file paths here refer to a different file, `settings.json`, of the fo
     "myConfig.userConfig": "configs/user/<name>.json",
     "myConfig.clusterConfig": "configs/cluster/<your config>.json",
     "myConfig.datasetConfig": "configs/dataset/<your config>.json",
+    "myConfig.detectorConfig": "configs/detector/<your config>.json",
     "myConfig.trainConfig": "configs/train/<your config>.json",
     "myConfig.plotConfig": "configs/plot/<your config>.json",
 }
 ```
 Which you create and direct to.
+
+Configuration files passed through `--configs` are shallow-merged from left to
+right, so later files override earlier values. A directory passed in place of a
+file is recursively expanded to its JSON and YAML config files in sorted order.
+The plotting entry point does not accept `--configs`; it reads the staged
+configuration files from the selected submission's `configs` directory.
+Plotting configuration is required,
+although `plot__plot_specifications` may be omitted when no configured batch plots
+are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
+generated otherwise.
+
+Fresh cluster submissions reuse the existing container by default and submit
+the training job followed by the plotting job. Pass `--build-container` to
+`train/submit_train.py` to build a new container first; the training job will
+wait for that build to succeed before starting.
+
+### Runtime resource placement
+
+Cluster configuration describes the resources to request from PBS; it does not
+describe the capacity that training is allowed to assume it received. In
+particular, `cluster__qsub_ncpus`, `cluster__qsub_ngpus_for_train`, and
+`cluster__qsub_mem` remain scheduler requests. The CPU request defaults to 32
+when `cluster__qsub_ncpus` is omitted and can be overridden in cluster
+configuration.
+
+After the job starts, the execution script passes its affinity-aware CPU count
+and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
+uses those observed values to choose its execution mode.
+
+Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
+kernel-managed lock is released automatically if the owning job is interrupted
+or killed, so a failed sandbox build cannot leave later jobs blocked by a stale
+cache lock. A job that cannot acquire the cache lock within five minutes exits
+with a nonzero cache-contention status, releasing its CPU and memory
+allocation instead of waiting in the running state. It is not automatically
+requeued or resubmitted. This window allows a live owner to extract a
+multi-gigabyte image; dead owners release the kernel lock immediately. Set
+`SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job environment to override it.
+
+The final job using a cache entry removes its unpacked sandbox and lease
+directory, so the many extracted files do not remain against a filesystem
+quota after the workflow. The empty `.flock` file is retained intentionally to
+keep lock identity stable across concurrent jobs.
+
+Continue a saved run with `--continue <run-directory-or-context.json>`. The
+optional `--debug` flag may be combined with it; configuration paths and all
+other runtime settings are restored from the saved context. If training reached
+its saved epoch target without converging, replace that target for the continued
+run with:
+
+```bash
+python train/submit_train.py --continue <run-directory-or-context.json> --epochs-target 750000
+```
+
+`--epochs-target` accepts a positive integer and may be used with or without
+`--extra-time`.
+
+Training configurations may set `train__final_learning_rate` to linearly lower
+`train__learning_rate` over the configured epoch target. Omitting it preserves
+the constant learning rate behavior. A continued run with `--epochs-target`
+uses the replacement target for the entire schedule, then resumes at the
+learning rate for its current absolute epoch.
+
+If the original walltime was insufficient, add more time to the saved budget and
+continue from the latest LFVNN/PyTorch checkpoint with:
+
+```bash
+python train/submit_train.py --continue <run-directory-or-context.json> --extra-time 24:00:00
+```
+
+The extra time uses `HH:MM:SS` format. It is added to the original total rather
+than replacing it, and the next submission is capped by
+`cluster__qsub_walltime_limit` (72 hours by default). Repeat `--continue` without
+`--extra-time` if the enlarged budget requires another scheduler chunk.
+The option is accepted by every entry point that supports `--continue`; cluster
+submission history is updated for every job submitted through `submit_train.py`,
+including jobs whose total walltime fits in a single chunk.
 
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 
@@ -225,9 +320,88 @@ While Config* classes' contents are divided logically to different classes, the 
 
 Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `basic_user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
 
+### Generated dataset dimensions
+
+Generated backgrounds use `dataset_generated__background_generator`, and generated
+signals use `dataset__signal_generator`. Each generator specification contains a class
+name and optional constructor arguments:
+
+```json
+{
+    "function": "gaussian_background",
+    "arguments": {
+        "domain_min": 0,
+        "domain_max": 5,
+        "mean": 2.5
+    }
+}
+```
+
+The specification's JSON shape selects how dimensions are generated:
+
+- A single object is one joint N-dimensional generator. The class receives
+  `dataset_generated__number_of_dimensions` and must generate the entire event in one
+  call, so it can correlate coordinates.
+- A list containing one object repeats that 1D generator independently for every
+  dimension.
+- A list containing exactly N objects uses the corresponding 1D generator for each
+  dimension and concatenates the generated columns in list order.
+
+For example, a correlated two-dimensional signal can be configured as:
+
+```json
+{
+    "dataset_generated__number_of_dimensions": 2,
+    "dataset__signal_generator": {
+        "function": "multivariate_gaussian_signal",
+        "arguments": {
+            "mean": [1.0, 2.0],
+            "covariance": [
+                [1.0, 0.8],
+                [0.8, 1.0]
+            ]
+        }
+    }
+}
+```
+
+Continuous injected-significance calculations require every signal and background
+distribution to supply finite, distribution-specific integration bounds. Gaussian
+defaults use six marginal standard deviations, exponential bounds use the point
+where density falls to 1% of its peak, gamma-like bounds use a tail quantile, and
+explicitly truncated distributions use `domain_max`.
+The integration ceiling is the coordinate-wise maximum of the signal and background
+bounds. This keeps SciPy's adaptive quadrature finite and its numerical tolerance
+below the 0.1% accuracy target. Signal generation fails with a clear error if any
+coordinate exceeds its declared bound, indicating that `domain_max` must be
+increased.
+
+
 ## Plotting
 
 Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `basic_plot_config.json` for example).
+
+Generate the configured plots for a submitted training batch with:
+
+```bash
+python plot/create_plots.py <submission-directory> [--debug]
+```
+
+The submission directory must contain the staged `configs` directory and the
+individual training runs. Plotting reads those configs, aggregates the runs, and
+creates its normal stamped output directory inside the submission directory.
+
+`create_plots.py` creates single-submission overview plots by default. To create
+multi-run plots such as `performance_plot`, add `--multi-run-plots`:
+
+```bash
+python plot/create_plots.py <submission-directory> --multi-run-plots [--debug]
+```
+
+In multi-run mode, plotting locates the outermost staged submission containing
+only background runs, loads its `configs` directory, and identifies signal
+contexts from their dataset configuration. Each plot declares its execution
+scope next to its implementation.
 
 To implement any new plot, simply define its generating function there in the form of:
 ```python
@@ -244,4 +418,4 @@ Training entry points:
 - `submit_train.py` for remote submission of multiple copies of `single_train.py` [Currently only in-place, when running at the ATLAS cluster]
 
 ## Plotting
-- `create_plots.py` would follow the instruction in the configuration files to gather the necessary data from completed trainings and producte the plots
+- `create_plots.py <submission-directory> [--debug] [--multi-run-plots]` follows the staged configuration files to gather data from completed trainings and produce the plots. Multi-run plotting discovers the background-only submission and uses its staged configuration.

@@ -1,8 +1,22 @@
 # Mac
 **/.DS_Store
 
-# Python environment
+# Python environment and local secrets
 .venv/
+.env
+
+# GSD
+.gsd/*.db
+.gsd/*.db-*
+.gsd/audit/
+.gsd/exec/
+.gsd/journal/
+.gsd/runtime/
+.gsd/notifications.jsonl
+.gsd/audit-log.jsonl
+.gsd/worktrees
+.bg-shell/
+.gsd/SECRETS.md
 
 # Python tests
 .coverage

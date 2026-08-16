@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass
 import enum
 import re
+from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
-import pandas as pd
-
 import numpy as np
-from numpy.random import default_rng
 import numpy.typing as npt
+import pandas as pd
 
 
 class DataSet:
@@ -72,7 +69,7 @@ class DataSet:
         if data is None:
             self._data = pd.DataFrame()
         elif isinstance(data, np.ndarray):
-            if len(data) == 0:
+            if data.ndim == 1 and len(data) == 0:
                 self._data = pd.DataFrame()
             elif data.ndim == 1 or data.ndim == 2:
                 self._data = pd.DataFrame(data)
@@ -88,8 +85,6 @@ class DataSet:
         else:
             self._data.columns = [f"param_{i}" for i in range(self.n_observables)]
         
-        self._weight_mask = np.ones((self.n_samples,))
-
     def __add__(self, other: DataSet) -> DataSet:
         if self.empty:
             return other
@@ -100,13 +95,9 @@ class DataSet:
         
         _data = pd.concat((self._data, other._data), axis=0)
         _data.reset_index(level=0, drop=True, inplace=True)
-        _weight_mask = np.concatenate((self._weight_mask, other._weight_mask), axis=0)
-
         category = self.category + other.category
 
-        result = DataSet(data=_data, observable_names=self.observable_names, category=category)
-        result._weight_mask = _weight_mask
-        return result
+        return DataSet(data=_data, observable_names=self.observable_names, category=category)
     
     def __mul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
         assert isinstance(other, ShiftAndNormalizationFactor), \
@@ -144,18 +135,14 @@ class DataSet:
         return result
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
-        result = DataSet(
+        return DataSet(
             data=pd.DataFrame(self._data.iloc[item, :]),
             observable_names=self.observable_names,
             category=self._category,
         )
-        result._weight_mask = self._weight_mask[item]
-        return result
 
     def create_copy(self) -> DataSet:
-        copy = DataSet(data=self._data.copy(), observable_names=self.observable_names, category=self._category)
-        copy._weight_mask = self._weight_mask.copy()
-        return copy
+        return DataSet(data=self._data.copy(), observable_names=self.observable_names, category=self._category)
 
     @property
     def category(self) -> DataSetCategory:
@@ -185,20 +172,12 @@ class DataSet:
         return self._data.shape[0]
 
     @property
-    def corrected_n_samples(self) -> float:
-        return float(np.sum(self._weight_mask))
-    
-    @property
     def empty(self) -> bool:
         return self.n_samples == 0
 
     @property
     def events(self) -> npt.NDArray:
         return self._data.to_numpy()
-
-    @property
-    def histogram_weight_mask(self) -> np.ndarray:
-        return np.expand_dims(self._weight_mask, axis=1)
 
     def slice_along_observable_indices(self, indices: Optional[Union[int, slice, npt.NDArray]] = None) -> npt.NDArray:
         """
@@ -221,11 +200,18 @@ class DataSet:
         result = self.create_copy()
         for obs in result.observable_names:
             obs_slice = result.slice_along_observable_names(obs)
-            
+
             # shift and scale to fit range [-1, 1]
-            offsets[obs] = min(obs_slice) + 1
-            span = max(obs_slice) - min(obs_slice)
-            factors[obs] = span / 2
+            minimum = np.min(obs_slice)
+            span = np.ptp(obs_slice)
+            if span == 0:
+                # A constant observable carries no variation for the model.
+                # Keep its transform finite and map it to zero.
+                offsets[obs] = minimum
+                factors[obs] = 1.0
+            else:
+                offsets[obs] = minimum + 1
+                factors[obs] = span / 2
 
         normalization_factor = ShiftAndNormalizationFactor(factors, offsets)
         return result / normalization_factor, normalization_factor
@@ -235,20 +221,14 @@ class DataSet:
         Filter the dataset according to a boolean mask.
         """
         filtered_data = self._data.iloc[filter, :]
-        filtered_weight_mask = self._weight_mask[filter]
-
-        result = DataSet(data=filtered_data, observable_names=self.observable_names, category=self._category)
-        result._weight_mask = filtered_weight_mask
-        return result
+        return DataSet(data=filtered_data, observable_names=self.observable_names, category=self._category)
 
     def filter_observable_names(self, observables: Union[str, List[str]]) -> DataSet:
-        filtered_dataset = DataSet(
+        return DataSet(
             data=self.slice_along_observable_names(observables),
             observable_names=[observables] if isinstance(observables, str) else observables,
             category=self._category,
         )
-        filtered_dataset._weight_mask = deepcopy(self._weight_mask)
-        return filtered_dataset
 
 
 def resample(
@@ -266,8 +246,7 @@ def resample(
     source distribution itself.
     """
 
-    rng = default_rng()
-    idx = rng.choice(
+    idx = np.random.choice(
         source_dataset.n_samples,
         size=n_samples,
         replace=replacement,

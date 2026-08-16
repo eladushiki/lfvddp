@@ -1,9 +1,23 @@
-from abc import ABC
-from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+from types import FunctionType
+from typing import Any, Callable, Dict, List, Tuple
 
 from frame.file_structure import PLOT_FILE_EXTENSION
-from train.train_config import TrainConfig
+
+
+class PlotScope(Enum):
+    SINGLE_SUBMISSION = "single_submission"
+    MULTI_RUN = "multi_run"
+
+
+def plot_for_scope(scope: PlotScope) -> Callable[[FunctionType], FunctionType]:
+    """Declare the execution scope of a plot next to its implementation."""
+    def decorate(plot_function: FunctionType) -> FunctionType:
+        plot_function.plot_scope = scope
+        return plot_function
+
+    return decorate
 
 
 @dataclass
@@ -25,6 +39,7 @@ class PlottingConfig:
     """
     Class for structuring all the data needed for plotting instructions.
     """
+
     plot__target_run_parent_directory: str
 
     # General plot settings
@@ -36,7 +51,7 @@ class PlottingConfig:
     plot__figure_size: Tuple[int, int]
 
     # Additional settings for each plot
-    plot__plot_specifications: List[Dict[str, Any]]
+    plot__plot_specifications: List[Dict[str, Any]] = field(default_factory=list)
     plot__prediction_process_number_of_bins: int = 30
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True

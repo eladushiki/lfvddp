@@ -1,27 +1,303 @@
 import re
+import warnings
+from dataclasses import dataclass
 from glob import glob
 from os.path import exists
 from pathlib import Path
 from readline import read_history_file
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
 from matplotlib import gridspec, patches, ticker
 from matplotlib import pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, to_rgba
 from matplotlib.legend_handler import HandlerPatch
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy.spatial import Delaunay
 
+from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import (
+    DatasetConfig,
+    GeneratedDatasetParameters,
+)
 from data_tools.detector.detector_config import DetectorConfig
+from data_tools.profile_likelihood import (
+    calc_injected_t_significance_by_sqrt_q0_continuous,
+    calc_median_t_significance_relative_to_background,
+    calc_t_significance_by_gaussian_fit_percentile,
+    calc_t_significance_relative_to_background,
+)
+from frame.aggregate import ResultAggregator, utils__get_signal_dataset_parameters
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
 from frame.file_system.training_history import HistoryKeys
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
+
+_MESH_LINE_WIDTH = 0.4
+_DENSE_MESH_LINE_WIDTH = 0.3
+_MESH_BORDER_WIDTH = 0.15
+
+
+def utils__prediction_mesh_mask(
+    coordinates: np.ndarray,
+    data_points: np.ndarray,
+) -> np.ndarray:
+    """Keep mesh points inside the convex hull of data points and the origin."""
+    polygon_points = np.vstack((np.zeros((1, 2)), data_points))
+    return Delaunay(polygon_points).find_simplex(coordinates) >= 0
+
+
+def utils__discover_performance_contexts(
+    parent_directory: str,
+) -> List[Tuple[ExecutionContext, Path]]:
+    """Discover the outermost saved contexts used by performance plots."""
+    return ExecutionContext.discover_run_contexts(
+        Path(parent_directory),
+        outermost_only=True,
+    )
+
+
+def utils__discover_background_only_parent_directory(
+    performance_directory: str,
+) -> Path:
+    """Find the outermost staged submission containing only background runs."""
+    root_directory = Path(performance_directory)
+    contexts = ExecutionContext.discover_run_contexts(root_directory)
+    if not contexts:
+        raise ValueError(f"No run contexts found below {root_directory}.")
+
+    contexts_by_directory: Dict[Path, List[ExecutionContext]] = {}
+    for context, context_path in contexts:
+        directory = context_path.parent
+        while directory.is_relative_to(root_directory):
+            contexts_by_directory.setdefault(directory, []).append(context)
+            if directory == root_directory:
+                break
+            directory = directory.parent
+
+    background_directories = [
+        directory
+        for directory, nested_contexts in contexts_by_directory.items()
+        if nested_contexts
+        and (directory / CONFIGS_DIR_NAME).is_dir()
+        and not any(context.config.dataset__has_signal for context in nested_contexts)
+    ]
+    if not background_directories:
+        raise ValueError(
+            "No background-only submission with a configs directory found below "
+            f"{root_directory}."
+        )
+    return min(background_directories, key=lambda directory: len(directory.parts))
+
+
+def utils__aggregate_context_t_values(
+    contexts: List[Tuple[ExecutionContext, Path]],
+) -> np.ndarray:
+    """Combine t values below disjoint, outermost context directories."""
+    return np.concatenate([
+        ResultAggregator(context_path.parent).all_t_values
+        for _, context_path in contexts
+    ])
+
+
+
+def utils__warn_for_context_discrepancies(
+    contexts: List[Tuple[ExecutionContext, Path]],
+    displayed_dataset: str,
+    ignored_fields: Optional[Set[str]] = None,
+) -> None:
+    """Warn when contexts shown as one dataset use different machinery."""
+    discrepancies = ExecutionContext.comparison_discrepancies(
+        (context for context, _ in contexts),
+        ignored_dataset_fields=ignored_fields or set(),
+    )
+    if not discrepancies:
+        return
+
+    context_paths = ", ".join(str(path.parent) for _, path in contexts)
+    warnings.warn(
+        f"Contexts displayed as {displayed_dataset} differ in relevant settings: "
+        f"{', '.join(discrepancies)}. Context directories: {context_paths}",
+        UserWarning,
+        stacklevel=2,
+    )
+
+
+def utils__performance_group_key(
+    signal_context: ExecutionContext,
+) -> Tuple[Tuple[str, str, str, str, bool], ...]:
+    signal_config: DatasetConfig = signal_context.config
+    group_key = []
+    for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
+        parameters = signal_config.get_parameters(category)
+        group_key.append((
+            category.name,
+            parameters.dataset__background_source_type,
+            parameters.dataset__background_source,
+            parameters.dataset__signal_source,
+            parameters.dataset__has_signal,
+        ))
+
+    return tuple(group_key)
+
+
+def utils__group_signal_contexts(
+    signal_t_values_parent_directory: str,
+) -> List[List[Tuple[ExecutionContext, Path]]]:
+    groups: Dict[
+        Tuple[Tuple[str, str, str, str, bool], ...],
+        List[Tuple[ExecutionContext, Path]],
+    ] = {}
+    for signal_context, context_path in utils__discover_performance_contexts(
+        signal_t_values_parent_directory
+    ):
+        if not signal_context.config.dataset__has_signal:
+            continue
+        group_key = utils__performance_group_key(signal_context)
+        groups.setdefault(group_key, []).append((signal_context, context_path))
+
+    signal_groups = [groups[group_key] for group_key in sorted(groups)]
+    for signal_group in signal_groups:
+        utils__warn_for_context_discrepancies(
+            signal_group,
+            "one signal dataset curve",
+            ignored_fields=DatasetConfig.SIGNAL_EVENT_CONFIGURATION_FIELDS,
+        )
+    return signal_groups
+
+
+@dataclass
+class _PerformanceCurve:
+    x_values: np.ndarray
+    x_errors: np.ndarray
+    x_label: str
+    observed_significances: np.ndarray
+    observed_significance_lower_bounds: np.ndarray
+    observed_significance_upper_bounds: np.ndarray
+    gaussian_fit_significances: np.ndarray
+
+
+def _integration_upper_limits_for_dimensions(
+    number_of_dimensions: int,
+) -> Union[float, np.ndarray]:
+    """Represent the unbounded generated-PDF domain in every dimension."""
+    if number_of_dimensions == 1:
+        return np.inf
+    return np.full(number_of_dimensions, np.inf)
+
+
+def utils__calculate_performance_curve(
+    signal_group: List[Tuple[ExecutionContext, Path]],
+    background_t_dist: np.ndarray,
+) -> _PerformanceCurve:
+    x_values = []
+    x_errors = []
+    observed_significances = []
+    observed_significance_lower_bounds = []
+    observed_significance_upper_bounds = []
+    gaussian_fit_significances = []
+    uses_injected_significance = None
+
+    for signal_context, context_path in signal_group:
+        signal_t_values_dir = context_path.parent
+        signal_dataset_parameters = utils__get_signal_dataset_parameters(
+            signal_context
+        )
+        signal_agg = ResultAggregator(signal_t_values_dir)
+        signal_t_dist = signal_agg.all_t_values
+
+        is_generated = isinstance(
+            signal_dataset_parameters, GeneratedDatasetParameters
+        )
+        if uses_injected_significance is None:
+            uses_injected_significance = is_generated
+        elif uses_injected_significance != is_generated:
+            raise ValueError(
+                "A performance subgroup cannot mix generated and loaded signal datasets."
+            )
+
+        if is_generated:
+            x_values.append(
+                calc_injected_t_significance_by_sqrt_q0_continuous(
+                    background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                    signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                    n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                    n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                    upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                )
+            )
+            x_errors.append(np.std(signal_agg.all_injected_significances))
+        else:
+            x_values.append(
+                signal_dataset_parameters.dataset__number_of_signal_events
+            )
+            x_errors.append(0.0)
+
+        observed_significances.append(
+            calc_median_t_significance_relative_to_background(
+                background_t_dist,
+                signal_t_dist,
+            )
+        )
+        signal_t_dist_std = np.std(signal_t_dist)
+        observed_significance_lower_bounds.append(
+            calc_t_significance_relative_to_background(
+                np.mean(signal_t_dist) - signal_t_dist_std,
+                background_t_dist,
+            )
+        )
+        observed_significance_upper_bounds.append(
+            calc_t_significance_relative_to_background(
+                np.mean(signal_t_dist) + signal_t_dist_std,
+                background_t_dist,
+            )
+        )
+        gaussian_fit_significances.append(
+            calc_t_significance_by_gaussian_fit_percentile(
+                background_only_distribution=background_t_dist,
+                t_value=np.mean(signal_t_dist),
+            )
+        )
+
+    sort = np.argsort(np.asarray(x_values))
+    return _PerformanceCurve(
+        x_values=np.asarray(x_values)[sort],
+        x_errors=np.asarray(x_errors)[sort],
+        x_label=(
+            r"injected $\sqrt{q_0}$"
+            if uses_injected_significance
+            else "mean signal number of events"
+        ),
+        observed_significances=np.asarray(observed_significances)[sort],
+        observed_significance_lower_bounds=np.asarray(
+            observed_significance_lower_bounds
+        )[sort],
+        observed_significance_upper_bounds=np.asarray(
+            observed_significance_upper_bounds
+        )[sort],
+        gaussian_fit_significances=np.asarray(gaussian_fit_significances)[sort],
+    )
+
+
+def utils__performance_group_label(
+    signal_context: ExecutionContext,
+) -> str:
+    signal_config: DatasetConfig = signal_context.config
+    signal_descriptions = []
+    for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
+        parameters = signal_config.get_parameters(category)
+        if not parameters.dataset__has_signal:
+            continue
+        signal_descriptions.append(parameters.dataset__signal_description)
+
+    return "; ".join(signal_descriptions) or "no signal"
 
 
 class HandlerRect(HandlerPatch):
@@ -323,13 +599,35 @@ def utils__normalize_histogram_values(
     return np.asarray(histogram_values) / normalization
 
 
+def _log10_positive_output_values(output_values: npt.ArrayLike) -> np.ndarray:
+    """Map positive 3D output heights to log10 coordinates, hiding zero bins."""
+    output_values = np.asarray(output_values)
+    logarithmic_values = np.full(output_values.shape, np.nan, dtype=float)
+    np.log10(
+        output_values,
+        out=logarithmic_values,
+        where=output_values > 0,
+    )
+    return logarithmic_values
+
+
+def _format_log10_output_tick(exponent: float, _position: float) -> str:
+    rounded_exponent = round(exponent)
+    displayed_exponent = (
+        str(int(rounded_exponent))
+        if np.isclose(exponent, rounded_exponent)
+        else f"{exponent:g}"
+    )
+    return rf"$10^{{{displayed_exponent}}}$"
+
+
 def utils__datset_histogram_sliced(
         ax: plt.Axes,
         bins: np.ndarray,
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
         along_observables: Union[List, str, None] = None,
-        normalize_by_corrected_n_samples: bool = False,
+        normalize_by_n_samples: bool = False,
         **hist_kwargs,
 ):
     if along_observables is None:
@@ -339,18 +637,17 @@ def utils__datset_histogram_sliced(
     elif len(along_observables) > 2:
         raise ValueError("Can only plot 1D or 2D histograms, got more than 2 observables")
 
-    weights = utils__flatten_histogram_values(
-        dataset.histogram_weight_mask if alternative_weights is None else alternative_weights
-    )
-        
-    if weights.shape[0] != dataset.n_samples:
+    weights = None if alternative_weights is None else utils__flatten_histogram_values(alternative_weights)
+
+    if weights is not None and weights.shape[0] != dataset.n_samples:
         raise ValueError(
             f"Expected one histogram weight per sample, got weights shape {weights.shape} "
             f"for {dataset.n_samples} samples."
         )
-    if normalize_by_corrected_n_samples:
+    if normalize_by_n_samples:
+        weights = np.ones(dataset.n_samples) if weights is None else weights
         weights = utils__normalize_histogram_values(
-            weights, dataset.corrected_n_samples
+            weights, dataset.n_samples
         )
 
     if len(along_observables) == 1:
@@ -517,12 +814,7 @@ def utils__contour_model_prediction(
         along_observables: Union[List[str], str, None] = None,
         prediction_transform: Callable[[npt.NDArray], npt.NDArray] = np.exp,
 ):
-    """
-    Generate model prediction contour for 1D or 2D observables.
-
-    For 1D: returns (x_range, contour_1d)
-    For 2D: returns (x_range, y_range, contour_2d)
-    """
+    """Project model values by summing over unshown observables."""
     # Normalize input to list
     if along_observables is None:
         along_observables = [spanning_dataset.observable_names[0]]
@@ -533,19 +825,20 @@ def utils__contour_model_prediction(
     model_prediction = prediction_function(spanning_dataset)
     contour = prediction_transform(model_prediction)
     
-    # Average over bins across projected dimensions
-    unique_sliced_bin_centers, inverse_bin_indices = np.unique(
+    # Sum unshown grid points so their predicted excess accumulates at each
+    # projected prediction-grid coordinate. These are not histogram bin
+    # centers: histogram binning is constructed separately by the plotters.
+    unique_sliced_coordinates, inverse_coordinate_indices = np.unique(
         sliced_dataset.events,
         axis=0,
         return_inverse=True,
     )
-
-    contour_means = np.array([
-        contour[inverse_bin_indices == bin_index].mean()
-        for bin_index in range(len(unique_sliced_bin_centers))
+    projected_contour = np.array([
+        contour[inverse_coordinate_indices == coordinate_index].sum()
+        for coordinate_index in range(len(unique_sliced_coordinates))
     ])
 
-    return unique_sliced_bin_centers, contour_means
+    return unique_sliced_coordinates, projected_contour
 
 
 def utils__add_subplot_sliced(
@@ -558,9 +851,87 @@ def utils__add_subplot_sliced(
         return fig.add_subplot(*subplot_shape)
 
     panel = fig.add_subplot(*subplot_shape, projection="3d")
-    panel.view_init(elev=28, azim=-58)
+    panel.view_init(elev=28, azim=45)
     panel.set_box_aspect((1.2, 1.2, 0.9))
     return panel
+
+
+def utils__add_prediction_process_legend(
+    ax: plt.Axes, fontsize: float
+) -> None:
+    """Place a prediction-process legend below the title and against the left edge."""
+    legend = ax.legend(
+        fontsize=fontsize,
+        loc="upper left",
+        bbox_to_anchor=(0.02, 0.92),
+        borderaxespad=0,
+        framealpha=1.0,
+    )
+    legend.set_zorder(1000)
+
+
+def _plot_bordered_wireframe(
+    ax: plt.Axes,
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    z_values: np.ndarray,
+    color: str,
+    linewidth: float,
+    alpha: float,
+    linestyle: str = "-",
+) -> None:
+    """Draw a colored wireframe over a slightly wider black wireframe."""
+    wireframe_arguments = {
+        "linestyle": linestyle,
+        "alpha": alpha,
+    }
+    ax.plot_wireframe(
+        x_values,
+        y_values,
+        z_values,
+        color="black",
+        linewidth=linewidth + 2.0 * _MESH_BORDER_WIDTH,
+        **wireframe_arguments,
+    )
+    ax.plot_wireframe(
+        x_values,
+        y_values,
+        z_values,
+        color=color,
+        linewidth=linewidth,
+        **wireframe_arguments,
+    )
+
+
+def utils__prediction_process_observables(
+    context: ExecutionContext,
+    along_observables: Union[List[str], str, None],
+    required_dimensions: int,
+) -> List[str]:
+    """Select and validate observables for a dimensional prediction-process plot."""
+    if not isinstance(config := context.config, DetectorConfig):
+        raise ValueError("The context config is not a DetectorConfig.")
+
+    configured_observables = config.detector__detect_observable_names
+    if along_observables is None:
+        selected_observables = configured_observables[:required_dimensions]
+    elif isinstance(along_observables, str):
+        selected_observables = [along_observables]
+    else:
+        selected_observables = list(along_observables)
+
+    if len(selected_observables) != required_dimensions:
+        raise ValueError(
+            f"The {required_dimensions}D prediction-process plot requires exactly "
+            f"{required_dimensions} observable(s), got {len(selected_observables)}."
+        )
+    unknown_observables = set(selected_observables) - set(configured_observables)
+    if unknown_observables:
+        raise ValueError(
+            "Prediction-process observables are not configured for detection: "
+            f"{sorted(unknown_observables)}"
+        )
+    return selected_observables
 
 
 def utils__set_subplot_labels_sliced(
@@ -620,26 +991,48 @@ def utils__plot_region_histograms_sliced(
             histtype=histtype,
             alpha=alpha,
             lw=linewidth,
-            normalize_by_corrected_n_samples=normalize_distributions,
+            normalize_by_n_samples=normalize_distributions,
         )
 
+    _configure_region_histogram_panel_sliced(
+        ax=ax,
+        bins=bins,
+        along_observables=along_observables,
+        region_name=region_name,
+        normalize_distributions=normalize_distributions,
+        datasets=(background, sample_a, sample_b),
+    )
+
+
+def _configure_region_histogram_panel_sliced(
+    ax: plt.Axes,
+    bins: Union[np.ndarray, List[np.ndarray]],
+    along_observables: List[str],
+    region_name: str,
+    normalize_distributions: bool,
+    datasets: Tuple[DataSet, DataSet, DataSet],
+) -> None:
     if len(along_observables) == 2:
         if normalize_distributions:
             minimum_output = min(
-                1.0 / dataset.corrected_n_samples
-                for dataset in (background, sample_a, sample_b)
-                if dataset.corrected_n_samples > 0
+                1.0 / dataset.n_samples
+                for dataset in datasets
+                if dataset.n_samples > 0
             )
-            output_limits = (
-                minimum_output / 2.0,
-                max(minimum_output, ax.get_zlim()[1]),
-            )
+            minimum_visible_output = minimum_output / 2.0
+            maximum_visible_output = minimum_output
         else:
-            output_limits = (0.1, max(1.0, ax.get_zlim()[1]))
+            minimum_visible_output = 0.1
+            maximum_visible_output = 1.0
+        output_limits = (
+            np.log10(minimum_visible_output),
+            max(np.log10(maximum_visible_output), ax.get_zlim()[1]),
+        )
         ax.set_zlim(output_limits)
-        ax.set_zscale("log")
-        ax.zaxis.set_major_locator(ticker.LogLocator(base=10, numticks=4))
-        ax.zaxis.set_major_formatter(ticker.LogFormatterMathtext(base=10))
+        # Axes3D formats logarithmic ticks but does not transform 3D artist
+        # coordinates. The meshes and markers are transformed explicitly.
+        ax.zaxis.set_major_locator(ticker.MaxNLocator(nbins=4, integer=True))
+        ax.zaxis.set_major_formatter(ticker.FuncFormatter(_format_log10_output_tick))
 
     utils__set_subplot_labels_sliced(
         ax=ax,
@@ -657,6 +1050,77 @@ def utils__plot_region_histograms_sliced(
         else "number density functions"
     )
     ax.set_title(f"{region_name} {title_suffix}")
+
+
+def utils__plot_region_histogram_meshes_2d(
+    ax: plt.Axes,
+    sample_a: DataSet,
+    sample_b: DataSet,
+    background: DataSet,
+    bins: List[np.ndarray],
+    along_observables: List[str],
+    region_name: str,
+    background_color: str,
+    sample_a_color: str,
+    sample_b_color: str,
+    normalize_distributions: bool,
+) -> None:
+    """Draw A/B/background 2D histograms as wireframe meshes."""
+    if len(along_observables) != 2:
+        raise ValueError(
+            "The 2D histogram mesh renderer requires exactly two observables."
+        )
+
+    x_centers = 0.5 * (np.asarray(bins[0][:-1]) + np.asarray(bins[0][1:]))
+    y_centers = 0.5 * (np.asarray(bins[1][:-1]) + np.asarray(bins[1][1:]))
+    mesh_x, mesh_y = np.meshgrid(x_centers, y_centers, indexing="ij")
+    distribution_specs = (
+        (
+            background,
+            f"A-{region_name} + B-{region_name} (background)",
+            background_color,
+            0.75,
+            _DENSE_MESH_LINE_WIDTH,
+        ),
+        (sample_a, f"A-{region_name}", sample_a_color, 0.9, _MESH_LINE_WIDTH),
+        (sample_b, f"B-{region_name}", sample_b_color, 0.9, _MESH_LINE_WIDTH),
+    )
+
+    for dataset, label, color, alpha, linewidth in distribution_specs:
+        values = np.asarray(
+            dataset.slice_along_observable_names(along_observables)
+        ).reshape(dataset.n_samples, 2)
+        weights = None
+        if normalize_distributions:
+            weights = utils__normalize_histogram_values(
+                np.ones(dataset.n_samples), dataset.n_samples
+            )
+        counts, _, _ = np.histogram2d(
+            values[:, 0],
+            values[:, 1],
+            bins=bins,
+            weights=weights,
+        )
+        logarithmic_counts = _log10_positive_output_values(counts)
+        _plot_bordered_wireframe(
+            ax,
+            mesh_x,
+            mesh_y,
+            logarithmic_counts,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+        )
+        ax.plot([], [], [], color=color, linewidth=linewidth, label=label)
+
+    _configure_region_histogram_panel_sliced(
+        ax=ax,
+        bins=bins,
+        along_observables=along_observables,
+        region_name=region_name,
+        normalize_distributions=normalize_distributions,
+        datasets=(background, sample_a, sample_b),
+    )
 
 
 def utils__plot_weighted_histogram_predictions_sliced(
@@ -714,10 +1178,13 @@ def utils__plot_weighted_histogram_predictions_sliced(
             continue
 
         positive_counts = predicted_counts.ravel() > 0
+        logarithmic_counts = _log10_positive_output_values(
+            predicted_counts.ravel()[positive_counts]
+        )
         ax.scatter(
             prediction_xx.ravel()[positive_counts],
             prediction_yy.ravel()[positive_counts],
-            predicted_counts.ravel()[positive_counts],
+            logarithmic_counts,
             label=label,
             color=color,
             marker=marker,
@@ -725,6 +1192,12 @@ def utils__plot_weighted_histogram_predictions_sliced(
             edgecolor="black",
             linewidth=0.4,
         )
+        if logarithmic_counts.size:
+            current_lower_limit, current_upper_limit = ax.get_zlim()
+            ax.set_zlim(
+                current_lower_limit,
+                max(current_upper_limit, float(np.max(logarithmic_counts))),
+            )
 
 
 def utils__synchronize_output_axis_limits(
@@ -766,13 +1239,56 @@ def utils__project_prediction_values_sliced(
     spanning_dataset: DataSet,
     along_observables: List[str],
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Project already evaluated model values onto selected observables."""
+    """Project evaluated model values by summing over unselected observables."""
     return utils__contour_model_prediction(
         prediction_function=lambda _: values,
         spanning_dataset=spanning_dataset,
         along_observables=along_observables,
         prediction_transform=np.asarray,
     )
+
+
+def _surface_polygons(
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    z_values: np.ndarray,
+    maximum_axis_points: int = 50,
+) -> List[np.ndarray]:
+    """Convert a regular surface grid into finite quads for depth sorting."""
+    x_indices = np.unique(
+        np.append(
+            np.arange(
+                0,
+                len(x_values),
+                max(1, int(np.ceil((len(x_values) - 1) / maximum_axis_points))),
+            ),
+            len(x_values) - 1,
+        )
+    )
+    y_indices = np.unique(
+        np.append(
+            np.arange(
+                0,
+                len(y_values),
+                max(1, int(np.ceil((len(y_values) - 1) / maximum_axis_points))),
+            ),
+            len(y_values) - 1,
+        )
+    )
+    polygons = []
+    for x_start, x_end in zip(x_indices[:-1], x_indices[1:]):
+        for y_start, y_end in zip(y_indices[:-1], y_indices[1:]):
+            polygon = np.array(
+                [
+                    (x_values[x_start], y_values[y_start], z_values[x_start, y_start]),
+                    (x_values[x_end], y_values[y_start], z_values[x_end, y_start]),
+                    (x_values[x_end], y_values[y_end], z_values[x_end, y_end]),
+                    (x_values[x_start], y_values[y_end], z_values[x_start, y_end]),
+                ]
+            )
+            if np.all(np.isfinite(polygon)):
+                polygons.append(polygon)
+    return polygons
 
 
 def utils__plot_model_predictions_sliced(
@@ -850,23 +1366,34 @@ def utils__plot_model_predictions_sliced(
         ax.set_ylim(prediction_limits)
     else:
         if draw_as_steps:
-            x_values = np.asarray(bins[0])
-            y_values = np.asarray(bins[1])
+            reference_x_values = np.asarray(bins[0])
+            reference_y_values = np.asarray(bins[1])
         else:
-            x_values = np.unique(first_coordinates[:, 0])
-            y_values = np.unique(first_coordinates[:, 1])
-        prediction_xx, prediction_yy = np.meshgrid(
-            x_values, y_values, indexing="ij"
+            reference_x_values = np.unique(first_coordinates[:, 0])
+            reference_y_values = np.unique(first_coordinates[:, 1])
+
+        surface_polygons = _surface_polygons(
+            reference_x_values,
+            reference_y_values,
+            np.ones((len(reference_x_values), len(reference_y_values))),
         )
-        ax.plot_surface(
-            prediction_xx,
-            prediction_yy,
-            np.ones_like(prediction_xx),
-            color="gray",
-            linewidth=0,
-            alpha=0.06,
-            shade=False,
-        )
+        facecolors = [to_rgba("gray", 0.06)] * len(surface_polygons)
+        edgecolors = [to_rgba("gray", 0.0)] * len(surface_polygons)
+        linewidths = [0.0] * len(surface_polygons)
+
+        def add_prediction_surface(
+            x_values: np.ndarray,
+            y_values: np.ndarray,
+            contour_grid: np.ndarray,
+            color: str,
+            alpha: float,
+        ) -> None:
+            polygons = _surface_polygons(x_values, y_values, contour_grid)
+            surface_polygons.extend(polygons)
+            facecolors.extend([to_rgba(color, alpha)] * len(polygons))
+            edgecolors.extend([to_rgba(color, 0.8)] * len(polygons))
+            linewidths.extend([_MESH_BORDER_WIDTH] * len(polygons))
+
         for coordinates, contour, label, color, linestyle in predictions:
             if draw_as_steps:
                 x_values = np.repeat(np.asarray(bins[0]), 2)[1:-1]
@@ -883,17 +1410,12 @@ def utils__plot_model_predictions_sliced(
                 contour_grid = np.asarray(contour).reshape(
                     len(x_values), len(y_values)
                 )
-            prediction_xx, prediction_yy = np.meshgrid(
-                x_values, y_values, indexing="ij"
-            )
-            ax.plot_wireframe(
-                prediction_xx,
-                prediction_yy,
+            add_prediction_surface(
+                x_values,
+                y_values,
                 contour_grid,
                 color=color,
-                linestyle=linestyle,
-                linewidth=0.8,
-                alpha=0.9,
+                alpha=0.22,
             )
             ax.plot([], [], [], label=label, color=color, linestyle=linestyle)
         for coordinates, contour, _, color, linestyle in continuous_predictions or []:
@@ -902,18 +1424,23 @@ def utils__plot_model_predictions_sliced(
             continuous_grid = np.asarray(contour).reshape(
                 len(x_values), len(y_values)
             )
-            continuous_xx, continuous_yy = np.meshgrid(
-                x_values, y_values, indexing="ij"
-            )
-            ax.plot_wireframe(
-                continuous_xx,
-                continuous_yy,
+            add_prediction_surface(
+                x_values,
+                y_values,
                 continuous_grid,
                 color=color,
-                linestyle=linestyle,
-                linewidth=0.65,
-                alpha=0.8,
+                alpha=0.12,
             )
+        ax.add_collection3d(
+            Poly3DCollection(
+                surface_polygons,
+                facecolors=facecolors,
+                edgecolors=edgecolors,
+                linewidths=linewidths,
+                zsort="average",
+                shade=False,
+            )
+        )
         if draw_as_steps:
             ax.set_xticks(bins[0])
             ax.set_yticks(bins[1])
@@ -926,4 +1453,4 @@ def utils__plot_model_predictions_sliced(
         output_label="model prediction",
     )
     ax.set_title(title)
-    ax.legend(fontsize=7)
+    utils__add_prediction_process_legend(ax, fontsize=7)

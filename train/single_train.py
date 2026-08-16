@@ -1,4 +1,6 @@
-import numpy as np
+from typing import Optional
+
+import torch
 
 from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.data_utils import DataSet
@@ -9,17 +11,25 @@ from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import RESULTING_T_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
+from neural_networks.differentiating_model import LFVNN_DTYPE
 from neural_networks.utils import save_training_history_outcome
+from train.cpu_runtime import configure_cpu_runtime
 from train.model_trainer import (
+    ParallelTrainLauncher,
     SequentialTrainLauncher,
     TrainLauncher,
+    allocation_supports_parallel_training,
+    lfvnn_denominator_is_trainable,
+)
+from train.runtime_resources import (
+    RuntimeAllocation,
+    detect_runtime_allocation,
 )
 from train.tensorboard_clutch import log_t_history_to_tensorboard
 from train.train_config import TrainConfig
+from train.training_profiler import TrainingResourceProfiler
 from train.training_names import (
     SAMPLE_A_NAME,
-    SAMPLE_B_NAME,
-    training_name,
     training_names_for_sample,
 )
 
@@ -33,25 +43,61 @@ def main(context: ExecutionContext) -> None:
     if not isinstance(config, DatasetConfig):
         raise TypeError(f"Expected DatasetConfig, got {config.__class__.__name__}")
 
-    # Generate data
-    gen = DataGeneration(context)
-    batch = gen.get_batch()
-
-    # Simulate detector
-    det = DetectorEffect(context)
-    detected_batch = det.affect_and_compensate_batch(batch)
-
-    t_result = train_for_t(
+    allocation = detect_runtime_allocation(
+        requested_cpus=config.cluster__qsub_ncpus,
+        requested_gpus=config.cluster__qsub_ngpus_for_train,
+    )
+    configure_cpu_runtime(allocation.cpu_count)
+    resource_profiler = TrainingResourceProfiler(
         context=context,
-        data_batch=detected_batch,
-        detector_effect=det,
-        name=SAMPLE_A_NAME,
+        allocation=allocation,
+        requested_memory_gib=config.cluster__qsub_mem,
     )
 
-    ## Training log
-    context.save_and_document_text(
-        f"{t_result}\n", file_path=context.unique_out_dir / RESULTING_T_FILE_NAME
-    )
+    try:
+        with resource_profiler.stage("data generation"):
+            gen = DataGeneration(context)
+            batch = gen.get_batch()
+
+        with resource_profiler.stage("detector simulation"):
+            det = DetectorEffect(context)
+            detected_batch = det.affect_batch(batch)
+
+        with resource_profiler.stage("training"):
+            t_result = train_for_t(
+                context=context,
+                data_batch=detected_batch,
+                detector_effect=det,
+                name=SAMPLE_A_NAME,
+                allocation=allocation,
+                resource_profiler=resource_profiler,
+            )
+
+        context.save_and_document_text(
+            f"{t_result}\n", file_path=context.unique_out_dir / RESULTING_T_FILE_NAME
+        )
+    finally:
+        resource_profiler.save()
+
+
+def select_train_launcher_class(
+    config: TrainConfig,
+    allocation: RuntimeAllocation,
+) -> type[TrainLauncher]:
+    """Select the concrete execution strategy before constructing a launcher.
+
+    NPLM remains sequential.  LFVNN parallelism is useful only when both
+    numerator and denominator are trainable and the observed allocation can
+    give them independent CPU or GPU capacity.
+    """
+
+    if (
+        not config.train__like_NPLM
+        and lfvnn_denominator_is_trainable(config)
+        and allocation_supports_parallel_training(allocation)
+    ):
+        return ParallelTrainLauncher
+    return SequentialTrainLauncher
 
 
 def train_for_t(
@@ -59,16 +105,18 @@ def train_for_t(
     data_batch: DataBatch,
     detector_effect: DetectorEffect,
     name: str,
+    allocation: RuntimeAllocation,
+    resource_profiler: Optional[TrainingResourceProfiler] = None,
 ) -> float:
-    """
-    Call either a parallel launcher or the sequential training, according to config.
-    """
-    # Train for each max expression in the t value formula to obtain its value.
-    if context.config.train__run_symmetric_in_parallel:
-        raise NotImplementedError(
-            "Symmetric training in parallel is not yet implemented."
-        )
-    train_launcher = SequentialTrainLauncher(context, detector_effect)
+    """Select a launcher and train the paired objectives."""
+
+    launcher_class = select_train_launcher_class(context.config, allocation)
+    train_launcher = launcher_class(
+        context,
+        detector_effect,
+        allocation=allocation,
+        profiler=resource_profiler,
+    )
 
     training_names = training_names_for_sample(name)
 
@@ -99,8 +147,21 @@ def train_for_t(
             )
         )
     else:
-        numerator = np.asarray(numerator_training.history[HistoryKeys.LOSS.value])
-        denominator = np.asarray(denominator_training.history[HistoryKeys.LOSS.value])
+        training_dtype = (
+            numerator_training.model._dtype
+            if numerator_training.model is not None
+            else LFVNN_DTYPE
+        )
+
+        numerator = torch.as_tensor(
+            numerator_training.history[HistoryKeys.LOSS.value],
+            dtype=training_dtype,
+        ).numpy()
+        denominator = torch.as_tensor(
+            denominator_training.history[HistoryKeys.LOSS.value],
+            dtype=training_dtype,
+        ).numpy()
+
         t_history = {
             HistoryKeys.EPOCH.value: numerator_training.history[
                 HistoryKeys.EPOCH.value
@@ -137,22 +198,28 @@ def plot_training_prediction(
     ):
         return
 
-    from plot.plots import plot_prediction_process_sliced
+    # Plotting is optional and imports a comparatively heavy scientific stack.
+    # Keep it out of the training process until the trained models are ready.
+    from plot.plot_factory import PlotFactory
+    from plot.plotting_config import PlotInstructions
 
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
     ].name
-    model_name = numerator_training.name or training_name(base_name, is_numerator=True)
 
-    data_process_plot = plot_prediction_process_sliced(
-        context=context,
-        numerator_training=numerator_training,
-        denominator_training=denominator_training,
-        title=base_name + " prediction process",
+    data_process_plot = PlotFactory(context).generate_plot(
+        PlotInstructions(
+            name="plot_prediction_process",
+            instructions={
+                "numerator_training": numerator_training,
+                "denominator_training": denominator_training,
+                "title": base_name + " prediction process",
+            },
+        )
     )
     context.save_and_document_figure(
         data_process_plot,
-        context.unique_out_dir / f"{model_name}_data_process_plot.png",
+        context.unique_out_dir / f"dataset_process_plot.png",
     )
 
 

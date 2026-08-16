@@ -1,0 +1,12 @@
+{
+    "train__epochs": 3,
+    "train__number_of_epochs_for_checkpoint": 3,
+
+    "train__nn_input_dimension": 1,
+    "train__nn_inner_layer_nodes": 4,
+
+    "train__enable_progress_bar": false,
+    "train__profiling_enabled": true,
+    "train__profiling_warmup_epochs": 1,
+    "train__profiling_active_epochs": 2
+}

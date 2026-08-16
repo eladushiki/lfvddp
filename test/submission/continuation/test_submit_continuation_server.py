@@ -213,7 +213,10 @@ def test_submit_continue_advances_all_array_jobs(
         n_jobs=config.cluster__qsub_n_jobs,
     )
 
-    run_submit(build_submit_command(function_execution_context, out_dir, continue_training=True))
+    run_submit(build_submit_command(
+        function_execution_context,
+        continue_from=submit_run_dir,
+    ))
 
     submit_context = ExecutionContext.load_from_run_dir(submit_run_dir)
     second_job_id = submit_context.qsub_submissions[1]["job_id"]

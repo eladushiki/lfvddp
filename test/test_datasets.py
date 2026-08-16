@@ -4,6 +4,7 @@ import pytest
 
 from test.environment import ConfigType
 from data_tools.data_utils import DataSet
+from data_tools.dataset_config import DatasetConfig
 
 @pytest.mark.parametrize(
     "function_execution_context",
@@ -29,3 +30,36 @@ def test_dataset_normalization(
 
     np.testing.assert_array_almost_equal((normalized_A * norm_factor_A).events, A.events)
     np.testing.assert_array_almost_equal((normalized_B * norm_factor_B).events, B.events)
+
+
+def test_dataset_normalization_maps_constant_observables_to_zero():
+    dataset = DataSet(
+        np.array(
+            [
+                [2.0, 1.0],
+                [4.0, 1.0],
+                [6.0, 1.0],
+            ]
+        ),
+        observable_names=["varying", "constant"],
+    )
+
+    normalized, normalization_factor = dataset.get_normalized()
+
+    assert np.isfinite(normalized.events).all()
+    np.testing.assert_allclose(normalized.events[:, 0], [-1.0, 0.0, 1.0])
+    np.testing.assert_allclose(normalized.events[:, 1], 0.0)
+    np.testing.assert_allclose(
+        (normalized * normalization_factor).events,
+        dataset.events,
+    )
+
+
+def test_dataset_config_owns_signal_configuration_fields():
+    assert DatasetConfig.SIGNAL_EVENT_CONFIGURATION_FIELDS == {
+        "dataset__mean_number_of_signal_events",
+    }
+    assert DatasetConfig.SIGNAL_CONFIGURATION_FIELDS == {
+        "dataset__mean_number_of_signal_events",
+        "dataset__signal_generator",
+    }

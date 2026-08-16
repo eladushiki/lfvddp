@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import warning
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -11,17 +11,24 @@ class TrainConfig:
     train__number_of_epochs_for_checkpoint: int
 
     # NN parameters
-    train__nn_input_dimension: int
     train__nn_inner_layer_nodes: int
-    train__nn_output_dimension: int
+    train__nn_input_dimension: Optional[int] = None
+    @property
+    def train__nn_output_dimension(self) -> int:
+        return 1
     @property
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
     train__nn_xavier_gain: float = 4
     train__learning_rate: float = 0.001  # optimizer learning rate
+    train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
-    train__run_symmetric_in_parallel: bool = False
+    # Opt-in CPU profiling. The warmup epochs are observed by the profiler but
+    # omitted from its measurements; the following active epochs are recorded.
+    train__profiling_enabled: bool = False
+    train__profiling_warmup_epochs: int = 5
+    train__profiling_active_epochs: int = 10
     
     ## Training for nuisance parameters
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
@@ -56,11 +63,19 @@ class TrainConfig:
         )
         return total_params - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
 
-
     def __post_init__(self):
         self.validate()
 
     def validate(self):
+        if self.train__profiling_warmup_epochs < 0:
+            raise ValueError("Profiling warmup epochs cannot be negative.")
+        if self.train__profiling_active_epochs < 1:
+            raise ValueError("Profiling active epochs must be positive.")
+        if self.train__profiling_enabled and self.train__like_NPLM:
+            raise ValueError(
+                "Training profiling is only supported for LFVNN training."
+            )
+
         if self.train__epochs < 1e5 and self.train__like_NPLM or \
                 self.train__epochs < 5e5 and not self.train__like_NPLM:
             warning("Training epochs not sufficient, train may not converge")

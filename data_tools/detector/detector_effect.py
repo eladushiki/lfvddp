@@ -1,8 +1,7 @@
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
@@ -11,7 +10,9 @@ from data_tools.detector import error
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.efficiency import shapes, uncertainty
 from data_tools.detector.efficiency.shapes import DETECTOR_EFFICIENCY_TYPE
-from data_tools.detector.efficiency.uncertainty import DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE
+from data_tools.detector.efficiency.uncertainty import (
+    DETECTOR_EFFICIENCY_UNCERTAINTY_TYPE,
+)
 from data_tools.detector.error import DETECTOR_ERROR_TYPE
 from frame.context.execution_context import ExecutionContext
 from frame.module_retriever import retrieve_from_module
@@ -20,11 +21,7 @@ from frame.module_retriever import retrieve_from_module
 class DetectorEffect:  # TODO: binning functionality should be separated from the detector
     """
     Responsible for the interaction between the data and the detector.
-    Exported functions are divided into 2 parts:
-    - The application of the detector effects on the dataset, done with perfect knowledge using "_true_efficiency"
-    - The attempt to correct for the detector effects, done over binned data and with deviations from
-     the true efficiency due to simulated uncertainty. This is done using "_binned_efficiency_uncertainty"
-    Use them in the proper part of the generation/prediction process.
+    Applies detector efficiency and measurement error effects to datasets.
     """
     def __init__(
             self,
@@ -77,7 +74,6 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         self._true_efficiency = self.__retrieve_detector_efficiency_filter(dataset_parameters.dataset__detector_efficiency)
         self._error = self.__get_detector_error_inducer(dataset_parameters.dataset__detector_error)
 
-        # Statistics reconstruction mechanism
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(
             dataset_parameters.dataset__detector_efficiency_uncertainty
         )
@@ -88,17 +84,6 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
     @property
     def _uncertain_efficiency(self) -> DETECTOR_EFFICIENCY_TYPE:
         return self._efficiency_uncertainty(self._true_efficiency)
-
-    ## Data correction - uses theoretical knowledge only
-    @property
-    def _binned_uncertain_efficiency_compensator(self) -> Callable[[DataSet], np.ndarray]:
-
-        def __compensator(x: DataSet) -> np.ndarray:
-            bin_centers = self.get_event_bin_centers(x)
-            bin_centers = pd.DataFrame(bin_centers, columns=x.observable_names)
-            return np.ones(shape=(x.n_samples,)) / self._uncertain_efficiency(bin_centers)
-
-        return __compensator
 
     # Exported functions - uses DataSet
     def get_observable_bins(
@@ -120,7 +105,7 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         """
         Generate a filter for the dataset based on the true efficiency.
         """
-        dataset_efficiency = self._true_efficiency(dataset._data)
+        dataset_efficiency = self._uncertain_efficiency(dataset._data)
         return np.random.uniform(size=(dataset.n_samples,)) < dataset_efficiency
 
     def generate_errors(self, dataset: DataSet) -> np.ndarray:
@@ -153,29 +138,24 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         else:
             return np.column_stack(bin_centered_events)
 
-    def affect_and_compensate_batch(
+    def affect_batch(
         self,
         batch: DataBatch,
     ) -> DataBatch:
         """
-        Apply the detector effect to a batch of datasets and compensate for the efficiency.
+        Apply the detector effect to a batch of datasets.
         """
         affected_datasets = []
         for dataset, dataset_parameters in batch:
-            affected_dataset = self.affect_and_compensate(dataset, dataset_parameters)
+            affected_dataset = self.affect_dataset(dataset, dataset_parameters)
             affected_datasets.append((affected_dataset, dataset_parameters))
         return DataBatch(affected_datasets)
 
-    def affect_and_compensate(
+    def affect_dataset(
             self,
             dataset: DataSet,
             dataset_parameters: DatasetParameters,
-            is_display: bool = False,
         ) -> DataSet:
-        # For graphing purposes only
-        if is_display:
-            original_dataset = dataset.create_copy()
-
         # Update internal state for detection
         self.detection_parameters = dataset_parameters
 
@@ -189,21 +169,5 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         # Induce detector errors of the true measurements
         errors = self.generate_errors(affected_dataset)
         affected_dataset._data += errors
-
-        # Leave compensating weights that are approximate opposite to the efficiency
-        compensating_weights = self._binned_uncertain_efficiency_compensator(affected_dataset)
-        affected_dataset._weight_mask *= compensating_weights
-
-        if is_display:
-            from plot.plots import plot_data_generation_sliced  # This breaks import hierarchy
-            figure = plot_data_generation_sliced(
-                context=self._context,
-                original_sample=original_dataset,
-                processed_sample=affected_dataset,
-                observable=affected_dataset.observable_names[0],
-            )
-            self._context.save_and_document_figure(
-                figure, self._context.unique_out_dir / f"{dataset_parameters.name}_data_process_plot.png"
-            )
 
         return affected_dataset

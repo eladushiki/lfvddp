@@ -1,24 +1,26 @@
+import random
+from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import torch
+import train.submit_train as submit_train
 
 from frame.cluster.cluster_config import ClusterConfig
-from frame.cluster.walltime import split_walltime
+from frame.cluster.walltime import parse_walltime, split_walltime
 from frame.context.execution_context import (
     ExecutionContext,
     create_config_from_paramters,
 )
 from frame.context.run_descriptor import build_run_descriptor
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     SINGLE_TRAIN_SCRIPT_NAME,
     TRAINING_OUTCOMES_DIR_NAME,
 )
 from frame.file_system.textual_data import load_config_file
 from test.environment import DEFAULT_CONFIG_PATHS
 from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
-from train.submit_train import (
-    _replace_or_append_continue_from,
-)
 
 
 def _cluster_config(walltime: str, walltime_limit: str = "72:00:00") -> ClusterConfig:
@@ -36,15 +38,19 @@ def _cluster_config(walltime: str, walltime_limit: str = "72:00:00") -> ClusterC
     )
 
 
-def _quick_termination_config(parent_dir):
+def _quick_termination_config(
+    parent_dir,
+    walltime: str = "0:01:00",
+    walltime_limit: str = "72:00:00",
+):
     config_params = {}
     for config_path in DEFAULT_CONFIG_PATHS.values():
         config_params.update(load_config_file(config_path))
-    config_params["cluster__qsub_walltime"] = "0:01:00"
+    config_params["cluster__qsub_walltime"] = walltime
+    config_params["cluster__qsub_walltime_limit"] = walltime_limit
     return create_config_from_paramters(
         config_params,
         out_dir=str(parent_dir),
-        plot_in_place=True,
     )
 
 
@@ -61,7 +67,7 @@ def _specific_train_context(
         run_descriptor=run_descriptor,
         array_index=array_index,
         is_debug_mode=True,
-        is_no_build=True,
+        is_build_container=False,
         is_only_train=True,
     )
 
@@ -84,10 +90,23 @@ def test_cluster_config_serves_walltime_chunks():
     assert config.cluster__qsub_needs_continuation
 
     first_chunk = config.next_walltime_chunk()
-    second_chunk = config.next_walltime_chunk(1)
+    second_chunk = config.next_walltime_chunk(
+        submitted_walltime_seconds=parse_walltime(first_chunk)
+    )
 
     assert first_chunk == "72:00:00"
     assert second_chunk == "1:00:00"
+
+
+def test_cluster_config_adds_walltime_after_a_short_original_chunk():
+    config = _cluster_config("12:00:00")
+
+    config.add_walltime("24:00:00")
+
+    assert config.cluster__qsub_total_walltime == "36:00:00"
+    assert config.next_walltime_chunk(
+        submitted_walltime_seconds=parse_walltime("12:00:00")
+    ) == "24:00:00"
 
 
 def test_cluster_config_uses_configured_walltime_limit():
@@ -103,22 +122,85 @@ def test_cluster_config_uses_configured_walltime_limit():
     assert config.cluster__qsub_needs_continuation
 
 
-def test_replace_or_append_continue_from_normalizes_argument():
-    assert _replace_or_append_continue_from(
-        ["--debug", "--continue-from", "/host/results"],
-        "/app/results",
-    ) == ["--debug", "--continue-from", "/app/results", "--continue"]
+def test_continued_submission_uses_only_the_saved_context(
+    monkeypatch,
+    request,
+    tmp_path,
+):
+    python_random_state = random.getstate()
+    numpy_random_state = np.random.get_state()
+    torch_random_state = torch.random.get_rng_state()
+    request.addfinalizer(lambda: random.setstate(python_random_state))
+    request.addfinalizer(lambda: np.random.set_state(numpy_random_state))
+    request.addfinalizer(lambda: torch.random.set_rng_state(torch_random_state))
+    context = ExecutionContext(
+        commit_hash="abc",
+        config=_quick_termination_config(
+            tmp_path,
+            walltime="0:02:00",
+            walltime_limit="0:01:00",
+        ),
+        config_paths=[tmp_path / "source-that-must-not-be-read.json"],
+        command_line_args=["submit_train.py", "--configs", "original.json", "--debug"],
+        is_debug_mode=True,
+        is_build_container=False,
+        is_only_train=True,
+        is_continue=True,
+        continue_from=tmp_path,
+    )
+    submitted_commands = []
 
-    assert _replace_or_append_continue_from(
-        ["--debug", "--continue-from=/host/results"],
-        "/app/results",
-    ) == ["--debug", "--continue-from=/app/results", "--continue"]
+    monkeypatch.setattr(
+        submit_train,
+        "get_relpath_from_local_root",
+        lambda _: Path("prior-run"),
+    )
+    monkeypatch.setattr(
+        submit_train,
+        "submit_command",
+        lambda **kwargs: submitted_commands.append(kwargs["command"]) or "12345",
+    )
 
-    assert _replace_or_append_continue_from(
-        ["--debug"],
-        "/app/results",
-        include_continue_flag=False,
-    ) == ["--debug", "--continue-from", "/app/results"]
+    submit_train.submit_process.__wrapped__(context)
+
+    assert submitted_commands == [
+        "python train/single_train.py --continue prior-run "
+        f"--epochs-target {context.config.train__epochs}"
+    ]
+    assert context.qsub_submissions[0]["walltime"] == "0:01:00"
+    assert context.next_qsub_walltime_chunk() == "0:01:00"
+    assert not (context.unique_out_dir / CONFIGS_DIR_NAME).exists()
+
+
+def test_staged_configs_preserve_order_and_equal_basenames(tmp_path, monkeypatch):
+    first_source = tmp_path / "first" / "config.json"
+    second_source = tmp_path / "second" / "config.json"
+    first_source.parent.mkdir()
+    second_source.parent.mkdir()
+    first_source.write_text('{"value": 1}')
+    second_source.write_text('{"value": 2}')
+    run_directory = tmp_path / "run"
+    run_directory.mkdir()
+    context = SimpleNamespace(
+        unique_out_dir=run_directory,
+        config_paths=[first_source, second_source],
+        config=SimpleNamespace(config__out_dir="results/run"),
+    )
+    monkeypatch.setattr(
+        submit_train,
+        "path_as_in_container",
+        lambda _: Path("/app/results/run/configs"),
+    )
+
+    staged_directory = submit_train._stage_config_files(context)
+
+    assert staged_directory == "/app/results/run/configs"
+    assert (run_directory / "configs" / "0000_config.json").read_text() == (
+        '{"value": 1}'
+    )
+    assert (run_directory / "configs" / "0001_config.json").read_text() == (
+        '{"value": 2}'
+    )
 
 
 def test_checkpoint_discovery_uses_single_latest_path_per_array_index(tmp_path):

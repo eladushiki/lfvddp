@@ -1,22 +1,31 @@
 from pathlib import Path
+
 import pytest
-from test.environment import ConfigType
+
 from data_tools.data_utils import DataSet
+from test.environment import ConfigType
 
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{
-        ConfigType.DATASET.value: Path("test/configs/dataset/cms_open_dataset_json.json"),
-    }, {
-        ConfigType.DATASET.value: Path("test/configs/dataset/cms_open_dataset_txt.json"),
-    }],
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/cms_open_dataset_root.json"
+            ),
+        }
+    ],
     indirect=True,
 )
-@pytest.mark.xfail  # Currently importing online root file from pytest context fails
-def test_input_modes(
-    data_generation,
+@pytest.mark.integration
+@pytest.mark.remote
+def test_remote_root_input_honors_event_limit(
+    function_execution_context,
 ):
-    ds, _ = data_generation[DataSet.DataSetCategory.A_SR]
+    parameters = function_execution_context.config.get_parameters(
+        DataSet.DataSetCategory.A_SR
+    )
+    dataset, _ = parameters.dataset__data
 
-    assert ds.n_samples > 5
+    assert dataset.n_samples == parameters.dataset_loaded__event_amount_load_limit
+    assert dataset.observable_names == ["run", "event"]
