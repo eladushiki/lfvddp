@@ -2,7 +2,7 @@ from math import fsum
 from typing import Callable, Union
 import numpy as np
 from scipy.integrate import IntegrationWarning, cubature, nquad
-from scipy.special import erfinv
+from scipy.special import erfinv, kl_div, rel_entr
 from scipy.stats import norm, chi2
 from warnings import catch_warnings, simplefilter, warn
 
@@ -153,108 +153,6 @@ def _one_dimensional_integration_regions(
     ]
 
 
-def _poisson_asimov_q0_density(
-        signal_rate_density: np.ndarray,
-        background_rate_density: np.ndarray,
-) -> np.ndarray:
-    """Return the non-negative pointwise q0 density without subtracting totals."""
-    q0_density = np.zeros_like(signal_rate_density, dtype=float)
-    signal_present = signal_rate_density > 0
-    no_background = signal_present & (background_rate_density == 0)
-    q0_density[no_background] = np.inf
-
-    regular = signal_present & (background_rate_density > 0)
-    signal = signal_rate_density[regular]
-    background = background_rate_density[regular]
-    ratio = signal / background
-
-    # (1 + r) log(1 + r) - r loses most of its precision for small r.
-    # Its series keeps low-significance calculations stable when event totals
-    # are large and signal/background is correspondingly small.
-    small_ratio = ratio < 1e-4
-    divergence = np.zeros_like(ratio)
-    small = ratio[small_ratio]
-    divergence[small_ratio] = small**2 * (
-        1 / 2 + small * (-1 / 6 + small * (1 / 12 - small / 20))
-    )
-    ordinary = ~small_ratio & np.isfinite(ratio)
-    divergence[ordinary] = (
-        (1 + ratio[ordinary]) * np.log1p(ratio[ordinary])
-        - ratio[ordinary]
-    )
-    regular_q0_density = 2 * background * divergence
-
-    overflowed_ratio = ~np.isfinite(ratio)
-    if np.any(overflowed_ratio):
-        overflowed_signal = signal[overflowed_ratio]
-        overflowed_background = background[overflowed_ratio]
-        log_one_plus_ratio = (
-            np.logaddexp(
-                np.log(overflowed_signal),
-                np.log(overflowed_background),
-            )
-            - np.log(overflowed_background)
-        )
-        regular_q0_density[overflowed_ratio] = 2 * (
-            (overflowed_signal + overflowed_background) * log_one_plus_ratio
-            - overflowed_signal
-        )
-
-    q0_density[regular] = regular_q0_density
-    return q0_density
-
-
-def _calc_multidimensional_q0_by_cubature(
-        background_pdf: Callable[[np.ndarray], Union[float, np.ndarray]],
-        signal_pdf: Callable[[np.ndarray], Union[float, np.ndarray]],
-        n_background_events: int,
-        n_signal_events: int,
-        upper_limits: np.ndarray,
-) -> float:
-    """Estimate multidimensional q0 with adaptive vectorized cubature."""
-    if not np.all(np.isfinite(upper_limits)):
-        raise ValueError("Multidimensional integration upper limits must be finite")
-
-    number_of_dimensions = upper_limits.size
-
-    def q0_integrand(points: np.ndarray) -> np.ndarray:
-        signal_rate_density = n_signal_events * _pdf_densities_at_points(
-            signal_pdf, points
-        )
-        background_rate_density = n_background_events * _pdf_densities_at_points(
-            background_pdf, points
-        )
-        return _poisson_asimov_q0_density(
-            signal_rate_density,
-            background_rate_density,
-        )
-
-    result = cubature(
-        q0_integrand,
-        np.zeros(number_of_dimensions),
-        upper_limits,
-        rule=_CUBATURE_RULE,
-        rtol=_CUBATURE_RELATIVE_TOLERANCE,
-        atol=_CUBATURE_ABSOLUTE_TOLERANCE,
-        max_subdivisions=_CUBATURE_MAX_SUBDIVISIONS,
-    )
-    q0 = np.asarray(result.estimate).item()
-    estimated_error = np.asarray(result.error).item()
-
-    if np.isposinf(q0):
-        return q0
-    if not np.isfinite(q0) or not np.isfinite(estimated_error):
-        raise ValueError("Multidimensional significance integration was non-finite")
-    if result.status != "converged":
-        warn(
-            "Multidimensional significance reached its cubature subdivision "
-            f"cap with estimated error {estimated_error:g}",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-    return q0
-
-
 def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_pdf: Callable[
             [Union[float, np.ndarray]], Union[float, np.ndarray]
@@ -285,27 +183,52 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_rate_density = n_background_events * _pdf_density_at_coordinates(
             background_pdf, coordinates
         )
-
-        # Both PDFs can underflow to zero in a sufficiently remote tail. The
-        # limiting contribution there is zero, whereas evaluating the original
-        # expression directly produces 0 / 0 and poisons the quadrature.
-        if signal_rate_density == 0:
-            return 0.0
-        if background_rate_density == 0:
-            return np.inf
-
-        return (
-            signal_rate_density + background_rate_density
-        ) * np.log1p(signal_rate_density / background_rate_density)
+        return rel_entr(
+            signal_rate_density + background_rate_density,
+            background_rate_density,
+        )
 
     if upper_limits.size > 1:
-        q0 = _calc_multidimensional_q0_by_cubature(
-            background_pdf,
-            signal_pdf,
-            n_background_events,
-            n_signal_events,
+        if not np.all(np.isfinite(upper_limits)):
+            raise ValueError(
+                "Multidimensional integration upper limits must be finite"
+            )
+
+        def q0_integrand(points: np.ndarray) -> np.ndarray:
+            signal_rate_density = n_signal_events * _pdf_densities_at_points(
+                signal_pdf, points
+            )
+            background_rate_density = (
+                n_background_events
+                * _pdf_densities_at_points(background_pdf, points)
+            )
+            return 2 * kl_div(
+                signal_rate_density + background_rate_density,
+                background_rate_density,
+            )
+
+        result = cubature(
+            q0_integrand,
+            np.zeros(upper_limits.size),
             upper_limits,
+            rule=_CUBATURE_RULE,
+            rtol=_CUBATURE_RELATIVE_TOLERANCE,
+            atol=_CUBATURE_ABSOLUTE_TOLERANCE,
+            max_subdivisions=_CUBATURE_MAX_SUBDIVISIONS,
         )
+        q0 = np.asarray(result.estimate).item()
+        estimated_error = np.asarray(result.error).item()
+        if not np.isfinite(q0) or not np.isfinite(estimated_error):
+            raise ValueError(
+                "Multidimensional significance integration was non-finite"
+            )
+        if result.status != "converged":
+            warn(
+                "Multidimensional significance reached its cubature subdivision "
+                f"cap with estimated error {estimated_error:g}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
     else:
         try:
             with catch_warnings():

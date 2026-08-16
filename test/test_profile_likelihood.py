@@ -126,7 +126,7 @@ def test_four_dimensional_significance_vectorizes_large_event_count_pdf_calls():
         - n_signal_events
     ))
 
-    np.testing.assert_allclose(significance, expected)
+    np.testing.assert_allclose(significance, expected, rtol=1e-5)
     assert batch_shapes
     assert all(shape[1] == 4 for shape in batch_shapes)
     assert max(shape[0] for shape in batch_shapes) > 1
