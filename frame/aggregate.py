@@ -7,7 +7,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from data_tools.dataset_config import DatasetConfig, DatasetParameters
-from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
@@ -182,13 +181,12 @@ class ResultAggregator:
         injected_significances = []
         for context in self._run_contexts:
             signal_dataset_parameters = utils__get_signal_dataset_parameters(context)
-            detector_config: DetectorConfig = context.config
             injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
                 background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
                 signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
                 n_background_events=signal_dataset_parameters.dataset__number_of_background_events,
                 n_signal_events=signal_dataset_parameters.dataset__number_of_signal_events,
-                upper_limit=detector_config.detector__binning_maxima[0], # ohhh this is going to break at dim>=2
+                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
             ))
 
         return np.array(injected_significances)
