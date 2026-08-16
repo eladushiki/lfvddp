@@ -1,0 +1,41 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Significance Estimation}
+
+The significance estimation of a $\invllratio$ value is carried out in several different ways;
+
+\begin{itemize}
+    \item Theoretic significance from PDFs
+
+    If analytic expressions of the PDFs of the distributions are known, we can express
+
+    \begin{equation}
+    \label{eq:analytic_significance_from_pdfs}
+        Z_\text{analytic} = \sqrt{\invllratio} = \sqrt{
+            2 \left( -N_s + \int\limits_{\anyevent} d\anyevent (N_b(\anyevent) + N_s(\anyevent)) \log \dfrac{N_s(\anyevent) + N_b(\anyevent)}{N_b(\anyevent)} \right)
+        }
+    \end{equation}
+
+    with $N_s$ the NDF of signal events at a point $\event$ and $N_b$ the number of background events.
+
+    \item Binned evident significance from run parameters
+
+    If the NDFs are not necessarily known, but the mean amount of events is chosen when generating the datasets, we can rewrite
+
+    \begin{equation}
+        Z_\text{evident} = \sqrt{\invllratio} = \sqrt{
+            2 \left( -N_s + \sum\limits_{\event} d\anyevent (N_b(\event) + N_s(\event)) \log \dfrac{N_s(\event) + N_b(\event)}{N_b(\event)} \right)
+        }
+    \end{equation}
+
+    \item Black box relative to $\chi^2$
+
+    After running a toy experiment for many times with a true null hypothesis behind the generated data, as is later seen in Section~\ref{sec:reproduction}, we have a solid estimation of the distribution of $\invllratio$. By either fitting to a $\chi^2$ or counting the relative number of occurrences with lower $\invllratio$, we can estimate the significance with which we can claim for a discovery from a single $\invllratio$. In practice, we repeat the process and take the significance of the mean.
+    
+\end{itemize}
+
+\end{document}
