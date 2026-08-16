@@ -66,9 +66,14 @@
 %% Hypothesis testing
 \newcommand{\hypothesis}[1]{{\mathcal{H}_{#1}}}
 \newcommand{\nullhypothesis}{{\hypothesis{0}}}
-%%% Parameters
-\newcommand{\param}{{\theta}}
-\newcommand{\nparam}{{\eta}}
+%%% Parameterizations and pdfs
+\newcommand{\pdf}{{\lambda}}
+\newcommand{\param}{{\mu}}
+\newcommand{\nparam}{{\theta}}
+\newcommand{\parametrized}[1]{{#1}_{\nparam}^{\param}}
+\newcommand{\parampdf}{{\parametrized{\pdf}}}
+\newcommand{\paramf}{{f^{\param}}}
+\newcommand{\paramg}{{g^{\param}}}
 
 %% Hypotheses
 %%% Distributions
