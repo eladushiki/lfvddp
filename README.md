@@ -38,7 +38,7 @@ todo: this name is hardcoded in `parameters.py`, to be improved in the future.
 
 `source` the a Python interpreter each time you open a shell (may be configured to happen automatically in an IDE) from CERN's CVMFS, using:
 
-> source  /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh
+> source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
 
 installation instructions for the filesystem can be found in [this link](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html).
 
@@ -59,7 +59,8 @@ upon installation (restart afterwards), and
 Each time the systems is up (may be configured to happen automatically in vairous ways).
 ### Local Venv:
 
-Use your local python installation, creating a virtual environment for the installation of the specific dependency version needed. Any newer Python interpreters should work, but run up untill now are done with Python 3.9 to 3.10.
+Use Python 3.11 or newer, creating a virtual environment for the installation
+of the specific dependency versions needed.
 
 Then, it is customary to run
 
@@ -372,10 +373,9 @@ where density falls to 1% of its peak, gamma-like bounds use a tail quantile, an
 explicitly truncated distributions use `domain_max`.
 The integration ceiling is the coordinate-wise maximum of the signal and background
 bounds. One-dimensional significance keeps adaptive quadrature. Multidimensional
-significance instead uses vectorized, scrambled Sobol quadrature with a 2% target
-for the estimated relative standard error of q0 and a fixed evaluation cap. This
-makes its runtime depend on the dimension and PDF cost, not on the configured event
-count, and prevents adaptive quadrature from expanding indefinitely. Built-in PDFs
+significance uses SciPy's vectorized adaptive cubature with the Genz-Malik rule, a
+0.5% relative error target, and a fixed subdivision cap. This makes its runtime depend
+on the dimension and PDF cost, not on the configured event count. Built-in PDFs
 support batch evaluation; custom scalar-only PDFs remain supported through a slower
 fallback. Signal generation fails with a clear error if any coordinate exceeds its
 declared bound, indicating that `domain_max` must be increased.

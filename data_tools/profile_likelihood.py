@@ -1,9 +1,9 @@
 from math import fsum
 from typing import Callable, Union
 import numpy as np
-from scipy.integrate import IntegrationWarning, nquad, qmc_quad
+from scipy.integrate import IntegrationWarning, cubature, nquad
 from scipy.special import erfinv
-from scipy.stats import norm, chi2, qmc
+from scipy.stats import norm, chi2
 from warnings import catch_warnings, simplefilter, warn
 
 
@@ -11,13 +11,10 @@ _MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
 _QUADRATURE_SUBDIVISION_LIMIT = 200
 _QUADRATURE_ABSOLUTE_TOLERANCE = 1e-3
 _QUADRATURE_RELATIVE_TOLERANCE = 1e-4
-_QMC_ESTIMATE_COUNT = 8
-_QMC_INITIAL_POINTS_PER_ESTIMATE = 2**10
-_QMC_MAX_POINTS_PER_ESTIMATE = 2**18
-_QMC_POINT_GROWTH_FACTOR = 4
-_QMC_ABSOLUTE_ERROR_TOLERANCE = 1e-3
-_QMC_RELATIVE_ERROR_TOLERANCE = 2e-2
-_QMC_SEED = 0
+_CUBATURE_RULE = "genz-malik"
+_CUBATURE_MAX_SUBDIVISIONS = 10_000
+_CUBATURE_ABSOLUTE_TOLERANCE = 1e-3
+_CUBATURE_RELATIVE_TOLERANCE = 5e-3
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -207,82 +204,55 @@ def _poisson_asimov_q0_density(
     return q0_density
 
 
-def _calc_multidimensional_q0_by_qmc(
+def _calc_multidimensional_q0_by_cubature(
         background_pdf: Callable[[np.ndarray], Union[float, np.ndarray]],
         signal_pdf: Callable[[np.ndarray], Union[float, np.ndarray]],
         n_background_events: int,
         n_signal_events: int,
         upper_limits: np.ndarray,
 ) -> float:
-    """Estimate multidimensional q0 with bounded, vectorized QMC quadrature."""
+    """Estimate multidimensional q0 with adaptive vectorized cubature."""
     if not np.all(np.isfinite(upper_limits)):
         raise ValueError("Multidimensional integration upper limits must be finite")
 
     number_of_dimensions = upper_limits.size
 
-    def q0_integrand(
-            coordinates: np.ndarray,
-    ) -> Union[float, np.ndarray]:
-        coordinate_array = np.asarray(coordinates)
-        is_single_point = coordinate_array.ndim == 1
-        points = (
-            coordinate_array[np.newaxis, :]
-            if is_single_point
-            else coordinate_array.T
-        )
+    def q0_integrand(points: np.ndarray) -> np.ndarray:
         signal_rate_density = n_signal_events * _pdf_densities_at_points(
             signal_pdf, points
         )
         background_rate_density = n_background_events * _pdf_densities_at_points(
             background_pdf, points
         )
-        densities = _poisson_asimov_q0_density(
+        return _poisson_asimov_q0_density(
             signal_rate_density,
             background_rate_density,
         )
-        return densities.item() if is_single_point else densities
 
-    points_per_estimate = _QMC_INITIAL_POINTS_PER_ESTIMATE
-    while True:
-        result = qmc_quad(
-            q0_integrand,
-            np.zeros(number_of_dimensions),
-            upper_limits,
-            n_estimates=_QMC_ESTIMATE_COUNT,
-            n_points=points_per_estimate,
-            qrng=qmc.Sobol(
-                d=number_of_dimensions,
-                scramble=True,
-                seed=_QMC_SEED,
-            ),
+    result = cubature(
+        q0_integrand,
+        np.zeros(number_of_dimensions),
+        upper_limits,
+        rule=_CUBATURE_RULE,
+        rtol=_CUBATURE_RELATIVE_TOLERANCE,
+        atol=_CUBATURE_ABSOLUTE_TOLERANCE,
+        max_subdivisions=_CUBATURE_MAX_SUBDIVISIONS,
+    )
+    q0 = np.asarray(result.estimate).item()
+    estimated_error = np.asarray(result.error).item()
+
+    if np.isposinf(q0):
+        return q0
+    if not np.isfinite(q0) or not np.isfinite(estimated_error):
+        raise ValueError("Multidimensional significance integration was non-finite")
+    if result.status != "converged":
+        warn(
+            "Multidimensional significance reached its cubature subdivision "
+            f"cap with estimated error {estimated_error:g}",
+            RuntimeWarning,
+            stacklevel=2,
         )
-        q0 = float(result.integral)
-        standard_error = float(result.standard_error)
-
-        if np.isposinf(q0):
-            return q0
-        if not np.isfinite(q0) or not np.isfinite(standard_error):
-            raise ValueError("Multidimensional significance integration was non-finite")
-
-        tolerated_error = max(
-            _QMC_ABSOLUTE_ERROR_TOLERANCE,
-            _QMC_RELATIVE_ERROR_TOLERANCE * q0,
-        )
-        if standard_error <= tolerated_error:
-            return q0
-        if points_per_estimate == _QMC_MAX_POINTS_PER_ESTIMATE:
-            warn(
-                "Multidimensional significance reached its QMC evaluation cap "
-                f"with estimated relative error {standard_error / q0:.1%}",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return q0
-
-        points_per_estimate = min(
-            points_per_estimate * _QMC_POINT_GROWTH_FACTOR,
-            _QMC_MAX_POINTS_PER_ESTIMATE,
-        )
+    return q0
 
 
 def calc_injected_t_significance_by_sqrt_q0_continuous(
@@ -329,7 +299,7 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         ) * np.log1p(signal_rate_density / background_rate_density)
 
     if upper_limits.size > 1:
-        q0 = _calc_multidimensional_q0_by_qmc(
+        q0 = _calc_multidimensional_q0_by_cubature(
             background_pdf,
             signal_pdf,
             n_background_events,
