@@ -32,7 +32,7 @@
 
 \begin{frame}{Observing Events}
     \begin{itemize}
-        \item We consider stochastic physical processes, to measure which we repeat the same experiment many time and gather statistics of the results.
+        \item We consider stochastic physical processes, to measure which we repeat the same experiment many times and gather statistics of the results.
         \item Each repetition is an event, and we gather such to create datasets, and represent them as some $k$ physical quantities that we measure them by:
     \end{itemize}
     \begin{equation}
@@ -43,32 +43,54 @@
     \end{itemize}
     \begin{equation}
         \label{eq:parametrized_distribution}
-        \lambda_{\theta}(\anyevent) = e^{f_\theta(\anyevent)}\refdist
+        \parampdf(\anyevent) = e^{f_{\nparam}^{\param}(\anyevent)}\refdist
     \end{equation}
+    \begin{itemize}
+        \item where $\param$s are the parameters of interest, and $\nparam$s are nuisance parameters that compose $f$.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Distribution Likelihood}
     \begin{itemize}
-        \item Likelihood of a distribution given an observation $\dataset{A}$
+        \item Likelihood of a distribution given an observation $\dataset{A}$ is the probability of observing $\dataset{A}$ given the distribution
     \end{itemize}
     \begin{equation}
-        \likelihood(\lambda_{\param} | \dataset{A}) = P(\dataset{A} | \lambda_{\param})
+        \likelihood(\parampdf | \dataset{A}) = P(\dataset{A} | \parampdf)
     \end{equation}
     \begin{itemize}
-        \item Likelihood of a dataset generated from Poisson statistics
+        \item Likelihood of a dataset generated from Poisson statistics then becomes
     \end{itemize}
     \begin{equation}
-        \likelihood(\lambda_{\param} | \dataset{A})
-        = \dfrac{e^{-N_{\dataset{A}}(\param)}}{N_{\dataset{A}}!}
-        \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
-        = \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
-        \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+        \likelihood(\parampdf | \dataset{A})
+        = \dfrac{e^{-N_{\dataset{A}}(\param, \nparam)}}{N_{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
+        = \dfrac{e^{-\int \parampdf(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
     \end{equation}
     \begin{itemize}
         \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
     \end{itemize}
     \begin{equation}
-        \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{f(\event)} \refdist[\event]\big) + C_\dataset{A}
+        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} \refdist[\event]\big) + C_\dataset{A}
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Neymann - Pearson}
+    \begin{lemma}
+        \textbf{Neymann - Pearson:} The most discriminative test statistic for testing a signal hypothesis vs the null hypothesis, at a given significance level $\alpha$, is the test if the profile likelihood ratio is greater thatn some threshold $\eta$, defined as
+    \end{lemma}
+    \begin{equation}
+        \Lambda(\mu) = \dfrac{
+            \likelihood(\hat{\mu},\hat{\theta})
+        }{
+            \likelihood(\mu = 0, \hat{\hat{\theta}})
+        } > \eta
+    \end{equation}
+    \begin{block}{}
+        when $\eta$ is chosen such that the probability of rejecting the null hypothesis when it is true is $\alpha$:
+    \end{block}
+    \begin{equation}
+        P(\Lambda(\mu) \geq \eta | \nullhypothesis \text{ is true}) = \alpha
     \end{equation}
 \end{frame}
 
@@ -96,7 +118,6 @@
     \begin{itemize}
         \item We consider two pairs of datasets, as follows;
     \end{itemize}
-
     \begin{table}[ht]%[H] add [H] placement to break table across pages
         \caption{\label{table:division_of_data}}
         \begin{tabular}{| l | c | c |}
@@ -107,19 +128,16 @@
             \end{tabular}
         \caption{Division of available data from different cuts into subsets for signal and control regions.}
     \end{table}
-
     \begin{itemize}
-        \item Datasets $\dataset{A}$ and $\dataset{B}$ in either region differ by some symmetric phsyical quantity. In our case, lepton flavor.
         \item Signal and control regions are created using disjoint cuts. We assume the control region has no new physics to be discovered, while we search for it in the signal region.
+        \item Datasets $\dataset{A}$ and $\dataset{B}$ in either region differ by some symmetric phsyical quantity. In our case, lepton flavor.
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Hypotheses}
-    
     \begin{itemize}
-        \item We formulate two hypothises, signal an null, as follows
+        \item We postulate two hypotheses, signal and null, as follows
     \end{itemize}
-
     \begin{equation}
     \begin{aligned}
         \nullhypothesis |_{SR} &: \quad
@@ -139,15 +157,12 @@
         \end{cases}
     \end{aligned}
     \end{equation}
-
 \end{frame}
 
 \begin{frame}{Likelihood and Test Statistics}
-    
     \begin{itemize}
         \item Log likelihood of a hypothesis is a product of that of its parts
     \end{itemize}
-
     \begin{equation}
     \begin{aligned}
         \likelihood(\hypothesis{i} | \meas{A}, \meas{B})
@@ -156,7 +171,6 @@
         \cdot \likelihood(\crdist{\meas{A}}^i|\crmeas{A}) \cdot \likelihood(\crdist{\meas{B}}^i|\crmeas{B})
     \end{aligned}
     \end{equation}
- 
     \begin{itemize}
         \item From which we build the test statistic from definition
     \end{itemize}
@@ -180,7 +194,6 @@
     \begin{itemize}
         \item We reduce the problem of calculating this to the calculation of two minima
     \end{itemize}
-
     \begin{equation}
     \label{eq:formal_loss_functions}
     \begin{aligned}
@@ -206,54 +219,26 @@
 \end{frame}
 
 \begin{frame}{Parameterization by Neural Networks}
-
     \begin{itemize}
         \item Since $f, g$ should be generic and as expressive as possible, we realize them as NN outputs
     \end{itemize}
-
     \begin{equation}
     \begin{aligned}
         f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha) \\
         g(\event) = c_{0} + \sum\limits_{\alpha = 1}^{N} \upsilon_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\upsilon^j_{\alpha} \event^j + c_\alpha)
     \end{aligned}
     \end{equation}
-
     \begin{itemize}
         \item Eta implementation is left for the methodology section, as it's arbitrary and would be furhter manipulated in the future
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Neymann - Pearson}
-    \begin{lemma}
-        \textbf{Neymann - Pearson:} The most discriminative test statistic for testing a signal hypothesis vs the null hypothesis is the profile likelihood ratio, defined as
-    \end{lemma}
-
-    \begin{equation}
-        \Lambda(\mu) = \dfrac{
-            \likelihood(\hat{\mu},\hat{\theta})
-        }{
-            \likelihood(\mu = 0, \hat{\hat{\theta}})
-        } > k
-    \end{equation}
-
-    \begin{block}{}
-        for some constant $k$, that maximizes
-    \end{block}
-
-    \begin{equation}
-        P(\text{reject }\nullhypothesis | \hypothesis{1} \text{ is true})
-    \end{equation}
-
-\end{frame}
-
 \begin{frame}{Wilk's Theorem}
     \begin{theorem}
         \textbf{Wilk theorem}: Given a test statistic $\Lambda$ of a signal hypothesis vs. the null hypothesis, assuming the null hypothesis is true, the negative log-likelihood test statistic converges to a $\chi^2$:
-        
         \begin{equation*}
             -2 \log \Lambda \to \chi^2_r
         \end{equation*}
-        
         with $r$ the number of degrees of freedom of the signal hypothesis minus those of the null one.
     \end{theorem}
 \end{frame}
@@ -261,20 +246,31 @@
 \begin{frame}
     \begin{itemize}
         \item And so, by gathering statistics of $t$, we compare it to a $\chi^2$ distribution and we can estimate how likely it is for the null hypothesis to be true.
+        \item When injecting a signal, we'll show the measures of significance:
     \end{itemize}
+    \begin{equation}
+    \begin{aligned}
+        Z_\text{analytic} &= \sqrt{\invllratio} = \sqrt  {
+            2 \left( -N_s + \int\limits_{\mathbb{R}^{k}} d\anyevent (N_b(\anyevent) + N_s(\anyevent)) \log \dfrac{N_s(\anyevent) + N_b(\anyevent)}{N_b(\anyevent)} \right)
+        }
+        \\
+        Z_\text{evident} &= \sqrt{\invllratio} = \sqrt{
+            2 \left( -N_s + \sum\limits_{\event} d\anyevent (N_b(\event) + N_s(\event)) \log \dfrac{N_s(\event) + N_b(\event)}{N_b(\event)} \right)
+        }
+        \\
+        Z_\text{empirical} &= \Phi^{-1}(1 - \dfrac{\#{t_{bkg} > t_{mean}}}{\#{t_{bkg}}})
+    \end{aligned}
+    \end{equation}
 \end{frame}
 
 \section{Methodology}
 
-\begin{frame}
-    \frametitle{Framework}
-
+\begin{frame}{Framework}
     \begin{itemize}
         \item Implemented using Python with standard packages including `torch', `matplotlib` and `numpy'
         \item Runs on docker with CERN's VM FS environment
         \item Parallelism via cluster's OpenPBS
     \end{itemize}
-
 \end{frame}
 
 \begin{frame}{Reference Distribution Choice}
@@ -282,7 +278,6 @@
         \item The natural choice for the reference distribution is the combined sample
         \item We convert integrals over the continuous distribution to normalized sums over the evident sample
     \end{itemize}
-
     \begin{equation}
         \int h(\anyevent) \refdist^r d\anyevent \to
         \dfrac{1}{N^r}\sum\limits_{\event \in \dataset{N}^r} h(\event)
@@ -293,11 +288,9 @@
     \begin{itemize}
         \item We decided to implement the detector nuisance as binwise constant multiplicative factor for each dimension
     \end{itemize}
-
     \begin{equation}
         \detector(\anyevent) = \prod\limits_{j=0}^k \detector^j(\anyevent^j)
     \end{equation}
-
     \begin{equation}
         \detector^j(\anyevent^j) = 
         \begin{cases}
@@ -307,24 +300,19 @@
             \detector^{jn}, &x \in \left[b_{n-1}^j, \infty\right) \\
         \end{cases}
     \end{equation}
-
     \begin{itemize}
         \item to give
     \end{itemize}
-
     \begin{equation}
         \nparam(\anyevent) = \prod\limits_{j=0}^{k} \dfrac{1}{2}(\detector^{jh}_\dataset{A} - \detector^{jh}_\dataset{B})
     \end{equation}
-
 \end{frame}
 
 \begin{frame}{Model Structure}
-    
     \begin{itemize}
         \item Model is constructed of two NNs and a binwise parametrized detector function
         \item Loss calculation is performed as tensor operation over the whole dataset as a batch
     \end{itemize}
-
     \begin{adjustbox}{width=\textwidth}
     \begin{tikzpicture}[
         font=\small,
@@ -525,11 +513,9 @@
         \node at ($(eta.north)+(0,0.25)$) {\scriptsize $\eta$ prediction};
     \end{tikzpicture}
     \end{adjustbox}
-
 \end{frame}
 
 \begin{frame}{t Value Calculation}
-    
     \begin{algorithm}[H]
     \footnotesize
     \caption{Single $t$ value stochastic calculation}
@@ -563,7 +549,38 @@
 
     \end{algorithmic}
     \end{algorithm}
+\end{frame}
 
+\section{Results}
+
+\begin{frame}{Reproduction}
+    \begin{itemize}
+        \item Each run consists of a random data generation procedure and several fits
+    \end{itemize}
+    \begin{figure}
+        \centering
+        \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/A_numerator_data_process_plot_2163321021161639752.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Reproduction}
+    \begin{itemize}
+        \item We ran $t$ value calculations to accumulate statistics for the background-only distribution
+    \end{itemize}
+    \begin{figure}
+        \centering
+        \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/t_distribution_plot_4933926613049338320.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Reproduction}
+    \begin{itemize}
+        \item Several other distributions created with various signals
+    \end{itemize}
+    \begin{figure}
+        \centering
+        \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/performance_plot_-4588680099968231982.png}
+    \end{figure}
 \end{frame}
 
 \end{document}
