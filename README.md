@@ -371,10 +371,14 @@ defaults use six marginal standard deviations, exponential bounds use the point
 where density falls to 1% of its peak, gamma-like bounds use a tail quantile, and
 explicitly truncated distributions use `domain_max`.
 The integration ceiling is the coordinate-wise maximum of the signal and background
-bounds. This keeps SciPy's adaptive quadrature finite and its numerical tolerance
-below the 0.1% accuracy target. Signal generation fails with a clear error if any
-coordinate exceeds its declared bound, indicating that `domain_max` must be
-increased.
+bounds. One-dimensional significance keeps adaptive quadrature. Multidimensional
+significance instead uses vectorized, scrambled Sobol quadrature with a 2% target
+for the estimated relative standard error of q0 and a fixed evaluation cap. This
+makes its runtime depend on the dimension and PDF cost, not on the configured event
+count, and prevents adaptive quadrature from expanding indefinitely. Built-in PDFs
+support batch evaluation; custom scalar-only PDFs remain supported through a slower
+fallback. Signal generation fails with a clear error if any coordinate exceeds its
+declared bound, indicating that `domain_max` must be increased.
 
 
 ## Plotting

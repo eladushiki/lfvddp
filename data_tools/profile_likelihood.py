@@ -1,16 +1,23 @@
 from math import fsum
 from typing import Callable, Union
 import numpy as np
-from scipy.integrate import IntegrationWarning, nquad
+from scipy.integrate import IntegrationWarning, nquad, qmc_quad
 from scipy.special import erfinv
-from scipy.stats import norm, chi2
-from warnings import catch_warnings, simplefilter
+from scipy.stats import norm, chi2, qmc
+from warnings import catch_warnings, simplefilter, warn
 
 
 _MAX_QUADRATURE_INTERVAL_WIDTH = 1.0
 _QUADRATURE_SUBDIVISION_LIMIT = 200
 _QUADRATURE_ABSOLUTE_TOLERANCE = 1e-3
 _QUADRATURE_RELATIVE_TOLERANCE = 1e-4
+_QMC_ESTIMATE_COUNT = 8
+_QMC_INITIAL_POINTS_PER_ESTIMATE = 2**10
+_QMC_MAX_POINTS_PER_ESTIMATE = 2**18
+_QMC_POINT_GROWTH_FACTOR = 4
+_QMC_ABSOLUTE_ERROR_TOLERANCE = 1e-3
+_QMC_RELATIVE_ERROR_TOLERANCE = 2e-2
+_QMC_SEED = 0
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -106,15 +113,35 @@ def _pdf_density_at_coordinates(
     return float(density)
 
 
-def _integration_regions(upper_limits: np.ndarray) -> list[list[tuple[float, float]]]:
-    """Build integration regions, subdividing only the legacy 1D path."""
-    if upper_limits.size > 1:
-        return [[
-            (0.0, upper_limit)
-            for upper_limit in upper_limits
-        ]]
+def _pdf_densities_at_points(
+        pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+        points: np.ndarray,
+) -> np.ndarray:
+    """Evaluate a PDF on a batch, falling back to its scalar point contract."""
+    try:
+        densities = np.asarray(pdf(points))
+    except (AssertionError, IndexError, TypeError, ValueError):
+        densities = np.empty(0)
 
-    upper_limit = upper_limits.item()
+    if densities.ndim == 0:
+        densities = np.full(points.shape[0], densities.item())
+    elif densities.shape != (points.shape[0],):
+        densities = np.asarray([
+            _pdf_density_at_coordinates(pdf, tuple(point))
+            for point in points
+        ])
+
+    if not np.all(np.isfinite(densities)):
+        raise ValueError("PDF must return finite scalar densities")
+    if np.any(densities < 0):
+        raise ValueError("PDF must return non-negative densities")
+    return densities.astype(float, copy=False)
+
+
+def _one_dimensional_integration_regions(
+        upper_limit: float,
+) -> list[list[tuple[float, float]]]:
+    """Build bounded-width regions for the legacy 1D quadrature path."""
     if not np.isfinite(upper_limit):
         return [[(0.0, np.inf)]]
 
@@ -129,9 +156,142 @@ def _integration_regions(upper_limits: np.ndarray) -> list[list[tuple[float, flo
     ]
 
 
+def _poisson_asimov_q0_density(
+        signal_rate_density: np.ndarray,
+        background_rate_density: np.ndarray,
+) -> np.ndarray:
+    """Return the non-negative pointwise q0 density without subtracting totals."""
+    q0_density = np.zeros_like(signal_rate_density, dtype=float)
+    signal_present = signal_rate_density > 0
+    no_background = signal_present & (background_rate_density == 0)
+    q0_density[no_background] = np.inf
+
+    regular = signal_present & (background_rate_density > 0)
+    signal = signal_rate_density[regular]
+    background = background_rate_density[regular]
+    ratio = signal / background
+
+    # (1 + r) log(1 + r) - r loses most of its precision for small r.
+    # Its series keeps low-significance calculations stable when event totals
+    # are large and signal/background is correspondingly small.
+    small_ratio = ratio < 1e-4
+    divergence = np.zeros_like(ratio)
+    small = ratio[small_ratio]
+    divergence[small_ratio] = small**2 * (
+        1 / 2 + small * (-1 / 6 + small * (1 / 12 - small / 20))
+    )
+    ordinary = ~small_ratio & np.isfinite(ratio)
+    divergence[ordinary] = (
+        (1 + ratio[ordinary]) * np.log1p(ratio[ordinary])
+        - ratio[ordinary]
+    )
+    regular_q0_density = 2 * background * divergence
+
+    overflowed_ratio = ~np.isfinite(ratio)
+    if np.any(overflowed_ratio):
+        overflowed_signal = signal[overflowed_ratio]
+        overflowed_background = background[overflowed_ratio]
+        log_one_plus_ratio = (
+            np.logaddexp(
+                np.log(overflowed_signal),
+                np.log(overflowed_background),
+            )
+            - np.log(overflowed_background)
+        )
+        regular_q0_density[overflowed_ratio] = 2 * (
+            (overflowed_signal + overflowed_background) * log_one_plus_ratio
+            - overflowed_signal
+        )
+
+    q0_density[regular] = regular_q0_density
+    return q0_density
+
+
+def _calc_multidimensional_q0_by_qmc(
+        background_pdf: Callable[[np.ndarray], Union[float, np.ndarray]],
+        signal_pdf: Callable[[np.ndarray], Union[float, np.ndarray]],
+        n_background_events: int,
+        n_signal_events: int,
+        upper_limits: np.ndarray,
+) -> float:
+    """Estimate multidimensional q0 with bounded, vectorized QMC quadrature."""
+    if not np.all(np.isfinite(upper_limits)):
+        raise ValueError("Multidimensional integration upper limits must be finite")
+
+    number_of_dimensions = upper_limits.size
+
+    def q0_integrand(
+            coordinates: np.ndarray,
+    ) -> Union[float, np.ndarray]:
+        coordinate_array = np.asarray(coordinates)
+        is_single_point = coordinate_array.ndim == 1
+        points = (
+            coordinate_array[np.newaxis, :]
+            if is_single_point
+            else coordinate_array.T
+        )
+        signal_rate_density = n_signal_events * _pdf_densities_at_points(
+            signal_pdf, points
+        )
+        background_rate_density = n_background_events * _pdf_densities_at_points(
+            background_pdf, points
+        )
+        densities = _poisson_asimov_q0_density(
+            signal_rate_density,
+            background_rate_density,
+        )
+        return densities.item() if is_single_point else densities
+
+    points_per_estimate = _QMC_INITIAL_POINTS_PER_ESTIMATE
+    while True:
+        result = qmc_quad(
+            q0_integrand,
+            np.zeros(number_of_dimensions),
+            upper_limits,
+            n_estimates=_QMC_ESTIMATE_COUNT,
+            n_points=points_per_estimate,
+            qrng=qmc.Sobol(
+                d=number_of_dimensions,
+                scramble=True,
+                seed=_QMC_SEED,
+            ),
+        )
+        q0 = float(result.integral)
+        standard_error = float(result.standard_error)
+
+        if np.isposinf(q0):
+            return q0
+        if not np.isfinite(q0) or not np.isfinite(standard_error):
+            raise ValueError("Multidimensional significance integration was non-finite")
+
+        tolerated_error = max(
+            _QMC_ABSOLUTE_ERROR_TOLERANCE,
+            _QMC_RELATIVE_ERROR_TOLERANCE * q0,
+        )
+        if standard_error <= tolerated_error:
+            return q0
+        if points_per_estimate == _QMC_MAX_POINTS_PER_ESTIMATE:
+            warn(
+                "Multidimensional significance reached its QMC evaluation cap "
+                f"with estimated relative error {standard_error / q0:.1%}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return q0
+
+        points_per_estimate = min(
+            points_per_estimate * _QMC_POINT_GROWTH_FACTOR,
+            _QMC_MAX_POINTS_PER_ESTIMATE,
+        )
+
+
 def calc_injected_t_significance_by_sqrt_q0_continuous(
-        background_pdf: Callable[[Union[float, np.ndarray]], float],
-        signal_pdf: Callable[[Union[float, np.ndarray]], float],
+        background_pdf: Callable[
+            [Union[float, np.ndarray]], Union[float, np.ndarray]
+        ],
+        signal_pdf: Callable[
+            [Union[float, np.ndarray]], Union[float, np.ndarray]
+        ],
         n_background_events: int,
         n_signal_events: int,
         upper_limit: Union[float, np.ndarray] = np.inf,
@@ -141,7 +301,7 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
     A scalar ``upper_limit`` defines the existing one-dimensional domain
     ``[0, upper_limit]``. A one-dimensional array supplies one upper bound per
     observable; multidimensional PDF callables receive a coordinate array in
-    that same observable order.
+    that same observable order. Multidimensional limits must be finite.
     """
     if n_signal_events <= 0:
         return 0
@@ -168,27 +328,38 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
             signal_rate_density + background_rate_density
         ) * np.log1p(signal_rate_density / background_rate_density)
 
-    try:
-        with catch_warnings():
-            simplefilter("error", IntegrationWarning)
-            integral = fsum(
-                nquad(
-                    integrand,
-                    interval_bounds,
-                    opts={
-                        "limit": _QUADRATURE_SUBDIVISION_LIMIT,
-                        "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
-                        "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
-                    },
-                )[0]
-                for interval_bounds in _integration_regions(upper_limits)
-            )
-    except IntegrationWarning as warning:
-        raise ValueError(
-            f"Integration unsuccessful up to upper limit {upper_limit}"
-        ) from warning
+    if upper_limits.size > 1:
+        q0 = _calc_multidimensional_q0_by_qmc(
+            background_pdf,
+            signal_pdf,
+            n_background_events,
+            n_signal_events,
+            upper_limits,
+        )
+    else:
+        try:
+            with catch_warnings():
+                simplefilter("error", IntegrationWarning)
+                integral = fsum(
+                    nquad(
+                        integrand,
+                        interval_bounds,
+                        opts={
+                            "limit": _QUADRATURE_SUBDIVISION_LIMIT,
+                            "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
+                            "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
+                        },
+                    )[0]
+                    for interval_bounds in _one_dimensional_integration_regions(
+                        upper_limits.item()
+                    )
+                )
+        except IntegrationWarning as warning:
+            raise ValueError(
+                f"Integration unsuccessful up to upper limit {upper_limit}"
+            ) from warning
 
-    q0 = 2 * (-n_signal_events + integral)
+        q0 = 2 * (-n_signal_events + integral)
     return np.sqrt(q0)
 
 
