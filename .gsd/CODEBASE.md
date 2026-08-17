@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-13T11:13:37Z","fingerprint":"7c3e446311a845e44f9da0212c2c8cb65d348093","fileCount":279,"truncated":false} -->
+Generated: 2026-08-17T05:30:31Z | Files: 285 | Described: 0/285
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-17T05:30:31Z","fingerprint":"ab9961910ac4c39c449530add897ec070954d10e","fileCount":285,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -9,10 +9,15 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 - `.gitmodules`
 - `AGENTS.md`
 - `lfvddp.def`
+- `prediction-plot-spec.md`
 - `pytest.ini`
 - `README.md`
 - `requirements.txt`
 - `setup.py`
+- `submit-on-cluster.md`
+
+### .github/
+- `.github/CODEOWNERS`
 
 ### configs/
 - `configs/__init__.py`
@@ -223,6 +228,8 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 - `test/test_file_input.py`
 - `test/test_profile_likelihood.py`
 - `test/test_runtime_resources.py`
+- `test/test_singularity_cache.py`
+- `test/test_train_utils.py`
 - `test/test_train.py`
 
 ### test/configs/cluster/
@@ -230,6 +237,7 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 
 ### test/configs/dataset/
 - `test/configs/dataset/cms_open_dataset_json.json`
+- `test/configs/dataset/cms_open_dataset_root.json`
 - `test/configs/dataset/cms_open_dataset_txt.json`
 - `test/configs/dataset/disjoint_1D_generated_dataset_config.json`
 - `test/configs/dataset/disjoint_2D_generated_dataset_config.json`
