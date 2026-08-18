@@ -1,6 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -8,9 +9,41 @@ from data_tools.data_utils import DataSet
 from plot.plot_utils import (
     _integration_upper_limits_for_dimensions,
     utils__discover_background_only_parent_directory,
+    utils__finalize_prediction_process_layout,
     utils__prediction_mesh_mask,
     utils__project_prediction_values_sliced,
 )
+
+
+def test_prediction_process_layout_shares_row_ranges_and_compacts_1d_labels():
+    figure, axes = plt.subplots(2, 2)
+    sr_distribution_ax, cr_distribution_ax = axes[0]
+    sr_prediction_ax, cr_prediction_ax = axes[1]
+    for axis, x_limits, y_limits in (
+        (sr_distribution_ax, (0, 2), (1, 4)),
+        (cr_distribution_ax, (-1, 3), (2, 6)),
+        (sr_prediction_ax, (0, 4), (-2, 2)),
+        (cr_prediction_ax, (-3, 2), (-4, 3)),
+    ):
+        axis.set_xlim(x_limits)
+        axis.set_ylim(y_limits)
+        axis.set_xlabel("observable")
+        axis.set_ylabel("output")
+
+    utils__finalize_prediction_process_layout(
+        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
+        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
+        number_of_dimensions=1,
+    )
+
+    assert [axis.get_xlim() for axis in figure.axes] == [(-3, 4)] * 4
+    assert sr_distribution_ax.get_ylim() == cr_distribution_ax.get_ylim()
+    assert sr_prediction_ax.get_ylim() == cr_prediction_ax.get_ylim()
+    assert sr_distribution_ax.get_xlabel() == ""
+    assert cr_distribution_ax.get_xlabel() == ""
+    assert cr_distribution_ax.get_ylabel() == ""
+    assert cr_prediction_ax.get_ylabel() == ""
+    plt.close(figure)
 
 
 @pytest.mark.parametrize(

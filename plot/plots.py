@@ -27,6 +27,7 @@ from plot.plot_utils import (
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
+    utils__finalize_prediction_process_layout,
     utils__group_signal_contexts,
     utils__discover_performance_contexts,
     utils__model_prediction_values,
@@ -47,14 +48,27 @@ from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import statistic_degrees_of_freedom
 
-_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
-    "left": 0.005,
-    "right": 0.995,
-    "top": 0.95,
-    "bottom": 0.005,
-    "hspace": 0.001,
-    "wspace": 0.001,
-}
+def _prediction_process_subplot_adjustments(
+    number_of_dimensions: int,
+) -> dict[str, float]:
+    """Return the compact 1D or label-safe 2D prediction-process layout."""
+    if number_of_dimensions == 1:
+        return {
+            "left": 0.005,
+            "right": 0.995,
+            "top": 0.95,
+            "bottom": 0.005,
+            "hspace": 0.001,
+            "wspace": 0.001,
+        }
+    return {
+        "left": 0.04,
+        "right": 0.96,
+        "top": 0.92,
+        "bottom": 0.06,
+        "hspace": 0.14,
+        "wspace": 0.14,
+    }
 
 _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 6
 _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
@@ -733,7 +747,7 @@ def plot_prediction_process_1d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(**_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS)
+    fig.subplots_adjust(**_prediction_process_subplot_adjustments(ndim))
     fig.suptitle(title, fontsize=22)
 
     plot_colors = {
@@ -803,7 +817,7 @@ def plot_prediction_process_1d(
         prediction_specs: Tuple[
             Tuple[np.ndarray, float, str, str, str], ...
         ],
-    ) -> List[Tuple[np.ndarray, str, str, str]]:
+    ) -> List[Tuple[np.ndarray, str, str, str, float]]:
         return [
             (
                 prediction_to_sample_ndf_hypothesis_weights(
@@ -814,6 +828,7 @@ def plot_prediction_process_1d(
                 label,
                 color,
                 marker,
+                ndf_n_samples,
             )
             for (
                 prediction,
@@ -1107,6 +1122,15 @@ def plot_prediction_process_1d(
         prediction_limits=cr_prediction_limits,
         title="CR predictions",
     )
+    utils__finalize_prediction_process_layout(
+        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
+        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
+        number_of_dimensions=ndim,
+    )
+    for panel in (sr_distribution_ax, cr_distribution_ax):
+        utils__add_prediction_process_legend(
+            panel, fontsize=8, location="lower left"
+        )
 
     return fig
 
@@ -1155,7 +1179,7 @@ def plot_prediction_process_2d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(**_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS)
+    fig.subplots_adjust(**_prediction_process_subplot_adjustments(ndim))
     fig.suptitle(title, fontsize=22)
 
     plot_colors = {
@@ -1221,7 +1245,7 @@ def plot_prediction_process_2d(
         prediction_specs: Tuple[
             Tuple[np.ndarray, float, str, str, str], ...
         ],
-    ) -> List[Tuple[np.ndarray, str, str, str]]:
+    ) -> List[Tuple[np.ndarray, str, str, str, float]]:
         return [
             (
                 prediction_to_sample_ndf_hypothesis_weights(
@@ -1232,6 +1256,7 @@ def plot_prediction_process_2d(
                 label,
                 color,
                 marker,
+                ndf_n_samples,
             )
             for (
                 prediction,
@@ -1494,6 +1519,11 @@ def plot_prediction_process_2d(
         along_observables=selected_observables,
         prediction_limits=cr_prediction_limits,
         title="CR predictions",
+    )
+    utils__finalize_prediction_process_layout(
+        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
+        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
+        number_of_dimensions=ndim,
     )
 
     return fig

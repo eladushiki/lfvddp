@@ -6,13 +6,18 @@
 - **Implementation status:** Current behavior documented below
 - **Primary implementation:** `plot/plots.py`: `plot_prediction_process_1d` and `plot_prediction_process_2d`
 - **Primary utilities:** `plot/plot_utils.py`
-- **Plot scope:** Single submission
+- **Plot scope:** Single train process results
 
 ## Purpose
 
 Visualize the learned LFVDDP predictions alongside the observed signal-region (SR) and control-region (CR) distributions. The plot is intended to make the model's signal and null hypotheses, including nuisance terms, comparable across the selected observables.
 
-> **To define:** What scientific question must a reader answer from this plot?
+From looking at the plot, a reader should be able to understand:
+- How does the nuisance and signal fits look like?
+- How good of a fit did the process provide?
+- Did it look like the training converged to a reasonable result?
+- How better of a fit do the signal hypothesis propose?
+- How well can the signal hypothesis differentiate the two datasets better that the null hypothesis?
 
 ## Invocation and Inputs
 
@@ -23,7 +28,7 @@ Visualize the learned LFVDDP predictions alongside the observed signal-region (S
 | Execution context | Supplies the merged dataset, detector, training, and plotting configuration. |
 | Numerator training | Supplies the primary model, data batch, and numerator detector effect. |
 | Denominator training | Supplies the denominator model and detector effect. |
-| Observables | Uses the supplied `along_observables`; otherwise uses the configured detector observables. Only one observable is allowed for the 1D plot and two for the 2D plot. |
+| Observables | Uses the supplied `along_observables`; otherwise uses the configured detector observables. The 1D plot requires one observable; the 2D plot uses the first two supplied observables when more are available. |
 
 ### Required dataset categories
 
@@ -32,28 +37,33 @@ Visualize the learned LFVDDP predictions alongside the observed signal-region (S
 | SR | `A_SR`, `B_SR` | `A_SR + B_SR` |
 | CR | `A_CR`, `B_CR` | `A_CR + B_CR` |
 
-> **To define:** Dataset selection, event filtering, weighting, and any required preprocessing assumptions.
+No further selection or manipulation, other than normalization in the sake of display, should be done in the plotting procedure. The plots should be faithful to their source training procedure and the data it used.
 
-## Current Figure Layout
-
-### 1D prediction plot
+## Figure Layout
 
 A 2 × 2 figure with four panels:
 
-| Position | Panel | Current contents |
-| --- | --- | --- |
-| Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. |
-| Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. |
-| Bottom left | SR prediction | Curves for numerator signal-hypothesis components and numerator nuisance factors. |
-| Bottom right | CR prediction | Curves for denominator/null-hypothesis components and denominator nuisance factors. |
+| Position | Panel | 1D contents | 2+D contents |
+| --- | --- | --- | --- |
+| Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Same 2D SR histograms of the data. If more than 2D, its projection over the first two dimensions. |
+| Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | Same 2D CR histograms of the data. If more than 2D, its projection over the first two dimensions. |
+| Bottom left | SR prediction | Curves for signal-hypothesis and null hypothesis predictions over the SR. | Same SR plots of the 2d functions. |
+| Bottom right | CR prediction | Curves for signal-hypothesis and null hypothesis predictions over the CR. In addition, the corresponding detector effect to which they should fit. | Same CR plots of the 2d functions. |
 
-The distribution panels share synchronized output-axis limits. The figure has a configurable title; its current default is `Datasets Along the Process`.
+### Plot axes
 
-### 2D prediction plot
-
-The current code also provides an analogous 2D implementation, `plot_prediction_process_2d`, for exactly two selected observables. It uses the same SR/CR and numerator/denominator conceptual split, rendering compatible sliced 2D panels.
-
-> **To define:** Whether 2D is part of this artifact's scope, and the expected reading order for the panels.
+- The distribution panels share synchronized output-axis limits.
+  - 1D: the x axes of all 4 subplots should match in name and limit values. Labels should be displayed once for each column. y axis should match values for top 2 and bottom 2 plots separately. It's label should be displayed once in each row.
+  - 2D: the x and y axes of all 4 subplots should match in name, observed direction and limit values. z axis should match values for top 2 and bottom 2 plots separately.
+- Spacing:
+  - 1D: No spacing needed between plots.
+  - 2D: Just enough spacing for all labels to show.
+- Minimal borders of figure to allow for all labels and titles to fit nicely without being cut or overlap.
+- Legends:
+  - 1D: top two plots: to the bottom left of each plots. Bottom two plots: to the top left of each plot.
+  - 2D: default / uninterrupting location.
+- The figure has a configurable title; its current default is `Datasets Along the Process`.
+- "run hash" stamping should be given it's height in bottom border, such that when displaying the image in the paper it could be cropped out.
 
 ## Current Distribution Rendering
 
@@ -62,12 +72,11 @@ The current code also provides an analogous 2D implementation, `plot_prediction_
 - The default configuration uses **30 bins**.
 - The top panels draw A-region, B-region, and combined-background distributions.
 - The model predictions are converted to weighted distributions using the corresponding combined background as the reference dataset.
-- When `plot__prediction_process_normalize_each_prediction` is enabled, each distribution/prediction is normalized independently. The current default is **enabled**.
+- When `plot__prediction_process_normalize_each_prediction` is enabled, each of A, B and background should be normalized independently. That being said, all A datasets, predictions and hypothesis plots should be normalized by the same factor such that the top two pdfs would integrate to 1. Same goes for B. The current default is **enabled**.
 - Each distribution panel receives a prediction-process legend.
+- Normalization shou
 
-> **To define:** Required normalization convention, expected y-axis units, treatment of empty bins, error bars/uncertainties, and whether the raw count scale must also be available.
-
-## Current Prediction Rendering
+## Prediction Rendering
 
 ### SR panel: numerator model
 
@@ -89,10 +98,8 @@ The denominator model supplies `predict_eta`, which is displayed as the null-hyp
 
 - A horizontal reference line is drawn at prediction value **1.0** in 1D prediction panels.
 - Prediction values are evaluated over a spanning dataset built from detector-bin coordinates.
-- The model output is projected onto the selected observable(s) before rendering.
-- Product terms use dash-dot lines; component terms use solid lines; denominator/null terms use dashed lines.
-
-> **To define:** Which curves are mandatory, whether derived curves should be visible by default, and the acceptable prediction range or clipping policy.
+- The model output is projected onto the selected observable(s) before rendering, only if there are more then 2 observables in the data.
+- Null hypothesis terms use dash-dot lines; signal hypothesis terms use solid lines; detector effect plots use double line.
 
 ## Current Visual Encoding
 
@@ -104,45 +111,28 @@ The denominator model supplies `predict_eta`, which is displayed as the null-hyp
 | Lighter \(f\)-family variants | Cornflower blue / lightsky blue |
 | Lighter \(g\)-family variants | Sandybrown / moccasin |
 | Reference prediction | Gray dotted horizontal line at 1.0 |
-| SR model-prediction markers | Circles for \(e^{f(x)}(1+\eta(x))\) |
-| SR secondary-prediction markers | Squares for \(e^{g(x)}(1-\eta(x))\) |
 
 The figure uses the global plotting configuration. The baseline configuration sets a white figure face, classic Matplotlib style, serif font family, font size 24, and figure size 10 × 9 inches.
-
-> **To define:** Publication palette, accessibility requirements, typography, legend placement, axis-label conventions, and export resolution/formats.
 
 ## Configuration Contract
 
 | Key | Current default | Effect |
 | --- | ---: | --- |
 | `plot__prediction_process_number_of_bins` | `30` | Number of display bins for the prediction-process distributions. |
-| `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each displayed prediction/distribution independently. |
+| `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each A/B/background distribution and its corresponding prediction with that component's shared sample-count factor. |
 | `plot__figure_size` | `[10, 9]` | Base figure dimensions in inches. |
-
-> **To define:** Per-plot overrides, validation limits, and the stable public configuration name for this plot.
 
 ## Output Contract
 
 - **Return type:** Matplotlib `Figure`
 - **Saving:** The plot function does not save the figure itself; the plot factory/calling workflow owns output persistence.
-- **Current output name:** _To define_
-- **Supported formats:** _To define_
-- **Destination directory:** _To define_
+- **Current output name:** <by current defaults>
 
 ## Acceptance Criteria
 
 - [ ] The selected-observable dimensionality is validated before plotting.
 - [ ] SR and CR distribution panels show the intended data and weighted predictions.
 - [ ] Prediction panels show the intended numerator and denominator curves with unambiguous legends.
-- [ ] Axis labels, units, and normalization are scientifically correct.
-- [ ] Colors, line styles, and markers remain distinguishable in grayscale and for color-vision deficiencies.
+- [ ] Axis labels, units, and normalization are scientifically correct and consistent as defined above.
+- [ ] Colors, line styles, and markers remain distinguishable in grayscale and for color-vision deficiencies. All labels, titles and plotted data are visible fully.
 - [ ] The artifact is reproducible from a recorded configuration and training output.
-- [ ] A representative 1D and, if in scope, 2D output has been reviewed.
-
-## Open Decisions
-
-1. _What is the canonical plot title and caption?_
-2. _Which curves should be shown by default versus optionally?_
-3. _What uncertainties or confidence intervals must be displayed?_
-4. _Should distributions be independently normalized, count-normalized, or both?_
-5. _What output filename and publication-ready export settings are required?_

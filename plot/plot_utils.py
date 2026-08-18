@@ -857,13 +857,21 @@ def utils__add_subplot_sliced(
 
 
 def utils__add_prediction_process_legend(
-    ax: plt.Axes, fontsize: float
+    ax: plt.Axes,
+    fontsize: float,
+    location: str = "upper left",
 ) -> None:
-    """Place a prediction-process legend below the title and against the left edge."""
+    """Place a prediction-process legend in the specified unobtrusive corner."""
+    anchor_by_location = {
+        "upper left": (0.02, 0.92),
+        "lower left": (0.02, 0.02),
+    }
+    if location not in anchor_by_location:
+        raise ValueError(f"Unsupported legend location: {location}")
     legend = ax.legend(
         fontsize=fontsize,
-        loc="upper left",
-        bbox_to_anchor=(0.02, 0.92),
+        loc=location,
+        bbox_to_anchor=anchor_by_location[location],
         borderaxespad=0,
         framealpha=1.0,
     )
@@ -921,10 +929,13 @@ def utils__prediction_process_observables(
         selected_observables = list(along_observables)
 
     if len(selected_observables) != required_dimensions:
-        raise ValueError(
-            f"The {required_dimensions}D prediction-process plot requires exactly "
-            f"{required_dimensions} observable(s), got {len(selected_observables)}."
-        )
+        if required_dimensions == 2 and len(selected_observables) > 2:
+            selected_observables = selected_observables[:2]
+        else:
+            raise ValueError(
+                f"The {required_dimensions}D prediction-process plot requires exactly "
+                f"{required_dimensions} observable(s), got {len(selected_observables)}."
+            )
     unknown_observables = set(selected_observables) - set(configured_observables)
     if unknown_observables:
         raise ValueError(
@@ -1126,7 +1137,7 @@ def utils__plot_region_histogram_meshes_2d(
 def utils__plot_weighted_histogram_predictions_sliced(
     ax: plt.Axes,
     reference_dataset: DataSet,
-    predictions: List[Tuple[np.ndarray, str, str, str]],
+    predictions: List[Tuple[np.ndarray, str, str, str, float]],
     bins: Union[np.ndarray, List[np.ndarray]],
     bin_centers: Union[np.ndarray, List[np.ndarray]],
     along_observables: List[str],
@@ -1143,7 +1154,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
             bin_centers[0], bin_centers[1], indexing="ij"
         )
 
-    for weights, label, color, marker in predictions:
+    for weights, label, color, marker, normalization_size in predictions:
         flattened_weights = utils__flatten_histogram_values(weights)
         if number_of_dimensions == 1:
             predicted_counts, _ = np.histogram(
@@ -1161,7 +1172,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
 
         if normalize_each_prediction:
             predicted_counts = utils__normalize_histogram_values(
-                predicted_counts, np.sum(predicted_counts)
+                predicted_counts, normalization_size
             )
 
         if number_of_dimensions == 1:
@@ -1214,6 +1225,31 @@ def utils__synchronize_output_axis_limits(
     )
     for ax in axes:
         getattr(ax, set_limits_name)(shared_limits)
+
+
+def utils__finalize_prediction_process_layout(
+    distribution_axes: List[plt.Axes],
+    prediction_axes: List[plt.Axes],
+    number_of_dimensions: int,
+) -> None:
+    """Apply shared axis ranges and the compact 1D prediction-process layout."""
+    utils__synchronize_output_axis_limits(distribution_axes, number_of_dimensions)
+    utils__synchronize_output_axis_limits(prediction_axes, number_of_dimensions)
+    if number_of_dimensions != 1:
+        return
+
+    all_axes = distribution_axes + prediction_axes
+    shared_x_limits = (
+        min(axis.get_xlim()[0] for axis in all_axes),
+        max(axis.get_xlim()[1] for axis in all_axes),
+    )
+    for axis in all_axes:
+        axis.set_xlim(shared_x_limits)
+    for axis in distribution_axes:
+        axis.set_xlabel("")
+        axis.tick_params(labelbottom=False)
+    for axis in (distribution_axes[1], prediction_axes[1]):
+        axis.set_ylabel("")
 
 
 def utils__model_prediction_values(
