@@ -41,7 +41,7 @@ tmp*/
 *.out
 *.gz
 *.toc
-## Tex Beamer
+## Beamer
 *.nav
 *.snm
 
