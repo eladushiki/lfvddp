@@ -28,6 +28,52 @@
     \tableofcontents
 \end{frame}
 
+\section{Motivation}
+
+\begin{frame}{Classic SM Analysis}
+    \begin{itemize}
+        \item General steps of a classical search for BSM physics:
+        \begin{itemize}
+            \item Hypothesize a change from the SM postulates
+            \item Build a changes Lagrangian and identify decay channels
+            \item Monte Carlo simulation of the new physics in adetector
+            \item Plan an experiment to magnify signal, define SR, CR
+            \item Estimate background processes
+            \item Remove blindfold and analyze LHC data
+        \end{itemize}
+        \item Thorough, but labor intensive
+        \item Is blind to the rest of accumulated data, apart from a specific cut
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{DDP}
+    \begin{itemize}
+        \item We propose and alternative - start from looking at the data
+        \item Scan for deviation from what the SM predicts
+        \item Direct theory builders to explain found signals
+    \end{itemize}
+\end{frame}
+
+\section{Overview}
+
+\begin{frame}{LFV - DDP}
+    \begin{itemize}
+        \item The SM predicts an accidental global symmetry of the lepton sector between the three generations
+        \item There is motivation to look for places in which this symmetry does not hold - neutrino oscillations
+        \item We'll use the symmetry to look for differences without background modeling, by comparing equivalent datasets due to the symmetry
+    \end{itemize}
+    \begin{figure}
+        \centering
+        \includegraphics[width=\textwidth, height=0.5\textheight, keepaspectratio]{figures/The Standard Model.jpeg}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Our Goal}
+    \begin{block}{Goal}
+        Develop a method to detect deviations from the SM's predicition of LF universality, with as little as posible assumptions of the backgrounds and singals expected
+    \end{block}
+\end{frame}
+
 \section{Formulation}
 
 \begin{frame}{Observing Events}
@@ -43,10 +89,10 @@
     \end{itemize}
     \begin{equation}
         \label{eq:parametrized_distribution}
-        \parampdf(\anyevent) = e^{f_{\nparam}^{\param}(\anyevent)}\refdist
+        \parampdf(\anyevent) = e^{f_{\param}(\anyevent)}h_{\nparam}(\anyevent)\refdist
     \end{equation}
     \begin{itemize}
-        \item where $\param$s are the parameters of interest, and $\nparam$s are nuisance parameters that compose $f$.
+        \item where $\param$s are the parameters of interest that make $f$, and $\nparam$s are nuisance parameters that compose $g$.
     \end{itemize}
 \end{frame}
 
@@ -71,7 +117,7 @@
         \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
     \end{itemize}
     \begin{equation}
-        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} \refdist[\event]\big) + C_\dataset{A}
+        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} h_{\nparam}(\event)\refdist[\event]\big) + C_\dataset{A}
     \end{equation}
 \end{frame}
 
@@ -97,7 +143,7 @@
 \begin{frame}{Observing Data}
     \begin{itemize}
         \item Events have to be registered in a detector in order to be observed.
-        \item Detector does not always succeed, so we say it has efficiency, $\detector(\anyevent)$, that is bounded in $\left[0, 1\right]$ and may depend on the attributes of $\event$.
+        \item Detector does not always succeed in event construction, so we say it has efficiency, $\detector(\anyevent)$, that is bounded in $\left[0, 1\right]$ and may depend on the attributes of $\event$.
         \item We are about to compare similar datasets, hence interested only in the efficiency difference between two such, so we define
     \end{itemize}
     \begin{equation}
@@ -108,8 +154,8 @@
     \end{itemize}
     \begin{equation}
     \begin{aligned}
-        \dist{\meas{A}} &= (1 + \nparam(\event))\refdist \\
-        \dist{\meas{B}} &= (1 - \nparam(\event))\refdist
+        \dist{\meas{A}} &\propto (1 + \nparam(\anyevent)) \\
+        \dist{\meas{B}} &\propto (1 - \nparam(\anyevent))
     \end{aligned}
     \end{equation}
 \end{frame}
@@ -130,7 +176,7 @@
     \end{table}
     \begin{itemize}
         \item Signal and control regions are created using disjoint cuts. We assume the control region has no new physics to be discovered, while we search for it in the signal region.
-        \item Datasets $\dataset{A}$ and $\dataset{B}$ in either region differ by some symmetric phsyical quantity. In our case, lepton flavor.
+        \item Datasets $\dataset{A}$ and $\dataset{B}$ in either region differ by some symmetric phsyical quantity. In our case, lepton flavor of the lepton product.
     \end{itemize}
 \end{frame}
 
@@ -172,7 +218,7 @@
     \end{aligned}
     \end{equation}
     \begin{itemize}
-        \item From which we build the test statistic from definition
+        \item From which we build the test statistic from its definition ($\param \to f, g$, note that $\nullhypothesis = \hypothesis{1}(f, g = 0)$)
     \end{itemize}
     \begin{equation}
     \begin{aligned}
@@ -559,7 +605,7 @@
     \end{itemize}
     \begin{figure}
         \centering
-        \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/A_numerator_data_process_plot_2163321021161639752.png}
+        \includegraphics[width=\textwidth, height=0.7\textheight, keepaspectratio]{../paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/dataset_process_plot_-6176753673060647931.png}
     \end{figure}
 \end{frame}
 
@@ -569,7 +615,7 @@
     \end{itemize}
     \begin{figure}
         \centering
-        \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/t_distribution_plot_4933926613049338320.png}
+        \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/t-values/t_distribution_plot_-7624205511337219236.png}
     \end{figure}
 \end{frame}
 
