@@ -85,6 +85,13 @@ Alternatively, either clone project and use `singularity build` or build it dire
 
 WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
 
+The container uses the Python interpreter and packages installed while the
+image is built. It deliberately does not source a host CVMFS LCG Python view at
+runtime, because doing so would hide the packages installed from
+`requirements.txt`. Container builds submitted through this project are pinned
+to the selected remote commit, run the definition's dependency and training
+import checks, and replace the existing SIF only after those checks pass.
+
 ## Environment Configuration
 
 ### VPN

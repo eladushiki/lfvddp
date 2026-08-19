@@ -5,9 +5,37 @@ import pytest
 
 from frame.command_line.execution import (
     CACHE_CONTENTION_EXIT_STATUS,
+    format_qsub_build_script,
     format_qsub_execution_script,
 )
 from test.test_runtime_resources import RESOURCE_CLUSTER_CONFIG
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [RESOURCE_CLUSTER_CONFIG],
+    indirect=True,
+)
+def test_container_build_is_pinned_validated_and_atomically_published(
+    function_execution_context,
+):
+    script = format_qsub_build_script(
+        config=function_execution_context.config,
+        git_branch="main",
+        git_commit_hash="0123456789abcdef",
+    )
+
+    pin = 'COMMIT_HASH="0123456789abcdef"'
+    build = "singularity build --remote lfvddp.sif lfvddp-edit.def"
+    validate = "singularity test lfvddp.sif"
+    copy = 'cp lfvddp.sif "$PUBLISH_TMP"'
+    publish = 'mv -f "$PUBLISH_TMP" "$PBS_O_WORKDIR/lfvddp.sif"'
+
+    assert pin in script
+    assert script.index(build) < script.index(validate)
+    assert script.index(validate) < script.index(copy)
+    assert script.index(copy) < script.index(publish)
+    subprocess.run(["bash", "-n"], input=script, text=True, check=True)
 
 
 @pytest.mark.parametrize(
