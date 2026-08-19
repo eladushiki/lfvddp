@@ -33,6 +33,9 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
     # Source the project Python before creating its additive virtual environment.
     CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+    UV_CACHE_DIR_OVERRIDE=""
+    UV_CACHE_DIR="${UV_CACHE_DIR_OVERRIDE:-$(python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
+    export UV_CACHE_DIR
     source "$CVMFS_PYTHON_SETUP_PATH"
     python -m venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"
     source "$CONTAINER_PROJECT_ROOT/.venv/bin/activate"
@@ -42,6 +45,8 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 %environment
     export PYTHONPATH=/app
     CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+    UV_CACHE_DIR="${UV_CACHE_DIR:-$(python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
+    export UV_CACHE_DIR
     source "$CVMFS_PYTHON_SETUP_PATH"
     source /app/.venv/bin/activate
     export PYTHONUNBUFFERED=1
@@ -53,6 +58,8 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
 %test
     CVMFS_PYTHON_SETUP_PATH="$(PYTHONPATH=/app python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+    UV_CACHE_DIR="${UV_CACHE_DIR:-$(PYTHONPATH=/app python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
+    export UV_CACHE_DIR
     source "$CVMFS_PYTHON_SETUP_PATH"
     source /app/.venv/bin/activate
     python -m uv pip check

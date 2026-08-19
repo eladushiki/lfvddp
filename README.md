@@ -41,7 +41,7 @@ After CVMFS is available (see its [installation instructions](https://cvmfs.read
 
 > source scripts/setup_python_environment.sh
 
-This sources CVMFS Python, creates `.venv` with its site packages available, installs UV into that venv, and synchronizes the exact dependencies recorded in `uv.lock`. In later shells, reactivate the same environment before running any project script:
+This sources CVMFS Python, creates `.venv` with its site packages available, installs UV into that venv, and synchronizes the exact dependencies recorded in `uv.lock`. It uses the project default unless `UV_CACHE_DIR` is already set. In cluster user config, set optional `cluster__uv_cache_dir` to choose the cache directory for generated build and execution jobs. In later shells, reactivate the same environment before running any project script:
 
 > source scripts/activate_python_environment.sh
 

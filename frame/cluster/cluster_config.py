@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 from frame.cluster.walltime import format_walltime, parse_walltime, split_walltime
@@ -20,6 +21,7 @@ class ClusterConfig:
     cluster__qsub_io: int
     cluster__qsub_mem: int
     cluster__qsub_ngpus_for_train: int
+    cluster__uv_cache_dir: Optional[Path] = None
     cluster__qsub_ncpus: int = DEFAULT_QSUB_NCPUS
     cluster__qsub_walltime_limit: str = "72:00:00"
     cluster__qsub_total_walltime: Optional[str] = None

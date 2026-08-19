@@ -12,7 +12,12 @@ from frame.file_structure import (
     path_as_in_container,
 )
 from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
-from frame.python_environment import cvmfs_python_activation_command
+from frame.python_environment import (
+    cvmfs_python_activation_command,
+    singularity_uv_cache_directory_export_command,
+    uv_cache_directory_export_command,
+    uv_cache_directory_shell_literal,
+)
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
@@ -39,6 +44,8 @@ echo "Running on host: $(hostname)"
 echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
 {task_id_line}{cvmfs_python_activation_command}
+{uv_cache_directory_export_command}
+{singularity_uv_cache_directory_export_command}
 {environment_activation_command}
 
 set -eo pipefail
@@ -468,6 +475,7 @@ cp $LFVDDP_DEF_PATH ./{project_name}.def
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
     -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
     -e "s|COMMIT_HASH=.*|COMMIT_HASH=\"{git_commit_hash}\"|" \
+    -e "s|UV_CACHE_DIR_OVERRIDE=.*|UV_CACHE_DIR_OVERRIDE={uv_cache_dir_shell_literal}|" \
     -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
     -e "s|# Cache-busting commit: PLACEHOLDER|# Cache-busting commit: {git_commit_hash}|" \
     {project_name}.def > {project_name}-edit.def
@@ -507,6 +515,9 @@ def format_qsub_build_script(
         gpu_line="",
         git_branch=git_branch,
         git_commit_hash=git_commit_hash,
+        uv_cache_dir_shell_literal=uv_cache_directory_shell_literal(
+            config.cluster__uv_cache_dir
+        ),
         repo_url=config.cluster__repo_url,
         repo_name=config.repo_name,
         container_configs_dir=path_as_in_container(CONFIGS_DIR),
@@ -540,6 +551,12 @@ def format_qsub_script(
         array_job_line=array_job_line,
         task_id_line=task_id_line,
         cvmfs_python_activation_command=cvmfs_python_activation_command(),
+        uv_cache_directory_export_command=uv_cache_directory_export_command(
+            config.cluster__uv_cache_dir
+        ),
+        singularity_uv_cache_directory_export_command=(
+            singularity_uv_cache_directory_export_command(config.cluster__uv_cache_dir)
+        ),
         environment_activation_command=config.cluster__environment_activation_command,
         **additional_template_kwargs,
     )

@@ -8,8 +8,11 @@ from frame.command_line.execution import (
 )
 from frame.python_environment import (
     CVMFS_PYTHON_SETUP_PATH,
+    DEFAULT_UV_CACHE_DIR,
     cvmfs_python_activation_command,
     python_environment_activation_command,
+    singularity_uv_cache_directory_export_command,
+    uv_cache_directory_export_command,
 )
 from test.test_runtime_resources import RESOURCE_CLUSTER_CONFIG
 
@@ -35,7 +38,10 @@ def test_generated_cluster_scripts_activate_cvmfs_python(
     )
 
     assert cvmfs_python_activation_command() in execution_script
+    assert uv_cache_directory_export_command(None) in execution_script
+    assert singularity_uv_cache_directory_export_command(None) in execution_script
     assert str(CVMFS_PYTHON_SETUP_PATH) not in build_script
+    assert f"UV_CACHE_DIR_OVERRIDE={DEFAULT_UV_CACHE_DIR}" in build_script
 
 
 def test_definition_uses_the_locked_project_venv():
@@ -45,6 +51,7 @@ def test_definition_uses_the_locked_project_venv():
     assert 'python -m venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"' in definition
     assert "python -m pip install --no-cache-dir --upgrade uv" in definition
     assert "python -m uv sync --locked --active" in definition
+    assert "from frame.python_environment import DEFAULT_UV_CACHE_DIR" in definition
     assert "source /app/.venv/bin/activate" in definition
 
 
