@@ -31,24 +31,18 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     fi
     git submodule update --init --recursive
 
-    # Source the project Python before creating its additive virtual environment.
-    CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
-    UV_CACHE_DIR_OVERRIDE=""
-    UV_CACHE_DIR="${UV_CACHE_DIR_OVERRIDE:-$(python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
-    export UV_CACHE_DIR
-    source "$CVMFS_PYTHON_SETUP_PATH"
-    python -m venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"
-    source "$CONTAINER_PROJECT_ROOT/.venv/bin/activate"
-    python -m pip install --no-cache-dir --upgrade uv
-    python -m uv sync --locked --active
+    # Python is initialized at runtime from the host project's bound .venv.
+    # Remote builders cannot access the host CVMFS mount.
 
 %environment
     export PYTHONPATH=/app
-    CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
     UV_CACHE_DIR="${UV_CACHE_DIR:-$(python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
     export UV_CACHE_DIR
-    source "$CVMFS_PYTHON_SETUP_PATH"
-    source /app/.venv/bin/activate
+    if [ -f /app/.venv/bin/activate ]; then
+        CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+        source "$CVMFS_PYTHON_SETUP_PATH"
+        source /app/.venv/bin/activate
+    fi
     export PYTHONUNBUFFERED=1
     export TF_USE_LEGACY_KERAS=True
 
@@ -57,13 +51,9 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     fi
 
 %test
-    CVMFS_PYTHON_SETUP_PATH="$(PYTHONPATH=/app python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
-    UV_CACHE_DIR="${UV_CACHE_DIR:-$(PYTHONPATH=/app python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
-    export UV_CACHE_DIR
-    source "$CVMFS_PYTHON_SETUP_PATH"
-    source /app/.venv/bin/activate
-    python -m uv pip check
-    python -c "import camel_converter; import train.single_train"
+    test -f /app/pyproject.toml
+    test -f /app/uv.lock
+    test -f /app/frame/python_environment.py
 
 %runscript
     exec /bin/bash "$@"

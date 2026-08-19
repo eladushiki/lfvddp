@@ -41,7 +41,7 @@ After CVMFS is available (see its [installation instructions](https://cvmfs.read
 
 > source scripts/setup_python_environment.sh
 
-This sources CVMFS Python, creates `.venv` with its site packages available, installs UV into that venv, and synchronizes the exact dependencies recorded in `uv.lock`. It uses the project default unless `UV_CACHE_DIR` is already set. In cluster user config, set optional `cluster__uv_cache_dir` to choose the cache directory for generated build and execution jobs. In later shells, reactivate the same environment before running any project script:
+This sources CVMFS Python, creates `.venv` with its site packages available, installs UV into that venv, and synchronizes the exact dependencies recorded in `uv.lock`. It uses the project default unless `UV_CACHE_DIR` is already set. In cluster user config, set optional `cluster__uv_cache_dir` to choose the cache directory for generated execution jobs. In later shells, reactivate the same environment before running any project script:
 
 > source scripts/activate_python_environment.sh
 
@@ -75,7 +75,7 @@ Alternatively, either clone project and use `singularity build` or build it dire
 
 WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
 
-The container sources the same CVMFS Python view before creating and activating `/app/.venv`. Its exact dependencies come from `uv.lock`. Container builds submitted through this project are pinned to the selected remote commit, run the definition's dependency and training import checks, and replace the existing SIF only after those checks pass.
+Remote Singularity builders cannot access CVMFS, so the image build does not create a Python environment. Before executing a container job, initialize `.venv` in the host project checkout with the Python setup above. The standard bind configuration maps that checkout to `/app`; at runtime the container sources CVMFS and activates the bound `/app/.venv`. Container builds are pinned to the selected remote commit, validate the source layout, and replace the existing SIF only after those checks pass.
 
 ## Environment Configuration
 
