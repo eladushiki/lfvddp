@@ -31,13 +31,20 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     fi
     git submodule update --init --recursive
 
-    # Install Python dependencies
-    python -m pip install --no-cache-dir --upgrade pip setuptools wheel
-    python -m pip install --no-cache-dir -r requirements.txt
+    # Source the project Python before creating its additive virtual environment.
+    CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+    source "$CVMFS_PYTHON_SETUP_PATH"
+    python -m pip install --no-cache-dir --upgrade uv
+    python -m uv venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"
+    source "$CONTAINER_PROJECT_ROOT/.venv/bin/activate"
+    python -m uv sync --locked --active
 
 %environment
-    export PYTHONUNBUFFERED=1
     export PYTHONPATH=/app
+    CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+    source "$CVMFS_PYTHON_SETUP_PATH"
+    source /app/.venv/bin/activate
+    export PYTHONUNBUFFERED=1
     export TF_USE_LEGACY_KERAS=True
 
     if [ -d /cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin ]; then
@@ -45,7 +52,10 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     fi
 
 %test
-    python -m pip check
+    CVMFS_PYTHON_SETUP_PATH="$(PYTHONPATH=/app python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
+    source "$CVMFS_PYTHON_SETUP_PATH"
+    source /app/.venv/bin/activate
+    python -m uv pip check
     python -c "import camel_converter; import train.single_train"
 
 %runscript

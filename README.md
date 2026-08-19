@@ -34,17 +34,16 @@ Optional: when finished, you need a weights file to use the `"SHAPE"` training m
 
 todo: this name is hardcoded in `parameters.py`, to be improved in the future.
 
-### CERN VM FS (Recommended):
+### Python environment
 
-`source` the a Python interpreter each time you open a shell (may be configured to happen automatically in an IDE) from CERN's CVMFS, using:
+The CVMFS Python activation path is defined once in `frame/python_environment.py`.
+After CVMFS is available (see its [installation instructions](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html)), initialize the locked project environment:
 
-> source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
+> source scripts/setup_python_environment.sh
 
-installation instructions for the filesystem can be found in [this link](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html).
+This sources CVMFS Python, creates `.venv` with its site packages available, and installs the exact dependencies recorded in `uv.lock`. In later shells, reactivate the same environment before running any project script:
 
-Then, create a controllable `.venv` as in:
-
-> python -m venv --system-site-packages .venv
+> source scripts/activate_python_environment.sh
 
 WSL: I found it also necessary to use
 
@@ -57,18 +56,9 @@ upon installation (restart afterwards), and
 > echo <your password> | sudo -S cvmfs_config wsl2_start
 
 Each time the systems is up (may be configured to happen automatically in vairous ways).
-### Local Venv:
+### Local Venv
 
-Use Python 3.11 or newer, creating a virtual environment for the installation
-of the specific dependency versions needed.
-
-Then, it is customary to run
-
-> pip install -e .
-
-> pip install -r requirements.txt
-
-to install the project to run locally with dependecies and being able to run the code locally while editing it in place.
+The setup script installs the project in editable mode and synchronizes the exact dependency versions from `uv.lock`; do not use a separate `pip install -r` step.
 
 The requirements include the XRootD backend for `fsspec`, which is needed to
 load remote ROOT files whose URLs use the `root://` protocol. The loader honors
@@ -85,12 +75,7 @@ Alternatively, either clone project and use `singularity build` or build it dire
 
 WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
 
-The container uses the Python interpreter and packages installed while the
-image is built. It deliberately does not source a host CVMFS LCG Python view at
-runtime, because doing so would hide the packages installed from
-`requirements.txt`. Container builds submitted through this project are pinned
-to the selected remote commit, run the definition's dependency and training
-import checks, and replace the existing SIF only after those checks pass.
+The container sources the same CVMFS Python view before creating and activating `/app/.venv`. Its exact dependencies come from `uv.lock`. Container builds submitted through this project are pinned to the selected remote commit, run the definition's dependency and training import checks, and replace the existing SIF only after those checks pass.
 
 ## Environment Configuration
 
@@ -276,7 +261,7 @@ including jobs whose total walltime fits in a single chunk.
 To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
 
 ```bash
-source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
+source /path/to/lfvddp/scripts/activate_python_environment.sh
 set TF_USE_LEGACY_KERAS=True  # Set legacy Keras usage, needed for NPLM
 ```
 

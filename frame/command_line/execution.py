@@ -12,6 +12,7 @@ from frame.file_structure import (
     path_as_in_container,
 )
 from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
+from frame.python_environment import cvmfs_python_activation_command
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
@@ -37,7 +38,8 @@ JOB_STARTED_AT_SECONDS=$(date +%s)
 echo "Running on host: $(hostname)"
 echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
-{task_id_line}{environment_activation_command}
+{task_id_line}{cvmfs_python_activation_command}
+{environment_activation_command}
 
 set -eo pipefail
 
@@ -537,6 +539,7 @@ def format_qsub_script(
         memory=config.cluster__qsub_mem or 2,
         array_job_line=array_job_line,
         task_id_line=task_id_line,
+        cvmfs_python_activation_command=cvmfs_python_activation_command(),
         environment_activation_command=config.cluster__environment_activation_command,
         **additional_template_kwargs,
     )

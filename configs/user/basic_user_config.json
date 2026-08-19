@@ -9,6 +9,6 @@
     },
     
     "cluster__repo_url": "https://github.com/eladushiki/lfvddp.git",
-    "cluster__environment_activation_command": "source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh && export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH\"",
+    "cluster__environment_activation_command": "export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH\",
     "cluster__singularity_executable": "singularity"
 }
