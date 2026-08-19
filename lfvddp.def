@@ -34,9 +34,9 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     # Source the project Python before creating its additive virtual environment.
     CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
     source "$CVMFS_PYTHON_SETUP_PATH"
-    python -m pip install --no-cache-dir --upgrade uv
-    python -m uv venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"
+    python -m venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"
     source "$CONTAINER_PROJECT_ROOT/.venv/bin/activate"
+    python -m pip install --no-cache-dir --upgrade uv
     python -m uv sync --locked --active
 
 %environment

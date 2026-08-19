@@ -42,7 +42,8 @@ def test_definition_uses_the_locked_project_venv():
     definition = Path("lfvddp.def").read_text()
 
     assert definition.count("from frame.python_environment import CVMFS_PYTHON_SETUP_PATH") == 3
-    assert 'python -m uv venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"' in definition
+    assert 'python -m venv --system-site-packages "$CONTAINER_PROJECT_ROOT/.venv"' in definition
+    assert "python -m pip install --no-cache-dir --upgrade uv" in definition
     assert "python -m uv sync --locked --active" in definition
     assert "source /app/.venv/bin/activate" in definition
 
