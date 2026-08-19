@@ -4,10 +4,13 @@ Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
 %post
+    set -eu
+
     # Cache-busting commit: PLACEHOLDER
     # Set default values for build arguments
-    REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp-symmetrized.git}"
+    REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp.git}"
     BRANCH="${BRANCH:-main}"
+    COMMIT_HASH="${COMMIT_HASH:-}"
     CONTAINER_PROJECT_ROOT="${CONTAINER_PROJECT_ROOT:-/app}"
     
     # Install additional system dependencies if needed
@@ -22,26 +25,28 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
     # Clone the repository using build arguments
     echo "Cloning repository: $REPO_URL (branch: $BRANCH)"
-    git clone --branch "$BRANCH" --single-branch "$REPO_URL" . && \
-    git submodule update --init --recursive && \
+    git clone --branch "$BRANCH" --single-branch "$REPO_URL" .
+    if [ -n "$COMMIT_HASH" ]; then
+        git checkout --detach "$COMMIT_HASH"
+    fi
+    git submodule update --init --recursive
 
     # Install Python dependencies
-    pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+    python -m pip install --no-cache-dir --upgrade pip setuptools wheel
+    python -m pip install --no-cache-dir -r requirements.txt
 
 %environment
     export PYTHONUNBUFFERED=1
     export PYTHONPATH=/app
-
-    if [ -f /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh ]; then
-        . /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
-    fi
-
     export TF_USE_LEGACY_KERAS=True
 
     if [ -d /cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin ]; then
         export PATH="/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH"
     fi
+
+%test
+    python -m pip check
+    python -c "import camel_converter; import train.single_train"
 
 %runscript
     exec /bin/bash "$@"

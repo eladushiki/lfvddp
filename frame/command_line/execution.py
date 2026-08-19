@@ -465,6 +465,7 @@ cp $LFVDDP_DEF_PATH ./{project_name}.def
 # The commit hash is added as a comment to bust Singularity's layer cache
 sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
     -e "s|BRANCH=.*|BRANCH=\"{git_branch}\"|" \
+    -e "s|COMMIT_HASH=.*|COMMIT_HASH=\"{git_commit_hash}\"|" \
     -e "s|CONTAINER_PROJECT_ROOT=.*|CONTAINER_PROJECT_ROOT=\"{container_project_root}\"|" \
     -e "s|# Cache-busting commit: PLACEHOLDER|# Cache-busting commit: {git_commit_hash}|" \
     {project_name}.def > {project_name}-edit.def
@@ -474,8 +475,17 @@ echo "Building container..."
 rm -f {project_name}.sif || true
 {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
 
-# Copy the built SIF back to submission directory
-cp {project_name}.sif $PBS_O_WORKDIR/
+# Exercise the image with the cluster's runtime mounts and environment before
+# publishing it. The definition's %test imports the training entry point.
+echo "Validating container..."
+{singularity_executable} test {project_name}.sif
+
+# Publish only a validated, completely copied image. A failed build, test, or
+# copy leaves the previous working SIF untouched.
+PUBLISH_TMP="$PBS_O_WORKDIR/.{project_name}.sif.$$"
+rm -f "$PUBLISH_TMP"
+cp {project_name}.sif "$PUBLISH_TMP"
+mv -f "$PUBLISH_TMP" "$PBS_O_WORKDIR/{project_name}.sif"
 
 # Cleanup build directory
 cd $PBS_O_WORKDIR
