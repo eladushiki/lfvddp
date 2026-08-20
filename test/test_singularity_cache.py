@@ -32,6 +32,9 @@ def test_container_build_is_pinned_validated_and_atomically_published(
     publish = 'mv -f "$PUBLISH_TMP" "$PBS_O_WORKDIR/lfvddp.sif"'
 
     assert pin in script
+    assert "run_singularity() (\n    unset LD_PRELOAD\n    exec \"$@\"" in script
+    assert f"run_singularity {build}" in script
+    assert f"run_singularity {validate}" in script
     assert script.index(build) < script.index(validate)
     assert script.index(validate) < script.index(copy)
     assert script.index(copy) < script.index(publish)

@@ -470,6 +470,13 @@ echo "Building Singularity container..."
 BUILD_DIR=$(mktemp -d)
 cd $BUILD_DIR
 
+# The cluster injects a host-only I/O throttling library through LD_PRELOAD.
+# Singularity cannot mount that library while converting the SIF to a sandbox.
+run_singularity() (
+    unset LD_PRELOAD
+    exec "$@"
+)
+
 # Copy definition file from source path (passed as environment variable)
 echo "Copying {project_name}.def file from $LFVDDP_DEF_PATH..."
 cp $LFVDDP_DEF_PATH ./{project_name}.def
@@ -486,12 +493,12 @@ sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
 # Build from the customized definition file
 echo "Building container..."
 rm -f {project_name}.sif || true
-{singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
+run_singularity {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
 
 # Exercise the image with the cluster's runtime mounts and environment before
 # publishing it. The definition's %test imports the training entry point.
 echo "Validating container..."
-{singularity_executable} test {project_name}.sif
+run_singularity {singularity_executable} test --cleanenv {project_name}.sif
 
 # Publish only a validated, completely copied image. A failed build, test, or
 # copy leaves the previous working SIF untouched.
