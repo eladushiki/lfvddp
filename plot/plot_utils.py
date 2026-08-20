@@ -25,7 +25,7 @@ from data_tools.dataset_config import (
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_median_t_significance_relative_to_background,
+    calc_mean_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
     calc_t_significance_relative_to_background,
 )
@@ -242,7 +242,7 @@ def utils__calculate_performance_curve(
             x_errors.append(0.0)
 
         observed_significances.append(
-            calc_median_t_significance_relative_to_background(
+            calc_mean_t_significance_relative_to_background(
                 background_t_dist,
                 signal_t_dist,
             )

@@ -32,7 +32,7 @@ The plot factory discovers and injects the two parent directories for this multi
 - Background-only `t` values from all discovered background contexts are aggregated into one reference distribution.
 - Signal contexts are discovered recursively and grouped by compatible dataset configuration.
 - Each signal context contributes a `t` distribution and an ideal significance derived from its configured injected signal.
-- For each group, the implementation calculates the measured significance and its uncertainty relative to the common background distribution.
+- For each signal distribution, the measured significance is the common-background percentile of that distribution's mean `t`; uncertainty is reported from mean `t` plus or minus one standard deviation.
 - Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined.
 
 ## Rendering

@@ -4,7 +4,24 @@ from scipy.stats import norm
 
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
+    calc_mean_t_significance_relative_to_background,
+    calc_t_significance_relative_to_background,
 )
+
+
+def test_mean_t_significance_uses_the_signal_distribution_mean():
+    background_t_values = np.arange(100, dtype=float)
+    signal_t_values = np.array([0.0, 0.0, 30.0])
+
+    significance = calc_mean_t_significance_relative_to_background(
+        background_t_values, signal_t_values
+    )
+
+    assert significance == pytest.approx(
+        calc_t_significance_relative_to_background(
+            np.mean(signal_t_values), background_t_values
+        )
+    )
 
 
 def test_continuous_injected_significance_handles_pdf_underflow():

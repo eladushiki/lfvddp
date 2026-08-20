@@ -9,7 +9,7 @@
 
 ## Purpose
 
-Compare the submission's empirical test-statistic distribution with its theoretical chi-square distribution. The plot exposes the observed median test statistic and the corresponding significance estimate, while making non-converged or overfitted runs visible in the legend.
+Compare the submission's empirical test-statistic distribution with its theoretical chi-square distribution, while making non-converged or overfitted runs visible in the legend.
 
 A reader should be able to determine:
 
@@ -43,8 +43,8 @@ The figure contains one axes:
 | --- | --- |
 | Empirical test statistics | Normalized histogram with the configured number of bins. |
 | Target distribution | Chi-square probability-density curve using the train statistic's degrees of freedom. |
-| Median statistic | Marked and labelled on the distribution. |
-| Significance | Derived from the median statistic and reported in the plot annotation. |
+| Mean statistic | Marked and labelled on the distribution. |
+| Significance | Derived from the mean statistic and reported in the plot annotation. |
 
 The plot uses the configured histogram, edge, and chi-square colors, line width, and alpha. It labels the horizontal axis as the test statistic and the vertical axis as probability density, with a legend identifying the empirical and reference distributions.
 
@@ -76,5 +76,5 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 - [ ] The input configuration type and required plot instruction are validated.
 - [ ] The empirical histogram contains only the selected `t` values.
 - [ ] The chi-square reference uses the configured statistic degrees of freedom.
-- [ ] Median statistic, significance, and omitted-run information are readable.
+- [ ] Mean statistic, significance, and omitted-run information are readable.
 - [ ] The figure is reproducible from the recorded submission results and configuration.

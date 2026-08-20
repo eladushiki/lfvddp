@@ -224,8 +224,8 @@ def t_distribution_plot(
     cut_overfitted: bool = True,
 ) -> Figure:
     """
-    Plot the histogram of a test statistics sample (t) and the target chi2 distribution.
-    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
+    Plot a test-statistic sample (t) and its target chi-square distribution.
+    The mean t value determines the displayed chi-square significance estimate.
     """
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(
@@ -283,7 +283,6 @@ def t_distribution_plot(
     histogram_bin_width = (xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
-        f"median: {str(np.around(np.median(t), 2))} \n"
         f"mean: {str(np.around(distribution_mean, 2))} \n"
         f"std: {str(np.around(distribution_std, 2))}"
     )
@@ -337,19 +336,19 @@ def t_distribution_plot(
         label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
     )
 
-    median_t = float(np.median(t))
-    median_significance = calc_t_significance_by_chi2_percentile(
+    mean_t = float(np.mean(t))
+    mean_significance = calc_t_significance_by_chi2_percentile(
         t, chi2_dof
     )
     ax.axvline(
-        median_t,
+        mean_t,
         color=style["edge_color"],
         linestyle="--",
         linewidth=style["linewidth"],
     )
     ax.annotate(
-        f"median $t={median_t:.2f}$\n$Z={median_significance:.2f}$",
-        xy=(median_t, float(np.max(h)) * 0.9),
+        f"mean $t={mean_t:.2f}$\n$Z(\\mathrm{{mean}}\\ t)={mean_significance:.2f}$",
+        xy=(mean_t, float(np.max(h)) * 0.9),
         xytext=(6, 0),
         textcoords="offset points",
         color=style["edge_color"],
