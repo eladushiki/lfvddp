@@ -4,10 +4,13 @@ Bootstrap: docker
 From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
 %post
+    set -eu
+
     # Cache-busting commit: PLACEHOLDER
     # Set default values for build arguments
-    REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp-symmetrized.git}"
+    REPO_URL="${REPO_URL:-https://github.com/eladushiki/lfvddp.git}"
     BRANCH="${BRANCH:-main}"
+    COMMIT_HASH="${COMMIT_HASH:-}"
     CONTAINER_PROJECT_ROOT="${CONTAINER_PROJECT_ROOT:-/app}"
     
     # Install additional system dependencies if needed
@@ -22,26 +25,37 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
 
     # Clone the repository using build arguments
     echo "Cloning repository: $REPO_URL (branch: $BRANCH)"
-    git clone --branch "$BRANCH" --single-branch "$REPO_URL" . && \
-    git submodule update --init --recursive && \
+    git clone --branch "$BRANCH" --single-branch "$REPO_URL" .
+    if [ -n "$COMMIT_HASH" ]; then
+        git checkout --detach "$COMMIT_HASH"
+    fi
+    git submodule update --init --recursive
 
-    # Install Python dependencies
-    pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+    # Python is initialized at runtime from the host project's bound .venv.
+    # Remote builders cannot access the host CVMFS mount.
 
 %environment
-    export PYTHONUNBUFFERED=1
+    # Container validation must not inherit a host Python installation.
+    unset PYTHONHOME
     export PYTHONPATH=/app
-
-    if [ -f /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh ]; then
-        . /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
+    export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/lfvddp-uv-cache}"
+    if [ -x /app/.venv/bin/python ]; then
+        source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
+        export VIRTUAL_ENV=/app/.venv
+        export PATH="$VIRTUAL_ENV/bin:$PATH"
+        unset PYTHONHOME
     fi
-
+    export PYTHONUNBUFFERED=1
     export TF_USE_LEGACY_KERAS=True
 
     if [ -d /cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin ]; then
         export PATH="/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH"
     fi
+
+%test
+    test -f /app/pyproject.toml
+    test -f /app/uv.lock
+    test -f /app/frame/python_environment.py
 
 %runscript
     exec /bin/bash "$@"

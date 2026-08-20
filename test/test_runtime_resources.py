@@ -181,6 +181,7 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert "export_container_variable PYTHONUNBUFFERED 1" in script
     assert "export_container_variable PYTHONFAULTHANDLER 1" in script
     assert "singularity exec --nv" in script
+    assert "unset LD_PRELOAD" in script
     assert 'touch "${temporary_sandbox}/.ready"' in script
     assert script.index('touch "${temporary_sandbox}/.ready"') < script.index(
         'mv "$temporary_sandbox" "$SANDBOX_DIR"'
