@@ -38,10 +38,12 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     export PYTHONPATH=/app
     UV_CACHE_DIR="${UV_CACHE_DIR:-$(python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
     export UV_CACHE_DIR
-    if [ -f /app/.venv/bin/activate ]; then
+    if [ -x /app/.venv/bin/python ]; then
         CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
         source "$CVMFS_PYTHON_SETUP_PATH"
-        source /app/.venv/bin/activate
+        export VIRTUAL_ENV=/app/.venv
+        export PATH="$VIRTUAL_ENV/bin:$PATH"
+        unset PYTHONHOME
     fi
     export PYTHONUNBUFFERED=1
     export TF_USE_LEGACY_KERAS=True

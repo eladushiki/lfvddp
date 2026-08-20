@@ -75,7 +75,7 @@ Alternatively, either clone project and use `singularity build` or build it dire
 
 WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
 
-Remote Singularity builders cannot access CVMFS, so the image build does not create a Python environment. Before executing a container job, initialize `.venv` in the host project checkout with the Python setup above. The standard bind configuration maps that checkout to `/app`; at runtime the container sources CVMFS and activates the bound `/app/.venv`. Container builds are pinned to the selected remote commit, validate the source layout, and replace the existing SIF only after those checks pass.
+Remote Singularity builders cannot access CVMFS, so the image build does not create a Python environment. Before executing a container job, initialize `.venv` in the host project checkout with the Python setup above. The standard bind configuration maps that checkout to `/app`; at runtime the container sources CVMFS and activates the bound `/app/.venv` by setting `VIRTUAL_ENV` and `PATH`, avoiding shell-specific activation scripts. Container builds are pinned to the selected remote commit, validate the source layout, and replace the existing SIF only after those checks pass.
 
 ## Environment Configuration
 

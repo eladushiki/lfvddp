@@ -49,8 +49,11 @@ def test_definition_activates_the_bound_project_venv_at_runtime():
 
     assert definition.count("from frame.python_environment import CVMFS_PYTHON_SETUP_PATH") == 1
     assert "python -m uv sync --locked --active" not in definition
-    assert "if [ -f /app/.venv/bin/activate ]; then" in definition
-    assert "source /app/.venv/bin/activate" in definition
+    assert "if [ -x /app/.venv/bin/python ]; then" in definition
+    assert "source /app/.venv/bin/activate" not in definition
+    assert "export VIRTUAL_ENV=/app/.venv" in definition
+    assert 'export PATH="$VIRTUAL_ENV/bin:$PATH"' in definition
+    assert "unset PYTHONHOME" in definition
     assert "test -f /app/uv.lock" in definition
 
 
