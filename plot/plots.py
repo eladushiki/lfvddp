@@ -164,7 +164,7 @@ def t_train_percentile_progression_plot(
         bbox_to_anchor=(0.5, 0.94),
         ncol=3,
     )
-    fig.tight_layout(rect=(0, c.RUN_STAMP_ROW_HEIGHT, 1, 0.88))
+    c.standardize_plot_borders(fig)
 
     return fig
 
@@ -383,7 +383,7 @@ def t_distribution_plot(
     ax.set_xlim(xmin, xmax)
     plt.yticks()
     plt.xticks()
-    c.reserve_run_stamp_row(fig)
+    c.standardize_plot_borders(fig)
 
     return fig
 
@@ -592,7 +592,7 @@ def performance_plot(
     ax.tick_params(labelsize=20)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
-    c.reserve_run_stamp_row(fig)
+    c.standardize_plot_borders(fig)
 
     return fig
 

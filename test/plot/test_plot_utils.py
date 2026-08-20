@@ -32,6 +32,10 @@ def test_carpenter_reserves_a_dedicated_run_stamp_row():
     assert figure.subplotpars.bottom == pytest.approx(
         Carpenter.RUN_STAMP_ROW_HEIGHT
     )
+    Carpenter.standardize_plot_borders(figure)
+    assert figure.subplotpars.top == pytest.approx(
+        Carpenter.STANDARD_TOP_BORDER
+    )
     plt.close(figure)
 
 

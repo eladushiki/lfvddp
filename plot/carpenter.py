@@ -11,6 +11,9 @@ class Carpenter:
     RUN_STAMP_ROW_HEIGHT = 0.12
     RUN_STAMP_Y = 0.02
     RUN_STAMP_FONT_SIZE = 10
+    STANDARD_LEFT_BORDER = 0.125
+    STANDARD_RIGHT_BORDER = 0.9
+    STANDARD_TOP_BORDER = 0.88
     _instance = None
 
     def __new__(cls, context: ExecutionContext):
@@ -66,4 +69,14 @@ class Carpenter:
         fig.subplots_adjust(
             bottom=max(requested_bottom, Carpenter.RUN_STAMP_ROW_HEIGHT),
             **subplot_adjustments,
+        )
+
+    @classmethod
+    def standardize_plot_borders(cls, fig: Figure) -> None:
+        """Apply the common one-panel plot borders after all artists are added."""
+        fig.subplots_adjust(
+            left=cls.STANDARD_LEFT_BORDER,
+            right=cls.STANDARD_RIGHT_BORDER,
+            bottom=cls.RUN_STAMP_ROW_HEIGHT,
+            top=cls.STANDARD_TOP_BORDER,
         )

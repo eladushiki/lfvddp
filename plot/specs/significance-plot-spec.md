@@ -50,6 +50,7 @@ The horizontal axis is ideal significance $\sqrt{q_0}$; the vertical axis is mea
 
 ### Further requirements
 - Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
+- This one-panel plot uses Carpenter's standard left, right, top, and bottom borders, shared with the percentile-progression and t-distribution plots.
 - Convert the snake case signal names in legend to english with parameters in latex equations if needed.
 
 ## Configuration Contract

@@ -52,6 +52,7 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 
 - The noramlization of the bins should be set such that given that the $chi^2$ distribution accurately describes their creation, the bin heights would match its plot in any point.
 - Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
+- This one-panel plot uses Carpenter's standard left, right, top, and bottom borders, shared with the percentile-progression and significance plots.
 
 ## Configuration Contract
 
