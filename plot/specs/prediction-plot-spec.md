@@ -59,10 +59,10 @@ A 2 × 2 figure with four panels:
   - 2D: Just enough spacing for all labels to show.
 - Minimal borders of figure to allow for all labels and titles to fit nicely without being cut or overlap.
 - Legends:
-  - 1D: top two plots: to the bottom left of each plots. Bottom two plots: to the top left of each plot.
-  - 2D: default / uninterrupting location.
-- The figure has a configurable title; its current default is `Datasets Along the Process`.
-- "run hash" stamping should be given it's height in bottom border, such that when displaying the image in the paper it could be cropped out.
+  - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
+  - 2D: default / uninterrupting location, also below the title.
+- The suptitle is `<configured title>: A prediction process of <runtag>`; its default configured title is `Datasets Along the Process`.
+- Every Carpenter figure reserves the same 12% bottom row for the `run hash` stamp, so that row can be cropped for paper display without cutting plot content.
 
 ## Current Distribution Rendering
 

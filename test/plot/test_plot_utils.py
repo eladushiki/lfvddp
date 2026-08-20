@@ -29,7 +29,9 @@ def test_carpenter_reserves_a_dedicated_run_stamp_row():
 
     Carpenter.reserve_run_stamp_row(figure, bottom=0.01)
 
-    assert figure.subplotpars.bottom == pytest.approx(0.12)
+    assert figure.subplotpars.bottom == pytest.approx(
+        Carpenter.RUN_STAMP_ROW_HEIGHT
+    )
     plt.close(figure)
 
 

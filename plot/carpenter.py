@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
 
-_RUN_STAMP_ROW_TOP = 0.12
-
-
 class Carpenter:
+    """Create figures with a consistent, crop-safe run-stamp row."""
+
+    RUN_STAMP_ROW_HEIGHT = 0.12
+    RUN_STAMP_Y = 0.02
+    RUN_STAMP_FONT_SIZE = 10
     _instance = None
 
     def __new__(cls, context: ExecutionContext):
@@ -47,9 +49,9 @@ class Carpenter:
         # Stamp for run
         fig.text(
             x=0,
-            y=0.02,
+            y=self.RUN_STAMP_Y,
             s=f"run hash: {self._context.run_hash}",
-            fontsize=10,
+            fontsize=self.RUN_STAMP_FONT_SIZE,
             verticalalignment="bottom",
             horizontalalignment="left",
         )
@@ -62,6 +64,6 @@ class Carpenter:
         """Reserve a crop-safe bottom row exclusively for the run stamp."""
         requested_bottom = subplot_adjustments.pop("bottom", 0.0)
         fig.subplots_adjust(
-            bottom=max(requested_bottom, _RUN_STAMP_ROW_TOP),
+            bottom=max(requested_bottom, Carpenter.RUN_STAMP_ROW_HEIGHT),
             **subplot_adjustments,
         )

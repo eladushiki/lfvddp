@@ -49,7 +49,7 @@ The figure contains one axes:
 The horizontal axis is ideal significance $\sqrt{q_0}$; the vertical axis is measured significance. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
 
 ### Further requirements
-- Enough whitespace needed in bottom for hash stamping, such that the whole height of it could be later cropped and not hide any other part of the plot.
+- Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
 - Convert the snake case signal names in legend to english with parameters in latex equations if needed.
 
 ## Configuration Contract

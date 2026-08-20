@@ -51,7 +51,7 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 ### Further Requirements
 
 - The noramlization of the bins should be set such that given that the $chi^2$ distribution accurately describes their creation, the bin heights would match its plot in any point.
-- Enough whitespace needed in bottom for hash stamping, such that the whole height of it could be later cropped and not hide any other part of the plot.
+- Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
 
 ## Configuration Contract
 

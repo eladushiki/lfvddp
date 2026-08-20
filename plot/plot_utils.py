@@ -871,7 +871,7 @@ def utils__add_prediction_process_legend(
 ) -> None:
     """Place a prediction-process legend in the specified unobtrusive corner."""
     anchor_by_location = {
-        "upper left": (0.02, 0.92),
+        "upper left": (0.02, 0.82),
         "lower left": (0.02, 0.02),
     }
     if location not in anchor_by_location:

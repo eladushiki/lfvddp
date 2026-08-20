@@ -49,6 +49,13 @@ from train.train_config import TrainConfig
 from train.train_utils import statistic_degrees_of_freedom
 
 
+def _prediction_process_suptitle(
+    context: ExecutionContext, title: str
+) -> str:
+    """Describe the prediction process and its source run in one line."""
+    return f"{title}: A prediction process of {context.config.config__runtag}"
+
+
 def _prediction_process_subplot_adjustments(
     number_of_dimensions: int,
 ) -> dict[str, float]:
@@ -157,7 +164,7 @@ def t_train_percentile_progression_plot(
         bbox_to_anchor=(0.5, 0.94),
         ncol=3,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.88))
+    fig.tight_layout(rect=(0, c.RUN_STAMP_ROW_HEIGHT, 1, 0.88))
 
     return fig
 
@@ -796,7 +803,9 @@ def plot_prediction_process_1d(
     c.reserve_run_stamp_row(
         fig, **_prediction_process_subplot_adjustments(ndim)
     )
-    fig.suptitle(title, fontsize=22, y=0.99)
+    fig.suptitle(
+        _prediction_process_suptitle(context, title), fontsize=22, y=0.99
+    )
 
     plot_colors = {
         "background": "gray",
@@ -1214,7 +1223,9 @@ def plot_prediction_process_2d(
     c.reserve_run_stamp_row(
         fig, **_prediction_process_subplot_adjustments(ndim)
     )
-    fig.suptitle(title, fontsize=22, y=0.99)
+    fig.suptitle(
+        _prediction_process_suptitle(context, title), fontsize=22, y=0.99
+    )
 
     plot_colors = {
         "background": "gray",
