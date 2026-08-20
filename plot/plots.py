@@ -231,6 +231,12 @@ def t_distribution_plot(
     agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
     all_finite_t = agg.all_t_values
 
+    if all_finite_t.size == 0:
+        raise ValueError(
+            f"No finite t values found in {config.plot__target_run_parent_directory}, meaning \
+            no training finished properly."
+        )
+
     # Training-result quality statistics
     t, did_not_converge, overfitted = _filter_t_distribution_outliers(
         all_finite_t,

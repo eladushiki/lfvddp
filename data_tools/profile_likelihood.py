@@ -164,7 +164,8 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         n_signal_events: int,
         upper_limit: Union[float, np.ndarray] = np.inf,
 ):
-    """Calculate formula (33) significance for PDFs over one or more observables.
+    """Calculate formula (32) from 2024 paper, significance for distributions
+    over one or more observables with known pdfs.
 
     A scalar ``upper_limit`` defines the existing one-dimensional domain
     ``[0, upper_limit]``. A one-dimensional array supplies one upper bound per
