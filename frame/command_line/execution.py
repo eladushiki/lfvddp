@@ -253,7 +253,12 @@ if ! exec {{CACHE_LOCK_FD}}>"$LOCK_FILE"; then
 fi
 
 run_singularity() {{
-    {singularity_executable} "$@"
+    # The cluster injects a host-only I/O throttling library through LD_PRELOAD.
+    # Singularity cannot mount that library while converting the SIF to a sandbox.
+    (
+        unset LD_PRELOAD
+        {singularity_executable} "$@"
+    )
 }}
 
 build_sandbox() {{
