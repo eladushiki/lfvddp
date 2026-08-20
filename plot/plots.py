@@ -40,7 +40,6 @@ from plot.plot_utils import (
     utils__plot_weighted_histogram_predictions_sliced,
     utils__prediction_process_observables,
     utils__project_prediction_values_sliced,
-    utils__remove_eta_from_prediction_values,
     utils__synchronize_output_axis_limits,
     utils__warn_for_context_discrepancies,
 )
@@ -48,11 +47,6 @@ from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import statistic_degrees_of_freedom
-
-
-_DETECTOR_EFFECT_LABEL = "detector efficiency"
-_DETECTOR_EFFECT_COLOR = "black"
-_DETECTOR_EFFECT_LINESTYLE = "-."
 
 
 def _prediction_process_subplot_adjustments(
@@ -1011,10 +1005,6 @@ def plot_prediction_process_1d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
-    detector_efficiency = denominator_training.detector_effect.efficiency_values(
-        prediction_spanning_dataset
-    )
-
     spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
     )
@@ -1027,30 +1017,8 @@ def plot_prediction_process_1d(
     nuisance_denominator_eta = utils__model_prediction_values(
         denominator_model.predict_eta, prediction_spanning_dataset
     )
-    spanning_exp_f = utils__remove_eta_from_prediction_values(
-        prediction_values=spanning_exp_f_eta_plus,
-        eta_values=nuisance_numerator_eta,
-        eta_sign=1.0,
-    )
-    spanning_exp_g = utils__remove_eta_from_prediction_values(
-        prediction_values=spanning_exp_g_eta_minus,
-        eta_values=nuisance_numerator_eta,
-        eta_sign=-1.0,
-    )
 
     sr_prediction_specs = {
-        "exp_f": (
-            r"signal hypothesis $e^{f(x)}$",
-            spanning_exp_f,
-            plot_colors["f"],
-            prediction_linestyles["product"],
-        ),
-        "exp_g": (
-            r"signal hypothesis $e^{g(x)}$",
-            spanning_exp_g,
-            plot_colors["g"],
-            prediction_linestyles["product"],
-        ),
         "exp_f_eta_plus": (
             r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
             spanning_exp_f_eta_plus,
@@ -1096,20 +1064,17 @@ def plot_prediction_process_1d(
             ),
         }
 
-    null_prediction_specs = nuisance_prediction_specs(
+    eta_prediction_specs = nuisance_prediction_specs(
         nuisance_numerator_eta,
         nuisance_denominator_eta,
     )
-    sr_prediction_specs.update(null_prediction_specs)
-    cr_prediction_specs = {
-        **sr_prediction_specs,
-        "detector_efficiency": (
-            _DETECTOR_EFFECT_LABEL,
-            detector_efficiency,
-            _DETECTOR_EFFECT_COLOR,
-            _DETECTOR_EFFECT_LINESTYLE,
-        ),
-    }
+    sr_prediction_specs.update(
+        {
+            key: eta_prediction_specs[key]
+            for key in ("denominator_eta_plus", "denominator_eta_minus")
+        }
+    )
+    cr_prediction_specs = eta_prediction_specs
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -1454,15 +1419,14 @@ def plot_prediction_process_2d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
-    detector_efficiency = denominator_training.detector_effect.efficiency_values(
-        prediction_spanning_dataset
-    )
-
     spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
     )
     spanning_exp_g_eta_minus = utils__model_prediction_values(
         numerator_model.predict_secondary, prediction_spanning_dataset
+    )
+    nuisance_numerator_eta = utils__model_prediction_values(
+        numerator_model.predict_eta, prediction_spanning_dataset
     )
     nuisance_denominator_eta = utils__model_prediction_values(
         denominator_model.predict_eta, prediction_spanning_dataset
@@ -1483,9 +1447,22 @@ def plot_prediction_process_2d(
     }
 
     def nuisance_prediction_specs(
+        numerator_eta: np.ndarray,
         denominator_eta: np.ndarray,
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
+            "numerator_eta_plus": (
+                r"signal hypothesis $1+\eta(x)$",
+                1.0 + numerator_eta,
+                plot_colors["eta_plus"],
+                prediction_linestyles["component"],
+            ),
+            "numerator_eta_minus": (
+                r"signal hypothesis $1-\eta(x)$",
+                1.0 - numerator_eta,
+                plot_colors["eta_minus"],
+                prediction_linestyles["component"],
+            ),
             "denominator_eta_plus": (
                 r"null hypothesis $1+\eta(x)$",
                 1.0 + denominator_eta,
@@ -1500,17 +1477,17 @@ def plot_prediction_process_2d(
             ),
         }
 
-    null_prediction_specs = nuisance_prediction_specs(nuisance_denominator_eta)
-    sr_prediction_specs.update(null_prediction_specs)
-    cr_prediction_specs = {
-        **sr_prediction_specs,
-        "detector_efficiency": (
-            _DETECTOR_EFFECT_LABEL,
-            detector_efficiency,
-            _DETECTOR_EFFECT_COLOR,
-            _DETECTOR_EFFECT_LINESTYLE,
-        ),
-    }
+    eta_prediction_specs = nuisance_prediction_specs(
+        nuisance_numerator_eta,
+        nuisance_denominator_eta,
+    )
+    sr_prediction_specs.update(
+        {
+            key: eta_prediction_specs[key]
+            for key in ("denominator_eta_plus", "denominator_eta_minus")
+        }
+    )
+    cr_prediction_specs = eta_prediction_specs
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],

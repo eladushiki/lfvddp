@@ -43,7 +43,7 @@ from train.train_config import TrainConfig
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
-_PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.94
+_PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.90
 
 
 def utils__prediction_mesh_mask(

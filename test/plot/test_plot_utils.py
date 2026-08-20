@@ -38,7 +38,7 @@ def test_prediction_process_titles_stay_inside_their_own_panels():
 
     utils__set_prediction_process_subplot_title(axis, "SR distributions")
 
-    assert axis.title.get_position() == (0.5, pytest.approx(0.94))
+    assert axis.title.get_position() == (0.5, pytest.approx(0.90))
     plt.close(figure)
 
 

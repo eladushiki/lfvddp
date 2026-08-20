@@ -46,8 +46,8 @@ A 2 × 2 figure with four panels:
 | --- | --- | --- | --- |
 | Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Same 2D SR histograms of the data. If more than 2D, its projection over the first two dimensions. |
 | Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | Same 2D CR histograms of the data. If more than 2D, its projection over the first two dimensions. |
-| Bottom left | SR prediction | Curves for signal-hypothesis and null hypothesis predictions over the SR. | Same SR plots of the 2d functions. |
-| Bottom right | CR prediction | Curves for signal-hypothesis and null hypothesis predictions over the CR. In addition, the corresponding detector effect to which they should fit. | Same CR plots of the 2d functions. |
+| Bottom left | SR prediction | Exactly the null terms $1+\eta(x)$ and $1-\eta(x)$ plus the signal products $e^{f(x)}(1+\eta(x))$ and $e^{g(x)}(1-\eta(x))$, evaluated over the SR. | Same four SR functions as 2D surfaces. |
+| Bottom right | CR prediction | Exactly the signal nuisance terms $1+\eta(x)$ and $1-\eta(x)$ plus the null nuisance terms $1+\eta(x)$ and $1-\eta(x)$, evaluated over the CR. | Same four CR functions as 2D surfaces. |
 
 ### Plot axes
 
@@ -77,28 +77,31 @@ A 2 × 2 figure with four panels:
 
 ## Prediction Rendering
 
-### SR panel: numerator model
+### SR prediction panel
 
-The numerator model supplies:
+The bottom-left panel displays exactly four functions over the signal region:
 
-| Quantity | Current label/meaning |
-| --- | --- |
-| `predict` | $e^{f(x)}(1+\eta(x))$ signal-hypothesis component |
-| `predict_secondary` | $e^{g(x)}(1-\eta(x))$ signal-hypothesis component |
-| `predict_eta` | Numerator nuisance factor $\eta(x)$ |
+- Null hypothesis: $1+\eta(x)$ and $1-\eta(x)$ from the denominator model.
+- Signal hypothesis: $e^{f(x)}(1+\eta(x))$ and $e^{g(x)}(1-\eta(x))$ from the numerator model.
 
-The implementation also derives and displays the eta-removed signal terms $e^{f(x)}$ and $e^{g(x)}$, together with $1+\eta(x)$ and $1-\eta(x)$.
+It does not display eta-removed $e^{f(x)}$ or $e^{g(x)}$ terms, numerator nuisance-only terms, or detector efficiency.
 
-### CR panel: denominator model
+### CR prediction panel
 
-The denominator model supplies `predict_eta`, which is displayed as the null-hypothesis nuisance factors $1+\eta(x)$ and $1-\eta(x)$.
+The bottom-right panel displays exactly four nuisance functions over the control region:
+
+- Signal hypothesis: $1+\eta(x)$ and $1-\eta(x)$ from the numerator model.
+- Null hypothesis: $1+\eta(x)$ and $1-\eta(x)$ from the denominator model.
+
+It does not display signal product terms, eta-removed terms, or detector efficiency.
 
 ### Common behavior
 
 - A horizontal reference line is drawn at prediction value **1.0** in 1D prediction panels.
 - Prediction values are evaluated over a spanning dataset built from detector-bin coordinates.
 - The model output is projected onto the selected observable(s) before rendering, only if there are more then 2 observables in the data.
-- Null hypothesis terms use dash-dot lines; signal hypothesis terms use solid lines; detector effect plots use double line.
+- Null hypothesis terms use dashed lines; signal hypothesis terms use solid lines.
+- Every subplot title is positioned inside its own panel at 90% of panel height, avoiding the suptitle and adjacent plots.
 
 ## Current Visual Encoding
 
