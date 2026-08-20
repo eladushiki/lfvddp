@@ -8,7 +8,7 @@
         "/cvmfs/": "/cvmfs/"
     },
     "cluster__repo_url": "https://github.com/eladushiki/lfvddp.git",
-    "cluster__uv_cache_dir": null,
-    "cluster__environment_activation_command": "export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH\"",
+    "cluster__uv_cache_dir": "/storage/agrp/eladklig/.cache/uv",
+    "cluster__environment_activation_command": "export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH",
     "cluster__singularity_executable": "singularity"
 }
