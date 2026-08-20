@@ -12,6 +12,7 @@ from neural_networks.differentiating_model import (
     _compact_nuisance_denominator_loss,
     _compact_nuisance_loss,
     _PairedEstimator,
+    _ThetaEstimator,
 )
 from test.environment import ConfigType, DEFAULT_CONFIG_PATHS
 from train.checkpoints import (
@@ -22,6 +23,20 @@ from train.model_trainer import SequentialTrainLauncher
 from train.runtime_resources import RuntimeAllocation
 from train.tensorboard_clutch import log_t_history
 
+def test_theta_estimator_matches_network_dimensions_and_bounds_output():
+    estimator = _ThetaEstimator(
+        input_dimension=2,
+        hidden_size=2,
+        output_dimension=1,
+        dtype=torch.float64,
+    )
+
+    theta = estimator(torch.zeros((3, 2), dtype=torch.float64))
+
+    assert theta.shape == (3,)
+    assert torch.all(torch.abs(theta) < 1)
+
+
 ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
     ConfigType.DATASET.value: Path(
         "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
@@ -31,6 +46,12 @@ ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
     ),
     ConfigType.TRAIN.value: Path(
         "test/configs/train/short_1D_train_config_without_nuisance.json"
+    ),
+}
+ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
+    **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
 ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG = {
@@ -408,10 +429,45 @@ def test_paired_estimator_keeps_f_and_g_gradients_independent(input_dimension):
 
 @pytest.mark.parametrize(
     "function_execution_context",
+    [ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_neural_theta_preparation_skips_detector_bin_compression(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+):
+    detected_batch = detector_effect.affect_batch(
+        isolated_data_generation.get_batch()
+    )
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="neural_theta_model",
+    )
+
+    prepared = model._prepare_training_data(detected_batch)
+
+    assert model.theta_network is not None
+    assert prepared.a_cr_bin_counts is not None
+    assert prepared.b_cr_bin_counts is not None
+    assert prepared.a_cr_bin_counts.numel() == detected_batch.datasets[
+        DataSet.DataSetCategory.A_CR
+    ].n_samples
+    assert prepared.b_cr_bin_counts.numel() == detected_batch.datasets[
+        DataSet.DataSetCategory.B_CR
+    ].n_samples
+    assert torch.all(prepared.a_cr_bin_counts == 1)
+    assert torch.all(prepared.b_cr_bin_counts == 1)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
     [TWO_DIMENSION_WITH_NUISANCE_CONFIG],
     indirect=True,
 )
-def test_nuisance_preparation_compresses_cr_and_uses_one_eta_evaluation(
+def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -439,18 +495,18 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_eta_evaluation(
     )
     assert prepared.number_of_cr_bins <= prepared.number_of_cr_events
 
-    eta_evaluation_sizes = []
-    original_eta_evaluation = model._eta_from_bin_indices
+    theta_evaluation_sizes = []
+    original_theta_evaluation = model._theta_from_bin_indices
 
-    def record_eta_evaluation(bin_indices):
-        eta_evaluation_sizes.append(bin_indices.shape[0])
-        return original_eta_evaluation(bin_indices)
+    def record_theta_evaluation(bin_indices):
+        theta_evaluation_sizes.append(bin_indices.shape[0])
+        return original_theta_evaluation(bin_indices)
 
-    monkeypatch.setattr(model, "_eta_from_bin_indices", record_eta_evaluation)
+    monkeypatch.setattr(model, "_theta_from_bin_indices", record_theta_evaluation)
     loss = model(prepared)
     loss.backward()
 
-    assert eta_evaluation_sizes == [prepared.nuisance_bin_indices.shape[0]]
+    assert theta_evaluation_sizes == [prepared.nuisance_bin_indices.shape[0]]
     assert all(
         nuisance_parameter.grad is not None
         for nuisance_parameter in model._detector_deltas.values()
@@ -514,7 +570,7 @@ def test_model_initialization_and_prediction(
     ]
     prediction = model.predict(prediction_data)
     secondary_prediction = model.predict_secondary(prediction_data)
-    eta_prediction = model.predict_eta(prediction_data)
+    eta_prediction = model.predict_theta(prediction_data)
     assert prediction.shape == (prediction_data.n_samples, 1)
     assert secondary_prediction.shape == prediction.shape
     assert torch.isfinite(torch.from_numpy(prediction)).all()

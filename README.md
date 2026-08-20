@@ -415,3 +415,7 @@ Training entry points:
 
 ## Plotting
 - `create_plots.py <submission-directory> [--debug] [--multi-run-plots]` follows the staged configuration files to gather data from completed trainings and produce the plots. Multi-run plotting discovers the background-only submission and uses its staged configuration.
+
+## Nuisance implementation
+
+`TrainConfig` defaults to the legacy binwise-constant nuisance implementation. Set `train__nuisance_is_neural_network` to `true` to use a bounded neural `theta(x)` instead. Its input and output dimensions match the primary f/g networks, while `train__nuisance_nn_inner_layer_nodes` controls its hidden layer and defaults to `2`.

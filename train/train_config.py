@@ -32,6 +32,8 @@ class TrainConfig:
     
     ## Training for nuisance parameters
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
+    train__nuisance_is_neural_network: bool = False
+    train__nuisance_nn_inner_layer_nodes: int = 2
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
     
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
