@@ -2,20 +2,19 @@
 
 ## Status
 
-- **Document status:** Draft template
-- **Implementation status:** Current behavior documented below
+- **Implementation status:** Ongoing - up to date behavior documented below
 - **Primary implementation:** `plot/plots.py`: `t_distribution_plot`
 - **Primary utilities:** `plot/plots.py`: `_filter_t_distribution_outliers`
 - **Plot scope:** Single submission
 
 ## Purpose
 
-Compare the submission's empirical test-statistic distribution with its target chi-square distribution. The plot exposes the observed median test statistic and the corresponding significance estimate, while making non-converged or overfitted runs visible in the legend.
+Compare the submission's empirical test-statistic distribution with its theoretical chi-square distribution. The plot exposes the observed median test statistic and the corresponding significance estimate, while making non-converged or overfitted runs visible in the legend.
 
 A reader should be able to determine:
 
 - Whether the empirical distribution is compatible with the target chi-square shape.
-- The median test statistic and median significance estimate.
+- The mean test statistic and mean significance estimate.
 - How many runs were omitted because they did not converge or were classified as overfitted.
 
 ## Invocation and Inputs
@@ -23,10 +22,10 @@ A reader should be able to determine:
 | Input | Current behavior |
 | --- | --- |
 | Execution context | Must supply a merged `PlottingConfig`, `TrainConfig`, and `DetectorConfig`. |
-| Training results | The result aggregator loads recorded test-statistic (`t`) values from the submission. |
+| Training results | The result aggregator loads recorded test-statistic (`t`) values from a single submission. |
 | `number_of_bins` | Required instruction controlling empirical histogram bin count. |
-| `cut_non_converged` | Optional; default `true`; controls removal of non-finite `t` values. |
-| `cut_overfitted` | Optional; default `true`; controls removal of extreme finite `t` values. |
+| `cut_non_converged` | Optional; default `true`; controls removal (and indication) of non-convergent (negative and apart from distribution bulk) `t` values. |
+| `cut_overfitted` | Optional; default `true`; controls removal (and indication) of extreme finite (large and apart from distribution bulk) `t` values. |
 
 ## Data Selection and Filtering
 
@@ -49,12 +48,17 @@ The figure contains one axes:
 
 The plot uses the configured histogram, edge, and chi-square colors, line width, and alpha. It labels the horizontal axis as the test statistic and the vertical axis as probability density, with a legend identifying the empirical and reference distributions.
 
+### Further Requirements
+
+- The noramlization of the bins should be set such that given that the $chi^2$ distribution accurately describes their creation, the bin heights would match its plot in any point.
+- Enough whitespace needed in bottom for hash stamping, such that the whole height of it could be later cropped and not hide any other part of the plot.
+
 ## Configuration Contract
 
 | Key or instruction | Current default | Effect |
 | --- | ---: | --- |
 | `number_of_bins` | Required | Histogram resolution. |
-| `cut_non_converged` | `true` | Omits non-finite runs from the displayed distribution. |
+| `cut_non_converged` | `true` | Omits runs that are too far off to the lower side from the displayed distribution. |
 | `cut_overfitted` | `true` | Omits finite outliers classified as overfitted. |
 | `plot__figure_size` | `[10, 9]` | Figure dimensions in inches. |
 | `plot__figure_styling.plot.histogram_color` | `plum` | Empirical histogram color. |

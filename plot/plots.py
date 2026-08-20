@@ -11,6 +11,7 @@ from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
+from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
 from data_tools.detector.detector_config import DetectorConfig
 from frame.aggregate import ResultAggregator
 from frame.context.execution_context import ExecutionContext
@@ -47,6 +48,12 @@ from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import statistic_degrees_of_freedom
+
+
+_DETECTOR_EFFECT_LABEL = "detector efficiency"
+_DETECTOR_EFFECT_COLOR = "black"
+_DETECTOR_EFFECT_LINESTYLE = "-."
+
 
 def _prediction_process_subplot_adjustments(
     number_of_dimensions: int,
@@ -189,8 +196,19 @@ def _filter_t_distribution_outliers(
     cut_overfitted: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply the configured t-distribution tail exclusions."""
-    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
-    excluded = np.zeros(t_values.shape, dtype=bool)
+    finite_values = np.isfinite(t_values)
+    did_not_converge = ~finite_values
+    overfitted = np.zeros(t_values.shape, dtype=bool)
+    if np.any(finite_values):
+        finite_did_not_converge, finite_overfitted = (
+            _t_distribution_outlier_masks(t_values[finite_values])
+        )
+        did_not_converge[finite_values] = finite_did_not_converge
+        overfitted[finite_values] = finite_overfitted
+
+    # Non-finite values cannot be rendered in a histogram, even when the user
+    # elects to retain finite non-converged values for diagnostic purposes.
+    excluded = ~finite_values
     if cut_non_converged:
         excluded |= did_not_converge
     if cut_overfitted:
@@ -313,6 +331,25 @@ def t_distribution_plot(
         label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
     )
 
+    median_t = float(np.median(t))
+    median_significance = calc_t_significance_by_chi2_percentile(
+        t, chi2_dof
+    )
+    ax.axvline(
+        median_t,
+        color=style["edge_color"],
+        linestyle="--",
+        linewidth=style["linewidth"],
+    )
+    ax.annotate(
+        f"median $t={median_t:.2f}$\n$Z={median_significance:.2f}$",
+        xy=(median_t, float(np.max(h)) * 0.9),
+        xytext=(6, 0),
+        textcoords="offset points",
+        color=style["edge_color"],
+        verticalalignment="top",
+    )
+
     # Legend
     circ = patches.Circle(
         (0, 0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"]
@@ -340,6 +377,7 @@ def t_distribution_plot(
     ax.set_xlim(xmin, xmax)
     plt.yticks()
     plt.xticks()
+    c.reserve_run_stamp_row(fig)
 
     return fig
 
@@ -455,6 +493,14 @@ def performance_plot(
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
+    ax.plot(
+        (min_x, max_x),
+        (min_x, max_x),
+        color="black",
+        linewidth=1.5,
+        linestyle=":",
+        label=r"Expected $\chi^2$ limit",
+    )
 
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
@@ -540,6 +586,7 @@ def performance_plot(
     ax.tick_params(labelsize=20)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
+    c.reserve_run_stamp_row(fig)
 
     return fig
 
@@ -747,8 +794,10 @@ def plot_prediction_process_1d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(**_prediction_process_subplot_adjustments(ndim))
-    fig.suptitle(title, fontsize=22)
+    c.reserve_run_stamp_row(
+        fig, **_prediction_process_subplot_adjustments(ndim)
+    )
+    fig.suptitle(title, fontsize=22, y=0.99)
 
     plot_colors = {
         "background": "gray",
@@ -957,6 +1006,9 @@ def plot_prediction_process_1d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
+    detector_efficiency = denominator_training.detector_effect.efficiency_values(
+        prediction_spanning_dataset
+    )
 
     spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
@@ -1039,10 +1091,20 @@ def plot_prediction_process_1d(
             ),
         }
 
-    cr_prediction_specs = nuisance_prediction_specs(
+    null_prediction_specs = nuisance_prediction_specs(
         nuisance_numerator_eta,
         nuisance_denominator_eta,
     )
+    sr_prediction_specs.update(null_prediction_specs)
+    cr_prediction_specs = {
+        **sr_prediction_specs,
+        "detector_efficiency": (
+            _DETECTOR_EFFECT_LABEL,
+            detector_efficiency,
+            _DETECTOR_EFFECT_COLOR,
+            _DETECTOR_EFFECT_LINESTYLE,
+        ),
+    }
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -1179,8 +1241,10 @@ def plot_prediction_process_2d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(**_prediction_process_subplot_adjustments(ndim))
-    fig.suptitle(title, fontsize=22)
+    c.reserve_run_stamp_row(
+        fig, **_prediction_process_subplot_adjustments(ndim)
+    )
+    fig.suptitle(title, fontsize=22, y=0.99)
 
     plot_colors = {
         "background": "gray",
@@ -1385,6 +1449,9 @@ def plot_prediction_process_2d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
+    detector_efficiency = denominator_training.detector_effect.efficiency_values(
+        prediction_spanning_dataset
+    )
 
     spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
@@ -1428,7 +1495,17 @@ def plot_prediction_process_2d(
             ),
         }
 
-    cr_prediction_specs = nuisance_prediction_specs(nuisance_denominator_eta)
+    null_prediction_specs = nuisance_prediction_specs(nuisance_denominator_eta)
+    sr_prediction_specs.update(null_prediction_specs)
+    cr_prediction_specs = {
+        **sr_prediction_specs,
+        "detector_efficiency": (
+            _DETECTOR_EFFECT_LABEL,
+            detector_efficiency,
+            _DETECTOR_EFFECT_COLOR,
+            _DETECTOR_EFFECT_LINESTYLE,
+        ),
+    }
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],

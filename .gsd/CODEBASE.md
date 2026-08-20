@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-17T05:30:31Z | Files: 285 | Described: 0/285
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-17T05:30:31Z","fingerprint":"ab9961910ac4c39c449530add897ec070954d10e","fileCount":285,"truncated":false} -->
+Generated: 2026-08-19T10:08:32Z | Files: 286 | Described: 0/286
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-19T10:08:32Z","fingerprint":"def479ae56b21c7731866e5ab452102e4c5269a0","fileCount":286,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -9,12 +9,10 @@ Generated: 2026-08-17T05:30:31Z | Files: 285 | Described: 0/285
 - `.gitmodules`
 - `AGENTS.md`
 - `lfvddp.def`
-- `prediction-plot-spec.md`
 - `pytest.ini`
 - `README.md`
 - `requirements.txt`
 - `setup.py`
-- `submit-on-cluster.md`
 
 ### .github/
 - `.github/CODEOWNERS`
@@ -217,6 +215,11 @@ Generated: 2026-08-17T05:30:31Z | Files: 285 | Described: 0/285
 - `plot/plot_utils.py`
 - `plot/plots.py`
 - `plot/plotting_config.py`
+
+### plot/specs/
+- `plot/specs/prediction-plot-spec.md`
+- `plot/specs/significance-plot-spec.md`
+- `plot/specs/t-distribution-plot-spec.md`
 
 ### test/
 - `test/__init__.py`

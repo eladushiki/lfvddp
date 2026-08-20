@@ -4,6 +4,10 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
+
+_RUN_STAMP_ROW_TOP = 0.12
+
+
 class Carpenter:
     _instance = None
 
@@ -43,11 +47,21 @@ class Carpenter:
         # Stamp for run
         fig.text(
             x=0,
-            y=0,
+            y=0.02,
             s=f"run hash: {self._context.run_hash}",
             fontsize=10,
-            verticalalignment='bottom',
-            horizontalalignment='left',
+            verticalalignment="bottom",
+            horizontalalignment="left",
         )
+        self.reserve_run_stamp_row(fig)
 
         return fig
+
+    @staticmethod
+    def reserve_run_stamp_row(fig: Figure, **subplot_adjustments) -> None:
+        """Reserve a crop-safe bottom row exclusively for the run stamp."""
+        requested_bottom = subplot_adjustments.pop("bottom", 0.0)
+        fig.subplots_adjust(
+            bottom=max(requested_bottom, _RUN_STAMP_ROW_TOP),
+            **subplot_adjustments,
+        )

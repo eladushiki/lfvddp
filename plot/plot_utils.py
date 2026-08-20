@@ -43,6 +43,7 @@ from train.train_config import TrainConfig
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
+_PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.94
 
 
 def utils__prediction_mesh_mask(
@@ -286,6 +287,11 @@ def utils__calculate_performance_curve(
     )
 
 
+def _humanize_signal_description(description: str) -> str:
+    """Turn generator identifiers into readable significance-plot labels."""
+    return description.replace("_", " ")
+
+
 def utils__performance_group_label(
     signal_context: ExecutionContext,
 ) -> str:
@@ -295,7 +301,9 @@ def utils__performance_group_label(
         parameters = signal_config.get_parameters(category)
         if not parameters.dataset__has_signal:
             continue
-        signal_descriptions.append(parameters.dataset__signal_description)
+        signal_descriptions.append(
+            _humanize_signal_description(parameters.dataset__signal_description)
+        )
 
     return "; ".join(signal_descriptions) or "no signal"
 
@@ -1060,7 +1068,16 @@ def _configure_region_histogram_panel_sliced(
         if normalize_distributions
         else "number density functions"
     )
-    ax.set_title(f"{region_name} {title_suffix}")
+    utils__set_prediction_process_subplot_title(
+        ax, f"{region_name} {title_suffix}"
+    )
+
+
+def utils__set_prediction_process_subplot_title(
+    ax: plt.Axes, title: str
+) -> None:
+    """Place a prediction-process title inside its own subplot boundary."""
+    ax.set_title(title, y=_PREDICTION_PROCESS_SUBPLOT_TITLE_Y)
 
 
 def utils__plot_region_histogram_meshes_2d(
@@ -1488,5 +1505,5 @@ def utils__plot_model_predictions_sliced(
         along_observables=along_observables,
         output_label="model prediction",
     )
-    ax.set_title(title)
+    utils__set_prediction_process_subplot_title(ax, title)
     utils__add_prediction_process_legend(ax, fontsize=7)

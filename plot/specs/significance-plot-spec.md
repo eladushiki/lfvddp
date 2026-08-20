@@ -2,19 +2,18 @@
 
 ## Status
 
-- **Document status:** Draft template
-- **Implementation status:** Current behavior documented below
+- **Implementation status:** Ongoing - up to date with code
 - **Primary implementation:** `plot/plots.py`: `performance_plot`
 - **Primary utilities:** `plot/plot_utils.py`: context discovery, grouping, and performance-curve calculation
 - **Plot scope:** Multi-run
 
 ## Purpose
 
-Show the measured LFVDDP significance across compatible signal runs relative to their ideal significance. The plot uses background-only runs as a common reference distribution, so readers can compare observed sensitivity among signal models and data-generation settings.
+Show the measured LFVDDP significance across compatible signal runs relative to their ideal (analytic, if known) significance. The plot uses background-only runs as a common reference distribution, as well as the theoretical $\chi^2$ limit, so readers can compare observed sensitivity among signal models and data-generation settings.
 
 A reader should be able to determine:
 
-- How measured significance changes with ideal \(Z=\sqrt{q_0}\).
+- How measured significance changes with ideal $Z=\sqrt{q_0}$.
 - Which compatible signal-run groups each curve represents.
 - The uncertainty on measured significance at each sampled ideal significance.
 
@@ -22,7 +21,7 @@ A reader should be able to determine:
 
 | Input | Current behavior |
 | --- | --- |
-| Execution context | Supplies the plotting configuration and output lifecycle. |
+| Execution context | Supplies the plotting configuration and output lifecycle. Also, the degree of the expected $\chi^2$ distribution by the configured number of the models' degrees of freedom. |
 | Background-only parent directory | Required; each outermost directory containing a context beneath it contributes to the reference `t` distribution. |
 | Signal parent directory | Required; each outermost directory containing a context beneath it supplies one signal distribution. |
 
@@ -47,7 +46,11 @@ The figure contains one axes:
 | Uncertainty | Error bars on measured significance. |
 | Reference relation | The ideal-significance diagonal used to compare measured and ideal sensitivity. |
 
-The horizontal axis is ideal significance \(\sqrt{q_0}\); the vertical axis is measured significance. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
+The horizontal axis is ideal significance $\sqrt{q_0}$; the vertical axis is measured significance. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
+
+### Further requirements
+- Enough whitespace needed in bottom for hash stamping, such that the whole height of it could be later cropped and not hide any other part of the plot.
+- Convert the snake case signal names in legend to english with parameters in latex equations if needed.
 
 ## Configuration Contract
 

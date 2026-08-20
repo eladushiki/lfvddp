@@ -2,8 +2,7 @@
 
 ## Status
 
-- **Document status:** Draft template
-- **Implementation status:** Current behavior documented below
+- **Implementation status:** Ongoing - up to date behavior documented below
 - **Primary implementation:** `plot/plots.py`: `plot_prediction_process_1d` and `plot_prediction_process_2d`
 - **Primary utilities:** `plot/plot_utils.py`
 - **Plot scope:** Single train process results
@@ -84,15 +83,15 @@ The numerator model supplies:
 
 | Quantity | Current label/meaning |
 | --- | --- |
-| `predict` | \(e^{f(x)}(1+\eta(x))\) signal-hypothesis component |
-| `predict_secondary` | \(e^{g(x)}(1-\eta(x))\) signal-hypothesis component |
-| `predict_eta` | Numerator nuisance factor \(\eta(x)\) |
+| `predict` | $e^{f(x)}(1+\eta(x))$ signal-hypothesis component |
+| `predict_secondary` | $e^{g(x)}(1-\eta(x))$ signal-hypothesis component |
+| `predict_eta` | Numerator nuisance factor $\eta(x)$ |
 
-The implementation also derives and displays the eta-removed signal terms \(e^{f(x)}\) and \(e^{g(x)}\), together with \(1+\eta(x)\) and \(1-\eta(x)\).
+The implementation also derives and displays the eta-removed signal terms $e^{f(x)}$ and $e^{g(x)}$, together with $1+\eta(x)$ and $1-\eta(x)$.
 
 ### CR panel: denominator model
 
-The denominator model supplies `predict_eta`, which is displayed as the null-hypothesis nuisance factors \(1+\eta(x)\) and \(1-\eta(x)\).
+The denominator model supplies `predict_eta`, which is displayed as the null-hypothesis nuisance factors $1+\eta(x)$ and $1-\eta(x)$.
 
 ### Common behavior
 

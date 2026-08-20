@@ -8,7 +8,7 @@ description: "Generate plots for done jobs"
 ## Purpose
 
 <!-- Describe the outcome this skill should achieve. -->
-Review jobs that finished running recently, and run the post process for generating descriptive plots by their spec.
+Submit a job on the ATLAS cluster at WIS using eladklig's credentials.
 
 ## When to Use
 
@@ -16,21 +16,28 @@ Review jobs that finished running recently, and run the post process for generat
 When requested to "run jobs" or "submit jobs" on "the cluster", "WIS cluster", "ATLAS cluster".
 
 ## Definitions
+
 ### Bash Commands
+
 - Active Job Count Command: `qstat -tu $USER | wc -l`
 - Queued Job Count Command: `qstat -tu $USER | grep Q | wc -l`
 - User SSH Command: `ssh eladklig@wipp1-external`
 - Run Verification Command: `qstat -wu $USER`
 
 ### File and Dir Paths
+
 #### Remote
+
 - Packs Parent Directory: `/storage/agrp/eladklig/SymmetrizedDDP/configs/packs/`
 - Remote Project Root `/storage/agrp/eladklig/SymmetrizedDDP`
+
 #### Relative
+
 - Launch Path `.vscode/launch.json`
 - Submitted Job State File: `.agents/skills/submit-on-cluster/state.yaml`
 
 ### Etc.
+
 - Submit Train Launch Option: "[DEBUG] Submit train with prompt"
 - Runtag Config Field: `config__runtag`
 

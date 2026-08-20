@@ -6,13 +6,40 @@ import numpy as np
 import pytest
 
 from data_tools.data_utils import DataSet
+from plot.carpenter import Carpenter
 from plot.plot_utils import (
+    _humanize_signal_description,
     _integration_upper_limits_for_dimensions,
     utils__discover_background_only_parent_directory,
     utils__finalize_prediction_process_layout,
     utils__prediction_mesh_mask,
     utils__project_prediction_values_sliced,
+    utils__set_prediction_process_subplot_title,
 )
+
+
+def test_humanize_signal_description_replaces_generator_identifier_separators():
+    assert _humanize_signal_description("multivariate_gaussian_signal") == (
+        "multivariate gaussian signal"
+    )
+
+
+def test_carpenter_reserves_a_dedicated_run_stamp_row():
+    figure = plt.figure()
+
+    Carpenter.reserve_run_stamp_row(figure, bottom=0.01)
+
+    assert figure.subplotpars.bottom == pytest.approx(0.12)
+    plt.close(figure)
+
+
+def test_prediction_process_titles_stay_inside_their_own_panels():
+    figure, axis = plt.subplots()
+
+    utils__set_prediction_process_subplot_title(axis, "SR distributions")
+
+    assert axis.title.get_position() == (0.5, pytest.approx(0.94))
+    plt.close(figure)
 
 
 def test_prediction_process_layout_shares_row_ranges_and_compacts_1d_labels():
