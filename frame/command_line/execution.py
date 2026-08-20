@@ -12,6 +12,11 @@ from frame.file_structure import (
     path_as_in_container,
 )
 from frame.git_tools import COMMIT_HASH_ENVIRONMENT_VARIABLE
+from frame.python_environment import (
+    cvmfs_python_activation_command,
+    singularity_uv_cache_directory_export_command,
+    uv_cache_directory_export_command,
+)
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
@@ -37,7 +42,10 @@ JOB_STARTED_AT_SECONDS=$(date +%s)
 echo "Running on host: $(hostname)"
 echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
-{task_id_line}{environment_activation_command}
+{task_id_line}{cvmfs_python_activation_command}
+{uv_cache_directory_export_command}
+{singularity_uv_cache_directory_export_command}
+{environment_activation_command}
 
 set -eo pipefail
 
@@ -245,7 +253,12 @@ if ! exec {{CACHE_LOCK_FD}}>"$LOCK_FILE"; then
 fi
 
 run_singularity() {{
-    {singularity_executable} "$@"
+    # The cluster injects a host-only I/O throttling library through LD_PRELOAD.
+    # Singularity cannot mount that library while converting the SIF to a sandbox.
+    (
+        unset LD_PRELOAD
+        {singularity_executable} "$@"
+    )
 }}
 
 build_sandbox() {{
@@ -457,6 +470,13 @@ echo "Building Singularity container..."
 BUILD_DIR=$(mktemp -d)
 cd $BUILD_DIR
 
+# The cluster injects a host-only I/O throttling library through LD_PRELOAD.
+# Singularity cannot mount that library while converting the SIF to a sandbox.
+run_singularity() (
+    unset LD_PRELOAD
+    exec "$@"
+)
+
 # Copy definition file from source path (passed as environment variable)
 echo "Copying {project_name}.def file from $LFVDDP_DEF_PATH..."
 cp $LFVDDP_DEF_PATH ./{project_name}.def
@@ -473,12 +493,12 @@ sed -e "s|REPO_URL=.*|REPO_URL=\"{repo_url}\"|" \
 # Build from the customized definition file
 echo "Building container..."
 rm -f {project_name}.sif || true
-{singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
+run_singularity {singularity_executable} build --remote {project_name}.sif {project_name}-edit.def
 
 # Exercise the image with the cluster's runtime mounts and environment before
 # publishing it. The definition's %test imports the training entry point.
 echo "Validating container..."
-{singularity_executable} test {project_name}.sif
+run_singularity {singularity_executable} test --cleanenv {project_name}.sif
 
 # Publish only a validated, completely copied image. A failed build, test, or
 # copy leaves the previous working SIF untouched.
@@ -537,6 +557,13 @@ def format_qsub_script(
         memory=config.cluster__qsub_mem or 2,
         array_job_line=array_job_line,
         task_id_line=task_id_line,
+        cvmfs_python_activation_command=cvmfs_python_activation_command(),
+        uv_cache_directory_export_command=uv_cache_directory_export_command(
+            config.cluster__uv_cache_dir
+        ),
+        singularity_uv_cache_directory_export_command=(
+            singularity_uv_cache_directory_export_command(config.cluster__uv_cache_dir)
+        ),
         environment_activation_command=config.cluster__environment_activation_command,
         **additional_template_kwargs,
     )
