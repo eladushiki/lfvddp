@@ -27,7 +27,7 @@ def test_container_build_is_pinned_validated_and_atomically_published(
 
     pin = 'COMMIT_HASH="0123456789abcdef"'
     build = "singularity build --remote lfvddp.sif lfvddp-edit.def"
-    validate = "singularity test lfvddp.sif"
+    validate = "singularity test --cleanenv lfvddp.sif"
     copy = 'cp lfvddp.sif "$PUBLISH_TMP"'
     publish = 'mv -f "$PUBLISH_TMP" "$PBS_O_WORKDIR/lfvddp.sif"'
 

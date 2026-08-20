@@ -35,12 +35,12 @@ From: gitlab-registry.cern.ch/cms-cloud/python-vnc:latest
     # Remote builders cannot access the host CVMFS mount.
 
 %environment
+    # Container validation must not inherit a host Python installation.
+    unset PYTHONHOME
     export PYTHONPATH=/app
-    UV_CACHE_DIR="${UV_CACHE_DIR:-$(python -c 'from frame.python_environment import DEFAULT_UV_CACHE_DIR; print(DEFAULT_UV_CACHE_DIR)')}"
-    export UV_CACHE_DIR
+    export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/lfvddp-uv-cache}"
     if [ -x /app/.venv/bin/python ]; then
-        CVMFS_PYTHON_SETUP_PATH="$(python -c 'from frame.python_environment import CVMFS_PYTHON_SETUP_PATH; print(CVMFS_PYTHON_SETUP_PATH)')"
-        source "$CVMFS_PYTHON_SETUP_PATH"
+        source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
         export VIRTUAL_ENV=/app/.venv
         export PATH="$VIRTUAL_ENV/bin:$PATH"
         unset PYTHONHOME
