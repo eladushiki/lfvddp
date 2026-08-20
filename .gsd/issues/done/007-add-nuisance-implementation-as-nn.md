@@ -23,4 +23,4 @@ An additional implementation of the nuisance parameter function that is a simple
 
 ## Completion
 
-Implemented the opt-in neural theta nuisance implementation with a two-node default hidden layer. The legacy binwise implementation remains the default, and `predict_eta` delegates to the new `predict_theta` API for compatibility. Neural theta training bypasses detector-bin compression..
+Implemented the opt-in neural theta nuisance implementation with a two-node default hidden layer. The legacy binwise implementation remains the default, and the exported nuisance API is `predict_theta`. Neural theta training bypasses detector-bin compression..

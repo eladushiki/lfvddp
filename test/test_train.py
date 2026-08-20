@@ -570,7 +570,7 @@ def test_model_initialization_and_prediction(
     ]
     prediction = model.predict(prediction_data)
     secondary_prediction = model.predict_secondary(prediction_data)
-    eta_prediction = model.predict_eta(prediction_data)
+    eta_prediction = model.predict_theta(prediction_data)
     assert prediction.shape == (prediction_data.n_samples, 1)
     assert secondary_prediction.shape == prediction.shape
     assert torch.isfinite(torch.from_numpy(prediction)).all()

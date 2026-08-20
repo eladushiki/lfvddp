@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import nullcontext
 from dataclasses import dataclass
+from enum import Enum, auto
 from logging import info
 from time import time
 from typing import Dict, List, Optional, Tuple, Union
@@ -31,6 +32,12 @@ from train.training_profiler import TrainingProfiler
 
 
 LFVNN_DTYPE = torch.float64
+
+
+class _NuisanceMode(Enum):
+    NONE = auto()
+    PIECEWISE_CONSTANT = auto()
+    NEURAL_NETWORK = auto()
 
 
 @dataclass(frozen=True)
@@ -111,7 +118,7 @@ class _ThetaEstimator(nn.Module):
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return torch.tanh(self.output(self.activation(self.hidden(events)))).squeeze(-1)
+        return self.output(self.activation(self.hidden(events))).squeeze(-1)
 
 
 def _compact_no_nuisance_loss(
@@ -245,6 +252,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
+        self._nuisance_mode = self._configured_nuisance_mode()
 
         # Add layers by spec. We would add two NNs to express f, g separately.
         self._build_layers()
@@ -264,6 +272,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _device(self) -> torch.device:
         return self._assigned_device
 
+    def _configured_nuisance_mode(self) -> _NuisanceMode:
+        if not self._config.train__data_is_train_for_nuisances:
+            return _NuisanceMode.NONE
+        if self._config.train__nuisance_is_neural_network:
+            return _NuisanceMode.NEURAL_NETWORK
+        return _NuisanceMode.PIECEWISE_CONSTANT
+
     def _build_layers(self):
         self.paired_network = (
             _PairedEstimator(
@@ -279,16 +294,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _build_theta(self):
         self._detector_deltas = {}
         self.theta_network = None
-        if not self._config.train__data_is_train_for_nuisances:
-            return
-        if self._config.train__nuisance_is_neural_network:
-            self.theta_network = _ThetaEstimator(
-                input_dimension=self._config.train__nn_input_dimension,
-                hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
-                output_dimension=self._config.train__nn_output_dimension,
-                dtype=self._dtype,
-            )
-            return
+        match self._nuisance_mode:
+            case _NuisanceMode.NONE:
+                return
+            case _NuisanceMode.NEURAL_NETWORK:
+                self.theta_network = _ThetaEstimator(
+                    input_dimension=self._config.train__nn_input_dimension,
+                    hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
+                    output_dimension=self._config.train__nn_output_dimension,
+                    dtype=self._dtype,
+                )
+                return
+            case _NuisanceMode.PIECEWISE_CONSTANT:
+                pass
 
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             nuisance_var = nn.Parameter(
@@ -337,19 +355,20 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 nn.init.xavier_uniform_(output_layer.weight, gain=gain)
                 nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
-        if self.theta_network is not None:
-            nn.init.xavier_uniform_(
-                self.theta_network.hidden.weight, gain=gain
-            )
-            nn.init.uniform_(self.theta_network.hidden.bias, a=-0.3, b=0.3)
-            nn.init.xavier_uniform_(self.theta_network.output.weight, gain=gain)
-            nn.init.uniform_(self.theta_network.output.bias, a=-0.3, b=0.3)
-        elif self._config.train__data_is_train_for_nuisances:
-            for var in self._detector_deltas.values():
-                nn.init.normal_(var, mean=0.0, std=1e-3)
+        match self._nuisance_mode:
+            case _NuisanceMode.NEURAL_NETWORK:
+                nn.init.xavier_uniform_(
+                    self.theta_network.hidden.weight, gain=gain
+                )
+                nn.init.uniform_(self.theta_network.hidden.bias, a=-0.3, b=0.3)
+                nn.init.xavier_uniform_(self.theta_network.output.weight, gain=gain)
+                nn.init.uniform_(self.theta_network.output.bias, a=-0.3, b=0.3)
+            case _NuisanceMode.PIECEWISE_CONSTANT:
+                for var in self._detector_deltas.values():
+                    nn.init.normal_(var, mean=0.0, std=1e-3)
 
     def _clamp_nuisance_parameters(self) -> None:
-        if not self._config.train__data_is_train_for_nuisances:
+        if self._nuisance_mode is not _NuisanceMode.PIECEWISE_CONSTANT:
             return
         with torch.no_grad():
             for var in self._detector_deltas.values():
@@ -399,10 +418,18 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return eta
 
     def _theta_from_inputs(self, inputs: torch.Tensor) -> torch.Tensor:
-        """Evaluate the configured theta implementation on prepared inputs."""
-        if self.theta_network is not None:
-            return self.theta_network(inputs)
-        return self._theta_from_bin_indices(inputs)
+        """Evaluate and bound theta for the configured nuisance mode."""
+        match self._nuisance_mode:
+            case _NuisanceMode.NEURAL_NETWORK:
+                return torch.clamp(
+                    self.theta_network(inputs), min=-1.0 + 1e-6, max=1.0 - 1e-6
+                )
+            case _NuisanceMode.PIECEWISE_CONSTANT:
+                return self._theta_from_bin_indices(inputs)
+            case _NuisanceMode.NONE:
+                return torch.zeros(
+                    inputs.shape[0], dtype=self._dtype, device=self._device
+                )
 
     def _compressed_cr_bin_indices(
         self,
@@ -832,10 +859,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     (data.n_samples, 1), dtype=self._dtype, device=self._device
                 )
         return predictions.detach().cpu().numpy()
-
-    def predict_eta(self, data: DataSet) -> npt.NDArray:
-        """Backward-compatible alias for :meth:`predict_theta`."""
-        return self.predict_theta(data)
 
     def save_parameters(self, file_path) -> None:
         """Save PyTorch model parameters to file."""
