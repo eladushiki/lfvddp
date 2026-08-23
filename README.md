@@ -294,7 +294,7 @@ The configuration files and then the Config* dataclasses are the structures that
 
 While Config* classes' contents are divided logically to different classes, the program needs to be called with each of the `.json` configuration file types, as long as they contain togehter all the necessary parameters. This is implemented so to enable single-file-for-run usage, as well as separation for personal privacy and context-dependent needs [Under construction].
 
-Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `basic_user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
+Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
 
 ### Generated dataset dimensions
 
@@ -358,7 +358,7 @@ declared bound, indicating that `domain_max` must be increased.
 
 ## Plotting
 
-Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `basic_plot_config.json` for example).
+Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `plot_config.json` for example).
 
 Generate the configured plots for a submitted training batch with:
 

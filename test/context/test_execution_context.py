@@ -705,14 +705,14 @@ def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
     with pytest.raises(SystemExit):
         parse_config_from_args([
             "--configs",
-            "configs/user/basic_user_config.json",
+            "configs/basic-loaded/user_config.json",
             "--extra-time",
             "24:00:00",
         ])
     with pytest.raises(SystemExit):
         parse_config_from_args([
             "--configs",
-            "configs/user/basic_user_config.json",
+            "configs/basic-loaded/user_config.json",
             "--epochs-target",
             "750000",
         ])

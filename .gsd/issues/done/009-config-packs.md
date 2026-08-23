@@ -1,6 +1,6 @@
 # Issue 009: Reorganize configuration packs
 
-**Status:** Open
+**Status:** Done
 
 ## Description
 
