@@ -1,0 +1,23 @@
+# Issue 008: Add option to enforce f, g reciprocation
+
+**Status:** Done
+
+## Feature Overview
+Our math shows that in a converged training $f$ should converge to an equal expression to $-g$, even if not explicitly instructed to.
+
+Many runs shows this - apart from the tail (in observable space parameters terms) areas in which the dataset statistics are low, and there convergence is harder.
+
+To show this, and to test if we get any different t_dist statistics when it's so to validate our estimation of the effective DoF, we would like to add a boolean configuration parameter "train__f_g_reciprocation", such that:
+- When off (default, also for backwards compatibility) the training is done as it is now.
+- When toggled on, calling the prediction of g network would just return $-f$.
+
+## Acceptance criteria
+- A new boolean configuration parameter, that defaults to false, and toggles the effect of the $g$ nn operation.
+- Usage of the `DifferentiatingModel` class should remain the same, regardless of internal implementation or mode.
+
+## Remarks and Caveats
+- Current functionality should not change if none of the configuration files was changed, relative to before this implementation.
+
+## Completion
+
+Added the opt-in `train__f_g_reciprocation` flag, defaulting to false. When enabled, all g evaluations return negative f evaluations through the shared model-estimate path used by training and prediction. When toggled on, avoid having $g$ network calculations that would consume time ant eventually not be used. That being said, minimal construction one-time code can be tolerated for the sake of simplicity of our implementation.

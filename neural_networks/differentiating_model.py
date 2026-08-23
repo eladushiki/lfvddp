@@ -464,6 +464,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if self.paired_network is None:
             raise RuntimeError("The denominator has no f/g estimator.")
         f_estimate, g_estimate = self.paired_network(sr_data)
+        if self._config.train__f_g_reciprocation:
+            g_estimate = -f_estimate
         return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
 
     def forward(
@@ -818,8 +820,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             if self.paired_network is None:
                 network_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
             else:
-                f_estimate, g_estimate = self.paired_network(x_tensor)
-                network_estimate = g_estimate if secondary else f_estimate
+                f_estimate, g_estimate = self._network_estimates(x_tensor)
+                network_estimate = (
+                    g_estimate if secondary else f_estimate
+                ).unsqueeze(1)
             if self._config.train__data_is_train_for_nuisances:
                 theta_inputs = (
                     x_tensor

@@ -21,6 +21,7 @@ class TrainConfig:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
     train__nn_xavier_gain: float = 4
+    train__f_g_reciprocation: bool = False
     train__learning_rate: float = 0.001  # optimizer learning rate
     train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True

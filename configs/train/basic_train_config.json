@@ -6,6 +6,7 @@
     "train__nn_inner_layer_nodes": 4,
     "train__nuisance_is_neural_network": false,
     "train__nuisance_nn_inner_layer_nodes": 2,
+    "train__f_g_reciprocation": false,
 
     "train__nn_xavier_gain": 1,
     "train__learning_rate": 0.1

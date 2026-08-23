@@ -48,6 +48,12 @@ ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_without_nuisance.json"
     ),
 }
+ONE_DIMENSION_WITH_F_G_RECIPROCATION_CONFIG = {
+    **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_with_f_g_reciprocation.json"
+    ),
+}
 ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
     **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
     ConfigType.TRAIN.value: Path(
@@ -378,6 +384,29 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(
             rtol=1e-12,
             atol=1e-12,
         )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_F_G_RECIPROCATION_CONFIG],
+    indirect=True,
+)
+def test_model_reciprocates_g_from_f_when_configured(
+    function_execution_context,
+    detector_effect,
+):
+    model = DifferentiatingModel(
+        context=function_execution_context,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="reciprocating_model",
+    )
+
+    f_estimate, g_estimate = model._network_estimates(
+        torch.ones((3, 1), dtype=torch.float64)
+    )
+
+    torch.testing.assert_close(g_estimate, -f_estimate)
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
