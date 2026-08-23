@@ -5,7 +5,7 @@
 This project runs on the WIS's ATLAS cluster, as well as on any singularity containing machine, to use our tools on real or simulated physical datasets.
 
 # Contents
-- `configs` directory contain configuraion files necessary to run the project. An example or template for each is included and meant to be copied by the user for modification.
+- `configs` contains complete configuration packs. Pass one pack directory to `--configs`; copy a tracked pack to create a local, ignored pack for modification.
 - `data_tools` directory handles mathematical and statistical calculations needed to operate this project.
 - `frame` is a place for all framework tools needed for this project to run and communicate.
 - `mattiasdata` has some useful (legacy) datasets (and frankly, needs to be cleaned)
@@ -121,12 +121,7 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "console": "integratedTerminal",
             "args": [
                 "--configs",
-                "${config:myConfig.clusterConfig}",
-                "${config:myConfig.datasetConfig}",
-                "${config:myConfig.detectorConfig}",
-                "${config:myConfig.trainConfig}",
-                "${config:myConfig.userConfig}",
-                "${config:myConfig.plotConfig}",
+                "${config:myConfig.configPack}",
                 "--debug",
             ]
         },
@@ -138,12 +133,7 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "console": "integratedTerminal",
             "args": [
                 "--configs",
-                "${config:myConfig.clusterConfig}",
-                "${config:myConfig.datasetConfig}",
-                "${config:myConfig.detectorConfig}",
-                "${config:myConfig.trainConfig}",
-                "${config:myConfig.userConfig}",
-                "${config:myConfig.plotConfig}",
+                "${config:myConfig.configPack}",
             ]
         },
         { // Plot a submitted training batch
@@ -171,19 +161,12 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
 The custom file paths here refer to a different file, `settings.json`, of the form:
 ```json
 {
-    "myConfig.userConfig": "configs/user/<name>.json",
-    "myConfig.clusterConfig": "configs/cluster/<your config>.json",
-    "myConfig.datasetConfig": "configs/dataset/<your config>.json",
-    "myConfig.detectorConfig": "configs/detector/<your config>.json",
-    "myConfig.trainConfig": "configs/train/<your config>.json",
-    "myConfig.plotConfig": "configs/plot/<your config>.json",
+    "myConfig.configPack": "configs/basic-loaded"
 }
 ```
-Which you create and direct to.
+Which you create and direct to. Pass that single directory after `--configs`.
 
-Configuration files passed through `--configs` are shallow-merged from left to
-right, so later files override earlier values. A directory passed in place of a
-file is recursively expanded to its JSON and YAML config files in sorted order.
+The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
 The plotting entry point does not accept `--configs`; it reads the staged
 configuration files from the selected submission's `configs` directory.
 Plotting configuration is required,

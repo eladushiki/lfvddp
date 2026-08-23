@@ -15,12 +15,12 @@ class ConfigType(Enum):
 DEFAULT_CONFIG_PATHS = {t: Path(s) for t, s in zip(
     ConfigType,
     [
-        "configs/cluster/basic_cluster_config.json",
-        "configs/dataset/basic_loaded_dataset_config.json",
-        "configs/detector/basic_detector_config.json",
-        "configs/plot/basic_plot_config.json",
-        "configs/train/basic_train_config.json",
-        "configs/user/basic_user_config.json",
+        "configs/basic-loaded/basic_cluster_config.json",
+        "configs/basic-loaded/basic_loaded_dataset_config.json",
+        "configs/basic-loaded/basic_detector_config.json",
+        "configs/basic-loaded/basic_plot_config.json",
+        "configs/basic-loaded/basic_train_config.json",
+        "configs/basic-loaded/basic_user_config.json",
     ]
 )}
 
