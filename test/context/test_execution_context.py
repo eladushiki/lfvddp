@@ -705,18 +705,29 @@ def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
     with pytest.raises(SystemExit):
         parse_config_from_args([
             "--configs",
-            "configs/user/basic_user_config.json",
+            "configs/basic-loaded/user_config.json",
             "--extra-time",
             "24:00:00",
         ])
     with pytest.raises(SystemExit):
         parse_config_from_args([
             "--configs",
-            "configs/user/basic_user_config.json",
+            "configs/basic-loaded/user_config.json",
             "--epochs-target",
             "750000",
         ])
     capsys.readouterr()
+
+
+@pytest.mark.parametrize(
+    "config_pack", ("configs/basic-loaded", "configs/basic-generated")
+)
+def test_basic_config_packs_create_complete_configurations(config_pack):
+    config_paths, _ = parse_config_from_args(["--configs", config_pack])
+    config = create_config_from_paths(config_paths)
+
+    assert config.train__epochs > 0
+    assert config.detector__number_of_dimensions > 0
 
 
 def test_config_directories_only_expand_supported_files(tmp_path):
