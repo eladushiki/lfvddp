@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import nullcontext
 from dataclasses import dataclass
+from enum import Enum, auto
 from logging import info
 from time import time
 from typing import Dict, List, Optional, Tuple, Union
@@ -31,6 +32,12 @@ from train.training_profiler import TrainingProfiler
 
 
 LFVNN_DTYPE = torch.float64
+
+
+class _NuisanceMode(Enum):
+    NONE = auto()
+    PIECEWISE_CONSTANT = auto()
+    NEURAL_NETWORK = auto()
 
 
 @dataclass(frozen=True)
@@ -93,6 +100,25 @@ class _PairedEstimator(nn.Module):
         paired_bias = torch.cat((self.f_output.bias, self.g_output.bias))
         estimates = F.linear(hidden, paired_weight, paired_bias)
         return estimates[:, :1], estimates[:, 1:]
+
+
+class _ThetaEstimator(nn.Module):
+    """Bounded neural implementation of the nuisance function theta(x)."""
+
+    def __init__(
+        self,
+        input_dimension: int,
+        hidden_size: int,
+        output_dimension: int,
+        dtype: torch.dtype,
+    ) -> None:
+        super().__init__()
+        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype)
+        self.activation = nn.Sigmoid()
+        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
+
+    def forward(self, events: torch.Tensor) -> torch.Tensor:
+        return self.output(self.activation(self.hidden(events))).squeeze(-1)
 
 
 def _compact_no_nuisance_loss(
@@ -226,12 +252,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
+        self._nuisance_mode = self._configured_nuisance_mode()
 
         # Add layers by spec. We would add two NNs to express f, g separately.
         self._build_layers()
 
-        # Add detector uncertainty nuisance parameters
-        self._build_eta()
+        # Add the configured theta nuisance implementation.
+        self._build_theta()
 
         # Initialize NN parameters according to strategy
         self._initialize_parameters()
@@ -245,6 +272,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _device(self) -> torch.device:
         return self._assigned_device
 
+    def _configured_nuisance_mode(self) -> _NuisanceMode:
+        if not self._config.train__data_is_train_for_nuisances:
+            return _NuisanceMode.NONE
+        if self._config.train__nuisance_is_neural_network:
+            return _NuisanceMode.NEURAL_NETWORK
+        return _NuisanceMode.PIECEWISE_CONSTANT
+
     def _build_layers(self):
         self.paired_network = (
             _PairedEstimator(
@@ -257,10 +291,22 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             else None
         )
 
-    def _build_eta(self):
+    def _build_theta(self):
         self._detector_deltas = {}
-        if not self._config.train__data_is_train_for_nuisances:
-            return
+        self.theta_network = None
+        match self._nuisance_mode:
+            case _NuisanceMode.NONE:
+                return
+            case _NuisanceMode.NEURAL_NETWORK:
+                self.theta_network = _ThetaEstimator(
+                    input_dimension=self._config.train__nn_input_dimension,
+                    hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
+                    output_dimension=self._config.train__nn_output_dimension,
+                    dtype=self._dtype,
+                )
+                return
+            case _NuisanceMode.PIECEWISE_CONSTANT:
+                pass
 
         for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
             nuisance_var = nn.Parameter(
@@ -309,13 +355,20 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 nn.init.xavier_uniform_(output_layer.weight, gain=gain)
                 nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
-        # Handle detector nuisances separately
-        if self._config.train__data_is_train_for_nuisances:
-            for var in self._detector_deltas.values():
-                nn.init.normal_(var, mean=0.0, std=1e-3)
+        match self._nuisance_mode:
+            case _NuisanceMode.NEURAL_NETWORK:
+                nn.init.xavier_uniform_(
+                    self.theta_network.hidden.weight, gain=gain
+                )
+                nn.init.uniform_(self.theta_network.hidden.bias, a=-0.3, b=0.3)
+                nn.init.xavier_uniform_(self.theta_network.output.weight, gain=gain)
+                nn.init.uniform_(self.theta_network.output.bias, a=-0.3, b=0.3)
+            case _NuisanceMode.PIECEWISE_CONSTANT:
+                for var in self._detector_deltas.values():
+                    nn.init.normal_(var, mean=0.0, std=1e-3)
 
     def _clamp_nuisance_parameters(self) -> None:
-        if not self._config.train__data_is_train_for_nuisances:
+        if self._nuisance_mode is not _NuisanceMode.PIECEWISE_CONSTANT:
             return
         with torch.no_grad():
             for var in self._detector_deltas.values():
@@ -344,7 +397,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             device=self._device,
         )
 
-    def _eta_from_bin_indices(self, bin_indices: torch.Tensor) -> torch.Tensor:
+    def _theta_from_bin_indices(self, bin_indices: torch.Tensor) -> torch.Tensor:
         if not self._config.train__data_is_train_for_nuisances:
             return torch.zeros(
                 bin_indices.shape[0],
@@ -363,6 +416,20 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if eta is None:
             raise RuntimeError("At least one detector observable is required.")
         return eta
+
+    def _theta_from_inputs(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Evaluate and bound theta for the configured nuisance mode."""
+        match self._nuisance_mode:
+            case _NuisanceMode.NEURAL_NETWORK:
+                return torch.clamp(
+                    self.theta_network(inputs), min=-1.0 + 1e-6, max=1.0 - 1e-6
+                )
+            case _NuisanceMode.PIECEWISE_CONSTANT:
+                return self._theta_from_bin_indices(inputs)
+            case _NuisanceMode.NONE:
+                return torch.zeros(
+                    inputs.shape[0], dtype=self._dtype, device=self._device
+                )
 
     def _compressed_cr_bin_indices(
         self,
@@ -414,11 +481,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     data.sr_data
                 )
 
-        with profile_region("training/nuisance_eta"):
+        with profile_region("training/nuisance_theta"):
             if self._config.train__data_is_train_for_nuisances:
                 if data.nuisance_bin_indices is None:
-                    raise RuntimeError("Training bin indices were not prepared.")
-                eta_values = self._eta_from_bin_indices(
+                    raise RuntimeError("Training theta inputs were not prepared.")
+                eta_values = self._theta_from_inputs(
                     data.nuisance_bin_indices
                 )
                 eta_of_x_sr, eta_of_x_cr_bins = torch.split(
@@ -504,19 +571,42 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             device=self._device,
         )
         if self._config.train__data_is_train_for_nuisances:
-            sr_bin_indices = torch.cat(
-                (self._bin_indices(a_sr), self._bin_indices(b_sr)),
-                dim=0,
-            )
-            (
-                cr_bin_indices,
-                a_cr_bin_counts,
-                b_cr_bin_counts,
-            ) = self._compressed_cr_bin_indices(a_cr, b_cr)
-            nuisance_bin_indices = torch.cat(
-                (sr_bin_indices, cr_bin_indices),
-                dim=0,
-            )
+            if self.theta_network is not None:
+                normalized_a_cr = normalized_data.datasets[categories.A_CR]
+                normalized_b_cr = normalized_data.datasets[categories.B_CR]
+                nuisance_bin_indices = torch.cat(
+                    (
+                        sr_data,
+                        torch.tensor(
+                            np.concatenate(
+                                (normalized_a_cr.events, normalized_b_cr.events)
+                            ),
+                            dtype=self._dtype,
+                            device=self._device,
+                        ),
+                    ),
+                    dim=0,
+                )
+                a_cr_bin_counts = torch.ones(
+                    a_cr.n_samples, dtype=self._dtype, device=self._device
+                )
+                b_cr_bin_counts = torch.ones(
+                    b_cr.n_samples, dtype=self._dtype, device=self._device
+                )
+            else:
+                sr_bin_indices = torch.cat(
+                    (self._bin_indices(a_sr), self._bin_indices(b_sr)),
+                    dim=0,
+                )
+                (
+                    cr_bin_indices,
+                    a_cr_bin_counts,
+                    b_cr_bin_counts,
+                ) = self._compressed_cr_bin_indices(a_cr, b_cr)
+                nuisance_bin_indices = torch.cat(
+                    (sr_bin_indices, cr_bin_indices),
+                    dim=0,
+                )
         else:
             nuisance_bin_indices = None
             a_cr_bin_counts = None
@@ -731,9 +821,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 f_estimate, g_estimate = self.paired_network(x_tensor)
                 network_estimate = g_estimate if secondary else f_estimate
             if self._config.train__data_is_train_for_nuisances:
-                eta = self._eta_from_bin_indices(
-                    self._bin_indices(data)
-                ).unsqueeze(1)
+                theta_inputs = (
+                    x_tensor
+                    if self.theta_network is not None
+                    else self._bin_indices(data)
+                )
+                eta = self._theta_from_inputs(theta_inputs).unsqueeze(1)
             else:
                 eta = x_tensor.new_zeros((x_tensor.shape[0], 1))
             eta_term = torch.clamp(1 + eta_sign * eta, min=1e-12)
@@ -746,13 +839,21 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def predict_secondary(self, data: DataSet) -> npt.NDArray:
         return self._predict_ndf(data, secondary=True, eta_sign=-1.0)
 
-    def predict_eta(self, data: DataSet) -> npt.NDArray:
+    def predict_theta(self, data: DataSet) -> npt.NDArray:
+        """Evaluate the configured nuisance function theta over a dataset."""
         self.eval()
         with torch.no_grad():
             if self._config.train__data_is_train_for_nuisances:
-                predictions = self._eta_from_bin_indices(
-                    self._bin_indices(data)
-                ).unsqueeze(1)
+                if self.theta_network is not None:
+                    if self._norm_factor is None:
+                        raise RuntimeError("Cannot predict before the model has been fitted.")
+                    normalized_data = data / self._norm_factor
+                    theta_inputs = torch.tensor(
+                        normalized_data.events, dtype=self._dtype, device=self._device
+                    )
+                else:
+                    theta_inputs = self._bin_indices(data)
+                predictions = self._theta_from_inputs(theta_inputs).unsqueeze(1)
             else:
                 predictions = torch.zeros(
                     (data.n_samples, 1), dtype=self._dtype, device=self._device

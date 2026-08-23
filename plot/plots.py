@@ -931,7 +931,7 @@ def plot_prediction_process_1d(
     )
 
     cr_eta = utils__model_prediction_values(
-        denominator_model.predict_eta, cr_background
+        denominator_model.predict_theta, cr_background
     )
     cr_eta_predictions = (
         (
@@ -1021,10 +1021,10 @@ def plot_prediction_process_1d(
         numerator_model.predict_secondary, prediction_spanning_dataset
     )
     nuisance_numerator_eta = utils__model_prediction_values(
-        numerator_model.predict_eta, prediction_spanning_dataset
+        numerator_model.predict_theta, prediction_spanning_dataset
     )
     nuisance_denominator_eta = utils__model_prediction_values(
-        denominator_model.predict_eta, prediction_spanning_dataset
+        denominator_model.predict_theta, prediction_spanning_dataset
     )
 
     sr_prediction_specs = {
@@ -1347,7 +1347,7 @@ def plot_prediction_process_2d(
     )
 
     cr_eta = utils__model_prediction_values(
-        denominator_model.predict_eta, cr_background
+        denominator_model.predict_theta, cr_background
     )
     cr_eta_predictions = (
         (
@@ -1440,7 +1440,7 @@ def plot_prediction_process_2d(
         numerator_model.predict_eta, prediction_spanning_dataset
     )
     nuisance_denominator_eta = utils__model_prediction_values(
-        denominator_model.predict_eta, prediction_spanning_dataset
+        denominator_model.predict_theta, prediction_spanning_dataset
     )
     sr_prediction_specs = {
         "exp_f_eta_plus": (
