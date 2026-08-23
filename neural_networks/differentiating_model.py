@@ -101,6 +101,17 @@ class _PairedEstimator(nn.Module):
         estimates = F.linear(hidden, paired_weight, paired_bias)
         return estimates[:, :1], estimates[:, 1:]
 
+    def forward_f(self, events: torch.Tensor) -> torch.Tensor:
+        """Evaluate f without executing the unused g branch."""
+        f_hidden = self.activation(
+            F.linear(
+                events,
+                self.hidden.weight[: self.hidden_size],
+                self.hidden.bias[: self.hidden_size],
+            )
+        )
+        return self.f_output(f_hidden)
+
 
 class _ThetaEstimator(nn.Module):
     """Bounded neural implementation of the nuisance function theta(x)."""
@@ -463,9 +474,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.paired_network is None:
             raise RuntimeError("The denominator has no f/g estimator.")
-        f_estimate, g_estimate = self.paired_network(sr_data)
         if self._config.train__f_g_reciprocation:
+            f_estimate = self.paired_network.forward_f(sr_data)
             g_estimate = -f_estimate
+        else:
+            f_estimate, g_estimate = self.paired_network(sr_data)
         return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
 
     def forward(

@@ -20,4 +20,4 @@ To show this, and to test if we get any different t_dist statistics when it's so
 
 ## Completion
 
-Added the opt-in `train__f_g_reciprocation` flag, defaulting to false. When enabled, all g evaluations return negative f evaluations through the shared model-estimate path used by training and prediction. When toggled on, avoid having $g$ network calculations that would consume time ant eventually not be used. That being said, minimal construction one-time code can be tolerated for the sake of simplicity of our implementation.
+Added the opt-in `train__f_g_reciprocation` flag, defaulting to false. When enabled, all g evaluations return negative f evaluations through the shared model-estimate path used by training and prediction. When toggled on, avoid having $g$ network calculations that would consume time and eventually not be used. That being said, minimal construction one-time code can be tolerated for the sake of simplicity of our implementation.

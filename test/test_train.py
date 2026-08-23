@@ -394,6 +394,7 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(
 def test_model_reciprocates_g_from_f_when_configured(
     function_execution_context,
     detector_effect,
+    monkeypatch,
 ):
     model = DifferentiatingModel(
         context=function_execution_context,
@@ -402,6 +403,10 @@ def test_model_reciprocates_g_from_f_when_configured(
         name="reciprocating_model",
     )
 
+    def fail_if_g_is_evaluated(*args, **kwargs):
+        raise AssertionError("The g branch must not run under reciprocation.")
+
+    monkeypatch.setattr(model.paired_network.g_output, "forward", fail_if_g_is_evaluated)
     f_estimate, g_estimate = model._network_estimates(
         torch.ones((3, 1), dtype=torch.float64)
     )

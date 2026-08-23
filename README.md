@@ -420,4 +420,6 @@ Training entry points:
 
 `TrainConfig` defaults to the legacy binwise-constant nuisance implementation. Set `train__nuisance_is_neural_network` to `true` to use a bounded neural `theta(x)` instead. Its input and output dimensions match the primary f/g networks, while `train__nuisance_nn_inner_layer_nodes` controls its hidden layer and defaults to `2`.
 
+## F/g reciprocation
+
 Set `train__f_g_reciprocation` to `true` to enforce $g(x)=-f(x)$ during training and through both prediction APIs. It defaults to `false`, preserving independently learned f and g networks.
