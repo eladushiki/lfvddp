@@ -162,8 +162,8 @@ def _reference_loss(
     eta_sr = eta * sr_mask
     eta_cr = eta * cr_mask
     sr_term = (
-        number_of_a_sr_events * torch.exp(f) * (1 + eta_sr) * sr_mask
-        + number_of_b_sr_events * torch.exp(g) * (1 - eta_sr) * sr_mask
+        number_of_a_sr_events * (1 + f) * (1 + eta_sr) * sr_mask
+        + number_of_b_sr_events * (1 - g) * (1 - eta_sr) * sr_mask
     ) / (number_of_a_sr_events + number_of_b_sr_events)
     cr_term = (
         number_of_a_cr_events * (1 + eta_cr) * cr_mask
@@ -172,8 +172,8 @@ def _reference_loss(
     return (
         sr_term
         + cr_term
-        - f * a_sr_mask
-        - g * b_sr_mask
+        - torch.log1p(f) * a_sr_mask
+        - torch.log1p(-g) * b_sr_mask
         - torch.log(1 + eta_a)
         - torch.log(1 - eta_b)
     ).sum()
@@ -391,8 +391,12 @@ def test_paired_estimator_keeps_f_and_g_gradients_independent(input_dimension):
     events = torch.ones((7, input_dimension), dtype=torch.float64)
     f_estimate, g_estimate = estimator(events)
     hidden = estimator.activation(estimator.hidden(events))
-    expected_f = estimator.f_output(hidden[:, : estimator.hidden_size])
-    expected_g = estimator.g_output(hidden[:, estimator.hidden_size :])
+    expected_f = torch.tanh(estimator.f_output(hidden[:, : estimator.hidden_size])) * (
+        1 - torch.finfo(events.dtype).eps
+    )
+    expected_g = torch.tanh(estimator.g_output(hidden[:, estimator.hidden_size :])) * (
+        1 - torch.finfo(events.dtype).eps
+    )
 
     assert f_estimate.shape == (7, 1)
     assert g_estimate.shape == (7, 1)

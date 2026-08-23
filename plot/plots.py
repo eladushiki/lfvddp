@@ -834,14 +834,14 @@ def plot_prediction_process_1d(
         (
             sr_exp_f_eta_plus,
             a_sr.n_samples,
-            r"$e^{f(x)}(1+\eta(x))$ prediction",
+            r"$(1+f(x))(1+\eta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
             b_sr.n_samples,
-            r"$e^{g(x)}(1-\eta(x))$ prediction",
+            r"$(1-g(x))(1-\eta(x))$ prediction",
             plot_colors["g"],
             "s",
         ),
@@ -968,25 +968,25 @@ def plot_prediction_process_1d(
 
     sr_prediction_specs = {
         "exp_f": (
-            r"signal hypothesis $e^{f(x)}$",
+            r"signal hypothesis $(1+f(x))$",
             spanning_exp_f,
             plot_colors["f"],
             prediction_linestyles["product"],
         ),
         "exp_g": (
-            r"signal hypothesis $e^{g(x)}$",
+            r"signal hypothesis $(1-g(x))$",
             spanning_exp_g,
             plot_colors["g"],
             prediction_linestyles["product"],
         ),
         "exp_f_eta_plus": (
-            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+            r"signal hypothesis $(1+f(x))(1+\eta(x))$",
             spanning_exp_f_eta_plus,
             plot_colors["f_light"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+            r"signal hypothesis $(1-g(x))(1-\eta(x))$",
             spanning_exp_g_eta_minus,
             plot_colors["g_light"],
             prediction_linestyles["component"],
@@ -1252,14 +1252,14 @@ def plot_prediction_process_2d(
         (
             sr_exp_f_eta_plus,
             a_sr.n_samples,
-            r"$e^{f(x)}(1+\eta(x))$ prediction",
+            r"$(1+f(x))(1+\eta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
             b_sr.n_samples,
-            r"$e^{g(x)}(1-\eta(x))$ prediction",
+            r"$(1-g(x))(1-\eta(x))$ prediction",
             plot_colors["g"],
             "s",
         ),
@@ -1372,13 +1372,13 @@ def plot_prediction_process_2d(
     )
     sr_prediction_specs = {
         "exp_f_eta_plus": (
-            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+            r"signal hypothesis $(1+f(x))(1+\eta(x))$",
             spanning_exp_f_eta_plus,
             plot_colors["f"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+            r"signal hypothesis $(1-g(x))(1-\eta(x))$",
             spanning_exp_g_eta_minus,
             plot_colors["g"],
             prediction_linestyles["component"],

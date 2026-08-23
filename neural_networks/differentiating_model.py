@@ -98,7 +98,8 @@ class _PairedEstimator(nn.Module):
             dim=0,
         )
         paired_bias = torch.cat((self.f_output.bias, self.g_output.bias))
-        estimates = F.linear(hidden, paired_weight, paired_bias)
+        raw_estimates = F.linear(hidden, paired_weight, paired_bias)
+        estimates = _bounded_sr_deviation(raw_estimates)
         return estimates[:, :1], estimates[:, 1:]
 
 
@@ -121,6 +122,17 @@ class _ThetaEstimator(nn.Module):
         return self.output(self.activation(self.hidden(events))).squeeze(-1)
 
 
+def _bounded_sr_deviation(raw_estimates: torch.Tensor) -> torch.Tensor:
+    """Keep SR deviations in the open interval required by the log likelihood."""
+    margin = torch.finfo(raw_estimates.dtype).eps
+    return torch.tanh(raw_estimates) * (1 - margin)
+
+
+def _linear_sr_weight(estimate: torch.Tensor, sign: float) -> torch.Tensor:
+    """Convert a bounded SR deviation into its positive multiplicative weight."""
+    return 1 + sign * estimate
+
+
 def _compact_no_nuisance_loss(
     f_of_x_sr: torch.Tensor,
     g_of_x_sr: torch.Tensor,
@@ -130,11 +142,13 @@ def _compact_no_nuisance_loss(
     b_sr_coefficient: float,
 ) -> torch.Tensor:
     """Evaluate the unit-weight loss when detector nuisances are disabled."""
+    f_weight = _linear_sr_weight(f_of_x_sr, sign=1)
+    g_weight = _linear_sr_weight(g_of_x_sr, sign=-1)
     return (
-        a_sr_coefficient * torch.exp(f_of_x_sr).sum()
-        + b_sr_coefficient * torch.exp(g_of_x_sr).sum()
-        - f_of_x_sr[:number_of_a_sr_events].sum()
-        - g_of_x_sr[number_of_a_sr_events:].sum()
+        a_sr_coefficient * f_weight.sum()
+        + b_sr_coefficient * g_weight.sum()
+        - torch.log(f_weight[:number_of_a_sr_events]).sum()
+        - torch.log(g_weight[number_of_a_sr_events:]).sum()
         + number_of_cr_events
     )
 
@@ -177,8 +191,10 @@ def _compact_nuisance_loss(
     cr_eta_coefficient: float,
 ) -> torch.Tensor:
     """Evaluate the unit-weight numerator loss with compressed CR bins."""
-    a_sr_term = a_sr_coefficient * torch.exp(f_of_x_sr)
-    b_sr_term = b_sr_coefficient * torch.exp(g_of_x_sr)
+    f_weight = _linear_sr_weight(f_of_x_sr, sign=1)
+    g_weight = _linear_sr_weight(g_of_x_sr, sign=-1)
+    a_sr_term = a_sr_coefficient * f_weight
+    b_sr_term = b_sr_coefficient * g_weight
     sr_density = torch.addcmul(
         a_sr_term + b_sr_term,
         eta_of_x_sr,
@@ -187,8 +203,8 @@ def _compact_nuisance_loss(
 
     return (
         sr_density.sum()
-        - f_of_x_sr[:number_of_a_sr_events].sum()
-        - g_of_x_sr[number_of_a_sr_events:].sum()
+        - torch.log(f_weight[:number_of_a_sr_events]).sum()
+        - torch.log(g_weight[number_of_a_sr_events:]).sum()
         + _compact_nuisance_common_terms(
             eta_of_x_sr=eta_of_x_sr,
             eta_of_x_cr_bins=eta_of_x_cr_bins,
@@ -830,7 +846,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             else:
                 eta = x_tensor.new_zeros((x_tensor.shape[0], 1))
             eta_term = torch.clamp(1 + eta_sign * eta, min=1e-12)
-            predictions = torch.exp(network_estimate) * eta_term
+            sr_weight = _linear_sr_weight(
+                network_estimate,
+                sign=-1 if secondary else 1,
+            )
+            predictions = sr_weight * eta_term
         return predictions.detach().cpu().numpy()
 
     def predict(self, data: DataSet) -> npt.NDArray:
