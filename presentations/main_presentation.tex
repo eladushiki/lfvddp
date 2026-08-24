@@ -71,7 +71,10 @@
 
 \begin{frame}{Our Goal}
     \begin{block}{Goal}
-        Develop a method to detect deviations from the SM's predicition of LF universality, with as little as posible assumptions of the backgrounds and singals expected
+        Given two symmetric datasets, develop a method to estimate whether or not they created from a same PDF
+        \vspace{0.5cm}
+
+        We'll use it to detect deviations from the SM's predicition of LF universality, with as little as posible assumptions of the backgrounds and singals expected.
     \end{block}
 \end{frame}
 
@@ -180,7 +183,7 @@
                     {\int \refdist[\eventsymbol]\,dx}
                 e^{h(\eventsymbol)} \refdist[\eventsymbol],
                 \\
-                \dist{\dataset{B}}
+                \pdf_{\dataset{B}}(\eventsymbol)
                 &=
                 \frac{N_{\meas{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
@@ -194,7 +197,7 @@
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
                 e^{f(\eventsymbol)} \refdist[\eventsymbol],
                 \\
-                \dist{\dataset{B}}
+                \pdf_{\dataset{B}}(\eventsymbol)
                 &=
                 \frac{N_{\meas{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
@@ -265,27 +268,40 @@
 
 \begin{frame}{Observing Events}
     \begin{itemize}
-        \item We consider stochastic physical processes, to measure which we repeat the same experiment many times and gather statistics of the results.
-        \item Each repetition is an event, and we gather such to create datasets, and represent them as some $k$ physical quantities that we measure them by:
+        \item We consider stochastic physical processes (= collisions)
+        \item To probe their behavior, we repeat the same experiment many times and gather statistics of the results
+        \item Each collision is an event, $\event$, that is represented as some $k$ physical quantities that we measure - center of mass energy, product $p_t$, etc.
     \end{itemize}
     \begin{equation}
-        \event \in \mathbb{R}^k, \quad \event \sim \lambda, \quad \dataset{A} = \{\event\}
+        \event \in \mathbb{R}^k, \quad \event \sim \pdf, \quad \dataset{A} = \{\event\}
     \end{equation}
     \begin{itemize}
-        \item with $\lambda$ some probability distribution, that we express as a shift of some common reference distribution
+        \item A group of observations, $\dataset{A}$, is called a dataset
+        \item $\pdf$ is some underlying probability distribution according to which $\event$'s are distributed.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Underlying Probability Distributions}
+    \begin{itemize}
+        \item Looking at pairs of datasets, we express $\pdf$'s relatively to a common reference distribution and a series of shifts:
     \end{itemize}
     \begin{equation}
+    \begin{aligned}
         \label{eq:parametrized_distribution}
-        \parampdf(\anyevent) = e^{f_{\param}(\anyevent)}h_{\nparam}(\anyevent)\refdist
+        \parampdf(\anyevent)^\dataset{A} = e^{\paramf(\anyevent)}(1 + \nparam(\anyevent)) \refdist \\
+        \parampdf(\anyevent)^\dataset{B} = e^{\paramg(\anyevent)}(1 - \nparam(\anyevent)) \refdist
+    \end{aligned}
     \end{equation}
     \begin{itemize}
-        \item where $\param$s are the parameters of interest that make $f$, and $\nparam$s are nuisance parameters that compose $g$.
+        \item the reference distribution, $\refdist$, is composed of the combined datasets
+        \item $(1 \pm \nparam(\anyevent))$ represent shifts due to nuisance parameters of the system - in our case, detector effects
+        \item $e^{\paramf}, e^{\paramg}$ represent shifts due to potential signal
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Distribution Likelihood}
     \begin{itemize}
-        \item Likelihood of a distribution given an observation $\dataset{A}$ is the probability of observing $\dataset{A}$ given the distribution
+        \item Likelihood of a distribution given a dataset $\dataset{A}$ is the probability of observing $\dataset{A}$ had the distribution been true:
     \end{itemize}
     \begin{equation}
         \likelihood(\parampdf | \dataset{A}) = P(\dataset{A} | \parampdf)
@@ -294,63 +310,29 @@
         \item Likelihood of a dataset generated from Poisson statistics then becomes
     \end{itemize}
     \begin{equation}
+    \label{eq:poisson-likelihood}
         \likelihood(\parampdf | \dataset{A})
-        = \dfrac{e^{-N_{\dataset{A}}(\param, \nparam)}}{N_{\dataset{A}}!}
+        = \dfrac{e^{-N_{\dataset{A}}(\param, \nparam)}}{\abs{\dataset{A}}!}
         \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
-        = \dfrac{e^{-\int \parampdf(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
+        = \dfrac{e^{-\int \parampdf(\anyevent) d\anyevent}}{\abs{\dataset{A}}!}
         \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
     \end{equation}
     \begin{itemize}
         \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
     \end{itemize}
     \begin{equation}
-        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} h_{\nparam}(\event)\refdist[\event]\big) + C_\dataset{A}
-    \end{equation}
-\end{frame}
-
-\begin{frame}{Neymann - Pearson}
-    \begin{lemma}
-        \textbf{Neymann - Pearson:} The most discriminative test statistic for testing a signal hypothesis vs the null hypothesis, at a given significance level $\alpha$, is the test if the profile likelihood ratio is greater thatn some threshold $\eta$, defined as
-    \end{lemma}
-    \begin{equation}
-        \Lambda(\mu) = \dfrac{
-            \likelihood(\hat{\mu},\hat{\theta})
-        }{
-            \likelihood(\mu = 0, \hat{\hat{\theta}})
-        } > \eta
-    \end{equation}
-    \begin{block}{}
-        when $\eta$ is chosen such that the probability of rejecting the null hypothesis when it is true is $\alpha$:
-    \end{block}
-    \begin{equation}
-        P(\Lambda(\mu) \geq \eta | \nullhypothesis \text{ is true}) = \alpha
-    \end{equation}
-\end{frame}
-
-\begin{frame}{Observing Data}
-    \begin{itemize}
-        \item Events have to be registered in a detector in order to be observed.
-        \item Detector does not always succeed in event construction, so we say it has efficiency, $\detector(\anyevent)$, that is bounded in $\left[0, 1\right]$ and may depend on the attributes of $\event$.
-        \item We are about to compare similar datasets, hence interested only in the efficiency difference between two such, so we define
-    \end{itemize}
-    \begin{equation}
-        \detector_{A}(\anyevent) - \detector_{B}(\anyevent) \coloneqq 2 \nparam(\anyevent)
-    \end{equation}
-    \begin{itemize}
-        \item In other words, distributions can be parametrized again by an additional factor
-    \end{itemize}
-    \begin{equation}
-    \begin{aligned}
-        \dist{\meas{A}} &\propto (1 + \nparam(\anyevent)) \\
-        \dist{\meas{B}} &\propto (1 - \nparam(\anyevent))
-    \end{aligned}
+    \label{eq:poisson-log-likelihood}
+        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A}
     \end{equation}
 \end{frame}
 
 \begin{frame}{Data Regions}
     \begin{itemize}
-        \item We consider two pairs of datasets, as follows;
-    \end{itemize}
+        \item To study the nature of our system, we normally define a control region (CR) within the data
+        \item We assume there is no apparent new physics in the CR
+        \item The data from which we study the new physics is then called the Signal Region (SR)
+        \item The datasets we use are summed in the table:
+        \end{itemize}
     \begin{table}[ht]%[H] add [H] placement to break table across pages
         \caption{\label{table:division_of_data}}
         \begin{tabular}{| l | c | c |}
@@ -359,34 +341,31 @@
             SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
             CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
             \end{tabular}
-        \caption{Division of available data from different cuts into subsets for signal and control regions.}
+        \caption{Datasets used in our method}
     \end{table}
-    \begin{itemize}
-        \item Signal and control regions are created using disjoint cuts. We assume the control region has no new physics to be discovered, while we search for it in the signal region.
-        \item Datasets $\dataset{A}$ and $\dataset{B}$ in either region differ by some symmetric phsyical quantity. In our case, lepton flavor of the lepton product.
-    \end{itemize}
 \end{frame}
 
 \begin{frame}{Hypotheses}
     \begin{itemize}
-        \item We postulate two hypotheses, signal and null, as follows
+        \item We postulate two new hypotheses as follows:
     \end{itemize}
     \begin{equation}
+    \label{eq:hypothsis-formulation}
     \begin{aligned}
         \nullhypothesis |_{SR} &: \quad
         \begin{cases}
-            {\srdist{\meas{A}}^0} = N_\srmeas{A} (1 + {\nparam(\anyevent)}) \srrefdist \\
-            {\srdist{\meas{B}}^0} = N_\srmeas{B} (1 - {\nparam(\anyevent)}) \srrefdist
+            {\srdist{\dataset{A}}^0} = N_\dataset{A}^{SR} (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\dataset{B}}^0} = N_\dataset{B}^{SR} (1 - {\nparam(\anyevent)}) \srrefdist
         \end{cases} \\
         \hypothesis{1} |_{SR} &: \quad
         \begin{cases}
-            {\srdist{\meas{A}}^1} = N_\srmeas{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
-            {\srdist{\meas{B}}^1} = N_\srmeas{B} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
+            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
         \end{cases} \\
         \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
         \begin{cases}
-            \crdist{\meas{A}}^i = N_\crmeas{A} (1 + {\nparam(\anyevent)}) \crrefdist \\
-            \crdist{\meas{B}}^i = N_\crmeas{B} (1 - {\nparam(\anyevent)}) \crrefdist
+            \crdist{\dataset{A}}^i = N_\dataset{A}^{CR} (1 + {\nparam(\anyevent)}) \crrefdist \\
+            \crdist{\dataset{B}}^i = N_\dataset{B}^{CR} (1 - {\nparam(\anyevent)}) \crrefdist
         \end{cases}
     \end{aligned}
     \end{equation}
@@ -394,75 +373,56 @@
 
 \begin{frame}{Likelihood and Test Statistics}
     \begin{itemize}
-        \item Log likelihood of a hypothesis is a product of that of its parts
+        \item To calculate the log likelihood ratio test statistic
     \end{itemize}
     \begin{equation}
-    \begin{aligned}
-        \likelihood(\hypothesis{i} | \meas{A}, \meas{B})
-        &= \likelihood(\hypothesis{i}|\srmeas{A}, \srmeas{B}) \cdot \likelihood(\hypothesis{i}|\crmeas{A}, \crmeas{B}) \\&
-        = \likelihood(\srdist{\meas{A}}^i|\srmeas{A}) \cdot \likelihood(\srdist{\meas{B}}^i|\srmeas{B}) \\&
-        \cdot \likelihood(\crdist{\meas{A}}^i|\crmeas{A}) \cdot \likelihood(\crdist{\meas{B}}^i|\crmeas{B})
-    \end{aligned}
+        \Lambda(\param) = \dfrac{
+            \likelihood(\hat{\param},\hat{\nparam})
+        }{
+            \likelihood(\param = 0, \hat{\hat{\nparam}})
+        }
     \end{equation}
     \begin{itemize}
-        \item From which we build the test statistic from its definition ($\param \to f, g$, note that $\nullhypothesis = \hypothesis{1}(f, g = 0)$)
+        \item We plug the definitions of each hypothesis
     \end{itemize}
     \begin{equation}
     \begin{aligned}
         t &= 2 \log \left(
             \frac{
-                \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}|\meas{A}, \meas{B}, \nparam))
+                \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}(\param, \nparam)|\dataset{A}, \dataset{B}))
             }{
-                \max\limits_{\nparam} (\likelihood(\nullhypothesis|\meas{A}, \meas{B}, \nparam))
-        }\right) \\&
-        = - 2 \left(
-            {\min\limits_{f, g, \nparam}(-\log \likelihood(\hypothesis{1}|\meas{A}, \meas{B}, \nparam))} 
-            - {\min\limits_{\nparam}(-\log \likelihood(\nullhypothesis|\meas{A}, \meas{B}, \nparam))}
-        \right)
+                \max\limits_{\nparam} (\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}))
+        }\right)
     \end{aligned}
     \end{equation}
 \end{frame}
 
 \begin{frame}{Minimization by Loss Function}
     \begin{itemize}
-        \item We reduce the problem of calculating this to the calculation of two minima
+        \item To estimate $t$ we need to deal with two maximization operation
+        \item For that, we define two loss functions
     \end{itemize}
     \begin{equation}
-    \label{eq:formal_loss_functions}
     \begin{aligned}
-        L^{n}[f, g, \nparam] &= \Bigg(
-            \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0)
-            + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
-            \\&
-            - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
-            - \sum\limits_{\event \in \srmeas{B}} g(\anyevent) \\&
-            - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
-            - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
-        \Bigg)
-        \\
-        L^{d}[\nparam] &= \Bigg(
-            \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
-            + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
-            \\&
-            - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
-            - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
-        \Bigg)
+        L^\text{numerator}[f, g, \nparam] &= -\likelihood(\hypothesis{1}(\paramf, \paramg, \nparam)|\dataset{A}, \dataset{B}) \\
+        L^\text{denominator}[\nparam] &= -\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}),
     \end{aligned}
     \end{equation}
+    \begin{itemize}
+        \item and optimize for each using a simple machine learning model
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Parameterization by Neural Networks}
     \begin{itemize}
-        \item Since $f, g$ should be generic and as expressive as possible, we realize them as NN outputs
+        \item Since $\paramf, \paramg$ should be as generic and as expressive as possible, we realize them as neural network outputs:
     \end{itemize}
-    \begin{equation}
-    \begin{aligned}
-        f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha) \\
-        g(\event) = c_{0} + \sum\limits_{\alpha = 1}^{N} \upsilon_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\upsilon^j_{\alpha} \event^j + c_\alpha)
-    \end{aligned}
-    \end{equation}
+    \addsizedpic{0.5}{
+        figures/nn-illustration.png
+    }
     \begin{itemize}
-        \item Eta implementation is left for the methodology section, as it's arbitrary and would be furhter manipulated in the future
+        \item This implementation lets us easily control the number of degrees of freedom of our hypothesis space, by controlling the number of neurons in the middle layer
+        \item $\nparam$ implementation is left for the methodology section, as it's arbitrary and would be furhter manipulated in the future
     \end{itemize}
 \end{frame}
 
@@ -476,26 +436,6 @@
     \end{theorem}
 \end{frame}
 
-\begin{frame}
-    \begin{itemize}
-        \item And so, by gathering statistics of $t$, we compare it to a $\chi^2$ distribution and we can estimate how likely it is for the null hypothesis to be true.
-        \item When injecting a signal, we'll show the measures of significance:
-    \end{itemize}
-    \begin{equation}
-    \begin{aligned}
-        Z_\text{analytic} &= \sqrt{\invllratio} = \sqrt  {
-            2 \left( -N_s + \int\limits_{\mathbb{R}^{k}} d\anyevent (N_b(\anyevent) + N_s(\anyevent)) \log \dfrac{N_s(\anyevent) + N_b(\anyevent)}{N_b(\anyevent)} \right)
-        }
-        \\
-        Z_\text{evident} &= \sqrt{\invllratio} = \sqrt{
-            2 \left( -N_s + \sum\limits_{\event} d\anyevent (N_b(\event) + N_s(\event)) \log \dfrac{N_s(\event) + N_b(\event)}{N_b(\event)} \right)
-        }
-        \\
-        Z_\text{empirical} &= \Phi^{-1}(1 - \dfrac{\#{t_{bkg} > t_{mean}}}{\#{t_{bkg}}})
-    \end{aligned}
-    \end{equation}
-\end{frame}
-
 \section{Methodology}
 
 \begin{frame}{Framework}
@@ -504,41 +444,6 @@
         \item Runs on docker with CERN's VM FS environment
         \item Parallelism via cluster's OpenPBS
     \end{itemize}
-\end{frame}
-
-\begin{frame}{Reference Distribution Choice}
-    \begin{itemize}
-        \item The natural choice for the reference distribution is the combined sample
-        \item We convert integrals over the continuous distribution to normalized sums over the evident sample
-    \end{itemize}
-    \begin{equation}
-        \int h(\anyevent) \refdist^r d\anyevent \to
-        \dfrac{1}{N^r}\sum\limits_{\event \in \dataset{N}^r} h(\event)
-    \end{equation}
-\end{frame}
-
-\begin{frame}{Nuisance Implementation}
-    \begin{itemize}
-        \item We decided to implement the detector nuisance as binwise constant multiplicative factor for each dimension
-    \end{itemize}
-    \begin{equation}
-        \detector(\anyevent) = \prod\limits_{j=0}^k \detector^j(\anyevent^j)
-    \end{equation}
-    \begin{equation}
-        \detector^j(\anyevent^j) = 
-        \begin{cases}
-            \detector^{j0}, &x \in \left(-\infty, b_1^j\right) \\
-            \detector^{j1}, &x \in \left[b_1^j, b_2^j\right) \\
-            ... \\
-            \detector^{jn}, &x \in \left[b_{n-1}^j, \infty\right) \\
-        \end{cases}
-    \end{equation}
-    \begin{itemize}
-        \item to give
-    \end{itemize}
-    \begin{equation}
-        \nparam(\anyevent) = \prod\limits_{j=0}^{k} \dfrac{1}{2}(\detector^{jh}_\dataset{A} - \detector^{jh}_\dataset{B})
-    \end{equation}
 \end{frame}
 
 \begin{frame}{Model Structure}
@@ -630,7 +535,7 @@
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         \def\fNNy{2.0}
         \def\gNNy{0.0}
-        \def\etay{-2.0}
+        \def\nparamy{-2.0}
         \def\spx{1.1}
         \def\nninx{\spx + 3.7}
         \def\nnmidx{\nninx + 4}
@@ -667,10 +572,10 @@
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % One-layer NN
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (eta) at (\nnmidx,\etay) {
-        $\eta$
+        \node[layer] (nparam) at (\nnmidx,\nparamy) {
+        $\nparam$
         };
-        \node[output] (pmeta) at (\arithmeticx,\etay) {
+        \node[output] (pmnparam) at (\arithmeticx,\nparamy) {
         $(1 \pm \{\})$
         };
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -696,7 +601,7 @@
         }(gin.west);
         \draw[->] (split-point) |- node[above, pos=0.7]{
         $\text{tot}, N_{tot} \times k$
-        }(eta.west);
+        }(nparam.west);
         % f NN
         \draw[->] (fin.east) -- node[above]{
         $N^{SR} \times 1$
@@ -705,7 +610,7 @@
         $N^{SR} \times 1$
         }(fout.west);
         \draw[->] (fout.east) -- node[above]{
-        $f(x), N^{SR} \times 1$
+        $f(\anyevent), N^{SR} \times 1$
         }(expf.west);
         % g NN
         \draw[->] (gin.east) -- node[above]{
@@ -715,35 +620,35 @@
         $N^{SR} \times 1$
         }(gout.west);
         \draw[->] (gout.east) -- node[above]{
-        $g(x), N^{SR} \times 1$
+        $g(\anyevent), N^{SR} \times 1$
         }(expg.west);
-        % eta
-        \draw[->] (eta.east) -- node[above]{
-        $\eta(x), N_{tot} \times 1$
-        }(pmeta.west);
+        % nparam
+        \draw[->] (nparam.east) -- node[above]{
+        $\nparam(\anyevent), N_{tot} \times 1$
+        }(pmnparam.west);
         % combine
         \draw[->] (expf.east) -| node[above, pos=0.3]{
-        $e^{f(x)}$
+        $e^{f(\anyevent)}$
         }(comb.north);
         \draw[->] (expg.east) -| node[above, pos=0.3]{
-        $e^{g(x)}$
+        $e^{g(\anyevent)}$
         }(comb.west);
-        \draw[->] (pmeta.east) -| node[above, pos=0.3]{
-        $1 \pm \eta(x)$
+        \draw[->] (pmnparam.east) -| node[above, pos=0.3]{
+        $1 \pm \nparam(\anyevent)$
         }(comb.south);
         % outgoing arrow
         \draw[->] (comb.east) -- node[above] {
-        $L[f, g, \eta]$
+        $L[f, g, \nparam]$
         } (\combx + 2,\gNNy);
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % groups
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         \node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
         \node[group, fit=(gin)(gmid)(expg)(expg)] (g) {};
-        \node[group, fit=(eta)(pmeta)] (eta) {};
+        \node[group, fit=(nparam)(pmnparam)] (nparam) {};
         \node at ($(f.north)+(0,0.25)$) {\scriptsize f NN};
         \node at ($(g.north)+(0,0.25)$) {\scriptsize g NN};
-        \node at ($(eta.north)+(0,0.25)$) {\scriptsize $\eta$ prediction};
+        \node at ($(nparam.north)+(0,0.25)$) {\scriptsize $\nparam$ prediction};
     \end{tikzpicture}
     \end{adjustbox}
 \end{frame}
@@ -814,6 +719,127 @@
         \centering
         \includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{../paper/sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/performance_plot_-4588680099968231982.png}
     \end{figure}
+\end{frame}
+
+\TODO{all results}
+
+\section{Questions}
+
+\section{Appendix}
+
+\begin{frame}{Loss Function Development}
+    \begin{itemize}
+        \item Starting from the required log likelihood ratio expression
+    \end{itemize}
+        \begin{equation}
+        \llikelihood = \dfrac{
+            \likelihood(\hat{\param},\hat{\nparam})
+        }{
+            \likelihood(\param = 0, \hat{\hat{\nparam}})
+        }
+    \end{equation}
+    \begin{itemize}
+        \item We plug the signal vs null hypotheses
+    \end{itemize}
+    \begin{equation}
+        \llikelihood = 2 \log \left(
+            \frac{
+                \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}(\param, \nparam)|\dataset{A}, \dataset{B}))
+            }{
+                \max\limits_{\nparam} (\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}))
+        }\right)
+    \end{equation}
+\end{frame}
+
+\begin{frame}{Loss Function Development}
+    \begin{itemize}
+        \item Log likelihood can be separated by dataset and region as a sum:
+    \end{itemize}
+    \begin{equation}
+    \begin{aligned}
+        \llikelihood(\hypothesis{i} | \dataset{A}, \dataset{B})
+        &= \llikelihood(\hypothesis{i}|\dataset{A}^{SR}, \dataset{B}^{SR}) + \llikelihood(\hypothesis{i}|\dataset{A}^{CR}, \dataset{B}^{CR}) \\&
+        = \llikelihood(\srdist{\dataset{A}}^i|\dataset{A}^{SR}) + \llikelihood(\srdist{\dataset{B}}^i|\dataset{B}^{SR}) \\&
+        + \llikelihood(\crdist{\dataset{A}}^i|\dataset{A}^{CR}) + \llikelihood(\crdist{\dataset{B}}^i|\dataset{B}^{CR})
+    \end{aligned}
+    \end{equation}
+    \begin{itemize}
+        \item each of which is governed by poisson statistics as in Eq.~\ref{eq:poisson-log-likelihood} with the corresponding PDF as in Eq.~\ref{eq:hypothsis-formulation}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \begin{itemize}
+        \item This leads us to the full loss expresions:
+    \end{itemize}
+    \begin{equation}
+    \begin{aligned}
+        L^{n}[\param, \nparam] &= \Bigg(
+            \int (e^{f(\anyevent)}\srdist{\dataset{A}}^0 + e^{g(\anyevent)}\srdist{\dataset{B}}^0)
+            + \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
+            \\&
+            - \sum\limits_{\event \in \dataset{A}^{SR}} f(\anyevent)
+            - \sum\limits_{\event \in \dataset{B}^{SR}} g(\anyevent) \\&
+            - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+            - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+        \Bigg)
+        \\
+        L^{d}[\nparam] &= \Bigg(
+            \int (\srdist{\dataset{A}}^0 + \srdist{\dataset{B}}^0)
+            + \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
+            \\&
+            - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+            - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+        \Bigg)
+    \end{aligned}
+    \end{equation}
+\end{frame}
+
+\begin{frame}
+    \begin{itemize}
+        \item Plugging the discrete datasets in place of the distributions
+    \end{itemize}
+    \begin{equation}
+        \int h(\anyevent) \refdist^r d\anyevent \to
+        \dfrac{1}{N^r}\sum\limits_{\event \in \dataset{N}^r} h(\event)
+    \end{equation}
+    \begin{itemize}
+        \item we get
+    \end{itemize}
+    \begin{equation}
+    \label{eq:discrete_loss_functions}
+    \begin{aligned}
+        L^{n}[\param, \nparam] &= \Bigg(
+            \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+                {N_\dataset{A}^{SR}} e^{f(\anyevent)} (1 + {\nparam(\anyevent)})
+                + {N_\dataset{B}^{SR}} e^{g(\anyevent)} (1 - {\nparam(\anyevent)})
+            \right) \\&
+            + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+                {N_\dataset{A}^{CR}} (1 + {\nparam(\anyevent)})
+                + {N_\dataset{B}^{CR}} (1 - {\nparam(\anyevent)})
+            \right)
+            \\&
+            - \sum\limits_{\event \in \dataset{A}^{SR}} f(\anyevent)
+            - \sum\limits_{\event \in \dataset{B}^{SR}} g(\anyevent)
+            - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+            - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+        \Bigg)
+        \\
+        L^{d}[\nparam] &= \Bigg(
+            \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+                {N_\dataset{A}^{SR}} (1 + {\nparam(\anyevent)})
+                + {N_\dataset{B}^{SR}} (1 - {\nparam(\anyevent)})
+            \right) \\&
+            + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+                {N_\dataset{A}^{CR}} (1 + {\nparam(\anyevent)})
+                + {N_\dataset{B}^{CR}} (1 - {\nparam(\anyevent)})
+            \right)
+            \\&
+            - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+            - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+        \Bigg)
+    \end{aligned}
+    \end{equation}
 \end{frame}
 
 \end{document}
