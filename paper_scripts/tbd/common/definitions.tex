@@ -52,8 +52,9 @@
 % =============================================================================
 
 %% Data sets
-\newcommand{\anyevent}{\overline{x}}
-\newcommand{\event}{{\overline{x_i}}}
+\newcommand{\eventsymbol}{{x}}
+\newcommand{\anyevent}{\vec{\eventsymbol}}
+\newcommand{\event}{{\vec{\eventsymbol_i}}}
 \newcommand{\dataset}[1]{{\mathbf{#1}}}         % A dataset
 \newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
 \newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}   % A measured dataset
@@ -77,12 +78,12 @@
 
 %% Hypotheses
 %%% Distributions
-\newcommand{\dist}[1]{{\lambda_{#1}(\anyevent)}}   % Any distribution of x
-\newcommand{\srdist}[1]{{\lambda_{#1}^{SR}(\anyevent)}}   % Any distribution of x
-\newcommand{\crdist}[1]{{\lambda_{#1}^{CR}(\anyevent)}}   % Any distribution of x
-\newcommand{\distevent}[1]{\lambda_{#1}(\event)}
-\newcommand{\srdistevent}[1]{\lambda_{#1}^{SR}(\event)}
-\newcommand{\crdistevent}[1]{\lambda_{#1}^{CR}(\event)}
+\newcommand{\dist}[1]{{\pdf_{#1}(\anyevent)}}   % Any distribution of x
+\newcommand{\srdist}[1]{{\pdf_{#1}^{SR}(\anyevent)}}   % Any distribution of x
+\newcommand{\crdist}[1]{{\pdf_{#1}^{CR}(\anyevent)}}   % Any distribution of x
+\newcommand{\distevent}[1]{\pdf_{#1}(\event)}
+\newcommand{\srdistevent}[1]{\pdf_{#1}^{SR}(\event)}
+\newcommand{\crdistevent}[1]{\pdf_{#1}^{CR}(\event)}
 \newcommand{\refdist}[1][\anyevent]{n_{\mathcal{R}}({#1})}  % Reference distribution
 \newcommand{\crrefdist}[1][\anyevent]{n_{\mathcal{R}}^{CR}({#1})}
 \newcommand{\srrefdist}[1][\anyevent]{n_{\mathcal{R}}^{SR}({#1})}
@@ -92,13 +93,6 @@
 \newcommand{\llikelihood}{\log\mathcal{L}}      % Log-likelihood function
 \newcommand{\plratio}{\lambda(\param)}
 \newcommand{\invllratio}{{q_{0}}}
-
-% =============================================================================
-% CUSTOM COLORS (if needed)
-% =============================================================================
-
-% Define custom colors for highlighting, etc.
-% \definecolor{...}{RGB}{...}
 
 % =============================================================================
 % Theorems
@@ -117,6 +111,29 @@
 \newtheorem{corollary}[theorem]{Corollary}
 
 \newtheorem*{theorem*}{Theorem}
+
+% =============================================================================
+% Display Macros
+% =============================================================================
+
+\newcommand{\addgraph}[1]{%
+        \centering
+        \includegraphics[
+            width=\textwidth,
+            height=0.8\textheight,
+            keepaspectratio,
+            trim=0 22bp 0 0,
+            clip
+        ]{#1}
+}
+\newcommand{\addpic}[1]{%
+        \centering
+        \includegraphics[
+            width=\textwidth,
+            height=0.8\textheight,
+            keepaspectratio
+        ]{#1}
+}
 
 % =============================================================================
 % DRAFT MARKERS (TODO/FIXME/TBD)
