@@ -35,14 +35,15 @@
         \item General steps of a classical search for BSM physics:
         \begin{itemize}
             \item Hypothesize a change from the SM postulates
-            \item Build a changes Lagrangian and identify decay channels
+            \item Formulate production mechanisms and decay modes
+            \item Construct a statistical model of the model behavior
             \item Monte Carlo simulation of the new physics in adetector
-            \item Plan an experiment to magnify signal, define SR, CR
-            \item Estimate background processes
-            \item Remove blindfold and analyze LHC data
+            \item Plan an experiment to magnify signal / background
+            \item Estimate uncertainties
+            \item Unblinding and analysis
         \end{itemize}
-        \item Thorough, but labor intensive
-        \item Is blind to the rest of accumulated data, apart from a specific cut
+        \item The procedure is thorough, but labor intensive
+        \item Eventually, this examined one specific cut among almost infinite possibilities
     \end{itemize}
 \end{frame}
 
@@ -50,7 +51,7 @@
     \begin{itemize}
         \item We propose and alternative - start from looking at the data
         \item Scan for deviation from what the SM predicts
-        \item Direct theory builders to explain found signals
+        \item Direct model builders to explain found signals
     \end{itemize}
 \end{frame}
 
@@ -58,9 +59,9 @@
 
 \begin{frame}{LFV - DDP}
     \begin{itemize}
-        \item The SM predicts an accidental global symmetry of the lepton sector between the three generations
-        \item There is motivation to look for places in which this symmetry does not hold - neutrino oscillations
-        \item We'll use the symmetry to look for differences without background modeling, by comparing equivalent datasets due to the symmetry
+        \item The SM predicts an accidental global symmetry of the lepton flavor universality
+        \item There is motivation to look for places in which this symmetry does not hold - driven by observed neutrino oscillations
+        \item We'll use this symmetry assumption to compare pairs of equivalent datasets and look for differences without modelling
     \end{itemize}
     \begin{figure}
         \centering
@@ -72,6 +73,192 @@
     \begin{block}{Goal}
         Develop a method to detect deviations from the SM's predicition of LF universality, with as little as posible assumptions of the backgrounds and singals expected
     \end{block}
+\end{frame}
+
+\section{Previous work}
+
+\begin{frame}{Building Datasets}
+    \begin{itemize}
+        \item We consider stochastic physical processes, which we repeat many times and gather statistics of their outcomes
+    \end{itemize}
+
+    \begin{center}
+    \begin{columns}[c]
+
+        % Proton collision
+        \begin{column}{0.42\textwidth}
+            \centering
+            \addpic{
+                figures/proton-proton-collision.png
+            }
+        \end{column}
+
+        % Arrow
+        \begin{column}{0.10\textwidth}
+            \centering
+            {\Huge $\xrightarrow{\mathcal{L}}$}
+        \end{column}
+
+        % Final state / next figure
+        \begin{column}{0.42\textwidth}
+            \centering
+            \addgraph{
+                figures/electron-pt.png
+            }
+        \end{column}
+
+    \end{columns}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Comparing Dataset Pairs}
+    \begin{itemize}
+        \item In our method, we compare pairs of symmetric datasets
+    \end{itemize}
+
+    \begin{center}
+    \begin{columns}[c]
+        \begin{column}{0.45\textwidth}
+            \centering
+            \Huge $\mathcal{L}_e$
+        \end{column}
+        \begin{column}{0.1\textwidth}
+            \centering \[
+                \overset{\makebox[0pt][c]{\scalebox{1.5}{?}}}{\scalebox{3}{$=$}}
+            \]
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \centering
+            \Huge $\mathcal{L}_\mu$
+        \end{column}
+    \end{columns}
+    \vspace{0.3cm}
+    \begin{columns}[c]
+        \begin{column}{0.45\textwidth}
+            \centering
+            \Huge $\downarrow$
+        \end{column}
+        \begin{column}{0.1\textwidth}
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \centering
+            \Huge $\downarrow$
+        \end{column}
+    \end{columns}
+    \vspace{0.3cm}
+    \begin{columns}[c]
+        \begin{column}{0.45\textwidth}
+            \centering
+            \addgraph{
+                figures/electron-pt.png
+            }
+        \end{column}
+        \begin{column}{0.1\textwidth}    
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \centering
+            \addgraph{
+                figures/muon-pt.png
+            }
+        \end{column}
+    \end{columns}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Hypothesis Testing}
+    \begin{itemize}
+        \item Hypothesis formulation:
+    \end{itemize}
+    \begin{block}{null vs signal hypotheses}
+        \begin{equation}
+        \begin{aligned}
+            \nullhypothesis &: \quad
+            \begin{cases}
+                \pdf_{\dataset{A}}(\eventsymbol)
+                &=
+                \frac{N_{\meas{A}}}
+                    {\int \refdist[\eventsymbol]\,dx}
+                e^{h(\eventsymbol)} \refdist[\eventsymbol],
+                \\
+                \dist{\dataset{B}}
+                &=
+                \frac{N_{\meas{B}}}
+                    {\int \refdist[\eventsymbol]\,d\eventsymbol}
+                e^{h(\eventsymbol)+r} \refdist[\eventsymbol],
+            \end{cases} \\
+            \hypothesis{1} &: \quad
+            \begin{cases}
+                \dist{\dataset{A}}
+                &=
+                \frac{N_{\meas{A}}}
+                    {\int \refdist[\eventsymbol]\,d\eventsymbol}
+                e^{f(\eventsymbol)} \refdist[\eventsymbol],
+                \\
+                \dist{\dataset{B}}
+                &=
+                \frac{N_{\meas{B}}}
+                    {\int \refdist[\eventsymbol]\,d\eventsymbol}
+                e^{g(\eventsymbol)} \refdist[\eventsymbol].
+            \end{cases}
+        \end{aligned}
+        \end{equation}
+    \end{block}
+    \begin{itemize}
+        \item Test statistic
+    \end{itemize}
+    \begin{equation}
+        t = 2 \log \left(
+            \dfrac{
+                \max\limits_{f, g} \left(
+                    \likelihood(\hypothesis{1}|\dataset{A}, \dataset{B})
+                \right)
+            }{
+                \max\limits_{h, r} \left(
+                    \likelihood(\nullhypothesis|\dataset{A}, \dataset{B})
+                \right)
+            }
+        \right)
+    \end{equation}
+\end{frame}
+
+\begin{frame}{t Distribution}
+    \begin{center}
+    \begin{columns}[c]
+        \begin{column}{0.45\textwidth}
+            \centering
+            without signal
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \centering
+            with signal
+        \end{column}
+    \end{columns}
+    \vspace{0.3cm}
+    \begin{columns}[c]
+        \begin{column}{0.45\textwidth}
+            \centering
+            \addgraph{
+                figures/background-only-t-dist.png
+            }
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \centering
+            \addgraph{
+                figures/signal-t-dist.png
+            }
+        \end{column}
+    \end{columns}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Significance Progression}
+    \begin{itemize}
+        \item progression of signal significance detection
+    \end{itemize}
+    \vspace{1cm}
+    \addgraph{
+        figures/previous-significance-progression.png
+    }
 \end{frame}
 
 \section{Formulation}
