@@ -126,14 +126,14 @@
             clip
         ]{#1}
 }
-\newcommand{\addpic}[1]{%
+\newcommand{\addsizedpic}[2]{%
         \centering
         \includegraphics[
-            width=\textwidth,
-            height=0.8\textheight,
+            width=#1\textwidth,
             keepaspectratio
-        ]{#1}
+        ]{#2}
 }
+\newcommand{\addpic}[1]{\addsizedpic{0.8}{#1}}
 
 % =============================================================================
 % DRAFT MARKERS (TODO/FIXME/TBD)
