@@ -53,7 +53,7 @@ def _prediction_process_suptitle(
     context: ExecutionContext, title: str
 ) -> str:
     """Describe the prediction process and its source run in one line."""
-    return f"{title}: A prediction process of {context.config.config__runtag}"
+    return f"{title} of {context.config.config__runtag}"
 
 
 def _prediction_process_subplot_adjustments(
@@ -505,7 +505,7 @@ def performance_plot(
         color="black",
         linewidth=1.5,
         linestyle=":",
-        label=r"Expected $\chi^2$ limit",
+        label=r"Perfect discovery (injected = measured)",
     )
 
     # Overlay one pair of significance curves for each configuration subgroup.
