@@ -460,6 +460,14 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     ].n_samples
     assert torch.all(prepared.a_cr_bin_counts == 1)
     assert torch.all(prepared.b_cr_bin_counts == 1)
+    assert prepared.nuisance_bin_indices is not None
+    assert prepared.nuisance_bin_indices.shape[0] == (
+        prepared.number_of_sr_events + prepared.number_of_cr_events
+    )
+
+    loss = model(prepared)
+    assert torch.isfinite(loss)
+    loss.backward()
 
 
 @pytest.mark.parametrize(

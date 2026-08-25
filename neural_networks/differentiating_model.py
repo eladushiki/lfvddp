@@ -488,11 +488,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 eta_values = self._theta_from_inputs(
                     data.nuisance_bin_indices
                 )
+                # Neural nuisance evaluation is per event, including every CR event.
                 eta_of_x_sr, eta_of_x_cr_bins = torch.split(
                     eta_values,
                     (
                         data.number_of_sr_events,
-                        data.number_of_cr_bins,
+                        data.number_of_cr_events,
                     ),
                 )
             else:
