@@ -34,7 +34,7 @@ When requested to "run jobs" or "submit jobs" on "the cluster", "WIS cluster", "
 #### Relative
 
 - Launch Path `.vscode/launch.json`
-- Submitted Job State File: `.agents/skills/submit-on-cluster/state.yaml`
+- Submission State File: `.agents/submission-state.yaml`
 
 ### Etc.
 

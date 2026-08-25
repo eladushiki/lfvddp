@@ -19,8 +19,8 @@
 .bg-shell/
 .gsd/SECRETS.md
 
-# Agnets and skills
-.agents/skills/submit-on-cluster/state.yaml
+# Agents and skills
+.agents/submission-state.yaml
 
 # Python tests
 .coverage

@@ -25,7 +25,7 @@ When requested to review done jobs, generate recent plots or something of sort.
 
 ### Paths
 
-- Submission State File Path: `.agents/skills/submit-on-cluster/state.yaml`
+- Submission State File Path: `.agents/submission-state.yaml`
 - Project Root at Remote: `<WIS_CLUSTER_REMOTE_PROJECT_ROOT>`
 - Relative Launch File Path: `.vscode/launch.json`
 - Relative Results Directory: `results/`
