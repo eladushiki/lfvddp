@@ -18,6 +18,7 @@
 .gsd/worktrees
 .bg-shell/
 .gsd/SECRETS.md
+.gsd/CODEBASE.md
 
 # Agents and skills
 .agents/submission-state.yaml
