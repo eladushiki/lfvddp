@@ -22,8 +22,12 @@ from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.nuisance_calculation import (
-    NeuralPerEventNuisanceCalculation, NoNuisanceCalculation, NuisanceEvaluation,
-    PreparedNuisanceData, ScalarBinnedNuisanceCalculation, _ThetaEstimator,
+    NeuralPerEventNuisanceCalculation,
+    NoNuisanceCalculation,
+    NuisanceEvaluation,
+    PreparedNuisanceData,
+    ScalarBinnedNuisanceCalculation,
+    _ThetaEstimator,
 )
 from neural_networks.utils import (
     ContextedModel,
@@ -41,6 +45,8 @@ LFVNN_DTYPE = torch.float64
 class _PreparedTrainingData:
     sr_data: torch.Tensor
     nuisance_data: PreparedNuisanceData
+    a_sr_mask: torch.Tensor
+    b_sr_mask: torch.Tensor
     number_of_a_sr_events: int
     number_of_b_sr_events: int
     number_of_a_cr_events: int
@@ -48,10 +54,14 @@ class _PreparedTrainingData:
     a_sr_coefficient: float
     b_sr_coefficient: float
     cr_eta_coefficient: float
+
     @property
-    def number_of_sr_events(self) -> int: return self.number_of_a_sr_events + self.number_of_b_sr_events
+    def number_of_sr_events(self) -> int:
+        return self.number_of_a_sr_events + self.number_of_b_sr_events
+
     @property
-    def number_of_cr_events(self) -> int: return self.number_of_a_cr_events + self.number_of_b_cr_events
+    def number_of_cr_events(self) -> int:
+        return self.number_of_a_cr_events + self.number_of_b_cr_events
 
 
 class _PairedEstimator(nn.Module):
@@ -212,35 +222,39 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         f_estimate, g_estimate = self.paired_network(sr_data)
         return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
 
-    def forward(self, data: _PreparedTrainingData, profiler: Optional[TrainingProfiler] = None) -> torch.Tensor:
+    def forward(
+        self,
+        data: _PreparedTrainingData,
+        profiler: Optional[TrainingProfiler] = None,
+    ) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/f_and_g_networks"):
-            estimates = None if self.paired_network is None else self._network_estimates(data.sr_data)
+            estimates = (
+                None
+                if self.paired_network is None
+                else self._network_estimates(data.sr_data)
+            )
         with profile_region("training/nuisance_eta"):
-            nuisance = self.nuisance_calculation.evaluate(data.nuisance_data)
-        return self._assemble_loss(estimates, nuisance, data)
+            nuisance = self.nuisance_calculation.evaluate(
+                data=data.nuisance_data,
+                cr_eta_coefficient=data.cr_eta_coefficient,
+            )
+        return self._assemble_loss(estimates=estimates, nuisance=nuisance, data=data)
 
     @staticmethod
     def _assemble_loss(
+        *,
         estimates: Optional[tuple[torch.Tensor, torch.Tensor]],
         nuisance: NuisanceEvaluation,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
+        a_sr_values = nuisance.sr_values[data.a_sr_mask]
+        b_sr_values = nuisance.sr_values[data.b_sr_mask]
         common_terms = (
             data.number_of_cr_events
-            + data.cr_eta_coefficient
-            * torch.dot(
-                nuisance.cr_values,
-                nuisance.a_cr_weights + nuisance.b_cr_weights,
-            )
-            - torch.log1p(
-                nuisance.sr_values[:data.number_of_a_sr_events]
-            ).sum()
-            - torch.dot(torch.log1p(nuisance.cr_values), nuisance.a_cr_weights)
-            - torch.log1p(
-                -nuisance.sr_values[data.number_of_a_sr_events:]
-            ).sum()
-            - torch.dot(torch.log1p(-nuisance.cr_values), nuisance.b_cr_weights)
+            + nuisance.cr_loss
+            - torch.log1p(a_sr_values).sum()
+            - torch.log1p(-b_sr_values).sum()
         )
         if estimates is None:
             return (
@@ -259,24 +273,75 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 nuisance.sr_values,
                 a_term - b_term,
             ).sum()
-            - f_of_x_sr[:data.number_of_a_sr_events].sum()
-            - g_of_x_sr[data.number_of_a_sr_events:].sum()
+            - f_of_x_sr[data.a_sr_mask].sum()
+            - g_of_x_sr[data.b_sr_mask].sum()
             + common_terms
         )
 
     def _prepare_training_data(self, data: DataBatch) -> _PreparedTrainingData:
         normalized_data, self._norm_factor = data.get_normalized()
         categories = DataSet.DataSetCategory
-        normalized_a_sr, normalized_b_sr = normalized_data.datasets[categories.A_SR], normalized_data.datasets[categories.B_SR]
-        normalized_a_cr, normalized_b_cr = normalized_data.datasets[categories.A_CR], normalized_data.datasets[categories.B_CR]
-        a_sr, b_sr, a_cr, b_cr = data.datasets[categories.A_SR], data.datasets[categories.B_SR], data.datasets[categories.A_CR], data.datasets[categories.B_CR]
-        if a_sr.n_samples + b_sr.n_samples == 0: raise ValueError("Training requires at least one SR event.")
-        if a_cr.n_samples + b_cr.n_samples == 0: raise ValueError("Training requires at least one CR event.")
-        normalized_sr, raw_sr = DataSet(np.concatenate((normalized_a_sr.events, normalized_b_sr.events))), DataSet(np.concatenate((a_sr.events, b_sr.events)))
-        sr_data = torch.tensor(normalized_sr.events, dtype=self._dtype, device=self._device)
-        nuisance_data = self.nuisance_calculation.prepare(raw_sr, a_cr, b_cr, normalized_sr, normalized_a_cr, normalized_b_cr)
-        number_of_sr_events, number_of_cr_events = a_sr.n_samples + b_sr.n_samples, a_cr.n_samples + b_cr.n_samples
-        return _PreparedTrainingData(sr_data, nuisance_data, a_sr.n_samples, b_sr.n_samples, a_cr.n_samples, b_cr.n_samples, a_sr.n_samples / number_of_sr_events, b_sr.n_samples / number_of_sr_events, (a_cr.n_samples - b_cr.n_samples) / number_of_cr_events)
+        normalized_a_sr = normalized_data.datasets[categories.A_SR]
+        normalized_b_sr = normalized_data.datasets[categories.B_SR]
+        normalized_a_cr = normalized_data.datasets[categories.A_CR]
+        normalized_b_cr = normalized_data.datasets[categories.B_CR]
+        a_sr = data.datasets[categories.A_SR]
+        b_sr = data.datasets[categories.B_SR]
+        a_cr = data.datasets[categories.A_CR]
+        b_cr = data.datasets[categories.B_CR]
+
+        number_of_sr_events = a_sr.n_samples + b_sr.n_samples
+        number_of_cr_events = a_cr.n_samples + b_cr.n_samples
+        if number_of_sr_events == 0:
+            raise ValueError("Training requires at least one SR event.")
+        if number_of_cr_events == 0:
+            raise ValueError("Training requires at least one CR event.")
+
+        normalized_sr = DataSet(
+            np.concatenate((normalized_a_sr.events, normalized_b_sr.events))
+        )
+        raw_sr = DataSet(np.concatenate((a_sr.events, b_sr.events)))
+        sr_data = torch.tensor(
+            normalized_sr.events,
+            dtype=self._dtype,
+            device=self._device,
+        )
+        nuisance_data = self.nuisance_calculation.prepare(
+            raw_sr=raw_sr,
+            raw_a_cr=a_cr,
+            raw_b_cr=b_cr,
+            normalized_sr=normalized_sr,
+            normalized_a_cr=normalized_a_cr,
+            normalized_b_cr=normalized_b_cr,
+        )
+        a_sr_mask = torch.cat(
+            (
+                torch.ones(
+                    a_sr.n_samples,
+                    dtype=torch.bool,
+                    device=self._device,
+                ),
+                torch.zeros(
+                    b_sr.n_samples,
+                    dtype=torch.bool,
+                    device=self._device,
+                ),
+            )
+        )
+        return _PreparedTrainingData(
+            sr_data=sr_data,
+            nuisance_data=nuisance_data,
+            a_sr_mask=a_sr_mask,
+            b_sr_mask=~a_sr_mask,
+            number_of_a_sr_events=a_sr.n_samples,
+            number_of_b_sr_events=b_sr.n_samples,
+            number_of_a_cr_events=a_cr.n_samples,
+            number_of_b_cr_events=b_cr.n_samples,
+            a_sr_coefficient=a_sr.n_samples / number_of_sr_events,
+            b_sr_coefficient=b_sr.n_samples / number_of_sr_events,
+            cr_eta_coefficient=(a_cr.n_samples - b_cr.n_samples)
+            / number_of_cr_events,
+        )
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
         self._training_history[HistoryKeys.LOSS.value].append(

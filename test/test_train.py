@@ -186,8 +186,8 @@ def _assemble_compact_loss_for_test(
     estimates,
     eta_sr,
     eta_cr,
-    a_cr_weights,
-    b_cr_weights,
+    a_cr_multiplicities,
+    b_cr_multiplicities,
     number_of_a_sr,
     number_of_b_sr,
     number_of_a_cr,
@@ -195,24 +195,46 @@ def _assemble_compact_loss_for_test(
 ):
     number_of_sr = number_of_a_sr + number_of_b_sr
     number_of_cr = number_of_a_cr + number_of_b_cr
+    a_sr_mask = torch.cat(
+        (
+            torch.ones(number_of_a_sr, dtype=torch.bool),
+            torch.zeros(number_of_b_sr, dtype=torch.bool),
+        )
+    )
+    b_sr_mask = torch.cat(
+        (
+            torch.zeros(number_of_a_sr, dtype=torch.bool),
+            torch.ones(number_of_b_sr, dtype=torch.bool),
+        )
+    )
+    cr_eta_coefficient = (number_of_a_cr - number_of_b_cr) / number_of_cr
     data = _PreparedTrainingData(
         sr_data=torch.empty((number_of_sr, 0), dtype=eta_sr.dtype),
         nuisance_data=None,
+        a_sr_mask=a_sr_mask,
+        b_sr_mask=b_sr_mask,
         number_of_a_sr_events=number_of_a_sr,
         number_of_b_sr_events=number_of_b_sr,
         number_of_a_cr_events=number_of_a_cr,
         number_of_b_cr_events=number_of_b_cr,
         a_sr_coefficient=number_of_a_sr / number_of_sr,
         b_sr_coefficient=number_of_b_sr / number_of_sr,
-        cr_eta_coefficient=(number_of_a_cr - number_of_b_cr) / number_of_cr,
+        cr_eta_coefficient=cr_eta_coefficient,
     )
     nuisance = NuisanceEvaluation(
         sr_values=eta_sr,
-        cr_values=eta_cr,
-        a_cr_weights=a_cr_weights,
-        b_cr_weights=b_cr_weights,
+        cr_loss=(
+            cr_eta_coefficient
+            * torch.dot(eta_cr, a_cr_multiplicities + b_cr_multiplicities)
+            - torch.dot(torch.log1p(eta_cr), a_cr_multiplicities)
+            - torch.dot(torch.log1p(-eta_cr), b_cr_multiplicities)
+        ),
     )
-    return DifferentiatingModel._assemble_loss(estimates, nuisance, data)
+    return DifferentiatingModel._assemble_loss(
+        estimates=estimates,
+        nuisance=nuisance,
+        data=data,
+    )
 
 
 @pytest.mark.parametrize("with_nuisance", [False, True])
@@ -360,10 +382,10 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceCalculation)
     assert prepared.nuisance_data.cr_inputs is not None
     assert prepared.nuisance_data.cr_inputs.shape[0] == prepared.number_of_cr_events
-    assert prepared.nuisance_data.a_cr_weights.shape[0] == prepared.number_of_cr_events
-    assert prepared.nuisance_data.b_cr_weights.shape[0] == prepared.number_of_cr_events
-    assert int(prepared.nuisance_data.a_cr_weights.sum()) == prepared.number_of_a_cr_events
-    assert int(prepared.nuisance_data.b_cr_weights.sum()) == prepared.number_of_b_cr_events
+    assert prepared.nuisance_data.a_cr_mask.shape[0] == prepared.number_of_cr_events
+    assert prepared.nuisance_data.b_cr_mask.shape[0] == prepared.number_of_cr_events
+    assert int(prepared.nuisance_data.a_cr_mask.sum()) == prepared.number_of_a_cr_events
+    assert int(prepared.nuisance_data.b_cr_mask.sum()) == prepared.number_of_b_cr_events
 
     loss = model(prepared)
     assert torch.isfinite(loss)
@@ -392,10 +414,17 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     prepared = model._prepare_training_data(detected_batch)
 
     assert isinstance(model.nuisance_calculation, ScalarBinnedNuisanceCalculation)
-    assert prepared.nuisance_data.cr_inputs is not None
-    assert int(prepared.nuisance_data.a_cr_weights.sum()) == prepared.number_of_a_cr_events
-    assert int(prepared.nuisance_data.b_cr_weights.sum()) == prepared.number_of_b_cr_events
-    assert prepared.nuisance_data.cr_inputs.shape[0] <= prepared.number_of_cr_events
+    assert prepared.nuisance_data.cr_bin_indices is not None
+    assert int(prepared.nuisance_data.a_cr_multiplicities.sum()) == (
+        prepared.number_of_a_cr_events
+    )
+    assert int(prepared.nuisance_data.b_cr_multiplicities.sum()) == (
+        prepared.number_of_b_cr_events
+    )
+    assert (
+        prepared.nuisance_data.cr_bin_indices.shape[0]
+        <= prepared.number_of_cr_events
+    )
 
     loss = model(prepared)
     loss.backward()
