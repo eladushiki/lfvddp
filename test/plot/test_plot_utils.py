@@ -6,6 +6,7 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from plot.plot_utils import (
+    _filter_t_distribution_outliers,
     _integration_upper_limits_for_dimensions,
     utils__discover_background_only_parent_directory,
     utils__prediction_mesh_mask,
@@ -167,3 +168,18 @@ def test_discover_background_only_parent_directory_ignores_plot_outputs(
     assert utils__discover_background_only_parent_directory(str(tmp_path)) == (
         background_directory
     )
+
+
+def test_filter_t_distribution_outliers_honors_each_tail_switch():
+    t_values = np.concatenate((np.linspace(0, 10, 1000), [-100, 100]))
+
+    filtered, did_not_converge, overfitted = _filter_t_distribution_outliers(
+        t_values,
+        cut_non_converged=True,
+        cut_overfitted=False,
+    )
+
+    assert did_not_converge[-2]
+    assert overfitted[-1]
+    assert -100 not in filtered
+    assert 100 in filtered

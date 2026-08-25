@@ -23,6 +23,7 @@ from plot.plot_utils import (
     HandlerRect,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
+    _filter_t_distribution_outliers,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
@@ -55,9 +56,6 @@ _PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
     "hspace": 0.001,
     "wspace": 0.001,
 }
-
-_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 6
-_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
 # Implement any new plot function here, and you will be able to call it automatically.
@@ -145,43 +143,6 @@ def t_train_percentile_progression_plot(
     fig.tight_layout(rect=(0, 0, 1, 0.88))
 
     return fig
-
-
-def _t_distribution_outlier_masks(
-    t_values: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Identify failed low-tail and overfitted high-tail training results."""
-    lower_reference_boundary = np.percentile(
-        t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
-    )
-    upper_reference_boundary = np.percentile(
-        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
-    )
-    lower_reference = t_values[t_values >= lower_reference_boundary]
-    upper_reference = t_values[t_values <= upper_reference_boundary]
-
-    lower_threshold = np.mean(lower_reference) - (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
-    )
-    upper_threshold = np.mean(upper_reference) + (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
-    )
-    return t_values < lower_threshold, t_values > upper_threshold
-
-
-def _filter_t_distribution_outliers(
-    t_values: np.ndarray,
-    cut_non_converged: bool,
-    cut_overfitted: bool,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply the configured t-distribution tail exclusions."""
-    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
-    excluded = np.zeros(t_values.shape, dtype=bool)
-    if cut_non_converged:
-        excluded |= did_not_converge
-    if cut_overfitted:
-        excluded |= overfitted
-    return t_values[~excluded], did_not_converge, overfitted
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
@@ -384,9 +345,13 @@ def performance_plot(
     )
 
     # Gather background data
-    background_t_dist = utils__aggregate_context_t_values(
-        background_contexts
+    background_t_dist, _, _ = _filter_t_distribution_outliers(
+        utils__aggregate_context_t_values(background_contexts),
+        cut_non_converged=True,
+        cut_overfitted=True,
     )
+    if background_t_dist.size == 0:
+        raise ValueError("No finite background t values remain after outlier filtering.")
 
     signal_groups = utils__group_signal_contexts(
         signal_t_values_parent_directory
