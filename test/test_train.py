@@ -450,16 +450,8 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     prepared = model._prepare_training_data(detected_batch)
 
     assert model.theta_network is not None
-    assert prepared.a_cr_bin_counts is not None
-    assert prepared.b_cr_bin_counts is not None
-    assert prepared.a_cr_bin_counts.numel() == detected_batch.datasets[
-        DataSet.DataSetCategory.A_CR
-    ].n_samples
-    assert prepared.b_cr_bin_counts.numel() == detected_batch.datasets[
-        DataSet.DataSetCategory.B_CR
-    ].n_samples
-    assert torch.all(prepared.a_cr_bin_counts == 1)
-    assert torch.all(prepared.b_cr_bin_counts == 1)
+    assert prepared.a_cr_bin_counts is None
+    assert prepared.b_cr_bin_counts is None
     assert prepared.nuisance_bin_indices is not None
     assert prepared.nuisance_bin_indices.shape[0] == (
         prepared.number_of_sr_events + prepared.number_of_cr_events

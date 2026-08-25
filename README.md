@@ -4,6 +4,17 @@
 
 This project runs on the WIS's ATLAS cluster, as well as on any singularity containing machine, to use our tools on real or simulated physical datasets.
 
+## Local development
+
+Use [uv](https://docs.astral.sh/uv/) with Python 3.11 or newer to create the reproducible local environment and run tests:
+
+```bash
+uv sync
+uv run pytest
+```
+
+The lockfile is the source of truth for local dependencies. The optional NPLM path requires TensorFlow and is supported on Linux/Windows; regular PyTorch development and tests do not require TensorFlow on macOS.
+
 # Contents
 - `configs` contains complete configuration packs. Pass one pack directory to `--configs`; copy a tracked pack to create a local, ignored pack for modification.
 - `data_tools` directory handles mathematical and statistical calculations needed to operate this project.

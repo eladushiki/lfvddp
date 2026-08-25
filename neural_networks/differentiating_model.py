@@ -229,6 +229,86 @@ def _compact_nuisance_denominator_loss(
     )
 
 
+def _neural_nuisance_common_terms(
+    eta_of_x_sr: torch.Tensor,
+    eta_of_x_cr: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_a_cr_events: int,
+    number_of_cr_events: int,
+    cr_eta_coefficient: float,
+) -> torch.Tensor:
+    """Evaluate per-event CR nuisance terms for neural nuisance parameters."""
+    return (
+        number_of_cr_events
+        + cr_eta_coefficient * eta_of_x_cr.sum()
+        - torch.log1p(eta_of_x_sr[:number_of_a_sr_events]).sum()
+        - torch.log1p(eta_of_x_cr[:number_of_a_cr_events]).sum()
+        - torch.log1p(-eta_of_x_sr[number_of_a_sr_events:]).sum()
+        - torch.log1p(-eta_of_x_cr[number_of_a_cr_events:]).sum()
+    )
+
+
+def _neural_nuisance_loss(
+    f_of_x_sr: torch.Tensor,
+    g_of_x_sr: torch.Tensor,
+    eta_of_x_sr: torch.Tensor,
+    eta_of_x_cr: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_a_cr_events: int,
+    number_of_cr_events: int,
+    a_sr_coefficient: float,
+    b_sr_coefficient: float,
+    cr_eta_coefficient: float,
+) -> torch.Tensor:
+    """Evaluate the numerator loss with per-event neural nuisance values."""
+    a_sr_term = a_sr_coefficient * torch.exp(f_of_x_sr)
+    b_sr_term = b_sr_coefficient * torch.exp(g_of_x_sr)
+    sr_density = torch.addcmul(
+        a_sr_term + b_sr_term,
+        eta_of_x_sr,
+        a_sr_term - b_sr_term,
+    )
+    return (
+        sr_density.sum()
+        - f_of_x_sr[:number_of_a_sr_events].sum()
+        - g_of_x_sr[number_of_a_sr_events:].sum()
+        + _neural_nuisance_common_terms(
+            eta_of_x_sr=eta_of_x_sr,
+            eta_of_x_cr=eta_of_x_cr,
+            number_of_a_sr_events=number_of_a_sr_events,
+            number_of_a_cr_events=number_of_a_cr_events,
+            number_of_cr_events=number_of_cr_events,
+            cr_eta_coefficient=cr_eta_coefficient,
+        )
+    )
+
+
+def _neural_nuisance_denominator_loss(
+    eta_of_x_sr: torch.Tensor,
+    eta_of_x_cr: torch.Tensor,
+    number_of_a_sr_events: int,
+    number_of_a_cr_events: int,
+    number_of_sr_events: int,
+    number_of_cr_events: int,
+    a_sr_coefficient: float,
+    b_sr_coefficient: float,
+    cr_eta_coefficient: float,
+) -> torch.Tensor:
+    """Evaluate the denominator loss with per-event neural nuisance values."""
+    return (
+        number_of_sr_events
+        + (a_sr_coefficient - b_sr_coefficient) * eta_of_x_sr.sum()
+        + _neural_nuisance_common_terms(
+            eta_of_x_sr=eta_of_x_sr,
+            eta_of_x_cr=eta_of_x_cr,
+            number_of_a_sr_events=number_of_a_sr_events,
+            number_of_a_cr_events=number_of_a_cr_events,
+            number_of_cr_events=number_of_cr_events,
+            cr_eta_coefficient=cr_eta_coefficient,
+        )
+    )
+
+
 class DifferentiatingModel(nn.Module, ContextedModel):
     """
     Symmetrized DDP's model used to estimate the test statistic using PyTorch Lightning.
@@ -488,13 +568,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 eta_values = self._theta_from_inputs(
                     data.nuisance_bin_indices
                 )
-                # Neural nuisance evaluation is per event, including every CR event.
+                # Neural nuisance evaluation is per event; scalar nuisance uses CR bins.
+                number_of_cr_nuisance_values = (
+                    data.number_of_cr_events
+                    if self.theta_network is not None
+                    else data.number_of_cr_bins
+                )
                 eta_of_x_sr, eta_of_x_cr_bins = torch.split(
                     eta_values,
-                    (
-                        data.number_of_sr_events,
-                        data.number_of_cr_events,
-                    ),
+                    (data.number_of_sr_events, number_of_cr_nuisance_values),
                 )
             else:
                 eta_of_x_sr = None
@@ -514,6 +596,34 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     a_sr_coefficient=data.a_sr_coefficient,
                     b_sr_coefficient=data.b_sr_coefficient,
                 )
+            if self.theta_network is not None:
+                if eta_of_x_cr_bins is None:
+                    raise RuntimeError("Neural CR nuisance values were not prepared.")
+                if f_of_x_sr_est is None or g_of_x_sr_est is None:
+                    return _neural_nuisance_denominator_loss(
+                        eta_of_x_sr=eta_of_x_sr,
+                        eta_of_x_cr=eta_of_x_cr_bins,
+                        number_of_a_sr_events=data.number_of_a_sr_events,
+                        number_of_a_cr_events=data.number_of_a_cr_events,
+                        number_of_sr_events=data.number_of_sr_events,
+                        number_of_cr_events=data.number_of_cr_events,
+                        a_sr_coefficient=data.a_sr_coefficient,
+                        b_sr_coefficient=data.b_sr_coefficient,
+                        cr_eta_coefficient=data.cr_eta_coefficient,
+                    )
+                return _neural_nuisance_loss(
+                    f_of_x_sr=f_of_x_sr_est,
+                    g_of_x_sr=g_of_x_sr_est,
+                    eta_of_x_sr=eta_of_x_sr,
+                    eta_of_x_cr=eta_of_x_cr_bins,
+                    number_of_a_sr_events=data.number_of_a_sr_events,
+                    number_of_a_cr_events=data.number_of_a_cr_events,
+                    number_of_cr_events=data.number_of_cr_events,
+                    a_sr_coefficient=data.a_sr_coefficient,
+                    b_sr_coefficient=data.b_sr_coefficient,
+                    cr_eta_coefficient=data.cr_eta_coefficient,
+                )
+
             if (
                 eta_of_x_cr_bins is None
                 or data.a_cr_bin_counts is None
@@ -588,12 +698,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     ),
                     dim=0,
                 )
-                a_cr_bin_counts = torch.ones(
-                    a_cr.n_samples, dtype=self._dtype, device=self._device
-                )
-                b_cr_bin_counts = torch.ones(
-                    b_cr.n_samples, dtype=self._dtype, device=self._device
-                )
+                a_cr_bin_counts = None
+                b_cr_bin_counts = None
             else:
                 sr_bin_indices = torch.cat(
                     (self._bin_indices(a_sr), self._bin_indices(b_sr)),
