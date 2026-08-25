@@ -19,19 +19,29 @@ When requested to review done jobs, generate recent plots or something of sort.
 
 ### Commands
 
-- SSH Command: `ssh eladklig@wipp-external`
+- SSH Command: `ssh <WIS_CLUSTER_PLOT_SSH_TARGET>`
 - Arrayed Qstat Command: `qstat -tu $USER`
 - Finished Qstat Command: `qstat -xu $USER`
 
 ### Paths
 
 - Submission State File Path: `.agents/skills/submit-on-cluster/state.yaml`
-- Project Root at Remote: `/storage/agrp/eladklig/SymmetrizedDDP`
+- Project Root at Remote: `<WIS_CLUSTER_REMOTE_PROJECT_ROOT>`
 - Relative Launch File Path: `.vscode/launch.json`
 - Relative Results Directory: `results/`
 - Relative Highlights Directory: `results/highlights`
 - Relative Packs Directory: `configs/packs`
 - Relative Plots Directory: `results/plots/`
+
+## Local configuration
+
+Before using this skill, add these machine-specific values to the untracked `.gsd/SECRETS.md` file:
+
+- `WIS_CLUSTER_PLOT_SSH_TARGET`: SSH target in the form `<username>@<host>`.
+- `WIS_CLUSTER_REMOTE_PROJECT_ROOT`: Absolute path to this repository on the cluster.
+- `WIS_CLUSTER_SSH_IDENTITY_FILE` (optional): Absolute path to a non-default private-key file.
+
+Configure the key with `~/.ssh/config` or the SSH agent. Never commit a username, host, remote path, private-key path, or private key to this skill or the repository.
 
 ## Prerequisites
 

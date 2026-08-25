@@ -8,7 +8,7 @@ description: "Generate plots for done jobs"
 ## Purpose
 
 <!-- Describe the outcome this skill should achieve. -->
-Submit a job on the ATLAS cluster at WIS using eladklig's credentials.
+Submit a job on the ATLAS cluster at WIS using the current user's configured credentials.
 
 ## When to Use
 
@@ -21,15 +21,15 @@ When requested to "run jobs" or "submit jobs" on "the cluster", "WIS cluster", "
 
 - Active Job Count Command: `qstat -tu $USER | wc -l`
 - Queued Job Count Command: `qstat -tu $USER | grep Q | wc -l`
-- User SSH Command: `ssh eladklig@wipp1-external`
+- User SSH Command: `ssh <WIS_CLUSTER_SUBMIT_SSH_TARGET>`
 - Run Verification Command: `qstat -wu $USER`
 
 ### File and Dir Paths
 
 #### Remote
 
-- Packs Parent Directory: `/storage/agrp/eladklig/SymmetrizedDDP/configs/packs/`
-- Remote Project Root `/storage/agrp/eladklig/SymmetrizedDDP`
+- Packs Parent Directory: `<WIS_CLUSTER_REMOTE_PROJECT_ROOT>/configs/packs/`
+- Remote Project Root: `<WIS_CLUSTER_REMOTE_PROJECT_ROOT>`
 
 #### Relative
 
@@ -40,6 +40,16 @@ When requested to "run jobs" or "submit jobs" on "the cluster", "WIS cluster", "
 
 - Submit Train Launch Option: "[DEBUG] Submit train with prompt"
 - Runtag Config Field: `config__runtag`
+
+## Local configuration
+
+Before using this skill, add these machine-specific values to the untracked `.gsd/SECRETS.md` file:
+
+- `WIS_CLUSTER_SUBMIT_SSH_TARGET`: SSH target in the form `<username>@<host>`.
+- `WIS_CLUSTER_REMOTE_PROJECT_ROOT`: Absolute path to this repository on the cluster.
+- `WIS_CLUSTER_SSH_IDENTITY_FILE` (optional): Absolute path to a non-default private-key file.
+
+Configure the key with `~/.ssh/config` or the SSH agent. Never commit a username, host, remote path, private-key path, or private key to this skill or the repository.
 
 ## Prerequisites
 
