@@ -8,6 +8,7 @@
 # GSD
 .gsd/*.db
 .gsd/*.db-*
+.gsd/*.db.backup*
 .gsd/audit/
 .gsd/exec/
 .gsd/journal/
@@ -17,6 +18,9 @@
 .gsd/worktrees
 .bg-shell/
 .gsd/SECRETS.md
+
+# Agents and skills
+.agents/submission-state.yaml
 
 # Python tests
 .coverage
@@ -50,12 +54,8 @@ tmp*/
 configs/**/*.json
 configs/**/*.yaml
 configs/**/*.yml
-!configs/cluster/basic_cluster_config.json
-!configs/dataset/basic_dataset_config.json
-!configs/detector/basic_detector_config.json
-!configs/plot/basic_plot_config.json
-!configs/train/basic_train_config.json
-!configs/user/basic_user_config.json
+!configs/basic-loaded/*.json
+!configs/basic-generated/*.json
 
 # Mid process files and results
 ## Untracked directories

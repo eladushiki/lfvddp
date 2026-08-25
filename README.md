@@ -5,7 +5,7 @@
 This project runs on the WIS's ATLAS cluster, as well as on any singularity containing machine, to use our tools on real or simulated physical datasets.
 
 # Contents
-- `configs` directory contain configuraion files necessary to run the project. An example or template for each is included and meant to be copied by the user for modification.
+- `configs` contains complete configuration packs. Pass one pack directory to `--configs`; copy a tracked pack to create a local, ignored pack for modification.
 - `data_tools` directory handles mathematical and statistical calculations needed to operate this project.
 - `frame` is a place for all framework tools needed for this project to run and communicate.
 - `mattiasdata` has some useful (legacy) datasets (and frankly, needs to be cleaned)
@@ -105,6 +105,31 @@ if pip is not already recognized.
 
 To submit SGE jobs to the WIS cluster, you should install slurm. The [specific isntallation command](https://command-not-found.com/qsub) depends on your OS.
 
+### Local submission state
+
+Record cluster submissions and deferred submission requests in the ignored local file `.agents/submission-state.yaml`. Create the file if it does not exist. Use one entry per submission or request:
+
+```yaml
+submissions:
+  - id: nuisance-study-2026-08-25
+    status: submitted
+    config_pack: configs/packs/nuisance-study
+    purpose: Compare the nuisance-aware and baseline models.
+    requested_at: 2026-08-25T10:00:00Z
+    job_ids: ["12345", "12346"]
+    notes: Awaiting plot review.
+
+  - id: high-statistics-follow-up
+    status: blocked
+    config_pack: configs/packs/high-statistics
+    purpose: Run the follow-up training sweep.
+    requested_at: 2026-08-25T10:15:00Z
+    blocked_reason: Queue limit reached; retry after active jobs complete.
+    notes: Do not submit until the blocker is resolved.
+```
+
+Allowed statuses are `requested`, `blocked`, `submitted`, and `analyzed`. A `submitted` entry must include its `job_ids`. A `blocked` entry must include `blocked_reason`, which may describe a queued-job limit or any other reason the request cannot yet run. Keep deferred requests in the file until they are submitted, then update the same entry rather than creating a duplicate.
+
 ## IDE configuration (examle in VSCode)
 
 Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In them, configure basic running configuration for the project to run easily. For exmaple,
@@ -121,12 +146,7 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "console": "integratedTerminal",
             "args": [
                 "--configs",
-                "${config:myConfig.clusterConfig}",
-                "${config:myConfig.datasetConfig}",
-                "${config:myConfig.detectorConfig}",
-                "${config:myConfig.trainConfig}",
-                "${config:myConfig.userConfig}",
-                "${config:myConfig.plotConfig}",
+                "${config:myConfig.configPack}",
                 "--debug",
             ]
         },
@@ -138,12 +158,7 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
             "console": "integratedTerminal",
             "args": [
                 "--configs",
-                "${config:myConfig.clusterConfig}",
-                "${config:myConfig.datasetConfig}",
-                "${config:myConfig.detectorConfig}",
-                "${config:myConfig.trainConfig}",
-                "${config:myConfig.userConfig}",
-                "${config:myConfig.plotConfig}",
+                "${config:myConfig.configPack}",
             ]
         },
         { // Plot a submitted training batch
@@ -171,19 +186,12 @@ Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In
 The custom file paths here refer to a different file, `settings.json`, of the form:
 ```json
 {
-    "myConfig.userConfig": "configs/user/<name>.json",
-    "myConfig.clusterConfig": "configs/cluster/<your config>.json",
-    "myConfig.datasetConfig": "configs/dataset/<your config>.json",
-    "myConfig.detectorConfig": "configs/detector/<your config>.json",
-    "myConfig.trainConfig": "configs/train/<your config>.json",
-    "myConfig.plotConfig": "configs/plot/<your config>.json",
+    "myConfig.configPack": "configs/basic-loaded"
 }
 ```
-Which you create and direct to.
+Which you create and direct to. Pass that single directory after `--configs`.
 
-Configuration files passed through `--configs` are shallow-merged from left to
-right, so later files override earlier values. A directory passed in place of a
-file is recursively expanded to its JSON and YAML config files in sorted order.
+The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Set `cluster__uv_cache_dir` in a local pack when you need a persistent UV cache on your cluster; the tracked basic-loaded value is intentionally empty. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
 The plotting entry point does not accept `--configs`; it reads the staged
 configuration files from the selected submission's `configs` directory.
 Plotting configuration is required,
@@ -311,7 +319,7 @@ The configuration files and then the Config* dataclasses are the structures that
 
 While Config* classes' contents are divided logically to different classes, the program needs to be called with each of the `.json` configuration file types, as long as they contain togehter all the necessary parameters. This is implemented so to enable single-file-for-run usage, as well as separation for personal privacy and context-dependent needs [Under construction].
 
-Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `basic_user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
+Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
 
 ### Generated dataset dimensions
 
@@ -375,7 +383,7 @@ declared bound, indicating that `domain_max` must be increased.
 
 ## Plotting
 
-Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `basic_plot_config.json` for example).
+Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `plot_config.json` for example).
 
 Generate the configured plots for a submitted training batch with:
 

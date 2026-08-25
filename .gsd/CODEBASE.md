@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
-<!-- gsd:codebase-meta {"generatedAt":"2026-08-13T11:13:37Z","fingerprint":"7c3e446311a845e44f9da0212c2c8cb65d348093","fileCount":279,"truncated":false} -->
+Generated: 2026-08-19T10:08:32Z | Files: 286 | Described: 0/286
+<!-- gsd:codebase-meta {"generatedAt":"2026-08-19T10:08:32Z","fingerprint":"def479ae56b21c7731866e5ab452102e4c5269a0","fileCount":286,"truncated":false} -->
 
 ### (root)/
 - `.gitattributes`
@@ -13,6 +13,9 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 - `README.md`
 - `requirements.txt`
 - `setup.py`
+
+### .github/
+- `.github/CODEOWNERS`
 
 ### configs/
 - `configs/__init__.py`
@@ -213,6 +216,11 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 - `plot/plots.py`
 - `plot/plotting_config.py`
 
+### plot/specs/
+- `plot/specs/prediction-plot-spec.md`
+- `plot/specs/significance-plot-spec.md`
+- `plot/specs/t-distribution-plot-spec.md`
+
 ### test/
 - `test/__init__.py`
 - `test/conftest.py`
@@ -223,6 +231,8 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 - `test/test_file_input.py`
 - `test/test_profile_likelihood.py`
 - `test/test_runtime_resources.py`
+- `test/test_singularity_cache.py`
+- `test/test_train_utils.py`
 - `test/test_train.py`
 
 ### test/configs/cluster/
@@ -230,6 +240,7 @@ Generated: 2026-08-13T11:13:37Z | Files: 279 | Described: 0/279
 
 ### test/configs/dataset/
 - `test/configs/dataset/cms_open_dataset_json.json`
+- `test/configs/dataset/cms_open_dataset_root.json`
 - `test/configs/dataset/cms_open_dataset_txt.json`
 - `test/configs/dataset/disjoint_1D_generated_dataset_config.json`
 - `test/configs/dataset/disjoint_2D_generated_dataset_config.json`
