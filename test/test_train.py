@@ -8,11 +8,14 @@ from frame.command_line.handle_args import create_config_from_paths
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
-    _compact_no_nuisance_loss,
-    _compact_nuisance_denominator_loss,
-    _compact_nuisance_loss,
+    _PreparedTrainingData,
     _PairedEstimator,
     _ThetaEstimator,
+)
+from neural_networks.nuisance_calculation import (
+    NeuralPerEventNuisanceCalculation,
+    NuisanceEvaluation,
+    ScalarBinnedNuisanceCalculation,
 )
 from test.environment import ConfigType, DEFAULT_CONFIG_PATHS
 from train.checkpoints import (
@@ -162,8 +165,8 @@ def _reference_loss(
     eta_sr = eta * sr_mask
     eta_cr = eta * cr_mask
     sr_term = (
-        number_of_a_sr_events * (1 + f) * (1 + eta_sr) * sr_mask
-        + number_of_b_sr_events * (1 - g) * (1 - eta_sr) * sr_mask
+        number_of_a_sr_events * torch.exp(f) * (1 + eta_sr) * sr_mask
+        + number_of_b_sr_events * torch.exp(g) * (1 - eta_sr) * sr_mask
     ) / (number_of_a_sr_events + number_of_b_sr_events)
     cr_term = (
         number_of_a_cr_events * (1 + eta_cr) * cr_mask
@@ -172,29 +175,79 @@ def _reference_loss(
     return (
         sr_term
         + cr_term
-        - torch.log1p(f) * a_sr_mask
-        - torch.log1p(-g) * b_sr_mask
+        - f * a_sr_mask
+        - g * b_sr_mask
         - torch.log(1 + eta_a)
         - torch.log(1 - eta_b)
     ).sum()
+
+
+def _assemble_compact_loss_for_test(
+    estimates,
+    eta_sr,
+    eta_cr,
+    a_cr_multiplicities,
+    b_cr_multiplicities,
+    number_of_a_sr,
+    number_of_b_sr,
+    number_of_a_cr,
+    number_of_b_cr,
+):
+    number_of_sr = number_of_a_sr + number_of_b_sr
+    number_of_cr = number_of_a_cr + number_of_b_cr
+    a_sr_mask = torch.cat(
+        (
+            torch.ones(number_of_a_sr, dtype=torch.bool),
+            torch.zeros(number_of_b_sr, dtype=torch.bool),
+        )
+    )
+    b_sr_mask = torch.cat(
+        (
+            torch.zeros(number_of_a_sr, dtype=torch.bool),
+            torch.ones(number_of_b_sr, dtype=torch.bool),
+        )
+    )
+    cr_eta_coefficient = (number_of_a_cr - number_of_b_cr) / number_of_cr
+    data = _PreparedTrainingData(
+        sr_data=torch.empty((number_of_sr, 0), dtype=eta_sr.dtype),
+        nuisance_data=None,
+        a_sr_mask=a_sr_mask,
+        b_sr_mask=b_sr_mask,
+        number_of_a_sr_events=number_of_a_sr,
+        number_of_b_sr_events=number_of_b_sr,
+        number_of_a_cr_events=number_of_a_cr,
+        number_of_b_cr_events=number_of_b_cr,
+        a_sr_coefficient=number_of_a_sr / number_of_sr,
+        b_sr_coefficient=number_of_b_sr / number_of_sr,
+        cr_eta_coefficient=cr_eta_coefficient,
+    )
+    nuisance = NuisanceEvaluation(
+        sr_values=eta_sr,
+        cr_loss=(
+            cr_eta_coefficient
+            * torch.dot(eta_cr, a_cr_multiplicities + b_cr_multiplicities)
+            - torch.dot(torch.log1p(eta_cr), a_cr_multiplicities)
+            - torch.dot(torch.log1p(-eta_cr), b_cr_multiplicities)
+        ),
+    )
+    return DifferentiatingModel._assemble_loss(
+        estimates=estimates,
+        nuisance=nuisance,
+        data=data,
+    )
 
 
 @pytest.mark.parametrize("with_nuisance", [False, True])
 @pytest.mark.parametrize("category_sizes", [(2, 3, 4, 5), (4, 2, 3, 6)])
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
 def test_compact_loss_matches_full_event_value_and_gradients(
-    with_nuisance,
-    category_sizes,
-    input_dimension,
+    with_nuisance, category_sizes, input_dimension
 ):
     number_of_a_sr, number_of_a_cr, number_of_b_sr, number_of_b_cr = category_sizes
     number_of_sr = number_of_a_sr + number_of_b_sr
     number_of_cr = number_of_a_cr + number_of_b_cr
     events = torch.linspace(
-        -0.8,
-        0.9,
-        number_of_sr * input_dimension,
-        dtype=torch.float64,
+        -0.8, 0.9, number_of_sr * input_dimension, dtype=torch.float64
     ).reshape(number_of_sr, input_dimension)
     f_parameters = torch.linspace(
         -0.4, 0.6, input_dimension, dtype=torch.float64, requires_grad=True
@@ -202,182 +255,106 @@ def test_compact_loss_matches_full_event_value_and_gradients(
     g_parameters = torch.linspace(
         0.5, -0.3, input_dimension, dtype=torch.float64, requires_grad=True
     )
-    f = events @ f_parameters
-    g = events @ g_parameters
+    f, g = events @ f_parameters, events @ g_parameters
     if with_nuisance:
         eta_sr = torch.linspace(
-            -1.0 + 2e-6,
-            1.0 - 2e-6,
-            number_of_sr,
-            dtype=torch.float64,
-            requires_grad=True,
+            -1.0 + 2e-6, 1.0 - 2e-6, number_of_sr,
+            dtype=torch.float64, requires_grad=True,
         )
-        a_cr_bin_counts = torch.tensor(
-            [1, number_of_a_cr - 1, 0],
-            dtype=torch.float64,
-        )
-        b_cr_bin_counts = torch.tensor(
-            [0, number_of_b_cr - 1, 1],
-            dtype=torch.float64,
-        )
+        a_cr_bin_counts = torch.tensor([1, number_of_a_cr - 1, 0], dtype=torch.float64)
+        b_cr_bin_counts = torch.tensor([0, number_of_b_cr - 1, 1], dtype=torch.float64)
         eta_cr_bins = torch.tensor(
             [-1.0 + 3e-6, 0.35, 1.0 - 3e-6],
-            dtype=torch.float64,
-            requires_grad=True,
+            dtype=torch.float64, requires_grad=True,
         )
-        eta_cr = torch.cat(
-            (
-                torch.repeat_interleave(eta_cr_bins, a_cr_bin_counts.long()),
-                torch.repeat_interleave(eta_cr_bins, b_cr_bin_counts.long()),
-            )
-        )
-        actual = _compact_nuisance_loss(
-            f,
-            g,
-            eta_sr,
-            eta_cr_bins,
-            a_cr_bin_counts,
-            b_cr_bin_counts,
-            number_of_a_sr,
-            number_of_cr,
-            number_of_a_sr / number_of_sr,
-            number_of_b_sr / number_of_sr,
-            (number_of_a_cr - number_of_b_cr) / number_of_cr,
+        eta_cr = torch.cat((
+            torch.repeat_interleave(eta_cr_bins, a_cr_bin_counts.long()),
+            torch.repeat_interleave(eta_cr_bins, b_cr_bin_counts.long()),
+        ))
+        actual = _assemble_compact_loss_for_test(
+            (f, g), eta_sr, eta_cr_bins, a_cr_bin_counts, b_cr_bin_counts,
+            number_of_a_sr, number_of_b_sr, number_of_a_cr, number_of_b_cr,
         )
     else:
-        eta_sr = torch.zeros(
-            number_of_sr, dtype=torch.float64, requires_grad=True
+        eta_sr, eta_cr = (
+            torch.zeros(number_of_sr, dtype=torch.float64),
+            torch.zeros(number_of_cr, dtype=torch.float64),
         )
-        eta_cr = torch.zeros(
-            number_of_cr, dtype=torch.float64, requires_grad=True
-        )
-        actual = _compact_no_nuisance_loss(
-            f,
-            g,
+        actual = _assemble_compact_loss_for_test(
+            (f, g),
+            eta_sr,
+            eta_cr,
+            torch.cat(
+                (
+                    torch.ones(number_of_a_cr, dtype=torch.float64),
+                    torch.zeros(number_of_b_cr, dtype=torch.float64),
+                )
+            ),
+            torch.cat(
+                (
+                    torch.zeros(number_of_a_cr, dtype=torch.float64),
+                    torch.ones(number_of_b_cr, dtype=torch.float64),
+                )
+            ),
             number_of_a_sr,
-            number_of_cr,
-            number_of_a_sr / number_of_sr,
-            number_of_b_sr / number_of_sr,
+            number_of_b_sr,
+            number_of_a_cr,
+            number_of_b_cr,
         )
     expected = _reference_loss(
-        f,
-        g,
-        eta_sr,
-        eta_cr,
-        number_of_a_sr,
-        number_of_b_sr,
-        number_of_a_cr,
-        number_of_b_cr,
+        f, g, eta_sr, eta_cr, number_of_a_sr, number_of_b_sr,
+        number_of_a_cr, number_of_b_cr,
     )
-
     actual_gradients = torch.autograd.grad(
         actual,
         (f_parameters, g_parameters)
         if not with_nuisance
-        else (
-            f_parameters,
-            g_parameters,
-            eta_sr,
-            eta_cr_bins,
-        ),
+        else (f_parameters, g_parameters, eta_sr, eta_cr_bins),
         retain_graph=True,
     )
     expected_gradients = torch.autograd.grad(
         expected,
         (f_parameters, g_parameters)
         if not with_nuisance
-        else (
-            f_parameters,
-            g_parameters,
-            eta_sr,
-            eta_cr_bins,
-        ),
+        else (f_parameters, g_parameters, eta_sr, eta_cr_bins),
     )
     torch.testing.assert_close(actual, expected, rtol=1e-12, atol=1e-12)
-    for actual_gradient, expected_gradient in zip(
-        actual_gradients, expected_gradients
-    ):
-        torch.testing.assert_close(
-            actual_gradient,
-            expected_gradient,
-            rtol=1e-12,
-            atol=1e-12,
-        )
+    for actual_gradient, expected_gradient in zip(actual_gradients, expected_gradients):
+        torch.testing.assert_close(actual_gradient, expected_gradient, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize("category_sizes", [(2, 3, 4, 5), (4, 2, 3, 6)])
-def test_compact_nuisance_denominator_matches_full_event_gradients(
-    category_sizes,
-):
+def test_compact_nuisance_denominator_matches_full_event_gradients(category_sizes):
     number_of_a_sr, number_of_a_cr, number_of_b_sr, number_of_b_cr = category_sizes
     number_of_sr = number_of_a_sr + number_of_b_sr
-    number_of_cr = number_of_a_cr + number_of_b_cr
     eta_sr = torch.linspace(
-        -1.0 + 2e-6,
-        1.0 - 2e-6,
-        number_of_sr,
-        dtype=torch.float64,
-        requires_grad=True,
+        -1.0 + 2e-6, 1.0 - 2e-6, number_of_sr,
+        dtype=torch.float64, requires_grad=True,
     )
-    a_cr_bin_counts = torch.tensor(
-        [1, number_of_a_cr - 1, 0], dtype=torch.float64
-    )
-    b_cr_bin_counts = torch.tensor(
-        [0, number_of_b_cr - 1, 1], dtype=torch.float64
-    )
+    a_cr_bin_counts = torch.tensor([1, number_of_a_cr - 1, 0], dtype=torch.float64)
+    b_cr_bin_counts = torch.tensor([0, number_of_b_cr - 1, 1], dtype=torch.float64)
     eta_cr_bins = torch.tensor(
         [-1.0 + 3e-6, 0.35, 1.0 - 3e-6],
-        dtype=torch.float64,
-        requires_grad=True,
+        dtype=torch.float64, requires_grad=True,
     )
-    eta_cr = torch.cat(
-        (
-            torch.repeat_interleave(eta_cr_bins, a_cr_bin_counts.long()),
-            torch.repeat_interleave(eta_cr_bins, b_cr_bin_counts.long()),
-        )
-    )
+    eta_cr = torch.cat((
+        torch.repeat_interleave(eta_cr_bins, a_cr_bin_counts.long()),
+        torch.repeat_interleave(eta_cr_bins, b_cr_bin_counts.long()),
+    ))
     zeros = torch.zeros(number_of_sr, dtype=torch.float64)
-    actual = _compact_nuisance_denominator_loss(
-        eta_of_x_sr=eta_sr,
-        eta_of_x_cr_bins=eta_cr_bins,
-        a_cr_bin_counts=a_cr_bin_counts,
-        b_cr_bin_counts=b_cr_bin_counts,
-        number_of_a_sr_events=number_of_a_sr,
-        number_of_sr_events=number_of_sr,
-        number_of_cr_events=number_of_cr,
-        a_sr_coefficient=number_of_a_sr / number_of_sr,
-        b_sr_coefficient=number_of_b_sr / number_of_sr,
-        cr_eta_coefficient=(number_of_a_cr - number_of_b_cr) / number_of_cr,
+    actual = _assemble_compact_loss_for_test(
+        None, eta_sr, eta_cr_bins, a_cr_bin_counts, b_cr_bin_counts,
+        number_of_a_sr, number_of_b_sr, number_of_a_cr, number_of_b_cr,
     )
     expected = _reference_loss(
-        zeros,
-        zeros,
-        eta_sr,
-        eta_cr,
-        number_of_a_sr,
-        number_of_b_sr,
-        number_of_a_cr,
-        number_of_b_cr,
+        zeros, zeros, eta_sr, eta_cr, number_of_a_sr, number_of_b_sr,
+        number_of_a_cr, number_of_b_cr,
     )
-    gradient_parameters = (eta_sr, eta_cr_bins)
-    actual_gradients = torch.autograd.grad(
-        actual,
-        gradient_parameters,
-        retain_graph=True,
-    )
-    expected_gradients = torch.autograd.grad(expected, gradient_parameters)
-
+    actual_gradients = torch.autograd.grad(actual, (eta_sr, eta_cr_bins), retain_graph=True)
+    expected_gradients = torch.autograd.grad(expected, (eta_sr, eta_cr_bins))
     torch.testing.assert_close(actual, expected, rtol=1e-12, atol=1e-12)
-    for actual_gradient, expected_gradient in zip(
-        actual_gradients,
-        expected_gradients,
-    ):
-        torch.testing.assert_close(
-            actual_gradient,
-            expected_gradient,
-            rtol=1e-12,
-            atol=1e-12,
-        )
+    for actual_gradient, expected_gradient in zip(actual_gradients, expected_gradients):
+        torch.testing.assert_close(actual_gradient, expected_gradient, rtol=1e-12, atol=1e-12)
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
@@ -453,17 +430,17 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
 
     prepared = model._prepare_training_data(detected_batch)
 
-    assert model.theta_network is not None
-    assert prepared.a_cr_bin_counts is not None
-    assert prepared.b_cr_bin_counts is not None
-    assert prepared.a_cr_bin_counts.numel() == detected_batch.datasets[
-        DataSet.DataSetCategory.A_CR
-    ].n_samples
-    assert prepared.b_cr_bin_counts.numel() == detected_batch.datasets[
-        DataSet.DataSetCategory.B_CR
-    ].n_samples
-    assert torch.all(prepared.a_cr_bin_counts == 1)
-    assert torch.all(prepared.b_cr_bin_counts == 1)
+    assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceCalculation)
+    assert prepared.nuisance_data.cr_inputs is not None
+    assert prepared.nuisance_data.cr_inputs.shape[0] == prepared.number_of_cr_events
+    assert prepared.nuisance_data.a_cr_mask.shape[0] == prepared.number_of_cr_events
+    assert prepared.nuisance_data.b_cr_mask.shape[0] == prepared.number_of_cr_events
+    assert int(prepared.nuisance_data.a_cr_mask.sum()) == prepared.number_of_a_cr_events
+    assert int(prepared.nuisance_data.b_cr_mask.sum()) == prepared.number_of_b_cr_events
+
+    loss = model(prepared)
+    assert torch.isfinite(loss)
+    loss.backward()
 
 
 @pytest.mark.parametrize(
@@ -475,7 +452,6 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
-    monkeypatch,
 ):
     detected_batch = detector_effect.affect_batch(
         isolated_data_generation.get_batch()
@@ -488,34 +464,26 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     )
     prepared = model._prepare_training_data(detected_batch)
 
-    assert prepared.nuisance_bin_indices is not None
-    assert prepared.a_cr_bin_counts is not None
-    assert prepared.b_cr_bin_counts is not None
-    assert int(prepared.a_cr_bin_counts.sum()) == prepared.number_of_a_cr_events
-    assert int(prepared.b_cr_bin_counts.sum()) == prepared.number_of_b_cr_events
-    assert prepared.nuisance_bin_indices.shape[0] == (
-        prepared.number_of_sr_events
-        + prepared.number_of_cr_bins
+    assert isinstance(model.nuisance_calculation, ScalarBinnedNuisanceCalculation)
+    assert prepared.nuisance_data.cr_bin_indices is not None
+    assert int(prepared.nuisance_data.a_cr_multiplicities.sum()) == (
+        prepared.number_of_a_cr_events
     )
-    assert prepared.number_of_cr_bins <= prepared.number_of_cr_events
+    assert int(prepared.nuisance_data.b_cr_multiplicities.sum()) == (
+        prepared.number_of_b_cr_events
+    )
+    assert (
+        prepared.nuisance_data.cr_bin_indices.shape[0]
+        <= prepared.number_of_cr_events
+    )
 
-    theta_evaluation_sizes = []
-    original_theta_evaluation = model._theta_from_bin_indices
-
-    def record_theta_evaluation(bin_indices):
-        theta_evaluation_sizes.append(bin_indices.shape[0])
-        return original_theta_evaluation(bin_indices)
-
-    monkeypatch.setattr(model, "_theta_from_bin_indices", record_theta_evaluation)
     loss = model(prepared)
     loss.backward()
 
-    assert theta_evaluation_sizes == [prepared.nuisance_bin_indices.shape[0]]
     assert all(
         nuisance_parameter.grad is not None
-        for nuisance_parameter in model._detector_deltas.values()
+        for nuisance_parameter in model.nuisance_calculation.parameters()
     )
-
 
 @pytest.mark.parametrize(
     "function_execution_context",
