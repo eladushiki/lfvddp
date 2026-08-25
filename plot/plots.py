@@ -24,6 +24,7 @@ from plot.plot_utils import (
     HandlerRect,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
+    _filter_t_distribution_outliers,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
@@ -77,9 +78,6 @@ def _prediction_process_subplot_adjustments(
         "hspace": 0.14,
         "wspace": 0.14,
     }
-
-_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 6
-_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
 # Implement any new plot function here, and you will be able to call it automatically.
@@ -442,9 +440,13 @@ def performance_plot(
     )
 
     # Gather background data
-    background_t_dist = utils__aggregate_context_t_values(
-        background_contexts
+    background_t_dist, _, _ = _filter_t_distribution_outliers(
+        utils__aggregate_context_t_values(background_contexts),
+        cut_non_converged=True,
+        cut_overfitted=True,
     )
+    if background_t_dist.size == 0:
+        raise ValueError("No finite background t values remain after outlier filtering.")
 
     signal_groups = utils__group_signal_contexts(
         signal_t_values_parent_directory

@@ -43,6 +43,8 @@ from train.train_config import TrainConfig
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
+_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 4
+_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 _PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.90
 
 
@@ -194,6 +196,43 @@ def _integration_upper_limits_for_dimensions(
     return np.full(number_of_dimensions, np.inf)
 
 
+def _t_distribution_outlier_masks(
+    t_values: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Return masks for the non-converged and overfitted t-distribution tails."""
+    lower_reference_boundary = np.percentile(
+        t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    upper_reference_boundary = np.percentile(
+        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    lower_reference = t_values[t_values >= lower_reference_boundary]
+    upper_reference = t_values[t_values <= upper_reference_boundary]
+
+    lower_threshold = np.mean(lower_reference) - (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
+    )
+    upper_threshold = np.mean(upper_reference) + (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
+    )
+    return t_values < lower_threshold, t_values > upper_threshold
+
+
+def _filter_t_distribution_outliers(
+    t_values: np.ndarray,
+    cut_non_converged: bool,
+    cut_overfitted: bool,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply the configured t-distribution tail exclusions."""
+    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
+    excluded = np.zeros(t_values.shape, dtype=bool)
+    if cut_non_converged:
+        excluded |= did_not_converge
+    if cut_overfitted:
+        excluded |= overfitted
+    return t_values[~excluded], did_not_converge, overfitted
+
+
 def utils__calculate_performance_curve(
     signal_group: List[Tuple[ExecutionContext, Path]],
     background_t_dist: np.ndarray,
@@ -212,7 +251,16 @@ def utils__calculate_performance_curve(
             signal_context
         )
         signal_agg = ResultAggregator(signal_t_values_dir)
-        signal_t_dist = signal_agg.all_t_values
+        signal_t_dist, _, _ = _filter_t_distribution_outliers(
+            signal_agg.all_t_values,
+            cut_non_converged=True,
+            cut_overfitted=True,
+        )
+        if signal_t_dist.size == 0:
+            raise ValueError(
+                f"No finite t values remain for {signal_t_values_dir} after "
+                "outlier filtering."
+            )
 
         is_generated = isinstance(
             signal_dataset_parameters, GeneratedDatasetParameters
