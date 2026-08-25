@@ -101,11 +101,20 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
                 f"Observable {observable_name} is not detected by this detector effect."
             ) from error
 
+    def efficiency_values(self, dataset: DataSet) -> np.ndarray:
+        """Return the detector efficiency at each dataset point without sampling."""
+        if self.detection_parameters is None:
+            raise RuntimeError(
+                "Detector efficiency cannot be evaluated before detection "
+                "parameters are set."
+            )
+        return np.asarray(self._uncertain_efficiency(dataset._data))
+
     def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
         """
         Generate a filter for the dataset based on the true efficiency.
         """
-        dataset_efficiency = self._uncertain_efficiency(dataset._data)
+        dataset_efficiency = self.efficiency_values(dataset)
         return np.random.uniform(size=(dataset.n_samples,)) < dataset_efficiency
 
     def generate_errors(self, dataset: DataSet) -> np.ndarray:

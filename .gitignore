@@ -8,6 +8,7 @@
 # GSD
 .gsd/*.db
 .gsd/*.db-*
+.gsd/*.db.backup*
 .gsd/audit/
 .gsd/exec/
 .gsd/journal/
@@ -17,6 +18,9 @@
 .gsd/worktrees
 .bg-shell/
 .gsd/SECRETS.md
+
+# Agents and skills
+.agents/submission-state.yaml
 
 # Python tests
 .coverage

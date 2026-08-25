@@ -28,3 +28,7 @@ Implementing ML machinery to differentiate between similar and different pairs o
   in the Git repository. Codex has standing authorization to read and use it for
   in-scope GitHub operations without asking again. Never print, commit, or
   otherwise expose its credentials.
+
+## Skills and Specs
+- Skills can be found in `.agents/skills` directory
+- Plot are designed according to specs, that appear in `plots/specs`. If a spec is updated, the plots should too. If a plot is updated, its spec should too.

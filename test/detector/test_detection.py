@@ -1,4 +1,6 @@
 from pathlib import Path
+
+import numpy as np
 import pytest
 from test.environment import ConfigType
 from data_tools.data_utils import DataSet
@@ -22,6 +24,11 @@ def test_detection_basic(
 
     # Expect data to remain unchanged
     assert (A.events == A_affected.events).all()
+    np.testing.assert_array_equal(
+        detector_effect.efficiency_values(A),
+        np.ones(A.n_samples),
+    )
+
 
 @pytest.mark.parametrize(
     "function_execution_context",
