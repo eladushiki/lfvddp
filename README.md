@@ -166,7 +166,7 @@ The custom file paths here refer to a different file, `settings.json`, of the fo
 ```
 Which you create and direct to. Pass that single directory after `--configs`.
 
-The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
+The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Set `cluster__uv_cache_dir` in a local pack when you need a persistent UV cache on your cluster; the tracked basic-loaded value is intentionally empty. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
 The plotting entry point does not accept `--configs`; it reads the staged
 configuration files from the selected submission's `configs` directory.
 Plotting configuration is required,
