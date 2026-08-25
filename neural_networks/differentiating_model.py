@@ -87,84 +87,10 @@ class _PairedEstimator(nn.Module):
         return estimates[:, :1], estimates[:, 1:]
 
 
-def _neural_nuisance_common_terms(
-    eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_a_cr_events: int,
-    number_of_cr_events: int,
-    cr_eta_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate per-event CR nuisance terms for neural nuisance parameters."""
-    return (
-        number_of_cr_events
-        + cr_eta_coefficient * eta_of_x_cr.sum()
-        - torch.log1p(eta_of_x_sr[:number_of_a_sr_events]).sum()
-        - torch.log1p(eta_of_x_cr[:number_of_a_cr_events]).sum()
-        - torch.log1p(-eta_of_x_sr[number_of_a_sr_events:]).sum()
-        - torch.log1p(-eta_of_x_cr[number_of_a_cr_events:]).sum()
-    )
 
 
-def _neural_nuisance_loss(
-    f_of_x_sr: torch.Tensor,
-    g_of_x_sr: torch.Tensor,
-    eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_a_cr_events: int,
-    number_of_cr_events: int,
-    a_sr_coefficient: float,
-    b_sr_coefficient: float,
-    cr_eta_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate the numerator loss with per-event neural nuisance values."""
-    a_sr_term = a_sr_coefficient * torch.exp(f_of_x_sr)
-    b_sr_term = b_sr_coefficient * torch.exp(g_of_x_sr)
-    sr_density = torch.addcmul(
-        a_sr_term + b_sr_term,
-        eta_of_x_sr,
-        a_sr_term - b_sr_term,
-    )
-    return (
-        sr_density.sum()
-        - f_of_x_sr[:number_of_a_sr_events].sum()
-        - g_of_x_sr[number_of_a_sr_events:].sum()
-        + _neural_nuisance_common_terms(
-            eta_of_x_sr=eta_of_x_sr,
-            eta_of_x_cr=eta_of_x_cr,
-            number_of_a_sr_events=number_of_a_sr_events,
-            number_of_a_cr_events=number_of_a_cr_events,
-            number_of_cr_events=number_of_cr_events,
-            cr_eta_coefficient=cr_eta_coefficient,
-        )
-    )
 
 
-def _neural_nuisance_denominator_loss(
-    eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_a_cr_events: int,
-    number_of_sr_events: int,
-    number_of_cr_events: int,
-    a_sr_coefficient: float,
-    b_sr_coefficient: float,
-    cr_eta_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate the denominator loss with per-event neural nuisance values."""
-    return (
-        number_of_sr_events
-        + (a_sr_coefficient - b_sr_coefficient) * eta_of_x_sr.sum()
-        + _neural_nuisance_common_terms(
-            eta_of_x_sr=eta_of_x_sr,
-            eta_of_x_cr=eta_of_x_cr,
-            number_of_a_sr_events=number_of_a_sr_events,
-            number_of_a_cr_events=number_of_a_cr_events,
-            number_of_cr_events=number_of_cr_events,
-            cr_eta_coefficient=cr_eta_coefficient,
-        )
-    )
 
 
 class DifferentiatingModel(nn.Module, ContextedModel):
