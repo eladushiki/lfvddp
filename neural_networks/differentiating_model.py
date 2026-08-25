@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import nullcontext
 from dataclasses import dataclass
-from enum import Enum, auto
 from logging import info
 from time import time
 from typing import Dict, List, Optional, Tuple, Union
@@ -22,6 +21,10 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
+from neural_networks.nuisance_calculation import (
+    NeuralPerEventNuisanceCalculation, NoNuisanceCalculation, NuisanceEvaluation,
+    PreparedNuisanceData, ScalarBinnedNuisanceCalculation, _ThetaEstimator,
+)
 from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
@@ -34,20 +37,10 @@ from train.training_profiler import TrainingProfiler
 LFVNN_DTYPE = torch.float64
 
 
-class _NuisanceMode(Enum):
-    NONE = auto()
-    PIECEWISE_CONSTANT = auto()
-    NEURAL_NETWORK = auto()
-
-
 @dataclass(frozen=True)
 class _PreparedTrainingData:
-    """Static tensors and category sizes reused by every training epoch."""
-
     sr_data: torch.Tensor
-    nuisance_bin_indices: Optional[torch.Tensor]
-    a_cr_bin_counts: Optional[torch.Tensor]
-    b_cr_bin_counts: Optional[torch.Tensor]
+    nuisance_data: PreparedNuisanceData
     number_of_a_sr_events: int
     number_of_b_sr_events: int
     number_of_a_cr_events: int
@@ -55,18 +48,10 @@ class _PreparedTrainingData:
     a_sr_coefficient: float
     b_sr_coefficient: float
     cr_eta_coefficient: float
-
     @property
-    def number_of_sr_events(self) -> int:
-        return self.number_of_a_sr_events + self.number_of_b_sr_events
-
+    def number_of_sr_events(self) -> int: return self.number_of_a_sr_events + self.number_of_b_sr_events
     @property
-    def number_of_cr_events(self) -> int:
-        return self.number_of_a_cr_events + self.number_of_b_cr_events
-
-    @property
-    def number_of_cr_bins(self) -> int:
-        return 0 if self.a_cr_bin_counts is None else self.a_cr_bin_counts.numel()
+    def number_of_cr_events(self) -> int: return self.number_of_a_cr_events + self.number_of_b_cr_events
 
 
 class _PairedEstimator(nn.Module):
@@ -100,133 +85,6 @@ class _PairedEstimator(nn.Module):
         paired_bias = torch.cat((self.f_output.bias, self.g_output.bias))
         estimates = F.linear(hidden, paired_weight, paired_bias)
         return estimates[:, :1], estimates[:, 1:]
-
-
-class _ThetaEstimator(nn.Module):
-    """Bounded neural implementation of the nuisance function theta(x)."""
-
-    def __init__(
-        self,
-        input_dimension: int,
-        hidden_size: int,
-        output_dimension: int,
-        dtype: torch.dtype,
-    ) -> None:
-        super().__init__()
-        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype)
-        self.activation = nn.Sigmoid()
-        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
-
-    def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return self.output(self.activation(self.hidden(events))).squeeze(-1)
-
-
-def _compact_no_nuisance_loss(
-    f_of_x_sr: torch.Tensor,
-    g_of_x_sr: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_cr_events: int,
-    a_sr_coefficient: float,
-    b_sr_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate the unit-weight loss when detector nuisances are disabled."""
-    return (
-        a_sr_coefficient * torch.exp(f_of_x_sr).sum()
-        + b_sr_coefficient * torch.exp(g_of_x_sr).sum()
-        - f_of_x_sr[:number_of_a_sr_events].sum()
-        - g_of_x_sr[number_of_a_sr_events:].sum()
-        + number_of_cr_events
-    )
-
-
-def _compact_nuisance_common_terms(
-    eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr_bins: torch.Tensor,
-    a_cr_bin_counts: torch.Tensor,
-    b_cr_bin_counts: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_cr_events: int,
-    cr_eta_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate nuisance log terms and the compressed CR contribution."""
-    eta_cr_sum = torch.dot(
-        eta_of_x_cr_bins,
-        a_cr_bin_counts + b_cr_bin_counts,
-    )
-    return (
-        number_of_cr_events
-        + cr_eta_coefficient * eta_cr_sum
-        - torch.log1p(eta_of_x_sr[:number_of_a_sr_events]).sum()
-        - torch.dot(torch.log1p(eta_of_x_cr_bins), a_cr_bin_counts)
-        - torch.log1p(-eta_of_x_sr[number_of_a_sr_events:]).sum()
-        - torch.dot(torch.log1p(-eta_of_x_cr_bins), b_cr_bin_counts)
-    )
-
-
-def _compact_nuisance_loss(
-    f_of_x_sr: torch.Tensor,
-    g_of_x_sr: torch.Tensor,
-    eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr_bins: torch.Tensor,
-    a_cr_bin_counts: torch.Tensor,
-    b_cr_bin_counts: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_cr_events: int,
-    a_sr_coefficient: float,
-    b_sr_coefficient: float,
-    cr_eta_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate the unit-weight numerator loss with compressed CR bins."""
-    a_sr_term = a_sr_coefficient * torch.exp(f_of_x_sr)
-    b_sr_term = b_sr_coefficient * torch.exp(g_of_x_sr)
-    sr_density = torch.addcmul(
-        a_sr_term + b_sr_term,
-        eta_of_x_sr,
-        a_sr_term - b_sr_term,
-    )
-
-    return (
-        sr_density.sum()
-        - f_of_x_sr[:number_of_a_sr_events].sum()
-        - g_of_x_sr[number_of_a_sr_events:].sum()
-        + _compact_nuisance_common_terms(
-            eta_of_x_sr=eta_of_x_sr,
-            eta_of_x_cr_bins=eta_of_x_cr_bins,
-            a_cr_bin_counts=a_cr_bin_counts,
-            b_cr_bin_counts=b_cr_bin_counts,
-            number_of_a_sr_events=number_of_a_sr_events,
-            number_of_cr_events=number_of_cr_events,
-            cr_eta_coefficient=cr_eta_coefficient,
-        )
-    )
-
-
-def _compact_nuisance_denominator_loss(
-    eta_of_x_sr: torch.Tensor,
-    eta_of_x_cr_bins: torch.Tensor,
-    a_cr_bin_counts: torch.Tensor,
-    b_cr_bin_counts: torch.Tensor,
-    number_of_a_sr_events: int,
-    number_of_sr_events: int,
-    number_of_cr_events: int,
-    a_sr_coefficient: float,
-    b_sr_coefficient: float,
-    cr_eta_coefficient: float,
-) -> torch.Tensor:
-    """Evaluate the nuisance denominator without zero-network tensors."""
-    return (
-        number_of_sr_events
-        + (a_sr_coefficient - b_sr_coefficient) * eta_of_x_sr.sum()
-        + _compact_nuisance_common_terms(
-            eta_of_x_sr=eta_of_x_sr,
-            eta_of_x_cr_bins=eta_of_x_cr_bins,
-            a_cr_bin_counts=a_cr_bin_counts,
-            b_cr_bin_counts=b_cr_bin_counts,
-            number_of_a_sr_events=number_of_a_sr_events,
-            number_of_cr_events=number_of_cr_events,
-            cr_eta_coefficient=cr_eta_coefficient,
-        )
-    )
 
 
 def _neural_nuisance_common_terms(
@@ -332,13 +190,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
-        self._nuisance_mode = self._configured_nuisance_mode()
+        self.nuisance_calculation = self._build_nuisance_calculation()
 
         # Add layers by spec. We would add two NNs to express f, g separately.
         self._build_layers()
-
-        # Add the configured theta nuisance implementation.
-        self._build_theta()
 
         # Initialize NN parameters according to strategy
         self._initialize_parameters()
@@ -352,12 +207,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _device(self) -> torch.device:
         return self._assigned_device
 
-    def _configured_nuisance_mode(self) -> _NuisanceMode:
+    def _build_nuisance_calculation(self):
         if not self._config.train__data_is_train_for_nuisances:
-            return _NuisanceMode.NONE
+            return NoNuisanceCalculation(self._dtype, self._device)
         if self._config.train__nuisance_is_neural_network:
-            return _NuisanceMode.NEURAL_NETWORK
-        return _NuisanceMode.PIECEWISE_CONSTANT
+            return NeuralPerEventNuisanceCalculation(self._config.train__nn_input_dimension, self._config.train__nuisance_nn_inner_layer_nodes, self._config.train__nn_output_dimension, self._dtype, self._device)
+        return ScalarBinnedNuisanceCalculation(self._detector_effect, self._dtype, self._device)
 
     def _build_layers(self):
         self.paired_network = (
@@ -371,36 +226,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             else None
         )
 
-    def _build_theta(self):
-        self._detector_deltas = {}
-        self.theta_network = None
-        match self._nuisance_mode:
-            case _NuisanceMode.NONE:
-                return
-            case _NuisanceMode.NEURAL_NETWORK:
-                self.theta_network = _ThetaEstimator(
-                    input_dimension=self._config.train__nn_input_dimension,
-                    hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
-                    output_dimension=self._config.train__nn_output_dimension,
-                    dtype=self._dtype,
-                )
-                return
-            case _NuisanceMode.PIECEWISE_CONSTANT:
-                pass
-
-        for i, nbins in enumerate(self._detector_effect._numbers_of_bins):
-            nuisance_var = nn.Parameter(
-                torch.full(
-                    (nbins,),
-                    0.0,
-                    dtype=self._dtype,
-                    device=self._device,
-                )
-            )  # Initialized later, value here has no meaning
-            self.register_parameter(
-                f"nuisance_{self._observable_names[i]}", nuisance_var
-            )
-            self._detector_deltas[self._observable_names[i]] = nuisance_var
 
     def _initialize_parameters(self) -> None:
         """
@@ -435,24 +260,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 nn.init.xavier_uniform_(output_layer.weight, gain=gain)
                 nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
 
-        match self._nuisance_mode:
-            case _NuisanceMode.NEURAL_NETWORK:
-                nn.init.xavier_uniform_(
-                    self.theta_network.hidden.weight, gain=gain
-                )
-                nn.init.uniform_(self.theta_network.hidden.bias, a=-0.3, b=0.3)
-                nn.init.xavier_uniform_(self.theta_network.output.weight, gain=gain)
-                nn.init.uniform_(self.theta_network.output.bias, a=-0.3, b=0.3)
-            case _NuisanceMode.PIECEWISE_CONSTANT:
-                for var in self._detector_deltas.values():
-                    nn.init.normal_(var, mean=0.0, std=1e-3)
+        self.nuisance_calculation.initialize_parameters(gain)
 
     def _clamp_nuisance_parameters(self) -> None:
-        if self._nuisance_mode is not _NuisanceMode.PIECEWISE_CONSTANT:
-            return
-        with torch.no_grad():
-            for var in self._detector_deltas.values():
-                var.clamp_(min=-1.0 + 1e-6, max=1.0 - 1e-6)
+        self.nuisance_calculation.clamp_parameters()
 
     def configure_optimizers(self) -> Optional[optim.Optimizer]:
         trainable_parameters = [
@@ -466,77 +277,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         return optimizer
 
-    @property
-    def _observable_names(self) -> List[str]:
-        return self._detector_effect._observable_names
-
-    def _bin_indices(self, data: DataSet) -> torch.Tensor:
-        return torch.tensor(
-            self._detector_effect.get_event_bin_centers(data, indexed=True),
-            dtype=torch.long,
-            device=self._device,
-        )
-
-    def _theta_from_bin_indices(self, bin_indices: torch.Tensor) -> torch.Tensor:
-        if not self._config.train__data_is_train_for_nuisances:
-            return torch.zeros(
-                bin_indices.shape[0],
-                dtype=self._dtype,
-                device=self._device,
-            )
-
-        eta: Optional[torch.Tensor] = None
-        for dimension, observable_name in enumerate(self._observable_names):
-            dimensional_eta = torch.index_select(
-                self._detector_deltas[observable_name],
-                dim=0,
-                index=bin_indices[:, dimension],
-            )
-            eta = dimensional_eta if eta is None else eta * dimensional_eta
-        if eta is None:
-            raise RuntimeError("At least one detector observable is required.")
-        return eta
-
-    def _theta_from_inputs(self, inputs: torch.Tensor) -> torch.Tensor:
-        """Evaluate and bound theta for the configured nuisance mode."""
-        match self._nuisance_mode:
-            case _NuisanceMode.NEURAL_NETWORK:
-                return torch.clamp(
-                    self.theta_network(inputs), min=-1.0 + 1e-6, max=1.0 - 1e-6
-                )
-            case _NuisanceMode.PIECEWISE_CONSTANT:
-                return self._theta_from_bin_indices(inputs)
-            case _NuisanceMode.NONE:
-                return torch.zeros(
-                    inputs.shape[0], dtype=self._dtype, device=self._device
-                )
-
-    def _compressed_cr_bin_indices(
-        self,
-        a_cr: DataSet,
-        b_cr: DataSet,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return shared unique CR bins and per-category event counts."""
-        cr_bin_indices = torch.cat(
-            (self._bin_indices(a_cr), self._bin_indices(b_cr)),
-            dim=0,
-        )
-        unique_bin_indices, inverse_indices = torch.unique(
-            cr_bin_indices,
-            dim=0,
-            return_inverse=True,
-        )
-        number_of_unique_bins = unique_bin_indices.shape[0]
-        a_cr_bin_counts = torch.bincount(
-            inverse_indices[: a_cr.n_samples],
-            minlength=number_of_unique_bins,
-        ).to(dtype=self._dtype)
-        b_cr_bin_counts = torch.bincount(
-            inverse_indices[a_cr.n_samples :],
-            minlength=number_of_unique_bins,
-        ).to(dtype=self._dtype)
-        return unique_bin_indices, a_cr_bin_counts, b_cr_bin_counts
-
     def _network_estimates(
         self,
         sr_data: torch.Tensor,
@@ -546,196 +286,71 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         f_estimate, g_estimate = self.paired_network(sr_data)
         return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
 
-    def forward(
-        self,
-        data: _PreparedTrainingData,
-        profiler: Optional[TrainingProfiler] = None,
-    ) -> torch.Tensor:
+    def forward(self, data: _PreparedTrainingData, profiler: Optional[TrainingProfiler] = None) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/f_and_g_networks"):
-            if self.paired_network is None:
-                f_of_x_sr_est = None
-                g_of_x_sr_est = None
-            else:
-                f_of_x_sr_est, g_of_x_sr_est = self._network_estimates(
-                    data.sr_data
-                )
+            estimates = None if self.paired_network is None else self._network_estimates(data.sr_data)
+        with profile_region("training/nuisance_eta"):
+            nuisance = self.nuisance_calculation.evaluate(data.nuisance_data)
+        return self._assemble_loss(estimates, nuisance, data)
 
-        with profile_region("training/nuisance_theta"):
-            if self._config.train__data_is_train_for_nuisances:
-                if data.nuisance_bin_indices is None:
-                    raise RuntimeError("Training theta inputs were not prepared.")
-                eta_values = self._theta_from_inputs(
-                    data.nuisance_bin_indices
-                )
-                # Neural nuisance evaluation is per event; scalar nuisance uses CR bins.
-                number_of_cr_nuisance_values = (
-                    data.number_of_cr_events
-                    if self.theta_network is not None
-                    else data.number_of_cr_bins
-                )
-                eta_of_x_sr, eta_of_x_cr_bins = torch.split(
-                    eta_values,
-                    (data.number_of_sr_events, number_of_cr_nuisance_values),
-                )
-            else:
-                eta_of_x_sr = None
-                eta_of_x_cr_bins = None
-
-        with profile_region("training/loss_expression"):
-            if eta_of_x_sr is None:
-                if f_of_x_sr_est is None or g_of_x_sr_est is None:
-                    return data.sr_data.new_tensor(
-                        data.number_of_sr_events + data.number_of_cr_events
-                    )
-                return _compact_no_nuisance_loss(
-                    f_of_x_sr=f_of_x_sr_est,
-                    g_of_x_sr=g_of_x_sr_est,
-                    number_of_a_sr_events=data.number_of_a_sr_events,
-                    number_of_cr_events=data.number_of_cr_events,
-                    a_sr_coefficient=data.a_sr_coefficient,
-                    b_sr_coefficient=data.b_sr_coefficient,
-                )
-            if self.theta_network is not None:
-                if eta_of_x_cr_bins is None:
-                    raise RuntimeError("Neural CR nuisance values were not prepared.")
-                if f_of_x_sr_est is None or g_of_x_sr_est is None:
-                    return _neural_nuisance_denominator_loss(
-                        eta_of_x_sr=eta_of_x_sr,
-                        eta_of_x_cr=eta_of_x_cr_bins,
-                        number_of_a_sr_events=data.number_of_a_sr_events,
-                        number_of_a_cr_events=data.number_of_a_cr_events,
-                        number_of_sr_events=data.number_of_sr_events,
-                        number_of_cr_events=data.number_of_cr_events,
-                        a_sr_coefficient=data.a_sr_coefficient,
-                        b_sr_coefficient=data.b_sr_coefficient,
-                        cr_eta_coefficient=data.cr_eta_coefficient,
-                    )
-                return _neural_nuisance_loss(
-                    f_of_x_sr=f_of_x_sr_est,
-                    g_of_x_sr=g_of_x_sr_est,
-                    eta_of_x_sr=eta_of_x_sr,
-                    eta_of_x_cr=eta_of_x_cr_bins,
-                    number_of_a_sr_events=data.number_of_a_sr_events,
-                    number_of_a_cr_events=data.number_of_a_cr_events,
-                    number_of_cr_events=data.number_of_cr_events,
-                    a_sr_coefficient=data.a_sr_coefficient,
-                    b_sr_coefficient=data.b_sr_coefficient,
-                    cr_eta_coefficient=data.cr_eta_coefficient,
-                )
-
-            if (
-                eta_of_x_cr_bins is None
-                or data.a_cr_bin_counts is None
-                or data.b_cr_bin_counts is None
-            ):
-                raise RuntimeError("Compressed CR nuisance data was not prepared.")
-            if f_of_x_sr_est is None or g_of_x_sr_est is None:
-                return _compact_nuisance_denominator_loss(
-                    eta_of_x_sr=eta_of_x_sr,
-                    eta_of_x_cr_bins=eta_of_x_cr_bins,
-                    a_cr_bin_counts=data.a_cr_bin_counts,
-                    b_cr_bin_counts=data.b_cr_bin_counts,
-                    number_of_a_sr_events=data.number_of_a_sr_events,
-                    number_of_sr_events=data.number_of_sr_events,
-                    number_of_cr_events=data.number_of_cr_events,
-                    a_sr_coefficient=data.a_sr_coefficient,
-                    b_sr_coefficient=data.b_sr_coefficient,
-                    cr_eta_coefficient=data.cr_eta_coefficient,
-                )
-            return _compact_nuisance_loss(
-                f_of_x_sr=f_of_x_sr_est,
-                g_of_x_sr=g_of_x_sr_est,
-                eta_of_x_sr=eta_of_x_sr,
-                eta_of_x_cr_bins=eta_of_x_cr_bins,
-                a_cr_bin_counts=data.a_cr_bin_counts,
-                b_cr_bin_counts=data.b_cr_bin_counts,
-                number_of_a_sr_events=data.number_of_a_sr_events,
-                number_of_cr_events=data.number_of_cr_events,
-                a_sr_coefficient=data.a_sr_coefficient,
-                b_sr_coefficient=data.b_sr_coefficient,
-                cr_eta_coefficient=data.cr_eta_coefficient,
+    @staticmethod
+    def _assemble_loss(
+        estimates: Optional[tuple[torch.Tensor, torch.Tensor]],
+        nuisance: NuisanceEvaluation,
+        data: _PreparedTrainingData,
+    ) -> torch.Tensor:
+        common_terms = (
+            data.number_of_cr_events
+            + data.cr_eta_coefficient
+            * torch.dot(
+                nuisance.cr_values,
+                nuisance.a_cr_weights + nuisance.b_cr_weights,
+            )
+            - torch.log1p(
+                nuisance.sr_values[:data.number_of_a_sr_events]
+            ).sum()
+            - torch.dot(torch.log1p(nuisance.cr_values), nuisance.a_cr_weights)
+            - torch.log1p(
+                -nuisance.sr_values[data.number_of_a_sr_events:]
+            ).sum()
+            - torch.dot(torch.log1p(-nuisance.cr_values), nuisance.b_cr_weights)
+        )
+        if estimates is None:
+            return (
+                data.number_of_sr_events
+                + (data.a_sr_coefficient - data.b_sr_coefficient)
+                * nuisance.sr_values.sum()
+                + common_terms
             )
 
-    def _prepare_training_data(
-        self,
-        data: DataBatch,
-    ) -> _PreparedTrainingData:
-        """Prepare compact, immutable tensors for repeated full-batch training."""
+        f_of_x_sr, g_of_x_sr = estimates
+        a_term = data.a_sr_coefficient * torch.exp(f_of_x_sr)
+        b_term = data.b_sr_coefficient * torch.exp(g_of_x_sr)
+        return (
+            torch.addcmul(
+                a_term + b_term,
+                nuisance.sr_values,
+                a_term - b_term,
+            ).sum()
+            - f_of_x_sr[:data.number_of_a_sr_events].sum()
+            - g_of_x_sr[data.number_of_a_sr_events:].sum()
+            + common_terms
+        )
+
+    def _prepare_training_data(self, data: DataBatch) -> _PreparedTrainingData:
         normalized_data, self._norm_factor = data.get_normalized()
         categories = DataSet.DataSetCategory
-        normalized_a_sr = normalized_data.datasets[categories.A_SR]
-        normalized_b_sr = normalized_data.datasets[categories.B_SR]
-        a_sr = data.datasets[categories.A_SR]
-        b_sr = data.datasets[categories.B_SR]
-        a_cr = data.datasets[categories.A_CR]
-        b_cr = data.datasets[categories.B_CR]
-
-        if a_sr.n_samples + b_sr.n_samples == 0:
-            raise ValueError("Training requires at least one SR event.")
-        if a_cr.n_samples + b_cr.n_samples == 0:
-            raise ValueError("Training requires at least one CR event.")
-
-        sr_data = torch.tensor(
-            np.concatenate((normalized_a_sr.events, normalized_b_sr.events)),
-            dtype=self._dtype,
-            device=self._device,
-        )
-        if self._config.train__data_is_train_for_nuisances:
-            if self.theta_network is not None:
-                normalized_a_cr = normalized_data.datasets[categories.A_CR]
-                normalized_b_cr = normalized_data.datasets[categories.B_CR]
-                nuisance_bin_indices = torch.cat(
-                    (
-                        sr_data,
-                        torch.tensor(
-                            np.concatenate(
-                                (normalized_a_cr.events, normalized_b_cr.events)
-                            ),
-                            dtype=self._dtype,
-                            device=self._device,
-                        ),
-                    ),
-                    dim=0,
-                )
-                a_cr_bin_counts = None
-                b_cr_bin_counts = None
-            else:
-                sr_bin_indices = torch.cat(
-                    (self._bin_indices(a_sr), self._bin_indices(b_sr)),
-                    dim=0,
-                )
-                (
-                    cr_bin_indices,
-                    a_cr_bin_counts,
-                    b_cr_bin_counts,
-                ) = self._compressed_cr_bin_indices(a_cr, b_cr)
-                nuisance_bin_indices = torch.cat(
-                    (sr_bin_indices, cr_bin_indices),
-                    dim=0,
-                )
-        else:
-            nuisance_bin_indices = None
-            a_cr_bin_counts = None
-            b_cr_bin_counts = None
-
-        number_of_sr_events = a_sr.n_samples + b_sr.n_samples
-        number_of_cr_events = a_cr.n_samples + b_cr.n_samples
-
-        return _PreparedTrainingData(
-            sr_data=sr_data,
-            nuisance_bin_indices=nuisance_bin_indices,
-            a_cr_bin_counts=a_cr_bin_counts,
-            b_cr_bin_counts=b_cr_bin_counts,
-            number_of_a_sr_events=a_sr.n_samples,
-            number_of_b_sr_events=b_sr.n_samples,
-            number_of_a_cr_events=a_cr.n_samples,
-            number_of_b_cr_events=b_cr.n_samples,
-            a_sr_coefficient=a_sr.n_samples / number_of_sr_events,
-            b_sr_coefficient=b_sr.n_samples / number_of_sr_events,
-            cr_eta_coefficient=(a_cr.n_samples - b_cr.n_samples)
-            / number_of_cr_events,
-        )
+        normalized_a_sr, normalized_b_sr = normalized_data.datasets[categories.A_SR], normalized_data.datasets[categories.B_SR]
+        normalized_a_cr, normalized_b_cr = normalized_data.datasets[categories.A_CR], normalized_data.datasets[categories.B_CR]
+        a_sr, b_sr, a_cr, b_cr = data.datasets[categories.A_SR], data.datasets[categories.B_SR], data.datasets[categories.A_CR], data.datasets[categories.B_CR]
+        if a_sr.n_samples + b_sr.n_samples == 0: raise ValueError("Training requires at least one SR event.")
+        if a_cr.n_samples + b_cr.n_samples == 0: raise ValueError("Training requires at least one CR event.")
+        normalized_sr, raw_sr = DataSet(np.concatenate((normalized_a_sr.events, normalized_b_sr.events))), DataSet(np.concatenate((a_sr.events, b_sr.events)))
+        sr_data = torch.tensor(normalized_sr.events, dtype=self._dtype, device=self._device)
+        nuisance_data = self.nuisance_calculation.prepare(raw_sr, a_cr, b_cr, normalized_sr, normalized_a_cr, normalized_b_cr)
+        number_of_sr_events, number_of_cr_events = a_sr.n_samples + b_sr.n_samples, a_cr.n_samples + b_cr.n_samples
+        return _PreparedTrainingData(sr_data, nuisance_data, a_sr.n_samples, b_sr.n_samples, a_cr.n_samples, b_cr.n_samples, a_sr.n_samples / number_of_sr_events, b_sr.n_samples / number_of_sr_events, (a_cr.n_samples - b_cr.n_samples) / number_of_cr_events)
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
         self._training_history[HistoryKeys.LOSS.value].append(
