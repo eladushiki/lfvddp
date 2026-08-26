@@ -437,7 +437,7 @@ Training entry points:
 
 ## Nuisance implementation
 
-`TrainConfig` defaults to the legacy binwise-constant nuisance implementation. Set `train__nuisance_is_neural_network` to `true` to use a bounded neural `theta(x)` instead. Its input and output dimensions match the primary f/g networks, while `train__nuisance_nn_inner_layer_nodes` controls its hidden layer and defaults to `2`.
+`TrainConfig` selects the nuisance implementation. For the legacy binwise-constant nuisance, configure `train__nuisance_binning_minima`, `train__nuisance_binning_maxima`, and `train__nuisance_binning_number_of_bins`. Set `train__nuisance_is_neural_network` to `true` to use a bounded neural `theta(x)` instead; then configure only `train__nuisance_nn_inner_layer_nodes`. The two parameter sets are mutually exclusive and mixed configurations fail during configuration creation.
 
 ### Training-loss expression
 

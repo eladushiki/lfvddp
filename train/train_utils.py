@@ -28,7 +28,7 @@ def model_degrees_of_freedom(
         )
 
     nuisance_degrees_of_freedom = (
-        config.detector__number_of_nuisance_parameters
+        config.train__number_of_nuisance_parameters
         if config.train__data_is_train_for_nuisances
         else 0
     )
