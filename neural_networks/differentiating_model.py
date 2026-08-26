@@ -235,7 +235,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 if self.paired_network is None
                 else self._network_estimates(data.sr_events)
             )
-        with profile_region("training/nuisance_eta"):
+        with profile_region("training/nuisance_theta"):
             nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
         return self._assemble_loss(
             signal_hypothesis_sr_estimates=signal_hypothesis_sr_estimates,
@@ -577,7 +577,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         data: DataSet,
         secondary: bool,
-        eta_sign: float,
+        theta_sign: float,
     ) -> npt.NDArray:
         if self._norm_factor is None:
             raise RuntimeError("Cannot predict before the model has been fitted.")
@@ -600,18 +600,18 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     if self.theta_network is not None
                     else self._bin_indices(data)
                 )
-                eta = self._theta_from_inputs(theta_inputs).unsqueeze(1)
+                theta_estimate = self._theta_from_inputs(theta_inputs).unsqueeze(1)
             else:
-                eta = x_tensor.new_zeros((x_tensor.shape[0], 1))
-            eta_term = torch.clamp(1 + eta_sign * eta, min=1e-12)
-            predictions = torch.exp(network_estimate) * eta_term
+                theta_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
+            theta_term = torch.clamp(1 + theta_sign * theta_estimate, min=1e-12)
+            predictions = torch.exp(network_estimate) * theta_term
         return predictions.detach().cpu().numpy()
 
     def predict(self, data: DataSet) -> npt.NDArray:
-        return self._predict_ndf(data, secondary=False, eta_sign=1.0)
+        return self._predict_ndf(data, secondary=False, theta_sign=1.0)
 
     def predict_secondary(self, data: DataSet) -> npt.NDArray:
-        return self._predict_ndf(data, secondary=True, eta_sign=-1.0)
+        return self._predict_ndf(data, secondary=True, theta_sign=-1.0)
 
     def predict_theta(self, data: DataSet) -> npt.NDArray:
         """Evaluate the configured nuisance function theta over a dataset."""

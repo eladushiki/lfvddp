@@ -418,37 +418,37 @@ Training entry points:
 
 `DifferentiatingModel._assemble_loss` is the single implementation of the
 negative log-likelihood. This section expands the nuisance-dependent expression
-from the paper into the terms used in code. Let `eta(x)` be the bounded detector
+from the paper into the terms used in code. Let `theta(x)` be the bounded detector
 nuisance, `f(x)` and `g(x)` the learned log-density ratios, and `a` and `b` the
 fractions of A and B events in the signal region (SR). The SR contribution is
 
 ```text
-L_SR = sum_x in SR [a exp(f(x)) (1 + eta(x))
-                     + b exp(g(x)) (1 - eta(x))]
-       - sum_x in A_SR [f(x) + log(1 + eta(x))]
-       - sum_x in B_SR [g(x) + log(1 - eta(x))].
+L_SR = sum_x in SR [a exp(f(x)) (1 + theta(x))
+                     + b exp(g(x)) (1 - theta(x))]
+       - sum_x in A_SR [f(x) + log(1 + theta(x))]
+       - sum_x in B_SR [g(x) + log(1 - theta(x))].
 ```
 
 The control region (CR) fixes `f = g = 0`. With
 `c = (N_A_CR - N_B_CR) / N_CR`, its contribution is
 
 ```text
-L_CR = N_CR + c sum_x in CR eta(x)
-       - sum_x in A_CR log(1 + eta(x))
-       - sum_x in B_CR log(1 - eta(x)).
+L_CR = N_CR + c sum_x in CR theta(x)
+       - sum_x in A_CR log(1 + theta(x))
+       - sum_x in B_CR log(1 - theta(x)).
 ```
 
 With f/g estimates, the implementation returns the paper's numerator loss
 `L^num = L_SR + L_CR`. When f/g estimates are absent, it returns the denominator
 loss `L^denom`: equivalently, set `f = g = 0` above, so the SR expected-density
-term reduces to `N_SR + (a - b) sum_x in SR eta(x)` while the nuisance observed
+term reduces to `N_SR + (a - b) sum_x in SR theta(x)` while the nuisance observed
 log terms remain. This is how the two paper expressions select the two branches
 of `_assemble_loss`.
 
 In the implementation, `signal_region_expected_density`, the f/g and nuisance
 `*_observed_log_term` values, and `control_region_linear_nuisance_term` map
 directly to the expected-density, observed, and linear terms above.
-`NuisanceCalculation` only supplies `eta` values and CR event
+`NuisanceCalculation` only supplies `theta` values and CR event
 weights: neural nuisance uses one weight per event, while scalar nuisance uses
 one weight per occupied detector bin equal to its event multiplicity. Thus both
 representations evaluate the same expression without duplicating its loss

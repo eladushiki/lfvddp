@@ -137,7 +137,7 @@ def _reference_loss(
             zero_b_cr,
         )
     )
-    eta = torch.cat(
+    theta = torch.cat(
         (
             eta_of_x_sr[:number_of_a_sr_events],
             eta_of_x_cr[:number_of_a_cr_events],
@@ -154,17 +154,17 @@ def _reference_loss(
     category_masks = []
     offset = 0
     for category_size in category_sizes:
-        mask = torch.zeros_like(eta, dtype=torch.bool)
+        mask = torch.zeros_like(theta, dtype=torch.bool)
         mask[offset : offset + category_size] = True
         category_masks.append(mask)
         offset += category_size
     a_sr_mask, a_cr_mask, b_sr_mask, b_cr_mask = category_masks
     sr_mask = a_sr_mask | b_sr_mask
     cr_mask = a_cr_mask | b_cr_mask
-    eta_a = eta * (a_sr_mask | a_cr_mask)
-    eta_b = eta * (b_sr_mask | b_cr_mask)
-    eta_sr = eta * sr_mask
-    eta_cr = eta * cr_mask
+    eta_a = theta * (a_sr_mask | a_cr_mask)
+    eta_b = theta * (b_sr_mask | b_cr_mask)
+    eta_sr = theta * sr_mask
+    eta_cr = theta * cr_mask
     sr_term = (
         number_of_a_sr_events * torch.exp(f) * (1 + eta_sr) * sr_mask
         + number_of_b_sr_events * torch.exp(g) * (1 - eta_sr) * sr_mask

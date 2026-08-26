@@ -701,7 +701,7 @@ def plot_prediction_process_1d(
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
     The numerator model's ``predict`` and ``predict_secondary`` outputs provide
-    the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
+    the combined e^f(1+theta) and e^g(1-theta) predictions. NPLM model compatibility
     is intentionally out of scope.
     """
     selected_observables = utils__prediction_process_observables(
@@ -834,14 +834,14 @@ def plot_prediction_process_1d(
         (
             sr_exp_f_eta_plus,
             a_sr.n_samples,
-            r"$e^{f(x)}(1+\eta(x))$ prediction",
+            r"$e^{f(x)}(1+\theta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
             b_sr.n_samples,
-            r"$e^{g(x)}(1-\eta(x))$ prediction",
+            r"$e^{g(x)}(1-\theta(x))$ prediction",
             plot_colors["g"],
             "s",
         ),
@@ -865,14 +865,14 @@ def plot_prediction_process_1d(
         (
             1.0 + cr_eta,
             a_cr.n_samples,
-            r"null hypothesis $1+\eta(x)$ prediction",
+            r"null hypothesis $1+\theta(x)$ prediction",
             plot_colors["eta_plus"],
             "o",
         ),
         (
             1.0 - cr_eta,
             b_cr.n_samples,
-            r"null hypothesis $1-\eta(x)$ prediction",
+            r"null hypothesis $1-\theta(x)$ prediction",
             plot_colors["eta_minus"],
             "s",
         ),
@@ -980,13 +980,13 @@ def plot_prediction_process_1d(
             prediction_linestyles["product"],
         ),
         "exp_f_eta_plus": (
-            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+            r"signal hypothesis $e^{f(x)}(1+\theta(x))$",
             spanning_exp_f_eta_plus,
             plot_colors["f_light"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+            r"signal hypothesis $e^{g(x)}(1-\theta(x))$",
             spanning_exp_g_eta_minus,
             plot_colors["g_light"],
             prediction_linestyles["component"],
@@ -999,25 +999,25 @@ def plot_prediction_process_1d(
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
             "numerator_eta_plus": (
-                r"signal hypothesis $1+\eta(x)$",
+                r"signal hypothesis $1+\theta(x)$",
                 1.0 + numerator_eta,
                 plot_colors["eta_plus"],
                 prediction_linestyles["component"],
             ),
             "numerator_eta_minus": (
-                r"signal hypothesis $1-\eta(x)$",
+                r"signal hypothesis $1-\theta(x)$",
                 1.0 - numerator_eta,
                 plot_colors["eta_minus"],
                 prediction_linestyles["component"],
             ),
             "denominator_eta_plus": (
-                r"null hypothesis $1+\eta(x)$",
+                r"null hypothesis $1+\theta(x)$",
                 1.0 + denominator_eta,
                 plot_colors["eta_plus_light"],
                 prediction_linestyles["denominator"],
             ),
             "denominator_eta_minus": (
-                r"null hypothesis $1-\eta(x)$",
+                r"null hypothesis $1-\theta(x)$",
                 1.0 - denominator_eta,
                 plot_colors["eta_minus_light"],
                 prediction_linestyles["denominator"],
@@ -1123,7 +1123,7 @@ def plot_prediction_process_2d(
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
     The numerator model's ``predict`` and ``predict_secondary`` outputs provide
-    the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
+    the combined e^f(1+theta) and e^g(1-theta) predictions. NPLM model compatibility
     is intentionally out of scope.
     """
     selected_observables = utils__prediction_process_observables(
@@ -1252,14 +1252,14 @@ def plot_prediction_process_2d(
         (
             sr_exp_f_eta_plus,
             a_sr.n_samples,
-            r"$e^{f(x)}(1+\eta(x))$ prediction",
+            r"$e^{f(x)}(1+\theta(x))$ prediction",
             plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
             b_sr.n_samples,
-            r"$e^{g(x)}(1-\eta(x))$ prediction",
+            r"$e^{g(x)}(1-\theta(x))$ prediction",
             plot_colors["g"],
             "s",
         ),
@@ -1283,14 +1283,14 @@ def plot_prediction_process_2d(
         (
             1.0 + cr_eta,
             a_cr.n_samples,
-            r"null hypothesis $1+\eta(x)$ prediction",
+            r"null hypothesis $1+\theta(x)$ prediction",
             plot_colors["eta_plus"],
             "o",
         ),
         (
             1.0 - cr_eta,
             b_cr.n_samples,
-            r"null hypothesis $1-\eta(x)$ prediction",
+            r"null hypothesis $1-\theta(x)$ prediction",
             plot_colors["eta_minus"],
             "s",
         ),
@@ -1372,13 +1372,13 @@ def plot_prediction_process_2d(
     )
     sr_prediction_specs = {
         "exp_f_eta_plus": (
-            r"signal hypothesis $e^{f(x)}(1+\eta(x))$",
+            r"signal hypothesis $e^{f(x)}(1+\theta(x))$",
             spanning_exp_f_eta_plus,
             plot_colors["f"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $e^{g(x)}(1-\eta(x))$",
+            r"signal hypothesis $e^{g(x)}(1-\theta(x))$",
             spanning_exp_g_eta_minus,
             plot_colors["g"],
             prediction_linestyles["component"],
@@ -1390,13 +1390,13 @@ def plot_prediction_process_2d(
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
             "denominator_eta_plus": (
-                r"null hypothesis $1+\eta(x)$",
+                r"null hypothesis $1+\theta(x)$",
                 1.0 + denominator_eta,
                 plot_colors["eta_plus"],
                 prediction_linestyles["denominator"],
             ),
             "denominator_eta_minus": (
-                r"null hypothesis $1-\eta(x)$",
+                r"null hypothesis $1-\theta(x)$",
                 1.0 - denominator_eta,
                 plot_colors["eta_minus"],
                 prediction_linestyles["denominator"],

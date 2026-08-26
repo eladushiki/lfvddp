@@ -1229,7 +1229,7 @@ def utils__remove_eta_from_prediction_values(
     eta_values: np.ndarray,
     eta_sign: float,
 ) -> np.ndarray:
-    """Remove the clamped 1±eta factor from a combined LFVDDP prediction."""
+    """Remove the clamped 1±theta factor from a combined LFVDDP prediction."""
     eta_term = np.clip(1.0 + eta_sign * eta_values, a_min=1e-12, a_max=None)
     return prediction_values / eta_term
 
