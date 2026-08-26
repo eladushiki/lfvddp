@@ -45,6 +45,9 @@ tmp*/
 *.out
 *.gz
 *.toc
+## Beamer
+*.nav
+*.snm
 
 # IDE
 .vscode/
