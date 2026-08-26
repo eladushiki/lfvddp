@@ -1,3 +1,4 @@
 [submodule "neural_networks/NPLM"]
 	path = neural_networks/NPLM
 	url = https://github.com/GaiaGrosso/NPLM_package.git
+	ignore = untracked
