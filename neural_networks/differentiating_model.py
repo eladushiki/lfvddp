@@ -10,9 +10,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
+from torch import nn, optim
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
@@ -22,12 +21,11 @@ from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.nuisance_calculation import (
-    NeuralPerEventNuisanceCalculation,
-    NoNuisanceCalculation,
+    BlankNuisanceEstimator,
+    NeuralPerEventNuisanceEstimator,
     NuisanceEvaluation,
     PreparedNuisanceData,
-    ScalarBinnedNuisanceCalculation,
-    _ThetaEstimator,
+    ScalarBinnedNuisanceEstimator,
 )
 from neural_networks.utils import (
     ContextedModel,
@@ -42,25 +40,25 @@ LFVNN_DTYPE = torch.float64
 
 @dataclass(frozen=True)
 class _PreparedTrainingData:
-    sr_data: torch.Tensor
+    sr_events: torch.Tensor
     nuisance_data: PreparedNuisanceData
     a_sr_mask: torch.Tensor
     b_sr_mask: torch.Tensor
-    number_of_a_sr_events: int
-    number_of_b_sr_events: int
-    number_of_a_cr_events: int
-    number_of_b_cr_events: int
-    a_sr_coefficient: float
-    b_sr_coefficient: float
-    control_region_linear_nuisance_coefficient: float
+    N_a_sr: int
+    N_b_sr: int
+    N_a_cr: int
+    N_b_cr: int
+    n_a_sr_over_n_sr: float
+    n_b_sr_over_n_sr: float
+    nuisance_cr_coefficient: float
 
     @property
-    def number_of_sr_events(self) -> int:
-        return self.number_of_a_sr_events + self.number_of_b_sr_events
+    def N_sr(self) -> int:
+        return self.N_a_sr + self.N_b_sr
 
     @property
     def number_of_cr_events(self) -> int:
-        return self.number_of_a_cr_events + self.number_of_b_cr_events
+        return self.N_a_cr + self.N_b_cr
 
 
 class _PairedEstimator(nn.Module):
@@ -117,10 +115,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
-        self.nuisance_calculation = self._build_nuisance_calculation()
+        self.nuisance_calculation = self._build_nuisance_estimators()
 
         # Add layers by spec. We would add two NNs to express f, g separately.
-        self._build_layers()
+        self._build_signal_hypothsis_estimators()
 
         # Initialize NN parameters according to strategy
         self._initialize_parameters()
@@ -134,22 +132,27 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _device(self) -> torch.device:
         return self._assigned_device
 
-    def _build_nuisance_calculation(self):
+    def _build_nuisance_estimators(self):
         if not self._config.train__data_is_train_for_nuisances:
-            return NoNuisanceCalculation(self._dtype, self._device)
-        if self._config.train__nuisance_is_neural_network:
-            return NeuralPerEventNuisanceCalculation(
-                self._config.train__nn_input_dimension,
-                self._config.train__nuisance_nn_inner_layer_nodes,
-                self._config.train__nn_output_dimension,
-                self._dtype,
-                self._device,
+            return BlankNuisanceEstimator(
+                dtype=self._dtype,
+                device=self._device,
             )
-        return ScalarBinnedNuisanceCalculation(
-            self._detector_effect, self._dtype, self._device
+        if self._config.train__nuisance_is_neural_network:
+            return NeuralPerEventNuisanceEstimator(
+                input_dimension=self._config.train__nn_input_dimension,
+                hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
+                output_dimension=self._config.train__nn_output_dimension,
+                dtype=self._dtype,
+                device=self._device,
+            )
+        return ScalarBinnedNuisanceEstimator(
+            detector_effect=self._detector_effect,
+            dtype=self._dtype,
+            device=self._device,
         )
 
-    def _build_layers(self):
+    def _build_signal_hypothsis_estimators(self):
         self.paired_network = (
             _PairedEstimator(
                 input_dimension=self._config.train__nn_input_dimension,
@@ -227,98 +230,116 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/f_and_g_networks"):
-            estimates = (
+            signal_hypothesis_sr_estimates = (
                 None
                 if self.paired_network is None
-                else self._network_estimates(data.sr_data)
+                else self._network_estimates(data.sr_events)
             )
         with profile_region("training/nuisance_eta"):
-            nuisance = self.nuisance_calculation.evaluate(data=data.nuisance_data)
-        return self._assemble_loss(signal_hypothesis_estimates=estimates, nuisance_estimates=nuisance, data=data)
+            nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
+        return self._assemble_loss(
+            signal_hypothesis_sr_estimates=signal_hypothesis_sr_estimates,
+            nuisance_estimates=nuisance_estimates,
+            data=data,
+        )
 
     @staticmethod
     def _assemble_loss(
         *,
-        signal_hypothesis_estimates: Optional[tuple[torch.Tensor, torch.Tensor]],
+        signal_hypothesis_sr_estimates: Optional[tuple[torch.Tensor, torch.Tensor]],
         nuisance_estimates: NuisanceEvaluation,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
 
-        For a signal-region event x, let a and b be the observed SR fractions,
-        eta(x) the bounded detector nuisance, and f(x), g(x) the learned
-        log-density ratios.  The expected density term is
+        For a signal-region event x, theta(x) the learned detector nuisance,
+        and f(x), g(x) the learned signal hypothesis sifts for a, b in the
+        signal region.
 
-            a exp(f(x)) (1 + eta(x)) + b exp(g(x)) (1 - eta(x)).
+        The SR loss term:
+            in the numerator (signal hypotehsis) is:
 
-        The observed-event terms are -f(x) for A and -g(x) for B.  In the
-        control region f=g=0, leaving the same nuisance likelihood with the
-        observed log terms -log(1 + eta) for A and -log(1 - eta) for B.
-        With estimates, this returns the paper's numerator loss L^num; without
-        them, it returns the denominator loss L^denom. README.md documents the
-        correspondence of each named term.
+                sum_sr (
+                    N_a_sr exp(f(x)) (1 + theta(x)) + N_b_sr exp(g(x)) (1 - theta(x))
+                )
+                - sum_a_sr f(x) - sum_b_sr g(x) 
+
+            in the denominator (null hypothesis) is:
+
+                sum_sr (
+                    N_a_sr (1 + theta(x)) + N_b_sr (1 - theta(x))
+                )
+            
+        The CR term, in both cases:
+
+            sum_cr (
+                N_a_cr (1 + theta(x)) + N_b_cr (1 - theta(x))
+            )
+            - sum_a log(1 + theta(x)) - sum_b (1 - theta(x))
+        
         """
-        signal_region_nuisance = nuisance_estimates.signal_region_values
-        control_region_nuisance = nuisance_estimates.control_region_values
 
-        signal_region_a_nuisance_observed_log_term = -torch.log1p(
-            signal_region_nuisance[data.a_sr_mask]
+        nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
+        nuisance_cr_estimates = nuisance_estimates.nuisacne_cr_values
+
+        common_a_sr_nuisance_log_term = -torch.log1p(
+            nuisance_sr_estimates[data.a_sr_mask]
         ).sum()
-        signal_region_b_nuisance_observed_log_term = -torch.log1p(
-            -signal_region_nuisance[data.b_sr_mask]
+        common_b_sr_nuisance_log_term = -torch.log1p(
+            -nuisance_sr_estimates[data.b_sr_mask]
         ).sum()
 
-        control_region_linear_nuisance_term = (
-            data.control_region_linear_nuisance_coefficient
+        cr_linear_nuisance_term = (
+            data.nuisance_cr_coefficient
             * torch.dot(
-                control_region_nuisance,
-                nuisance_estimates.control_region_a_weights
-                + nuisance_estimates.control_region_b_weights,
+                nuisance_cr_estimates,
+                nuisance_estimates.nuisance_cr_a_weights
+                + nuisance_estimates.nuisance_cr_b_weights,
             )
         )
-        control_region_a_observed_log_term = -torch.dot(
-            torch.log1p(control_region_nuisance),
-            nuisance_estimates.control_region_a_weights,
+        a_cr_log_term = -torch.dot(
+            torch.log1p(nuisance_cr_estimates),
+            nuisance_estimates.nuisance_cr_a_weights,
         )
-        control_region_b_observed_log_term = -torch.dot(
-            torch.log1p(-control_region_nuisance),
-            nuisance_estimates.control_region_b_weights,
+        b_cr_log_term = -torch.dot(
+            torch.log1p(-nuisance_cr_estimates),
+            nuisance_estimates.nuisance_cr_b_weights,
         )
-        control_region_loss = (
+        cr_loss = (
             data.number_of_cr_events
-            + control_region_linear_nuisance_term
-            + control_region_a_observed_log_term
-            + control_region_b_observed_log_term
+            + cr_linear_nuisance_term
+            + a_cr_log_term
+            + b_cr_log_term
         )
 
-        if signal_hypothesis_estimates is None:
-            signal_region_loss = (
-                data.number_of_sr_events
-                + (data.a_sr_coefficient - data.b_sr_coefficient)
-                * signal_region_nuisance.sum()
-                + signal_region_a_nuisance_observed_log_term
-                + signal_region_b_nuisance_observed_log_term
+        if signal_hypothesis_sr_estimates is None:
+            null_hypothesis_sr_loss = (
+                data.N_sr
+                + (data.n_a_sr_over_n_sr - data.n_b_sr_over_n_sr)
+                * nuisance_sr_estimates.sum()
+                + common_a_sr_nuisance_log_term
+                + common_b_sr_nuisance_log_term
             )
-            return signal_region_loss + control_region_loss
+            return null_hypothesis_sr_loss + cr_loss
 
-        f_of_x_sr, g_of_x_sr = signal_hypothesis_estimates
-        a_expected_density = data.a_sr_coefficient * torch.exp(f_of_x_sr)
-        b_expected_density = data.b_sr_coefficient * torch.exp(g_of_x_sr)
-        signal_region_expected_density = torch.addcmul(
-            a_expected_density + b_expected_density,
-            signal_region_nuisance,
-            a_expected_density - b_expected_density,
+        f_sr_estimates, g_sr_estimates = signal_hypothesis_sr_estimates
+        signal_hypothesis_a_sr_term = data.n_a_sr_over_n_sr * torch.exp(f_sr_estimates)
+        signal_hypothesis_b_sr_term = data.n_b_sr_over_n_sr * torch.exp(g_sr_estimates)
+        signal_hypothesis_sr_term = torch.addcmul(
+            signal_hypothesis_a_sr_term + signal_hypothesis_b_sr_term,
+            nuisance_sr_estimates,
+            signal_hypothesis_a_sr_term - signal_hypothesis_b_sr_term,
         )
-        signal_region_a_observed_log_term = -f_of_x_sr[data.a_sr_mask].sum()
-        signal_region_b_observed_log_term = -g_of_x_sr[data.b_sr_mask].sum()
-        signal_region_loss = (
-            signal_region_expected_density.sum()
-            + signal_region_a_observed_log_term
-            + signal_region_b_observed_log_term
-            + signal_region_a_nuisance_observed_log_term
-            + signal_region_b_nuisance_observed_log_term
+        signal_hypothesis_a_sr_f_log_term = -f_sr_estimates[data.a_sr_mask].sum()
+        signal_hypothesis_b_sr_g_log_term = -g_sr_estimates[data.b_sr_mask].sum()
+        signal_hypothesis_sr_loss = (
+            signal_hypothesis_sr_term.sum()
+            + signal_hypothesis_a_sr_f_log_term
+            + signal_hypothesis_b_sr_g_log_term
+            + common_a_sr_nuisance_log_term
+            + common_b_sr_nuisance_log_term
         )
-        return signal_region_loss + control_region_loss
+        return signal_hypothesis_sr_loss + cr_loss
 
     def _prepare_training_data(self, data: DataBatch) -> _PreparedTrainingData:
         normalized_data, self._norm_factor = data.get_normalized()
@@ -332,11 +353,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         a_cr = data.datasets[categories.A_CR]
         b_cr = data.datasets[categories.B_CR]
 
-        number_of_sr_events = a_sr.n_samples + b_sr.n_samples
-        number_of_cr_events = a_cr.n_samples + b_cr.n_samples
-        if number_of_sr_events == 0:
+        N_sr = a_sr.n_samples + b_sr.n_samples
+        N_cr = a_cr.n_samples + b_cr.n_samples
+        if N_sr == 0:
             raise ValueError("Training requires at least one SR event.")
-        if number_of_cr_events == 0:
+        if N_cr == 0:
             raise ValueError("Training requires at least one CR event.")
 
         normalized_sr = DataSet(
@@ -371,20 +392,18 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
         )
         return _PreparedTrainingData(
-            sr_data=sr_data,
+            sr_events=sr_data,
             nuisance_data=nuisance_data,
             a_sr_mask=a_sr_mask,
             b_sr_mask=~a_sr_mask,
-            number_of_a_sr_events=a_sr.n_samples,
-            number_of_b_sr_events=b_sr.n_samples,
-            number_of_a_cr_events=a_cr.n_samples,
-            number_of_b_cr_events=b_cr.n_samples,
-            a_sr_coefficient=a_sr.n_samples / number_of_sr_events,
-            b_sr_coefficient=b_sr.n_samples / number_of_sr_events,
-            control_region_linear_nuisance_coefficient=(
-                a_cr.n_samples - b_cr.n_samples
-            )
-            / number_of_cr_events,
+            N_a_sr=a_sr.n_samples,
+            N_b_sr=b_sr.n_samples,
+            N_a_cr=a_cr.n_samples,
+            N_b_cr=b_cr.n_samples,
+            n_a_sr_over_n_sr=a_sr.n_samples / N_sr,
+            n_b_sr_over_n_sr=b_sr.n_samples / N_sr,
+            nuisance_cr_coefficient=(a_cr.n_samples - b_cr.n_samples)
+            / N_cr,
         )
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:

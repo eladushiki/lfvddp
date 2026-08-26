@@ -625,7 +625,7 @@ def test_lfvnn_prepared_data_and_optimizer_use_assigned_cuda_device(
     optimizer.step()
 
     assert {parameter.device.type for parameter in model.parameters()} == {"cuda"}
-    assert prepared.sr_data.device.type == "cuda"
+    assert prepared.sr_events.device.type == "cuda"
     assert prepared.nuisance_bin_indices is not None
     assert prepared.nuisance_bin_indices.device.type == "cuda"
     assert prepared.a_cr_bin_counts is not None

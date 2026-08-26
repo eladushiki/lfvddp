@@ -26,10 +26,10 @@ class NuisanceEvaluation:
     event multiplicities.  The differentiating model owns the loss formula.
     """
 
-    signal_region_values: torch.Tensor
-    control_region_values: torch.Tensor
-    control_region_a_weights: torch.Tensor
-    control_region_b_weights: torch.Tensor
+    nuisance_sr_values: torch.Tensor
+    nuisacne_cr_values: torch.Tensor
+    nuisance_cr_a_weights: torch.Tensor
+    nuisance_cr_b_weights: torch.Tensor
 
 
 @dataclass(frozen=True)
@@ -41,9 +41,9 @@ class PreparedNuisanceData:
 
 @dataclass(frozen=True)
 class _ScalarPreparedNuisanceData(PreparedNuisanceData):
-    cr_bin_indices: torch.Tensor
-    a_cr_multiplicities: torch.Tensor
-    b_cr_multiplicities: torch.Tensor
+    nuisance_cr_bin_indices: torch.Tensor
+    nuisance_cr_a_multiplicities: torch.Tensor
+    nuisance_cr_b_multiplicities: torch.Tensor
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ class NuisanceCalculation(nn.Module, ABC):
         """Clamp trainable nuisance parameters, when needed."""
 
 
-class NoNuisanceCalculation(NuisanceCalculation):
+class BlankNuisanceEstimator(NuisanceCalculation):
     """A zero-nuisance representation for runs without nuisance training."""
 
     def prepare(
@@ -109,18 +109,18 @@ class NoNuisanceCalculation(NuisanceCalculation):
             0, dtype=self._dtype, device=self._device
         )
         return NuisanceEvaluation(
-            signal_region_values=torch.zeros(
+            nuisance_sr_values=torch.zeros(
                 data.sr_inputs.shape[0],
                 dtype=self._dtype,
                 device=self._device,
             ),
-            control_region_values=empty_control_region,
-            control_region_a_weights=empty_control_region,
-            control_region_b_weights=empty_control_region,
+            nuisacne_cr_values=empty_control_region,
+            nuisance_cr_a_weights=empty_control_region,
+            nuisance_cr_b_weights=empty_control_region,
         )
 
 
-class ScalarBinnedNuisanceCalculation(NuisanceCalculation):
+class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
     """A bounded scalar nuisance value for every detector-bin combination."""
 
     def __init__(
@@ -182,12 +182,12 @@ class ScalarBinnedNuisanceCalculation(NuisanceCalculation):
         number_of_cr_bins = unique_indices.shape[0]
         return _ScalarPreparedNuisanceData(
             sr_inputs=self._bin_indices(raw_sr),
-            cr_bin_indices=unique_indices,
-            a_cr_multiplicities=torch.bincount(
+            nuisance_cr_bin_indices=unique_indices,
+            nuisance_cr_a_multiplicities=torch.bincount(
                 inverse_indices[: raw_a_cr.n_samples],
                 minlength=number_of_cr_bins,
             ).to(self._dtype),
-            b_cr_multiplicities=torch.bincount(
+            nuisance_cr_b_multiplicities=torch.bincount(
                 inverse_indices[raw_a_cr.n_samples :],
                 minlength=number_of_cr_bins,
             ).to(self._dtype),
@@ -198,10 +198,10 @@ class ScalarBinnedNuisanceCalculation(NuisanceCalculation):
             raise TypeError("Scalar nuisance data was not prepared by this calculation.")
 
         return NuisanceEvaluation(
-            signal_region_values=self._values(data.sr_inputs),
-            control_region_values=self._values(data.cr_bin_indices),
-            control_region_a_weights=data.a_cr_multiplicities,
-            control_region_b_weights=data.b_cr_multiplicities,
+            nuisance_sr_values=self._values(data.sr_inputs),
+            nuisacne_cr_values=self._values(data.nuisance_cr_bin_indices),
+            nuisance_cr_a_weights=data.nuisance_cr_a_multiplicities,
+            nuisance_cr_b_weights=data.nuisance_cr_b_multiplicities,
         )
 
     def initialize_parameters(self, gain: float) -> None:
@@ -233,7 +233,7 @@ class _ThetaEstimator(nn.Module):
         return self.output(self.activation(self.hidden(events))).squeeze(-1)
 
 
-class NeuralPerEventNuisanceCalculation(NuisanceCalculation):
+class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
     """A neural nuisance function evaluated independently for each event."""
 
     def __init__(
@@ -297,16 +297,16 @@ class NeuralPerEventNuisanceCalculation(NuisanceCalculation):
             raise TypeError("Neural nuisance data was not prepared by this calculation.")
 
         return NuisanceEvaluation(
-            signal_region_values=self.network(data.sr_inputs).clamp(
+            nuisance_sr_values=self.network(data.sr_inputs).clamp(
                 min=-_NUISANCE_BOUND,
                 max=_NUISANCE_BOUND,
             ),
-            control_region_values=self.network(data.cr_inputs).clamp(
+            nuisacne_cr_values=self.network(data.cr_inputs).clamp(
                 min=-_NUISANCE_BOUND,
                 max=_NUISANCE_BOUND,
             ),
-            control_region_a_weights=data.a_cr_mask.to(self._dtype),
-            control_region_b_weights=data.b_cr_mask.to(self._dtype),
+            nuisance_cr_a_weights=data.a_cr_mask.to(self._dtype),
+            nuisance_cr_b_weights=data.b_cr_mask.to(self._dtype),
         )
 
     def initialize_parameters(self, gain: float) -> None:
