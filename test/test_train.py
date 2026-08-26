@@ -10,12 +10,12 @@ from neural_networks.differentiating_model import (
     DifferentiatingModel,
     _PairedEstimator,
     _PreparedTrainingData,
-    _ThetaEstimator,
 )
 from neural_networks.nuisance_calculation import (
     NeuralPerEventNuisanceEstimator,
     NuisanceEvaluation,
     ScalarBinnedNuisanceEstimator,
+    _ThetaEstimator,
 )
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
 from train.checkpoints import (
@@ -228,7 +228,7 @@ def _assemble_compact_loss_for_test(
     )
     nuisance = NuisanceEvaluation(
         nuisance_sr_values=eta_sr,
-        nuisacne_cr_values=eta_cr,
+        nuisance_cr_values=eta_cr,
         nuisance_cr_a_weights=a_cr_multiplicities,
         nuisance_cr_b_weights=b_cr_multiplicities,
     )
@@ -456,15 +456,16 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     prepared = model._prepare_training_data(detected_batch)
 
     assert isinstance(model.nuisance_calculation, ScalarBinnedNuisanceEstimator)
-    assert prepared.nuisance_data.cr_bin_indices is not None
-    assert int(prepared.nuisance_data.a_cr_multiplicities.sum()) == (
+    assert prepared.nuisance_data.nuisance_cr_bin_indices is not None
+    assert int(prepared.nuisance_data.nuisance_cr_a_multiplicities.sum()) == (
         prepared.N_a_cr
     )
-    assert int(prepared.nuisance_data.b_cr_multiplicities.sum()) == (
+    assert int(prepared.nuisance_data.nuisance_cr_b_multiplicities.sum()) == (
         prepared.N_b_cr
     )
     assert (
-        prepared.nuisance_data.cr_bin_indices.shape[0] <= prepared.number_of_cr_events
+        prepared.nuisance_data.nuisance_cr_bin_indices.shape[0]
+        <= prepared.number_of_cr_events
     )
 
     loss = model(prepared)

@@ -280,7 +280,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         """
 
         nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
-        nuisance_cr_estimates = nuisance_estimates.nuisacne_cr_values
+        nuisance_cr_estimates = nuisance_estimates.nuisance_cr_values
 
         common_a_sr_nuisance_log_term = -torch.log1p(
             nuisance_sr_estimates[data.a_sr_mask]
