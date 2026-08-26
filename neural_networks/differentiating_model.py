@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import torch
-import torch.nn.functional as F
 from torch import nn, optim
 from tqdm.auto import tqdm
 
@@ -61,8 +60,8 @@ class _PreparedTrainingData:
         return self.N_a_cr + self.N_b_cr
 
 
-class _PairedEstimator(nn.Module):
-    """Evaluate the independent f and g networks with one shared input GEMM."""
+class _SignalDeviationEstimator(nn.Module):
+    """Estimate the single bounded SR deviation f used by both categories."""
 
     def __init__(
         self,
@@ -72,25 +71,13 @@ class _PairedEstimator(nn.Module):
         dtype: torch.dtype,
     ) -> None:
         super().__init__()
-        self.hidden_size = hidden_size
-        self.hidden = nn.Linear(input_dimension, 2 * hidden_size, dtype=dtype)
+        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype)
         self.activation = nn.Sigmoid()
-        self.f_output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
-        self.g_output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
+        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
 
-    def forward(self, events: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        hidden = self.activation(self.hidden(events))
-        paired_weight = torch.cat(
-            (
-                F.pad(self.f_output.weight, (0, self.hidden_size)),
-                F.pad(self.g_output.weight, (self.hidden_size, 0)),
-            ),
-            dim=0,
-        )
-        paired_bias = torch.cat((self.f_output.bias, self.g_output.bias))
-        raw_estimates = F.linear(hidden, paired_weight, paired_bias)
-        estimates = _bounded_sr_deviation(raw_estimates)
-        return estimates[:, :1], estimates[:, 1:]
+    def forward(self, events: torch.Tensor) -> torch.Tensor:
+        raw_estimate = self.output(self.activation(self.hidden(events)))
+        return _bounded_sr_deviation(raw_estimate)
 
 
 def _bounded_sr_deviation(raw_estimates: torch.Tensor) -> torch.Tensor:
@@ -129,8 +116,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._assigned_device = torch.device(device)
         self.nuisance_calculation = self._build_nuisance_estimators()
 
-        # Add layers by spec. We would add two NNs to express f, g separately.
-        self._build_signal_hypothsis_estimators()
+        self._build_signal_hypothesis_estimator()
 
         # Initialize NN parameters according to strategy
         self._initialize_parameters()
@@ -164,9 +150,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             device=self._device,
         )
 
-    def _build_signal_hypothsis_estimators(self):
-        self.paired_network = (
-            _PairedEstimator(
+    def _build_signal_hypothesis_estimator(self) -> None:
+        self.signal_network = (
+            _SignalDeviationEstimator(
                 input_dimension=self._config.train__nn_input_dimension,
                 hidden_size=self._config.train__nn_inner_layer_nodes,
                 output_dimension=self._config.train__nn_output_dimension,
@@ -185,29 +171,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__nn_xavier_gain
 
-        if self.paired_network is not None:
-            hidden_size = self.paired_network.hidden_size
-            for hidden_slice, output_layer in (
-                (
-                    slice(0, hidden_size),
-                    self.paired_network.f_output,
-                ),
-                (
-                    slice(hidden_size, 2 * hidden_size),
-                    self.paired_network.g_output,
-                ),
-            ):
-                nn.init.xavier_uniform_(
-                    self.paired_network.hidden.weight[hidden_slice],
-                    gain=gain,
-                )
-                nn.init.uniform_(
-                    self.paired_network.hidden.bias[hidden_slice],
-                    a=-0.3,
-                    b=0.3,
-                )
-                nn.init.xavier_uniform_(output_layer.weight, gain=gain)
-                nn.init.uniform_(output_layer.bias, a=-0.3, b=0.3)
+        if self.signal_network is not None:
+            nn.init.xavier_uniform_(self.signal_network.hidden.weight, gain=gain)
+            nn.init.uniform_(self.signal_network.hidden.bias, a=-0.3, b=0.3)
+            nn.init.xavier_uniform_(self.signal_network.output.weight, gain=gain)
+            nn.init.uniform_(self.signal_network.output.bias, a=-0.3, b=0.3)
 
         self.nuisance_calculation.initialize_parameters(gain)
 
@@ -226,14 +194,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         return optimizer
 
-    def _network_estimates(
-        self,
-        sr_data: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        if self.paired_network is None:
-            raise RuntimeError("The denominator has no f/g estimator.")
-        f_estimate, g_estimate = self.paired_network(sr_data)
-        return f_estimate.squeeze(-1), g_estimate.squeeze(-1)
+    def _signal_deviation(self, sr_events: torch.Tensor) -> torch.Tensor:
+        if self.signal_network is None:
+            raise RuntimeError("The denominator has no signal estimator.")
+        return self.signal_network(sr_events).squeeze(-1)
 
     def forward(
         self,
@@ -241,16 +205,16 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         profiler: Optional[TrainingProfiler] = None,
     ) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
-        with profile_region("training/f_and_g_networks"):
-            signal_hypothesis_sr_estimates = (
+        with profile_region("training/signal_network"):
+            signal_hypothesis_sr_estimate = (
                 None
-                if self.paired_network is None
-                else self._network_estimates(data.sr_events)
+                if self.signal_network is None
+                else self._signal_deviation(data.sr_events)
             )
         with profile_region("training/nuisance_theta"):
             nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
         return self._assemble_loss(
-            signal_hypothesis_sr_estimates=signal_hypothesis_sr_estimates,
+            signal_hypothesis_sr_estimate=signal_hypothesis_sr_estimate,
             nuisance_estimates=nuisance_estimates,
             data=data,
         )
@@ -258,7 +222,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     @staticmethod
     def _assemble_loss(
         *,
-        signal_hypothesis_sr_estimates: Optional[tuple[torch.Tensor, torch.Tensor]],
+        signal_hypothesis_sr_estimate: Optional[torch.Tensor],
         nuisance_estimates: NuisanceEvaluation,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
@@ -324,7 +288,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             + b_cr_log_term
         )
 
-        if signal_hypothesis_sr_estimates is None:
+        if signal_hypothesis_sr_estimate is None:
             null_hypothesis_sr_loss = (
                 data.N_sr
                 + (data.n_a_sr_over_n_sr - data.n_b_sr_over_n_sr)
@@ -334,12 +298,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
             return null_hypothesis_sr_loss + cr_loss
 
-        f_sr_estimates, g_sr_estimates = signal_hypothesis_sr_estimates
+        f_sr_estimate = signal_hypothesis_sr_estimate
         signal_hypothesis_a_sr_term = data.n_a_sr_over_n_sr * _linear_sr_weight(
-            f_sr_estimates, sign=1
+            f_sr_estimate, sign=1
         )
         signal_hypothesis_b_sr_term = data.n_b_sr_over_n_sr * _linear_sr_weight(
-            g_sr_estimates, sign=-1
+            f_sr_estimate, sign=-1
         )
         signal_hypothesis_sr_term = torch.addcmul(
             signal_hypothesis_a_sr_term + signal_hypothesis_b_sr_term,
@@ -347,15 +311,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             signal_hypothesis_a_sr_term - signal_hypothesis_b_sr_term,
         )
         signal_hypothesis_a_sr_f_log_term = -torch.log(
-            _linear_sr_weight(f_sr_estimates[data.a_sr_mask], sign=1)
+            _linear_sr_weight(f_sr_estimate[data.a_sr_mask], sign=1)
         ).sum()
-        signal_hypothesis_b_sr_g_log_term = -torch.log(
-            _linear_sr_weight(g_sr_estimates[data.b_sr_mask], sign=-1)
+        signal_hypothesis_b_sr_f_log_term = -torch.log(
+            _linear_sr_weight(f_sr_estimate[data.b_sr_mask], sign=-1)
         ).sum()
         signal_hypothesis_sr_loss = (
             signal_hypothesis_sr_term.sum()
             + signal_hypothesis_a_sr_f_log_term
-            + signal_hypothesis_b_sr_g_log_term
+            + signal_hypothesis_b_sr_f_log_term
             + common_a_sr_nuisance_log_term
             + common_b_sr_nuisance_log_term
         )
@@ -609,11 +573,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         self.eval()
         with torch.no_grad():
-            if self.paired_network is None:
-                network_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
+            if self.signal_network is None:
+                signal_weight = x_tensor.new_ones((x_tensor.shape[0], 1))
             else:
-                f_estimate, g_estimate = self.paired_network(x_tensor)
-                network_estimate = g_estimate if secondary else f_estimate
+                f_estimate = self.signal_network(x_tensor)
+                signal_weight = _linear_sr_weight(
+                    f_estimate, sign=-1 if secondary else 1
+                )
             if self._config.train__data_is_train_for_nuisances:
                 theta_inputs = (
                     x_tensor
@@ -624,7 +590,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             else:
                 theta_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
             theta_term = torch.clamp(1 + theta_sign * theta_estimate, min=1e-12)
-            predictions = torch.exp(network_estimate) * theta_term
+            predictions = signal_weight * theta_term
         return predictions.detach().cpu().numpy()
 
     def predict(self, data: DataSet) -> npt.NDArray:

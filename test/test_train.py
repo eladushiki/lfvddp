@@ -8,7 +8,7 @@ from frame.command_line.handle_args import create_config_from_paths
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
-    _PairedEstimator,
+    _SignalDeviationEstimator,
     _PreparedTrainingData,
 )
 from neural_networks.nuisance_calculation import (
@@ -233,7 +233,7 @@ def _assemble_compact_loss_for_test(
         nuisance_cr_b_weights=b_cr_multiplicities,
     )
     return DifferentiatingModel._assemble_loss(
-        signal_hypothesis_sr_estimates=estimates,
+        signal_hypothesis_sr_estimate=estimates[0],
         nuisance_estimates=nuisance,
         data=data,
     )
@@ -254,10 +254,8 @@ def test_compact_loss_matches_full_event_value_and_gradients(
     f_parameters = torch.linspace(
         -0.4, 0.6, input_dimension, dtype=torch.float64, requires_grad=True
     )
-    g_parameters = torch.linspace(
-        0.5, -0.3, input_dimension, dtype=torch.float64, requires_grad=True
-    )
-    f, g = events @ f_parameters, events @ g_parameters
+    f = events @ f_parameters
+    g = f
     if with_nuisance:
         eta_sr = torch.linspace(
             -1.0 + 2e-6,
@@ -328,16 +326,16 @@ def test_compact_loss_matches_full_event_value_and_gradients(
     )
     actual_gradients = torch.autograd.grad(
         actual,
-        (f_parameters, g_parameters)
+        (f_parameters,)
         if not with_nuisance
-        else (f_parameters, g_parameters, eta_sr, eta_cr_bins),
+        else (f_parameters, eta_sr, eta_cr_bins),
         retain_graph=True,
     )
     expected_gradients = torch.autograd.grad(
         expected,
-        (f_parameters, g_parameters)
+        (f_parameters,)
         if not with_nuisance
-        else (f_parameters, g_parameters, eta_sr, eta_cr_bins),
+        else (f_parameters, eta_sr, eta_cr_bins),
     )
     torch.testing.assert_close(actual, expected, rtol=1e-12, atol=1e-12)
     for actual_gradient, expected_gradient in zip(actual_gradients, expected_gradients):
@@ -404,54 +402,22 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(category_size
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
-def test_paired_estimator_keeps_f_and_g_gradients_independent(input_dimension):
-    estimator = _PairedEstimator(
+def test_signal_deviation_estimator_is_bounded(input_dimension):
+    estimator = _SignalDeviationEstimator(
         input_dimension=input_dimension,
         hidden_size=4,
         output_dimension=1,
         dtype=torch.float64,
     )
     events = torch.ones((7, input_dimension), dtype=torch.float64)
-    f_estimate, g_estimate = estimator(events)
-    hidden = estimator.activation(estimator.hidden(events))
-    expected_f = torch.tanh(estimator.f_output(hidden[:, : estimator.hidden_size])) * (
-        1 - torch.finfo(events.dtype).eps
-    )
-    expected_g = torch.tanh(estimator.g_output(hidden[:, estimator.hidden_size :])) * (
-        1 - torch.finfo(events.dtype).eps
-    )
+    estimate = estimator(events)
 
-    assert f_estimate.shape == (7, 1)
-    assert g_estimate.shape == (7, 1)
-    torch.testing.assert_close(f_estimate, expected_f)
-    torch.testing.assert_close(g_estimate, expected_g)
+    assert estimate.shape == (7, 1)
+    assert torch.all(estimate > -1)
+    assert torch.all(estimate < 1)
 
-    parameters = tuple(estimator.parameters())
-    actual_objective = 1.7 * f_estimate.sum() - 0.4 * g_estimate.square().sum()
-    expected_objective = 1.7 * expected_f.sum() - 0.4 * expected_g.square().sum()
-    actual_gradients = torch.autograd.grad(
-        actual_objective,
-        parameters,
-        retain_graph=True,
-    )
-    expected_gradients = torch.autograd.grad(expected_objective, parameters)
-    for actual_gradient, expected_gradient in zip(
-        actual_gradients,
-        expected_gradients,
-    ):
-        torch.testing.assert_close(
-            actual_gradient,
-            expected_gradient,
-            rtol=1e-12,
-            atol=1e-12,
-        )
-
-    f_estimate.sum().backward()
-    assert torch.count_nonzero(estimator.hidden.weight.grad[:4]) > 0
-    assert torch.count_nonzero(estimator.hidden.weight.grad[4:]) == 0
-    assert estimator.f_output.weight.grad is not None
-    assert estimator.g_output.weight.grad is not None
-    assert torch.count_nonzero(estimator.g_output.weight.grad) == 0
+    estimate.sum().backward()
+    assert all(parameter.grad is not None for parameter in estimator.parameters())
 
 
 @pytest.mark.parametrize(
@@ -568,17 +534,11 @@ def test_model_initialization_and_prediction(
         is_numerator=True,
         name="prediction_model",
     )
-    paired_network = model.paired_network
-    assert paired_network is not None
-    assert paired_network.hidden.weight.dtype == torch.float64
-    assert torch.all(paired_network.hidden.bias.abs() <= 0.3)
-    assert torch.all(paired_network.f_output.bias.abs() <= 0.3)
-    assert torch.all(paired_network.g_output.bias.abs() <= 0.3)
-    assert not torch.equal(
-        paired_network.hidden.weight[: paired_network.hidden_size],
-        paired_network.hidden.weight[paired_network.hidden_size :],
-    )
-
+    signal_network = model.signal_network
+    assert signal_network is not None
+    assert signal_network.hidden.weight.dtype == torch.float64
+    assert torch.all(signal_network.hidden.bias.abs() <= 0.3)
+    assert torch.all(signal_network.output.bias.abs() <= 0.3)
     model.fit(detected_batch)
     prediction_data = detected_batch.datasets[DataSet.DataSetCategory.A_SR]
     prediction = model.predict(prediction_data)
