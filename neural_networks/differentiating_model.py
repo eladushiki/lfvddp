@@ -35,6 +35,7 @@ from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
 LFVNN_DTYPE = torch.float64
+_SIGNAL_DEVIATION_BOUND = 1.0 - 1e-6
 
 
 @dataclass(frozen=True)
@@ -76,18 +77,26 @@ class _SignalDeviationEstimator(nn.Module):
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        raw_estimate = self.output(self.activation(self.hidden(events)))
-        return _bounded_sr_deviation(raw_estimate)
+        return self.output(self.activation(self.hidden(events)))
 
-
-def _bounded_sr_deviation(raw_estimates: torch.Tensor) -> torch.Tensor:
-    """Keep SR deviations in the open interval required by the log likelihood."""
-    margin = torch.finfo(raw_estimates.dtype).eps
-    return torch.tanh(raw_estimates) * (1 - margin)
+    def clamp_parameters(self) -> None:
+        """Keep the linear output in the log-likelihood domain for any input."""
+        output_parameter_bound = _SIGNAL_DEVIATION_BOUND / (
+            self.hidden.out_features + 1
+        )
+        with torch.no_grad():
+            self.output.weight.clamp_(
+                min=-output_parameter_bound,
+                max=output_parameter_bound,
+            )
+            self.output.bias.clamp_(
+                min=-output_parameter_bound,
+                max=output_parameter_bound,
+            )
 
 
 def _linear_sr_weight(estimate: torch.Tensor, sign: float) -> torch.Tensor:
-    """Convert a bounded SR deviation into its positive multiplicative weight."""
+    """Convert the single SR deviation into its positive category weight."""
     return 1 + sign * estimate
 
 
@@ -176,10 +185,16 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             nn.init.uniform_(self.signal_network.hidden.bias, a=-0.3, b=0.3)
             nn.init.xavier_uniform_(self.signal_network.output.weight, gain=gain)
             nn.init.uniform_(self.signal_network.output.bias, a=-0.3, b=0.3)
+            self._clamp_signal_parameters()
 
         self.nuisance_calculation.initialize_parameters(gain)
 
-    def _clamp_nuisance_parameters(self) -> None:
+    def _clamp_signal_parameters(self) -> None:
+        if self.signal_network is not None:
+            self.signal_network.clamp_parameters()
+
+    def _clamp_trainable_parameters(self) -> None:
+        self._clamp_signal_parameters()
         self.nuisance_calculation.clamp_parameters()
 
     def configure_optimizers(self) -> Optional[optim.Optimizer]:
@@ -482,8 +497,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 loss.backward()
             with profiler.region("training/optimizer_step"):
                 optimizer.step()
-            with profiler.region("training/clamp_nuisances"):
-                self._clamp_nuisance_parameters()
+            with profiler.region("training/clamp_parameters"):
+                self._clamp_trainable_parameters()
 
         return loss
 

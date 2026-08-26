@@ -402,22 +402,25 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(category_size
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
-def test_signal_deviation_estimator_is_bounded(input_dimension):
+def test_signal_deviation_estimator_clamps_output_parameters(input_dimension):
     estimator = _SignalDeviationEstimator(
         input_dimension=input_dimension,
         hidden_size=4,
         output_dimension=1,
         dtype=torch.float64,
     )
-    events = torch.ones((7, input_dimension), dtype=torch.float64)
-    estimate = estimator(events)
+    with torch.no_grad():
+        estimator.output.weight.fill_(2)
+        estimator.output.bias.fill_(-2)
+    estimator.clamp_parameters()
 
+    output_parameter_bound = (1 - 1e-6) / (estimator.hidden.out_features + 1)
+    assert torch.all(estimator.output.weight.abs() <= output_parameter_bound)
+    assert torch.all(estimator.output.bias.abs() <= output_parameter_bound)
+
+    estimate = estimator(torch.ones((7, input_dimension), dtype=torch.float64))
     assert estimate.shape == (7, 1)
-    assert torch.all(estimate > -1)
-    assert torch.all(estimate < 1)
-
-    estimate.sum().backward()
-    assert all(parameter.grad is not None for parameter in estimator.parameters())
+    assert torch.all(estimate.abs() < 1)
 
 
 @pytest.mark.parametrize(
