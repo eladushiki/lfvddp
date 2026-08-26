@@ -64,7 +64,7 @@ dependencies = [
     "six==1.17.0",
     "tensorboard==2.20.0",
     "tensorboard-data-server==0.7.2",
-    "tensorflow_cpu==2.21.0",
+    "tensorflow_cpu==2.21.0; sys_platform != 'darwin'",
     "torch==2.11.0",
     "tqdm==4.67.1",
     "termcolor==2.4.0",
