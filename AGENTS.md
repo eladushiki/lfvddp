@@ -23,8 +23,14 @@ Implementing ML machinery to differentiate between similar and different pairs o
 - Open exactly one pull request per issue, from that dedicated branch to `main`.
   - If asked, answer questions inside Github threads.
   - If you solved a concern raised in a thread on Github, comment on that thread what you did to this end. Never mark as resolved yourself.
-- Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`.
+- Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`. Leave local worktree in a prunable state on push - important changed commited, temp files deleted, git head clean.
 - `.gsd/SECRETS.md` contains local authentication data and must not be backed up
   in the Git repository. Codex has standing authorization to read and use it for
   in-scope GitHub operations without asking again. Never print, commit, or
   otherwise expose its credentials.
+- Worktrees of merged branches should be pruned or removed.
+- Document insignts on working norms we discussed and design decisions made during the development process.
+
+## Skills and Specs
+- Skills can be found in `.agents/skills` directory
+- Plot are designed according to specs, that appear in `plots/specs`. If a spec is updated, the plots should too. If a plot is updated, its spec should too.

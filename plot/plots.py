@@ -11,6 +11,7 @@ from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
+from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
 from data_tools.detector.detector_config import DetectorConfig
 from frame.aggregate import ResultAggregator
 from frame.context.execution_context import ExecutionContext
@@ -23,10 +24,12 @@ from plot.plot_utils import (
     HandlerRect,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
+    _filter_t_distribution_outliers,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
+    utils__finalize_prediction_process_layout,
     utils__group_signal_contexts,
     utils__discover_performance_contexts,
     utils__model_prediction_values,
@@ -38,7 +41,6 @@ from plot.plot_utils import (
     utils__plot_weighted_histogram_predictions_sliced,
     utils__prediction_process_observables,
     utils__project_prediction_values_sliced,
-    utils__remove_eta_from_prediction_values,
     utils__synchronize_output_axis_limits,
     utils__warn_for_context_discrepancies,
 )
@@ -47,17 +49,35 @@ from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 from train.train_utils import statistic_degrees_of_freedom
 
-_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS = {
-    "left": 0.005,
-    "right": 0.995,
-    "top": 0.95,
-    "bottom": 0.005,
-    "hspace": 0.001,
-    "wspace": 0.001,
-}
 
-_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 6
-_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
+def _prediction_process_suptitle(
+    context: ExecutionContext, title: str
+) -> str:
+    """Describe the prediction process and its source run in one line."""
+    return f"{title} of {context.config.config__runtag}"
+
+
+def _prediction_process_subplot_adjustments(
+    number_of_dimensions: int,
+) -> dict[str, float]:
+    """Return the compact 1D or label-safe 2D prediction-process layout."""
+    if number_of_dimensions == 1:
+        return {
+            "left": 0.005,
+            "right": 0.995,
+            "top": 0.95,
+            "bottom": 0.005,
+            "hspace": 0.001,
+            "wspace": 0.001,
+        }
+    return {
+        "left": 0.04,
+        "right": 0.96,
+        "top": 0.92,
+        "bottom": 0.06,
+        "hspace": 0.14,
+        "wspace": 0.14,
+    }
 
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
 # Implement any new plot function here, and you will be able to call it automatically.
@@ -142,7 +162,7 @@ def t_train_percentile_progression_plot(
         bbox_to_anchor=(0.5, 0.94),
         ncol=3,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.88))
+    c.standardize_plot_borders(fig)
 
     return fig
 
@@ -175,8 +195,19 @@ def _filter_t_distribution_outliers(
     cut_overfitted: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply the configured t-distribution tail exclusions."""
-    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
-    excluded = np.zeros(t_values.shape, dtype=bool)
+    finite_values = np.isfinite(t_values)
+    did_not_converge = ~finite_values
+    overfitted = np.zeros(t_values.shape, dtype=bool)
+    if np.any(finite_values):
+        finite_did_not_converge, finite_overfitted = (
+            _t_distribution_outlier_masks(t_values[finite_values])
+        )
+        did_not_converge[finite_values] = finite_did_not_converge
+        overfitted[finite_values] = finite_overfitted
+
+    # Non-finite values cannot be rendered in a histogram, even when the user
+    # elects to retain finite non-converged values for diagnostic purposes.
+    excluded = ~finite_values
     if cut_non_converged:
         excluded |= did_not_converge
     if cut_overfitted:
@@ -192,8 +223,8 @@ def t_distribution_plot(
     cut_overfitted: bool = True,
 ) -> Figure:
     """
-    Plot the histogram of a test statistics sample (t) and the target chi2 distribution.
-    The median and the error on the median are calculated in order to calculate the median Z-score and its error.
+    Plot a test-statistic sample (t) and its target chi-square distribution.
+    The mean t value determines the displayed chi-square significance estimate.
     """
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(
@@ -216,6 +247,12 @@ def t_distribution_plot(
 
     agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
     all_finite_t = agg.all_t_values
+
+    if all_finite_t.size == 0:
+        raise ValueError(
+            f"No finite t values found in {config.plot__target_run_parent_directory}, meaning \
+            no training finished properly."
+        )
 
     # Training-result quality statistics
     t, did_not_converge, overfitted = _filter_t_distribution_outliers(
@@ -245,7 +282,6 @@ def t_distribution_plot(
     histogram_bin_width = (xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
-        f"median: {str(np.around(np.median(t), 2))} \n"
         f"mean: {str(np.around(distribution_mean, 2))} \n"
         f"std: {str(np.around(distribution_std, 2))}"
     )
@@ -299,6 +335,25 @@ def t_distribution_plot(
         label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
     )
 
+    mean_t = float(np.mean(t))
+    mean_significance = calc_t_significance_by_chi2_percentile(
+        t, chi2_dof
+    )
+    ax.axvline(
+        mean_t,
+        color=style["edge_color"],
+        linestyle="--",
+        linewidth=style["linewidth"],
+    )
+    ax.annotate(
+        f"mean $t={mean_t:.2f}$\n$Z(\\mathrm{{mean}}\\ t)={mean_significance:.2f}$",
+        xy=(mean_t, float(np.max(h)) * 0.9),
+        xytext=(6, 0),
+        textcoords="offset points",
+        color=style["edge_color"],
+        verticalalignment="top",
+    )
+
     # Legend
     circ = patches.Circle(
         (0, 0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"]
@@ -326,6 +381,7 @@ def t_distribution_plot(
     ax.set_xlim(xmin, xmax)
     plt.yticks()
     plt.xticks()
+    c.standardize_plot_borders(fig)
 
     return fig
 
@@ -384,9 +440,13 @@ def performance_plot(
     )
 
     # Gather background data
-    background_t_dist = utils__aggregate_context_t_values(
-        background_contexts
+    background_t_dist, _, _ = _filter_t_distribution_outliers(
+        utils__aggregate_context_t_values(background_contexts),
+        cut_non_converged=True,
+        cut_overfitted=True,
     )
+    if background_t_dist.size == 0:
+        raise ValueError("No finite background t values remain after outlier filtering.")
 
     signal_groups = utils__group_signal_contexts(
         signal_t_values_parent_directory
@@ -441,6 +501,14 @@ def performance_plot(
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
+    ax.plot(
+        (min_x, max_x),
+        (min_x, max_x),
+        color="black",
+        linewidth=1.5,
+        linestyle=":",
+        label=r"Perfect discovery (injected = measured)",
+    )
 
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
@@ -526,6 +594,7 @@ def performance_plot(
     ax.tick_params(labelsize=20)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
+    c.standardize_plot_borders(fig)
 
     return fig
 
@@ -701,7 +770,7 @@ def plot_prediction_process_1d(
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
     The numerator model's ``predict`` and ``predict_secondary`` outputs provide
-    the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
+    the combined e^f(1+theta) and e^g(1-theta) predictions. NPLM model compatibility
     is intentionally out of scope.
     """
     selected_observables = utils__prediction_process_observables(
@@ -733,8 +802,12 @@ def plot_prediction_process_1d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(**_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS)
-    fig.suptitle(title, fontsize=22)
+    c.reserve_run_stamp_row(
+        fig, **_prediction_process_subplot_adjustments(ndim)
+    )
+    fig.suptitle(
+        _prediction_process_suptitle(context, title), fontsize=22, y=0.99
+    )
 
     plot_colors = {
         "background": "gray",
@@ -803,7 +876,7 @@ def plot_prediction_process_1d(
         prediction_specs: Tuple[
             Tuple[np.ndarray, float, str, str, str], ...
         ],
-    ) -> List[Tuple[np.ndarray, str, str, str]]:
+    ) -> List[Tuple[np.ndarray, str, str, str, float]]:
         return [
             (
                 prediction_to_sample_ndf_hypothesis_weights(
@@ -814,6 +887,7 @@ def plot_prediction_process_1d(
                 label,
                 color,
                 marker,
+                ndf_n_samples,
             )
             for (
                 prediction,
@@ -834,15 +908,13 @@ def plot_prediction_process_1d(
         (
             sr_exp_f_eta_plus,
             a_sr.n_samples,
-            r"$(1+f(x))(1+\eta(x))$ prediction",
-            plot_colors["f"],
+            r"$(1+f(x))(1+\eta(x))$ prediction",            plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
             b_sr.n_samples,
-            r"$(1-g(x))(1-\eta(x))$ prediction",
-            plot_colors["g"],
+            r"$(1-g(x))(1-\eta(x))$ prediction",            plot_colors["g"],
             "s",
         ),
     )
@@ -865,14 +937,14 @@ def plot_prediction_process_1d(
         (
             1.0 + cr_eta,
             a_cr.n_samples,
-            r"null hypothesis $1+\eta(x)$ prediction",
+            r"null hypothesis $1+\theta(x)$ prediction",
             plot_colors["eta_plus"],
             "o",
         ),
         (
             1.0 - cr_eta,
             b_cr.n_samples,
-            r"null hypothesis $1-\eta(x)$ prediction",
+            r"null hypothesis $1-\theta(x)$ prediction",
             plot_colors["eta_minus"],
             "s",
         ),
@@ -942,7 +1014,6 @@ def plot_prediction_process_1d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
-
     spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
     )
@@ -954,16 +1025,6 @@ def plot_prediction_process_1d(
     )
     nuisance_denominator_eta = utils__model_prediction_values(
         denominator_model.predict_theta, prediction_spanning_dataset
-    )
-    spanning_exp_f = utils__remove_eta_from_prediction_values(
-        prediction_values=spanning_exp_f_eta_plus,
-        eta_values=nuisance_numerator_eta,
-        eta_sign=1.0,
-    )
-    spanning_exp_g = utils__remove_eta_from_prediction_values(
-        prediction_values=spanning_exp_g_eta_minus,
-        eta_values=nuisance_numerator_eta,
-        eta_sign=-1.0,
     )
 
     sr_prediction_specs = {
@@ -980,14 +1041,12 @@ def plot_prediction_process_1d(
             prediction_linestyles["product"],
         ),
         "exp_f_eta_plus": (
-            r"signal hypothesis $(1+f(x))(1+\eta(x))$",
-            spanning_exp_f_eta_plus,
+            r"signal hypothesis $(1+f(x))(1+\eta(x))$",            spanning_exp_f_eta_plus,
             plot_colors["f_light"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $(1-g(x))(1-\eta(x))$",
-            spanning_exp_g_eta_minus,
+            r"signal hypothesis $(1-g(x))(1-\eta(x))$",            spanning_exp_g_eta_minus,
             plot_colors["g_light"],
             prediction_linestyles["component"],
         ),
@@ -999,35 +1058,42 @@ def plot_prediction_process_1d(
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
             "numerator_eta_plus": (
-                r"signal hypothesis $1+\eta(x)$",
+                r"signal hypothesis $1+\theta(x)$",
                 1.0 + numerator_eta,
                 plot_colors["eta_plus"],
                 prediction_linestyles["component"],
             ),
             "numerator_eta_minus": (
-                r"signal hypothesis $1-\eta(x)$",
+                r"signal hypothesis $1-\theta(x)$",
                 1.0 - numerator_eta,
                 plot_colors["eta_minus"],
                 prediction_linestyles["component"],
             ),
             "denominator_eta_plus": (
-                r"null hypothesis $1+\eta(x)$",
+                r"null hypothesis $1+\theta(x)$",
                 1.0 + denominator_eta,
                 plot_colors["eta_plus_light"],
                 prediction_linestyles["denominator"],
             ),
             "denominator_eta_minus": (
-                r"null hypothesis $1-\eta(x)$",
+                r"null hypothesis $1-\theta(x)$",
                 1.0 - denominator_eta,
                 plot_colors["eta_minus_light"],
                 prediction_linestyles["denominator"],
             ),
         }
 
-    cr_prediction_specs = nuisance_prediction_specs(
+    eta_prediction_specs = nuisance_prediction_specs(
         nuisance_numerator_eta,
         nuisance_denominator_eta,
     )
+    sr_prediction_specs.update(
+        {
+            key: eta_prediction_specs[key]
+            for key in ("denominator_eta_plus", "denominator_eta_minus")
+        }
+    )
+    cr_prediction_specs = eta_prediction_specs
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -1107,6 +1173,15 @@ def plot_prediction_process_1d(
         prediction_limits=cr_prediction_limits,
         title="CR predictions",
     )
+    utils__finalize_prediction_process_layout(
+        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
+        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
+        number_of_dimensions=ndim,
+    )
+    for panel in (sr_distribution_ax, cr_distribution_ax):
+        utils__add_prediction_process_legend(
+            panel, fontsize=8, location="lower left"
+        )
 
     return fig
 
@@ -1123,7 +1198,7 @@ def plot_prediction_process_2d(
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
     The numerator model's ``predict`` and ``predict_secondary`` outputs provide
-    the combined e^f(1+eta) and e^g(1-eta) predictions. NPLM model compatibility
+    the combined e^f(1+theta) and e^g(1-theta) predictions. NPLM model compatibility
     is intentionally out of scope.
     """
     selected_observables = utils__prediction_process_observables(
@@ -1155,8 +1230,12 @@ def plot_prediction_process_2d(
 
     c = Carpenter(context)
     fig = c.figure()
-    fig.subplots_adjust(**_PREDICTION_PROCESS_SUBPLOT_ADJUSTMENTS)
-    fig.suptitle(title, fontsize=22)
+    c.reserve_run_stamp_row(
+        fig, **_prediction_process_subplot_adjustments(ndim)
+    )
+    fig.suptitle(
+        _prediction_process_suptitle(context, title), fontsize=22, y=0.99
+    )
 
     plot_colors = {
         "background": "gray",
@@ -1221,7 +1300,7 @@ def plot_prediction_process_2d(
         prediction_specs: Tuple[
             Tuple[np.ndarray, float, str, str, str], ...
         ],
-    ) -> List[Tuple[np.ndarray, str, str, str]]:
+    ) -> List[Tuple[np.ndarray, str, str, str, float]]:
         return [
             (
                 prediction_to_sample_ndf_hypothesis_weights(
@@ -1232,6 +1311,7 @@ def plot_prediction_process_2d(
                 label,
                 color,
                 marker,
+                ndf_n_samples,
             )
             for (
                 prediction,
@@ -1252,15 +1332,13 @@ def plot_prediction_process_2d(
         (
             sr_exp_f_eta_plus,
             a_sr.n_samples,
-            r"$(1+f(x))(1+\eta(x))$ prediction",
-            plot_colors["f"],
+            r"$(1+f(x))(1+\eta(x))$ prediction",            plot_colors["f"],
             "o",
         ),
         (
             sr_exp_g_eta_minus,
             b_sr.n_samples,
-            r"$(1-g(x))(1-\eta(x))$ prediction",
-            plot_colors["g"],
+            r"$(1-g(x))(1-\eta(x))$ prediction",            plot_colors["g"],
             "s",
         ),
     )
@@ -1283,14 +1361,14 @@ def plot_prediction_process_2d(
         (
             1.0 + cr_eta,
             a_cr.n_samples,
-            r"null hypothesis $1+\eta(x)$ prediction",
+            r"null hypothesis $1+\theta(x)$ prediction",
             plot_colors["eta_plus"],
             "o",
         ),
         (
             1.0 - cr_eta,
             b_cr.n_samples,
-            r"null hypothesis $1-\eta(x)$ prediction",
+            r"null hypothesis $1-\theta(x)$ prediction",
             plot_colors["eta_minus"],
             "s",
         ),
@@ -1360,50 +1438,73 @@ def plot_prediction_process_2d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
-
     spanning_exp_f_eta_plus = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
     )
     spanning_exp_g_eta_minus = utils__model_prediction_values(
         numerator_model.predict_secondary, prediction_spanning_dataset
     )
+    nuisance_numerator_eta = utils__model_prediction_values(
+        numerator_model.predict_eta, prediction_spanning_dataset
+    )
     nuisance_denominator_eta = utils__model_prediction_values(
         denominator_model.predict_theta, prediction_spanning_dataset
     )
     sr_prediction_specs = {
         "exp_f_eta_plus": (
-            r"signal hypothesis $(1+f(x))(1+\eta(x))$",
-            spanning_exp_f_eta_plus,
+            r"signal hypothesis $(1+f(x))(1+\eta(x))$",            spanning_exp_f_eta_plus,
             plot_colors["f"],
             prediction_linestyles["component"],
         ),
         "exp_g_eta_minus": (
-            r"signal hypothesis $(1-g(x))(1-\eta(x))$",
-            spanning_exp_g_eta_minus,
+            r"signal hypothesis $(1-g(x))(1-\eta(x))$",            spanning_exp_g_eta_minus,
             plot_colors["g"],
             prediction_linestyles["component"],
         ),
     }
 
     def nuisance_prediction_specs(
+        numerator_eta: np.ndarray,
         denominator_eta: np.ndarray,
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
+            "numerator_eta_plus": (
+                r"signal hypothesis $1+\eta(x)$",
+                1.0 + numerator_eta,
+                plot_colors["eta_plus"],
+                prediction_linestyles["component"],
+            ),
+            "numerator_eta_minus": (
+                r"signal hypothesis $1-\eta(x)$",
+                1.0 - numerator_eta,
+                plot_colors["eta_minus"],
+                prediction_linestyles["component"],
+            ),
             "denominator_eta_plus": (
-                r"null hypothesis $1+\eta(x)$",
+                r"null hypothesis $1+\theta(x)$",
                 1.0 + denominator_eta,
                 plot_colors["eta_plus"],
                 prediction_linestyles["denominator"],
             ),
             "denominator_eta_minus": (
-                r"null hypothesis $1-\eta(x)$",
+                r"null hypothesis $1-\theta(x)$",
                 1.0 - denominator_eta,
                 plot_colors["eta_minus"],
                 prediction_linestyles["denominator"],
             ),
         }
 
-    cr_prediction_specs = nuisance_prediction_specs(nuisance_denominator_eta)
+    eta_prediction_specs = nuisance_prediction_specs(
+        nuisance_numerator_eta,
+        nuisance_denominator_eta,
+    )
+    sr_prediction_specs.update(
+        {
+            key: eta_prediction_specs[key]
+            for key in ("denominator_eta_plus", "denominator_eta_minus")
+        }
+    )
+    cr_prediction_specs = eta_prediction_specs
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -1494,6 +1595,11 @@ def plot_prediction_process_2d(
         along_observables=selected_observables,
         prediction_limits=cr_prediction_limits,
         title="CR predictions",
+    )
+    utils__finalize_prediction_process_layout(
+        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
+        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
+        number_of_dimensions=ndim,
     )
 
     return fig

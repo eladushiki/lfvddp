@@ -25,7 +25,7 @@ from data_tools.dataset_config import (
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_median_t_significance_relative_to_background,
+    calc_mean_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
     calc_t_significance_relative_to_background,
 )
@@ -43,6 +43,9 @@ from train.train_config import TrainConfig
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
+_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 4
+_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
+_PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.90
 
 
 def utils__prediction_mesh_mask(
@@ -193,6 +196,43 @@ def _integration_upper_limits_for_dimensions(
     return np.full(number_of_dimensions, np.inf)
 
 
+def _t_distribution_outlier_masks(
+    t_values: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Return masks for the non-converged and overfitted t-distribution tails."""
+    lower_reference_boundary = np.percentile(
+        t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    upper_reference_boundary = np.percentile(
+        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    lower_reference = t_values[t_values >= lower_reference_boundary]
+    upper_reference = t_values[t_values <= upper_reference_boundary]
+
+    lower_threshold = np.mean(lower_reference) - (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
+    )
+    upper_threshold = np.mean(upper_reference) + (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
+    )
+    return t_values < lower_threshold, t_values > upper_threshold
+
+
+def _filter_t_distribution_outliers(
+    t_values: np.ndarray,
+    cut_non_converged: bool,
+    cut_overfitted: bool,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply the configured t-distribution tail exclusions."""
+    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
+    excluded = np.zeros(t_values.shape, dtype=bool)
+    if cut_non_converged:
+        excluded |= did_not_converge
+    if cut_overfitted:
+        excluded |= overfitted
+    return t_values[~excluded], did_not_converge, overfitted
+
+
 def utils__calculate_performance_curve(
     signal_group: List[Tuple[ExecutionContext, Path]],
     background_t_dist: np.ndarray,
@@ -211,7 +251,16 @@ def utils__calculate_performance_curve(
             signal_context
         )
         signal_agg = ResultAggregator(signal_t_values_dir)
-        signal_t_dist = signal_agg.all_t_values
+        signal_t_dist, _, _ = _filter_t_distribution_outliers(
+            signal_agg.all_t_values,
+            cut_non_converged=True,
+            cut_overfitted=True,
+        )
+        if signal_t_dist.size == 0:
+            raise ValueError(
+                f"No finite t values remain for {signal_t_values_dir} after "
+                "outlier filtering."
+            )
 
         is_generated = isinstance(
             signal_dataset_parameters, GeneratedDatasetParameters
@@ -241,7 +290,7 @@ def utils__calculate_performance_curve(
             x_errors.append(0.0)
 
         observed_significances.append(
-            calc_median_t_significance_relative_to_background(
+            calc_mean_t_significance_relative_to_background(
                 background_t_dist,
                 signal_t_dist,
             )
@@ -286,6 +335,11 @@ def utils__calculate_performance_curve(
     )
 
 
+def _humanize_signal_description(description: str) -> str:
+    """Turn generator identifiers into readable significance-plot labels."""
+    return description.replace("_", " ")
+
+
 def utils__performance_group_label(
     signal_context: ExecutionContext,
 ) -> str:
@@ -295,7 +349,9 @@ def utils__performance_group_label(
         parameters = signal_config.get_parameters(category)
         if not parameters.dataset__has_signal:
             continue
-        signal_descriptions.append(parameters.dataset__signal_description)
+        signal_descriptions.append(
+            _humanize_signal_description(parameters.dataset__signal_description)
+        )
 
     return "; ".join(signal_descriptions) or "no signal"
 
@@ -857,13 +913,21 @@ def utils__add_subplot_sliced(
 
 
 def utils__add_prediction_process_legend(
-    ax: plt.Axes, fontsize: float
+    ax: plt.Axes,
+    fontsize: float,
+    location: str = "upper left",
 ) -> None:
-    """Place a prediction-process legend below the title and against the left edge."""
+    """Place a prediction-process legend in the specified unobtrusive corner."""
+    anchor_by_location = {
+        "upper left": (0.02, 0.82),
+        "lower left": (0.02, 0.02),
+    }
+    if location not in anchor_by_location:
+        raise ValueError(f"Unsupported legend location: {location}")
     legend = ax.legend(
         fontsize=fontsize,
-        loc="upper left",
-        bbox_to_anchor=(0.02, 0.92),
+        loc=location,
+        bbox_to_anchor=anchor_by_location[location],
         borderaxespad=0,
         framealpha=1.0,
     )
@@ -921,10 +985,13 @@ def utils__prediction_process_observables(
         selected_observables = list(along_observables)
 
     if len(selected_observables) != required_dimensions:
-        raise ValueError(
-            f"The {required_dimensions}D prediction-process plot requires exactly "
-            f"{required_dimensions} observable(s), got {len(selected_observables)}."
-        )
+        if required_dimensions == 2 and len(selected_observables) > 2:
+            selected_observables = selected_observables[:2]
+        else:
+            raise ValueError(
+                f"The {required_dimensions}D prediction-process plot requires exactly "
+                f"{required_dimensions} observable(s), got {len(selected_observables)}."
+            )
     unknown_observables = set(selected_observables) - set(configured_observables)
     if unknown_observables:
         raise ValueError(
@@ -1049,7 +1116,16 @@ def _configure_region_histogram_panel_sliced(
         if normalize_distributions
         else "number density functions"
     )
-    ax.set_title(f"{region_name} {title_suffix}")
+    utils__set_prediction_process_subplot_title(
+        ax, f"{region_name} {title_suffix}"
+    )
+
+
+def utils__set_prediction_process_subplot_title(
+    ax: plt.Axes, title: str
+) -> None:
+    """Place a prediction-process title inside its own subplot boundary."""
+    ax.set_title(title, y=_PREDICTION_PROCESS_SUBPLOT_TITLE_Y)
 
 
 def utils__plot_region_histogram_meshes_2d(
@@ -1126,7 +1202,7 @@ def utils__plot_region_histogram_meshes_2d(
 def utils__plot_weighted_histogram_predictions_sliced(
     ax: plt.Axes,
     reference_dataset: DataSet,
-    predictions: List[Tuple[np.ndarray, str, str, str]],
+    predictions: List[Tuple[np.ndarray, str, str, str, float]],
     bins: Union[np.ndarray, List[np.ndarray]],
     bin_centers: Union[np.ndarray, List[np.ndarray]],
     along_observables: List[str],
@@ -1143,7 +1219,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
             bin_centers[0], bin_centers[1], indexing="ij"
         )
 
-    for weights, label, color, marker in predictions:
+    for weights, label, color, marker, normalization_size in predictions:
         flattened_weights = utils__flatten_histogram_values(weights)
         if number_of_dimensions == 1:
             predicted_counts, _ = np.histogram(
@@ -1161,7 +1237,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
 
         if normalize_each_prediction:
             predicted_counts = utils__normalize_histogram_values(
-                predicted_counts, np.sum(predicted_counts)
+                predicted_counts, normalization_size
             )
 
         if number_of_dimensions == 1:
@@ -1216,6 +1292,31 @@ def utils__synchronize_output_axis_limits(
         getattr(ax, set_limits_name)(shared_limits)
 
 
+def utils__finalize_prediction_process_layout(
+    distribution_axes: List[plt.Axes],
+    prediction_axes: List[plt.Axes],
+    number_of_dimensions: int,
+) -> None:
+    """Apply shared axis ranges and the compact 1D prediction-process layout."""
+    utils__synchronize_output_axis_limits(distribution_axes, number_of_dimensions)
+    utils__synchronize_output_axis_limits(prediction_axes, number_of_dimensions)
+    if number_of_dimensions != 1:
+        return
+
+    all_axes = distribution_axes + prediction_axes
+    shared_x_limits = (
+        min(axis.get_xlim()[0] for axis in all_axes),
+        max(axis.get_xlim()[1] for axis in all_axes),
+    )
+    for axis in all_axes:
+        axis.set_xlim(shared_x_limits)
+    for axis in distribution_axes:
+        axis.set_xlabel("")
+        axis.tick_params(labelbottom=False)
+    for axis in (distribution_axes[1], prediction_axes[1]):
+        axis.set_ylabel("")
+
+
 def utils__model_prediction_values(
     prediction_function: Callable[[DataSet], npt.NDArray],
     dataset: DataSet,
@@ -1229,7 +1330,7 @@ def utils__remove_eta_from_prediction_values(
     eta_values: np.ndarray,
     eta_sign: float,
 ) -> np.ndarray:
-    """Remove the clamped 1±eta factor from a combined LFVDDP prediction."""
+    """Remove the clamped 1±theta factor from a combined LFVDDP prediction."""
     eta_term = np.clip(1.0 + eta_sign * eta_values, a_min=1e-12, a_max=None)
     return prediction_values / eta_term
 
@@ -1452,5 +1553,5 @@ def utils__plot_model_predictions_sliced(
         along_observables=along_observables,
         output_label="model prediction",
     )
-    ax.set_title(title)
+    utils__set_prediction_process_subplot_title(ax, title)
     utils__add_prediction_process_legend(ax, fontsize=7)

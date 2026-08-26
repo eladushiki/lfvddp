@@ -116,6 +116,31 @@ if pip is not already recognized.
 
 To submit SGE jobs to the WIS cluster, you should install slurm. The [specific isntallation command](https://command-not-found.com/qsub) depends on your OS.
 
+### Local submission state
+
+Record cluster submissions and deferred submission requests in the ignored local file `.agents/submission-state.yaml`. Create the file if it does not exist. Use one entry per submission or request:
+
+```yaml
+submissions:
+  - id: nuisance-study-2026-08-25
+    status: submitted
+    config_pack: configs/packs/nuisance-study
+    purpose: Compare the nuisance-aware and baseline models.
+    requested_at: 2026-08-25T10:00:00Z
+    job_ids: ["12345", "12346"]
+    notes: Awaiting plot review.
+
+  - id: high-statistics-follow-up
+    status: blocked
+    config_pack: configs/packs/high-statistics
+    purpose: Run the follow-up training sweep.
+    requested_at: 2026-08-25T10:15:00Z
+    blocked_reason: Queue limit reached; retry after active jobs complete.
+    notes: Do not submit until the blocker is resolved.
+```
+
+Allowed statuses are `requested`, `blocked`, `submitted`, and `analyzed`. A `submitted` entry must include its `job_ids`. A `blocked` entry must include `blocked_reason`, which may describe a queued-job limit or any other reason the request cannot yet run. Keep deferred requests in the file until they are submitted, then update the same entry rather than creating a duplicate.
+
 ## IDE configuration (examle in VSCode)
 
 Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In them, configure basic running configuration for the project to run easily. For exmaple,
@@ -177,7 +202,7 @@ The custom file paths here refer to a different file, `settings.json`, of the fo
 ```
 Which you create and direct to. Pass that single directory after `--configs`.
 
-The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
+The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Set `cluster__uv_cache_dir` in a local pack when you need a persistent UV cache on your cluster; the tracked basic-loaded value is intentionally empty. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
 The plotting entry point does not accept `--configs`; it reads the staged
 configuration files from the selected submission's `configs` directory.
 Plotting configuration is required,
@@ -413,3 +438,43 @@ Training entry points:
 ## Nuisance implementation
 
 `TrainConfig` defaults to the legacy binwise-constant nuisance implementation. Set `train__nuisance_is_neural_network` to `true` to use a bounded neural `theta(x)` instead. Its input and output dimensions match the primary f/g networks, while `train__nuisance_nn_inner_layer_nodes` controls its hidden layer and defaults to `2`.
+
+### Training-loss expression
+
+`DifferentiatingModel._assemble_loss` is the single implementation of the
+negative log-likelihood. This section expands the nuisance-dependent expression
+from the paper into the terms used in code. Let `theta(x)` be the bounded detector
+nuisance, `f(x)` and `g(x)` the learned log-density ratios, and `a` and `b` the
+fractions of A and B events in the signal region (SR). The SR contribution is
+
+```text
+L_SR = sum_x in SR [a exp(f(x)) (1 + theta(x))
+                     + b exp(g(x)) (1 - theta(x))]
+       - sum_x in A_SR [f(x) + log(1 + theta(x))]
+       - sum_x in B_SR [g(x) + log(1 - theta(x))].
+```
+
+The control region (CR) fixes `f = g = 0`. With
+`c = (N_A_CR - N_B_CR) / N_CR`, its contribution is
+
+```text
+L_CR = N_CR + c sum_x in CR theta(x)
+       - sum_x in A_CR log(1 + theta(x))
+       - sum_x in B_CR log(1 - theta(x)).
+```
+
+With f/g estimates, the implementation returns the paper's numerator loss
+`L^num = L_SR + L_CR`. When f/g estimates are absent, it returns the denominator
+loss `L^denom`: equivalently, set `f = g = 0` above, so the SR expected-density
+term reduces to `N_SR + (a - b) sum_x in SR theta(x)` while the nuisance observed
+log terms remain. This is how the two paper expressions select the two branches
+of `_assemble_loss`.
+
+In the implementation, `signal_region_expected_density`, the f/g and nuisance
+`*_observed_log_term` values, and `control_region_linear_nuisance_term` map
+directly to the expected-density, observed, and linear terms above.
+`NuisanceCalculation` only supplies `theta` values and CR event
+weights: neural nuisance uses one weight per event, while scalar nuisance uses
+one weight per occupied detector bin equal to its event multiplicity. Thus both
+representations evaluate the same expression without duplicating its loss
+formula.

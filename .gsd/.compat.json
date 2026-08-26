@@ -1,0 +1,18 @@
+{
+  "schema": 2,
+  "lastWriter": "gsd-pi",
+  "lastProjectedAt": "2026-08-26T09:20:44.016Z",
+  "projections": {
+    "DECISIONS.md": {
+      "sha": "f94c40a934d6dbc5",
+      "entities": []
+    }
+  },
+  "planning": {
+    "active": false,
+    "layout": null,
+    "projections": {},
+    "passthrough": {}
+  },
+  "piVersion": ""
+}

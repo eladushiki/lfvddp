@@ -8,6 +8,7 @@
 # GSD
 .gsd/*.db
 .gsd/*.db-*
+.gsd/*.db.backup*
 .gsd/audit/
 .gsd/exec/
 .gsd/journal/
@@ -17,6 +18,10 @@
 .gsd/worktrees
 .bg-shell/
 .gsd/SECRETS.md
+.gsd/CODEBASE.md
+
+# Agents and skills
+.agents/submission-state.yaml
 
 # Python tests
 .coverage
@@ -41,6 +46,9 @@ tmp*/
 *.out
 *.gz
 *.toc
+## Beamer
+*.nav
+*.snm
 
 # IDE
 .vscode/

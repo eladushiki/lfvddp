@@ -19,10 +19,17 @@ _NUISANCE_BOUND = 1.0 - 1e-6
 
 @dataclass(frozen=True)
 class NuisanceEvaluation:
-    """Nuisance values for SR events and the reduced CR loss."""
+    """Nuisance values and region weights used to assemble the training loss.
 
-    sr_values: torch.Tensor
-    cr_loss: torch.Tensor
+    Control-region values may be per event (neural nuisance) or per occupied
+    detector bin (scalar nuisance); their weights preserve the corresponding
+    event multiplicities.  The differentiating model owns the loss formula.
+    """
+
+    nuisance_sr_values: torch.Tensor
+    nuisance_cr_values: torch.Tensor
+    nuisance_cr_a_weights: torch.Tensor
+    nuisance_cr_b_weights: torch.Tensor
 
 
 @dataclass(frozen=True)
@@ -30,20 +37,6 @@ class PreparedNuisanceData:
     """Static nuisance inputs prepared once for full-batch training."""
 
     sr_inputs: torch.Tensor
-
-
-@dataclass(frozen=True)
-class _ScalarPreparedNuisanceData(PreparedNuisanceData):
-    cr_bin_indices: torch.Tensor
-    a_cr_multiplicities: torch.Tensor
-    b_cr_multiplicities: torch.Tensor
-
-
-@dataclass(frozen=True)
-class _NeuralPreparedNuisanceData(PreparedNuisanceData):
-    cr_inputs: torch.Tensor
-    a_cr_mask: torch.Tensor
-    b_cr_mask: torch.Tensor
 
 
 class NuisanceCalculation(nn.Module, ABC):
@@ -67,12 +60,8 @@ class NuisanceCalculation(nn.Module, ABC):
         """Prepare mode-specific nuisance inputs."""
 
     @abstractmethod
-    def evaluate(
-        self,
-        data: PreparedNuisanceData,
-        cr_eta_coefficient: float,
-    ) -> NuisanceEvaluation:
-        """Evaluate nuisance values and control-region contribution."""
+    def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
+        """Evaluate nuisance values and loss-assembly weights for both regions."""
 
     def initialize_parameters(self, gain: float) -> None:
         """Initialize trainable nuisance parameters, when present."""
@@ -81,7 +70,7 @@ class NuisanceCalculation(nn.Module, ABC):
         """Clamp trainable nuisance parameters, when needed."""
 
 
-class NoNuisanceCalculation(NuisanceCalculation):
+class BlankNuisanceEstimator(NuisanceCalculation):
     """A zero-nuisance representation for runs without nuisance training."""
 
     def prepare(
@@ -101,23 +90,30 @@ class NoNuisanceCalculation(NuisanceCalculation):
             )
         )
 
-    def evaluate(
-        self,
-        data: PreparedNuisanceData,
-        cr_eta_coefficient: float,
-    ) -> NuisanceEvaluation:
+    def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
+        empty_control_region = torch.empty(
+            0, dtype=self._dtype, device=self._device
+        )
         return NuisanceEvaluation(
-            sr_values=torch.zeros(
+            nuisance_sr_values=torch.zeros(
                 data.sr_inputs.shape[0],
                 dtype=self._dtype,
                 device=self._device,
             ),
-            cr_loss=torch.zeros((), dtype=self._dtype, device=self._device),
+            nuisance_cr_values=empty_control_region,
+            nuisance_cr_a_weights=empty_control_region,
+            nuisance_cr_b_weights=empty_control_region,
         )
 
 
-class ScalarBinnedNuisanceCalculation(NuisanceCalculation):
+class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
     """A bounded scalar nuisance value for every detector-bin combination."""
+
+    @dataclass(frozen=True)
+    class _PreparedData(PreparedNuisanceData):
+        nuisance_cr_bin_indices: torch.Tensor
+        nuisance_cr_a_multiplicities: torch.Tensor
+        nuisance_cr_b_multiplicities: torch.Tensor
 
     def __init__(
         self,
@@ -176,40 +172,28 @@ class ScalarBinnedNuisanceCalculation(NuisanceCalculation):
             return_inverse=True,
         )
         number_of_cr_bins = unique_indices.shape[0]
-        return _ScalarPreparedNuisanceData(
+        return self._PreparedData(
             sr_inputs=self._bin_indices(raw_sr),
-            cr_bin_indices=unique_indices,
-            a_cr_multiplicities=torch.bincount(
+            nuisance_cr_bin_indices=unique_indices,
+            nuisance_cr_a_multiplicities=torch.bincount(
                 inverse_indices[: raw_a_cr.n_samples],
                 minlength=number_of_cr_bins,
             ).to(self._dtype),
-            b_cr_multiplicities=torch.bincount(
+            nuisance_cr_b_multiplicities=torch.bincount(
                 inverse_indices[raw_a_cr.n_samples :],
                 minlength=number_of_cr_bins,
             ).to(self._dtype),
         )
 
-    def evaluate(
-        self,
-        data: PreparedNuisanceData,
-        cr_eta_coefficient: float,
-    ) -> NuisanceEvaluation:
-        if not isinstance(data, _ScalarPreparedNuisanceData):
+    def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
+        if not isinstance(data, self._PreparedData):
             raise TypeError("Scalar nuisance data was not prepared by this calculation.")
 
-        cr_values = self._values(data.cr_bin_indices)
-        cr_loss = (
-            cr_eta_coefficient
-            * torch.dot(
-                cr_values,
-                data.a_cr_multiplicities + data.b_cr_multiplicities,
-            )
-            - torch.dot(torch.log1p(cr_values), data.a_cr_multiplicities)
-            - torch.dot(torch.log1p(-cr_values), data.b_cr_multiplicities)
-        )
         return NuisanceEvaluation(
-            sr_values=self._values(data.sr_inputs),
-            cr_loss=cr_loss,
+            nuisance_sr_values=self._values(data.sr_inputs),
+            nuisance_cr_values=self._values(data.nuisance_cr_bin_indices),
+            nuisance_cr_a_weights=data.nuisance_cr_a_multiplicities,
+            nuisance_cr_b_weights=data.nuisance_cr_b_multiplicities,
         )
 
     def initialize_parameters(self, gain: float) -> None:
@@ -241,8 +225,14 @@ class _ThetaEstimator(nn.Module):
         return self.output(self.activation(self.hidden(events))).squeeze(-1)
 
 
-class NeuralPerEventNuisanceCalculation(NuisanceCalculation):
+class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
     """A neural nuisance function evaluated independently for each event."""
+
+    @dataclass(frozen=True)
+    class _PreparedData(PreparedNuisanceData):
+        cr_inputs: torch.Tensor
+        a_cr_mask: torch.Tensor
+        b_cr_mask: torch.Tensor
 
     def __init__(
         self,
@@ -285,7 +275,7 @@ class NeuralPerEventNuisanceCalculation(NuisanceCalculation):
                 ),
             )
         )
-        return _NeuralPreparedNuisanceData(
+        return self._PreparedData(
             sr_inputs=torch.tensor(
                 normalized_sr.events,
                 dtype=self._dtype,
@@ -300,29 +290,21 @@ class NeuralPerEventNuisanceCalculation(NuisanceCalculation):
             b_cr_mask=~a_cr_mask,
         )
 
-    def evaluate(
-        self,
-        data: PreparedNuisanceData,
-        cr_eta_coefficient: float,
-    ) -> NuisanceEvaluation:
-        if not isinstance(data, _NeuralPreparedNuisanceData):
+    def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
+        if not isinstance(data, self._PreparedData):
             raise TypeError("Neural nuisance data was not prepared by this calculation.")
 
-        cr_values = self.network(data.cr_inputs).clamp(
-            min=-_NUISANCE_BOUND,
-            max=_NUISANCE_BOUND,
-        )
-        cr_loss = (
-            cr_eta_coefficient * cr_values.sum()
-            - torch.log1p(cr_values[data.a_cr_mask]).sum()
-            - torch.log1p(-cr_values[data.b_cr_mask]).sum()
-        )
         return NuisanceEvaluation(
-            sr_values=self.network(data.sr_inputs).clamp(
+            nuisance_sr_values=self.network(data.sr_inputs).clamp(
                 min=-_NUISANCE_BOUND,
                 max=_NUISANCE_BOUND,
             ),
-            cr_loss=cr_loss,
+            nuisance_cr_values=self.network(data.cr_inputs).clamp(
+                min=-_NUISANCE_BOUND,
+                max=_NUISANCE_BOUND,
+            ),
+            nuisance_cr_a_weights=data.a_cr_mask.to(self._dtype),
+            nuisance_cr_b_weights=data.b_cr_mask.to(self._dtype),
         )
 
     def initialize_parameters(self, gain: float) -> None:

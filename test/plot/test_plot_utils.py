@@ -1,16 +1,83 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
 from data_tools.data_utils import DataSet
+from plot.carpenter import Carpenter
 from plot.plot_utils import (
+    _filter_t_distribution_outliers,
+    _humanize_signal_description,
     _integration_upper_limits_for_dimensions,
     utils__discover_background_only_parent_directory,
+    utils__finalize_prediction_process_layout,
     utils__prediction_mesh_mask,
     utils__project_prediction_values_sliced,
+    utils__set_prediction_process_subplot_title,
 )
+
+
+def test_humanize_signal_description_replaces_generator_identifier_separators():
+    assert _humanize_signal_description("multivariate_gaussian_signal") == (
+        "multivariate gaussian signal"
+    )
+
+
+def test_carpenter_reserves_a_dedicated_run_stamp_row():
+    figure = plt.figure()
+
+    Carpenter.reserve_run_stamp_row(figure, bottom=0.01)
+
+    assert figure.subplotpars.bottom == pytest.approx(
+        Carpenter.RUN_STAMP_ROW_HEIGHT
+    )
+    Carpenter.standardize_plot_borders(figure)
+    assert figure.subplotpars.top == pytest.approx(
+        Carpenter.STANDARD_TOP_BORDER
+    )
+    plt.close(figure)
+
+
+def test_prediction_process_titles_stay_inside_their_own_panels():
+    figure, axis = plt.subplots()
+
+    utils__set_prediction_process_subplot_title(axis, "SR distributions")
+
+    assert axis.title.get_position() == (0.5, pytest.approx(0.90))
+    plt.close(figure)
+
+
+def test_prediction_process_layout_shares_row_ranges_and_compacts_1d_labels():
+    figure, axes = plt.subplots(2, 2)
+    sr_distribution_ax, cr_distribution_ax = axes[0]
+    sr_prediction_ax, cr_prediction_ax = axes[1]
+    for axis, x_limits, y_limits in (
+        (sr_distribution_ax, (0, 2), (1, 4)),
+        (cr_distribution_ax, (-1, 3), (2, 6)),
+        (sr_prediction_ax, (0, 4), (-2, 2)),
+        (cr_prediction_ax, (-3, 2), (-4, 3)),
+    ):
+        axis.set_xlim(x_limits)
+        axis.set_ylim(y_limits)
+        axis.set_xlabel("observable")
+        axis.set_ylabel("output")
+
+    utils__finalize_prediction_process_layout(
+        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
+        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
+        number_of_dimensions=1,
+    )
+
+    assert [axis.get_xlim() for axis in figure.axes] == [(-3, 4)] * 4
+    assert sr_distribution_ax.get_ylim() == cr_distribution_ax.get_ylim()
+    assert sr_prediction_ax.get_ylim() == cr_prediction_ax.get_ylim()
+    assert sr_distribution_ax.get_xlabel() == ""
+    assert cr_distribution_ax.get_xlabel() == ""
+    assert cr_distribution_ax.get_ylabel() == ""
+    assert cr_prediction_ax.get_ylabel() == ""
+    plt.close(figure)
 
 
 @pytest.mark.parametrize(
@@ -167,3 +234,18 @@ def test_discover_background_only_parent_directory_ignores_plot_outputs(
     assert utils__discover_background_only_parent_directory(str(tmp_path)) == (
         background_directory
     )
+
+
+def test_filter_t_distribution_outliers_honors_each_tail_switch():
+    t_values = np.concatenate((np.linspace(0, 10, 1000), [-100, 100]))
+
+    filtered, did_not_converge, overfitted = _filter_t_distribution_outliers(
+        t_values,
+        cut_non_converged=True,
+        cut_overfitted=False,
+    )
+
+    assert did_not_converge[-2]
+    assert overfitted[-1]
+    assert -100 not in filtered
+    assert 100 in filtered
