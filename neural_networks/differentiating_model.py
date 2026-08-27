@@ -35,7 +35,7 @@ from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
 LFVNN_DTYPE = torch.float64
-_SIGNAL_DEVIATION_BOUND = 1.0 - 1e-6
+_SIGNAL_REGION_SHIFT_BOUND = 1.0 - 1e-6
 
 
 @dataclass(frozen=True)
@@ -61,8 +61,8 @@ class _PreparedTrainingData:
         return self.N_a_cr + self.N_b_cr
 
 
-class _SignalDeviationEstimator(nn.Module):
-    """Estimate the single bounded SR deviation f used by both categories."""
+class _SignalRegionShiftEstimator(nn.Module):
+    """Estimate the single bounded signal-region shift f for both categories."""
 
     def __init__(
         self,
@@ -77,27 +77,10 @@ class _SignalDeviationEstimator(nn.Module):
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return self.output(self.activation(self.hidden(events)))
-
-    def clamp_parameters(self) -> None:
-        """Keep the linear output in the log-likelihood domain for any input."""
-        output_parameter_bound = _SIGNAL_DEVIATION_BOUND / (
-            self.hidden.out_features + 1
+        return self.output(self.activation(self.hidden(events))).clamp(
+            min=-_SIGNAL_REGION_SHIFT_BOUND,
+            max=_SIGNAL_REGION_SHIFT_BOUND,
         )
-        with torch.no_grad():
-            self.output.weight.clamp_(
-                min=-output_parameter_bound,
-                max=output_parameter_bound,
-            )
-            self.output.bias.clamp_(
-                min=-output_parameter_bound,
-                max=output_parameter_bound,
-            )
-
-
-def _linear_sr_weight(estimate: torch.Tensor, sign: float) -> torch.Tensor:
-    """Convert the single SR deviation into its positive category weight."""
-    return 1 + sign * estimate
 
 
 class DifferentiatingModel(nn.Module, ContextedModel):
@@ -160,8 +143,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
 
     def _build_signal_hypothesis_estimator(self) -> None:
-        self.signal_network = (
-            _SignalDeviationEstimator(
+        self.signal_region_shift_network = (
+            _SignalRegionShiftEstimator(
                 input_dimension=self._config.train__nn_input_dimension,
                 hidden_size=self._config.train__nn_inner_layer_nodes,
                 output_dimension=self._config.train__nn_output_dimension,
@@ -180,22 +163,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__nn_xavier_gain
 
-        if self.signal_network is not None:
-            nn.init.xavier_uniform_(self.signal_network.hidden.weight, gain=gain)
-            nn.init.uniform_(self.signal_network.hidden.bias, a=-0.3, b=0.3)
-            nn.init.xavier_uniform_(self.signal_network.output.weight, gain=gain)
-            nn.init.uniform_(self.signal_network.output.bias, a=-0.3, b=0.3)
-            self._clamp_signal_parameters()
+        if self.signal_region_shift_network is not None:
+            nn.init.xavier_uniform_(
+                self.signal_region_shift_network.hidden.weight,
+                gain=gain,
+            )
+            nn.init.uniform_(self.signal_region_shift_network.hidden.bias, a=-0.3, b=0.3)
+            nn.init.xavier_uniform_(
+                self.signal_region_shift_network.output.weight,
+                gain=gain,
+            )
+            nn.init.uniform_(self.signal_region_shift_network.output.bias, a=-0.3, b=0.3)
 
         self.nuisance_calculation.initialize_parameters(gain)
-
-    def _clamp_signal_parameters(self) -> None:
-        if self.signal_network is not None:
-            self.signal_network.clamp_parameters()
-
-    def _clamp_trainable_parameters(self) -> None:
-        self._clamp_signal_parameters()
-        self.nuisance_calculation.clamp_parameters()
 
     def configure_optimizers(self) -> Optional[optim.Optimizer]:
         trainable_parameters = [
@@ -209,10 +189,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         return optimizer
 
-    def _signal_deviation(self, sr_events: torch.Tensor) -> torch.Tensor:
-        if self.signal_network is None:
-            raise RuntimeError("The denominator has no signal estimator.")
-        return self.signal_network(sr_events).squeeze(-1)
+    def _signal_region_shift(self, sr_events: torch.Tensor) -> torch.Tensor:
+        if self.signal_region_shift_network is None:
+            raise RuntimeError("The denominator has no signal-region shift estimator.")
+        return self.signal_region_shift_network(sr_events).squeeze(-1)
 
     def forward(
         self,
@@ -220,16 +200,16 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         profiler: Optional[TrainingProfiler] = None,
     ) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
-        with profile_region("training/signal_network"):
-            signal_hypothesis_sr_estimate = (
+        with profile_region("training/signal_region_shift"):
+            signal_hypothesis_sr_shift = (
                 None
-                if self.signal_network is None
-                else self._signal_deviation(data.sr_events)
+                if self.signal_region_shift_network is None
+                else self._signal_region_shift(data.sr_events)
             )
         with profile_region("training/nuisance_theta"):
             nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
         return self._assemble_loss(
-            signal_hypothesis_sr_estimate=signal_hypothesis_sr_estimate,
+            signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
             nuisance_estimates=nuisance_estimates,
             data=data,
         )
@@ -237,7 +217,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     @staticmethod
     def _assemble_loss(
         *,
-        signal_hypothesis_sr_estimate: Optional[torch.Tensor],
+        signal_hypothesis_sr_shift: Optional[torch.Tensor],
         nuisance_estimates: NuisanceEvaluation,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
@@ -303,7 +283,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             + b_cr_log_term
         )
 
-        if signal_hypothesis_sr_estimate is None:
+        if signal_hypothesis_sr_shift is None:
             null_hypothesis_sr_loss = (
                 data.N_sr
                 + (data.n_a_sr_over_n_sr - data.n_b_sr_over_n_sr)
@@ -313,23 +293,23 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
             return null_hypothesis_sr_loss + cr_loss
 
-        f_sr_estimate = signal_hypothesis_sr_estimate
-        signal_hypothesis_a_sr_term = data.n_a_sr_over_n_sr * _linear_sr_weight(
-            f_sr_estimate, sign=1
+        signal_region_shift = signal_hypothesis_sr_shift
+        signal_hypothesis_a_sr_term = data.n_a_sr_over_n_sr * (
+            1 + signal_region_shift
         )
-        signal_hypothesis_b_sr_term = data.n_b_sr_over_n_sr * _linear_sr_weight(
-            f_sr_estimate, sign=-1
+        signal_hypothesis_b_sr_term = data.n_b_sr_over_n_sr * (
+            1 - signal_region_shift
         )
         signal_hypothesis_sr_term = torch.addcmul(
             signal_hypothesis_a_sr_term + signal_hypothesis_b_sr_term,
             nuisance_sr_estimates,
             signal_hypothesis_a_sr_term - signal_hypothesis_b_sr_term,
         )
-        signal_hypothesis_a_sr_f_log_term = -torch.log(
-            _linear_sr_weight(f_sr_estimate[data.a_sr_mask], sign=1)
+        signal_hypothesis_a_sr_f_log_term = -torch.log1p(
+            signal_region_shift[data.a_sr_mask]
         ).sum()
-        signal_hypothesis_b_sr_f_log_term = -torch.log(
-            _linear_sr_weight(f_sr_estimate[data.b_sr_mask], sign=-1)
+        signal_hypothesis_b_sr_f_log_term = -torch.log1p(
+            -signal_region_shift[data.b_sr_mask]
         ).sum()
         signal_hypothesis_sr_loss = (
             signal_hypothesis_sr_term.sum()
@@ -497,8 +477,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 loss.backward()
             with profiler.region("training/optimizer_step"):
                 optimizer.step()
-            with profiler.region("training/clamp_parameters"):
-                self._clamp_trainable_parameters()
+            with profiler.region("training/clamp_nuisances"):
+                self.nuisance_calculation.clamp_parameters()
 
         return loss
 
@@ -588,20 +568,22 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         self.eval()
         with torch.no_grad():
-            if self.signal_network is None:
+            if self.signal_region_shift_network is None:
                 signal_weight = x_tensor.new_ones((x_tensor.shape[0], 1))
             else:
-                f_estimate = self.signal_network(x_tensor)
-                signal_weight = _linear_sr_weight(
-                    f_estimate, sign=-1 if secondary else 1
+                signal_region_shift = self.signal_region_shift_network(x_tensor)
+                signal_weight = 1 + (
+                    -signal_region_shift if secondary else signal_region_shift
                 )
-            if self._config.train__data_is_train_for_nuisances:
-                theta_inputs = (
-                    x_tensor
-                    if self.theta_network is not None
-                    else self._bin_indices(data)
-                )
-                theta_estimate = self._theta_from_inputs(theta_inputs).unsqueeze(1)
+            if isinstance(self.nuisance_calculation, NeuralPerEventNuisanceEstimator):
+                theta_estimate = self.nuisance_calculation.network(x_tensor).clamp(
+                    min=-_SIGNAL_REGION_SHIFT_BOUND,
+                    max=_SIGNAL_REGION_SHIFT_BOUND,
+                ).unsqueeze(1)
+            elif isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
+                theta_estimate = self.nuisance_calculation._values(
+                    self.nuisance_calculation._bin_indices(data)
+                ).unsqueeze(1)
             else:
                 theta_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
             theta_term = torch.clamp(1 + theta_sign * theta_estimate, min=1e-12)

@@ -8,7 +8,7 @@ from frame.command_line.handle_args import create_config_from_paths
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
-    _SignalDeviationEstimator,
+    _SignalRegionShiftEstimator,
     _PreparedTrainingData,
 )
 from neural_networks.nuisance_calculation import (
@@ -184,7 +184,7 @@ def _reference_loss(
 
 
 def _assemble_compact_loss_for_test(
-    estimates,
+    signal_region_shift,
     eta_sr,
     eta_cr,
     a_cr_multiplicities,
@@ -233,7 +233,7 @@ def _assemble_compact_loss_for_test(
         nuisance_cr_b_weights=b_cr_multiplicities,
     )
     return DifferentiatingModel._assemble_loss(
-        signal_hypothesis_sr_estimate=estimates[0],
+        signal_hypothesis_sr_shift=signal_region_shift,
         nuisance_estimates=nuisance,
         data=data,
     )
@@ -278,7 +278,7 @@ def test_compact_loss_matches_full_event_value_and_gradients(
             )
         )
         actual = _assemble_compact_loss_for_test(
-            (f, g),
+            f,
             eta_sr,
             eta_cr_bins,
             a_cr_bin_counts,
@@ -294,7 +294,7 @@ def test_compact_loss_matches_full_event_value_and_gradients(
             torch.zeros(number_of_cr, dtype=torch.float64),
         )
         actual = _assemble_compact_loss_for_test(
-            (f, g),
+            f,
             eta_sr,
             eta_cr,
             torch.cat(
@@ -402,8 +402,8 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(category_size
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
-def test_signal_deviation_estimator_clamps_output_parameters(input_dimension):
-    estimator = _SignalDeviationEstimator(
+def test_signal_region_shift_estimator_clamps_result(input_dimension):
+    estimator = _SignalRegionShiftEstimator(
         input_dimension=input_dimension,
         hidden_size=4,
         output_dimension=1,
@@ -412,11 +412,6 @@ def test_signal_deviation_estimator_clamps_output_parameters(input_dimension):
     with torch.no_grad():
         estimator.output.weight.fill_(2)
         estimator.output.bias.fill_(-2)
-    estimator.clamp_parameters()
-
-    output_parameter_bound = (1 - 1e-6) / (estimator.hidden.out_features + 1)
-    assert torch.all(estimator.output.weight.abs() <= output_parameter_bound)
-    assert torch.all(estimator.output.bias.abs() <= output_parameter_bound)
 
     estimate = estimator(torch.ones((7, input_dimension), dtype=torch.float64))
     assert estimate.shape == (7, 1)
@@ -537,11 +532,11 @@ def test_model_initialization_and_prediction(
         is_numerator=True,
         name="prediction_model",
     )
-    signal_network = model.signal_network
-    assert signal_network is not None
-    assert signal_network.hidden.weight.dtype == torch.float64
-    assert torch.all(signal_network.hidden.bias.abs() <= 0.3)
-    assert torch.all(signal_network.output.bias.abs() <= 0.3)
+    signal_region_shift_network = model.signal_region_shift_network
+    assert signal_region_shift_network is not None
+    assert signal_region_shift_network.hidden.weight.dtype == torch.float64
+    assert torch.all(signal_region_shift_network.hidden.bias.abs() <= 0.3)
+    assert torch.all(signal_region_shift_network.output.bias.abs() <= 0.3)
     model.fit(detected_batch)
     prediction_data = detected_batch.datasets[DataSet.DataSetCategory.A_SR]
     prediction = model.predict(prediction_data)
