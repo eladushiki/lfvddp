@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
@@ -449,6 +450,12 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     loss = model(prepared)
     assert torch.isfinite(loss)
     loss.backward()
+
+    _, model._norm_factor = detected_batch.get_normalized()
+    prediction_data = detected_batch.datasets[DataSet.DataSetCategory.A_SR]
+    theta_prediction = model.predict_theta(prediction_data)
+    assert theta_prediction.shape == (prediction_data.n_samples, 1)
+    assert np.isfinite(theta_prediction).all()
 
 
 @pytest.mark.parametrize(

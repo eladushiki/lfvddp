@@ -552,6 +552,27 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             HistoryKeys.EPOCH.value: epochs,
         }
 
+    def _nuisance_prediction(self, data: DataSet) -> torch.Tensor:
+        """Evaluate the configured nuisance estimator for prediction data."""
+        if isinstance(self.nuisance_calculation, NeuralPerEventNuisanceEstimator):
+            if self._norm_factor is None:
+                raise RuntimeError("Cannot predict before the model has been fitted.")
+            normalized_data = data / self._norm_factor
+            normalized_events = torch.tensor(
+                normalized_data.events,
+                dtype=self._dtype,
+                device=self._device,
+            )
+            return self.nuisance_calculation.network(normalized_events).clamp(
+                min=-_SIGNAL_REGION_SHIFT_BOUND,
+                max=_SIGNAL_REGION_SHIFT_BOUND,
+            )
+        if isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
+            return self.nuisance_calculation._values(
+                self.nuisance_calculation._bin_indices(data)
+            )
+        return torch.zeros(data.n_samples, dtype=self._dtype, device=self._device)
+
     def _predict_ndf(
         self,
         data: DataSet,
@@ -575,17 +596,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 signal_weight = 1 + (
                     -signal_region_shift if secondary else signal_region_shift
                 )
-            if isinstance(self.nuisance_calculation, NeuralPerEventNuisanceEstimator):
-                theta_estimate = self.nuisance_calculation.network(x_tensor).clamp(
-                    min=-_SIGNAL_REGION_SHIFT_BOUND,
-                    max=_SIGNAL_REGION_SHIFT_BOUND,
-                ).unsqueeze(1)
-            elif isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
-                theta_estimate = self.nuisance_calculation._values(
-                    self.nuisance_calculation._bin_indices(data)
-                ).unsqueeze(1)
-            else:
-                theta_estimate = x_tensor.new_zeros((x_tensor.shape[0], 1))
+            theta_estimate = self._nuisance_prediction(data).unsqueeze(1)
             theta_term = torch.clamp(1 + theta_sign * theta_estimate, min=1e-12)
             predictions = signal_weight * theta_term
         return predictions.detach().cpu().numpy()
@@ -597,26 +608,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return self._predict_ndf(data, secondary=True, theta_sign=-1.0)
 
     def predict_theta(self, data: DataSet) -> npt.NDArray:
-        """Evaluate the configured nuisance function theta over a dataset."""
+        """Evaluate the configured nuisance estimator over a dataset."""
         self.eval()
         with torch.no_grad():
-            if self._config.train__data_is_train_for_nuisances:
-                if self.theta_network is not None:
-                    if self._norm_factor is None:
-                        raise RuntimeError(
-                            "Cannot predict before the model has been fitted."
-                        )
-                    normalized_data = data / self._norm_factor
-                    theta_inputs = torch.tensor(
-                        normalized_data.events, dtype=self._dtype, device=self._device
-                    )
-                else:
-                    theta_inputs = self._bin_indices(data)
-                predictions = self._theta_from_inputs(theta_inputs).unsqueeze(1)
-            else:
-                predictions = torch.zeros(
-                    (data.n_samples, 1), dtype=self._dtype, device=self._device
-                )
+            predictions = self._nuisance_prediction(data).unsqueeze(1)
         return predictions.detach().cpu().numpy()
 
     def save_parameters(self, file_path) -> None:
