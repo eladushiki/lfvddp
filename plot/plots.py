@@ -22,6 +22,8 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
+    _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS,
+    _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
