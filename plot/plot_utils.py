@@ -20,7 +20,6 @@ from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
-    GeneratedDatasetParameters,
 )
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
@@ -243,7 +242,6 @@ def utils__calculate_performance_curve(
     observed_significance_lower_bounds = []
     observed_significance_upper_bounds = []
     gaussian_fit_significances = []
-    uses_injected_significance = None
 
     for signal_context, context_path in signal_group:
         signal_t_values_dir = context_path.parent
@@ -262,32 +260,16 @@ def utils__calculate_performance_curve(
                 "outlier filtering."
             )
 
-        is_generated = isinstance(
-            signal_dataset_parameters, GeneratedDatasetParameters
+        x_values.append(
+            calc_injected_t_significance_by_sqrt_q0_continuous(
+                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+            )
         )
-        if uses_injected_significance is None:
-            uses_injected_significance = is_generated
-        elif uses_injected_significance != is_generated:
-            raise ValueError(
-                "A performance subgroup cannot mix generated and loaded signal datasets."
-            )
-
-        if is_generated:
-            x_values.append(
-                calc_injected_t_significance_by_sqrt_q0_continuous(
-                    background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                    signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                    n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-                    n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                    upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
-                )
-            )
-            x_errors.append(np.std(signal_agg.all_injected_significances))
-        else:
-            x_values.append(
-                signal_dataset_parameters.dataset__number_of_signal_events
-            )
-            x_errors.append(0.0)
+        x_errors.append(np.std(signal_agg.all_injected_significances))
 
         observed_significances.append(
             calc_mean_t_significance_relative_to_background(
@@ -321,8 +303,6 @@ def utils__calculate_performance_curve(
         x_errors=np.asarray(x_errors)[sort],
         x_label=(
             r"injected $\sqrt{q_0}$"
-            if uses_injected_significance
-            else "mean signal number of events"
         ),
         observed_significances=np.asarray(observed_significances)[sort],
         observed_significance_lower_bounds=np.asarray(
