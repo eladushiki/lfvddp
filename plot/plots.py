@@ -1028,25 +1028,15 @@ def plot_prediction_process_1d(
     )
 
     sr_prediction_specs = {
-        "exp_f": (
-            r"signal hypothesis $(1+f(x))$",
-            spanning_exp_f,
-            plot_colors["f"],
-            prediction_linestyles["product"],
-        ),
-        "exp_g": (
-            r"signal hypothesis $(1-g(x))$",
-            spanning_exp_g,
-            plot_colors["g"],
-            prediction_linestyles["product"],
-        ),
-        "exp_f_eta_plus": (
-            r"signal hypothesis $(1+f(x))(1+\theta(x))$",            spanning_exp_f_eta_plus,
+        "signal_region_shift_theta_plus": (
+            r"signal hypothesis $(1+f(x))(1+\theta(x))$",
+            spanning_exp_f_eta_plus,
             plot_colors["f_light"],
             prediction_linestyles["component"],
         ),
-        "exp_g_eta_minus": (
-            r"signal hypothesis $(1-g(x))(1-\theta(x))$",            spanning_exp_g_eta_minus,
+        "signal_region_shift_theta_minus": (
+            r"signal hypothesis $(1-f(x))(1-\theta(x))$",
+            spanning_exp_g_eta_minus,
             plot_colors["g_light"],
             prediction_linestyles["component"],
         ),
