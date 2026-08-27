@@ -179,27 +179,27 @@
             \begin{cases}
                 \pdf_{\dataset{A}}(\eventsymbol)
                 &=
-                \frac{N_{\meas{A}}}
-                    {\int \refdist[\eventsymbol]\,dx}
+                \frac{N_{\dataset{A}}}
+                    {\int \refdist[\eventsymbol]\,d\eventsymbol}
                 e^{h(\eventsymbol)} \refdist[\eventsymbol],
                 \\
                 \pdf_{\dataset{B}}(\eventsymbol)
                 &=
-                \frac{N_{\meas{B}}}
+                \frac{N_{\dataset{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
                 e^{h(\eventsymbol)+r} \refdist[\eventsymbol],
             \end{cases} \\
             \hypothesis{1} &: \quad
             \begin{cases}
-                \dist{\dataset{A}}
+                \pdf_{\dataset{A}}(\eventsymbol)
                 &=
-                \frac{N_{\meas{A}}}
+                \frac{N_{\dataset{A}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
                 e^{f(\eventsymbol)} \refdist[\eventsymbol],
                 \\
                 \pdf_{\dataset{B}}(\eventsymbol)
                 &=
-                \frac{N_{\meas{B}}}
+                \frac{N_{\dataset{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
                 e^{g(\eventsymbol)} \refdist[\eventsymbol].
             \end{cases}
