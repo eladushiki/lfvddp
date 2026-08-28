@@ -91,6 +91,16 @@ def _prediction_process_subplot_adjustments(
 # Should not save the figure by itself!!! It is done in a well documented way in the calling function.
 
 
+def _eventually_converged_histories(
+    histories: np.ndarray,
+) -> np.ndarray:
+    """Return histories whose final recorded t value is finite."""
+    eventually_converged = np.isfinite(histories[:, -1])
+    if not np.any(eventually_converged):
+        raise ValueError("No eventually converged training histories found.")
+    return histories[eventually_converged]
+
+
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_train_percentile_progression_plot(
     context: ExecutionContext,
@@ -122,7 +132,8 @@ def t_train_percentile_progression_plot(
     for row, sample_name in enumerate(sample_names):
         ax = axes[row, 0]
         values = all_history_values[sample_name][HistoryKeys.T.value]
-        percentiles = np.nanpercentile(values, quantiles, axis=0)
+        converged_values = _eventually_converged_histories(values)
+        percentiles = np.percentile(converged_values, quantiles, axis=0)
         for quantile, percentile, color in zip(quantiles, percentiles, colors):
             (line,) = ax.plot(
                 epochs,
@@ -173,8 +184,9 @@ def _t_distribution_outlier_masks(
     t_values: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Identify failed low-tail and overfitted high-tail training results."""
-    lower_reference_boundary = np.percentile(
-        t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    lower_reference_boundary = max(
+        np.percentile(t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE),
+        0,
     )
     upper_reference_boundary = np.percentile(
         t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
