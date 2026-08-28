@@ -25,6 +25,7 @@ from neural_networks.nuisance_calculation import (
     NuisanceEvaluation,
     PreparedNuisanceData,
     ScalarBinnedNuisanceEstimator,
+    WeightedNuisanceValues,
 )
 from neural_networks.utils import (
     ContextedModel,
@@ -42,8 +43,6 @@ _SIGNAL_REGION_SHIFT_BOUND = 1.0 - 1e-6
 class _PreparedTrainingData:
     sr_events: torch.Tensor
     nuisance_data: PreparedNuisanceData
-    a_sr_mask: torch.Tensor
-    b_sr_mask: torch.Tensor
     N_a_sr: int
     N_b_sr: int
     N_a_cr: int
@@ -215,6 +214,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
 
     @staticmethod
+    def _weighted_sum(nuisance_values: WeightedNuisanceValues) -> torch.Tensor:
+        """Sum per-event values or compact values with event multiplicities."""
+
+        if nuisance_values.weights is None:
+            return nuisance_values.values.sum()
+        return torch.dot(nuisance_values.values, nuisance_values.weights)
+
+    @staticmethod
     def _assemble_loss(
         *,
         signal_hypothesis_sr_shift: Optional[torch.Tensor],
@@ -251,30 +258,33 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         """
 
         nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
-        nuisance_cr_estimates = nuisance_estimates.nuisance_cr_values
-
         common_a_sr_nuisance_log_term = -torch.log1p(
-            nuisance_sr_estimates[data.a_sr_mask]
+            nuisance_sr_estimates[: data.N_a_sr]
         ).sum()
         common_b_sr_nuisance_log_term = -torch.log1p(
-            -nuisance_sr_estimates[data.b_sr_mask]
+            -nuisance_sr_estimates[data.N_a_sr :]
         ).sum()
 
         cr_linear_nuisance_term = (
             data.nuisance_cr_coefficient
-            * torch.dot(
-                nuisance_cr_estimates,
-                nuisance_estimates.nuisance_cr_a_weights
-                + nuisance_estimates.nuisance_cr_b_weights,
+            * (
+                DifferentiatingModel._weighted_sum(nuisance_estimates.nuisance_cr_a)
+                + DifferentiatingModel._weighted_sum(
+                    nuisance_estimates.nuisance_cr_b
+                )
             )
         )
-        a_cr_log_term = -torch.dot(
-            torch.log1p(nuisance_cr_estimates),
-            nuisance_estimates.nuisance_cr_a_weights,
+        a_cr_log_term = -DifferentiatingModel._weighted_sum(
+            WeightedNuisanceValues(
+                torch.log1p(nuisance_estimates.nuisance_cr_a.values),
+                nuisance_estimates.nuisance_cr_a.weights,
+            )
         )
-        b_cr_log_term = -torch.dot(
-            torch.log1p(-nuisance_cr_estimates),
-            nuisance_estimates.nuisance_cr_b_weights,
+        b_cr_log_term = -DifferentiatingModel._weighted_sum(
+            WeightedNuisanceValues(
+                torch.log1p(-nuisance_estimates.nuisance_cr_b.values),
+                nuisance_estimates.nuisance_cr_b.weights,
+            )
         )
         cr_loss = (
             data.number_of_cr_events
@@ -294,25 +304,21 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             return null_hypothesis_sr_loss + cr_loss
 
         signal_region_shift = signal_hypothesis_sr_shift
-        signal_hypothesis_a_sr_term = data.n_a_sr_over_n_sr * (
-            1 + signal_region_shift
-        )
-        signal_hypothesis_b_sr_term = data.n_b_sr_over_n_sr * (
-            1 - signal_region_shift
-        )
-        signal_hypothesis_sr_term = torch.addcmul(
-            signal_hypothesis_a_sr_term + signal_hypothesis_b_sr_term,
-            nuisance_sr_estimates,
-            signal_hypothesis_a_sr_term - signal_hypothesis_b_sr_term,
+        category_imbalance = data.n_a_sr_over_n_sr - data.n_b_sr_over_n_sr
+        signal_hypothesis_sr_integral = (
+            data.N_sr
+            + category_imbalance
+            * (signal_region_shift.sum() + nuisance_sr_estimates.sum())
+            + torch.dot(signal_region_shift, nuisance_sr_estimates)
         )
         signal_hypothesis_a_sr_f_log_term = -torch.log1p(
-            signal_region_shift[data.a_sr_mask]
+            signal_region_shift[: data.N_a_sr]
         ).sum()
         signal_hypothesis_b_sr_f_log_term = -torch.log1p(
-            -signal_region_shift[data.b_sr_mask]
+            -signal_region_shift[data.N_a_sr :]
         ).sum()
         signal_hypothesis_sr_loss = (
-            signal_hypothesis_sr_term.sum()
+            signal_hypothesis_sr_integral
             + signal_hypothesis_a_sr_f_log_term
             + signal_hypothesis_b_sr_f_log_term
             + common_a_sr_nuisance_log_term
@@ -356,25 +362,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             normalized_a_cr=normalized_a_cr,
             normalized_b_cr=normalized_b_cr,
         )
-        a_sr_mask = torch.cat(
-            (
-                torch.ones(
-                    a_sr.n_samples,
-                    dtype=torch.bool,
-                    device=self._device,
-                ),
-                torch.zeros(
-                    b_sr.n_samples,
-                    dtype=torch.bool,
-                    device=self._device,
-                ),
-            )
-        )
         return _PreparedTrainingData(
             sr_events=sr_data,
             nuisance_data=nuisance_data,
-            a_sr_mask=a_sr_mask,
-            b_sr_mask=~a_sr_mask,
             N_a_sr=a_sr.n_samples,
             N_b_sr=b_sr.n_samples,
             N_a_cr=a_cr.n_samples,

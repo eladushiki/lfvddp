@@ -18,18 +18,26 @@ _NUISANCE_BOUND = 1.0 - 1e-6
 
 
 @dataclass(frozen=True)
-class NuisanceEvaluation:
-    """Nuisance values and region weights used to assemble the training loss.
+class WeightedNuisanceValues:
+    """Nuisance values with optional multiplicities for compact reductions."""
 
-    Control-region values may be per event (neural nuisance) or per occupied
-    detector bin (scalar nuisance); their weights preserve the corresponding
-    event multiplicities.  The differentiating model owns the loss formula.
+    values: torch.Tensor
+    weights: Optional[torch.Tensor] = None
+
+
+@dataclass(frozen=True)
+class NuisanceEvaluation:
+    """Nuisance values and multiplicities used to assemble the training loss.
+
+    Neural control-region values remain in their contiguous A/B event groups
+    and therefore need no weights. Scalar values are shared occupied-bin
+    evaluations whose weights preserve each category's event multiplicities.
+    The differentiating model owns the loss formula.
     """
 
     nuisance_sr_values: torch.Tensor
-    nuisance_cr_values: torch.Tensor
-    nuisance_cr_a_weights: torch.Tensor
-    nuisance_cr_b_weights: torch.Tensor
+    nuisance_cr_a: WeightedNuisanceValues
+    nuisance_cr_b: WeightedNuisanceValues
 
 
 @dataclass(frozen=True)
@@ -100,9 +108,8 @@ class BlankNuisanceEstimator(NuisanceCalculation):
                 dtype=self._dtype,
                 device=self._device,
             ),
-            nuisance_cr_values=empty_control_region,
-            nuisance_cr_a_weights=empty_control_region,
-            nuisance_cr_b_weights=empty_control_region,
+            nuisance_cr_a=WeightedNuisanceValues(empty_control_region),
+            nuisance_cr_b=WeightedNuisanceValues(empty_control_region),
         )
 
 
@@ -189,11 +196,17 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
         if not isinstance(data, self._PreparedData):
             raise TypeError("Scalar nuisance data was not prepared by this calculation.")
 
+        nuisance_cr_values = self._values(data.nuisance_cr_bin_indices)
         return NuisanceEvaluation(
             nuisance_sr_values=self._values(data.sr_inputs),
-            nuisance_cr_values=self._values(data.nuisance_cr_bin_indices),
-            nuisance_cr_a_weights=data.nuisance_cr_a_multiplicities,
-            nuisance_cr_b_weights=data.nuisance_cr_b_multiplicities,
+            nuisance_cr_a=WeightedNuisanceValues(
+                nuisance_cr_values,
+                data.nuisance_cr_a_multiplicities,
+            ),
+            nuisance_cr_b=WeightedNuisanceValues(
+                nuisance_cr_values,
+                data.nuisance_cr_b_multiplicities,
+            ),
         )
 
     def initialize_parameters(self, gain: float) -> None:
@@ -231,8 +244,7 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
     @dataclass(frozen=True)
     class _PreparedData(PreparedNuisanceData):
         cr_inputs: torch.Tensor
-        a_cr_mask: torch.Tensor
-        b_cr_mask: torch.Tensor
+        number_of_a_cr_events: int
 
     def __init__(
         self,
@@ -260,21 +272,6 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         normalized_b_cr: DataSet,
     ) -> PreparedNuisanceData:
         number_of_a_cr_events = normalized_a_cr.n_samples
-        number_of_b_cr_events = normalized_b_cr.n_samples
-        a_cr_mask = torch.cat(
-            (
-                torch.ones(
-                    number_of_a_cr_events,
-                    dtype=torch.bool,
-                    device=self._device,
-                ),
-                torch.zeros(
-                    number_of_b_cr_events,
-                    dtype=torch.bool,
-                    device=self._device,
-                ),
-            )
-        )
         return self._PreparedData(
             sr_inputs=torch.tensor(
                 normalized_sr.events,
@@ -286,25 +283,28 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
                 dtype=self._dtype,
                 device=self._device,
             ),
-            a_cr_mask=a_cr_mask,
-            b_cr_mask=~a_cr_mask,
+            number_of_a_cr_events=number_of_a_cr_events,
         )
 
     def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
         if not isinstance(data, self._PreparedData):
             raise TypeError("Neural nuisance data was not prepared by this calculation.")
 
+        nuisance_cr_values = self.network(data.cr_inputs).clamp(
+            min=-_NUISANCE_BOUND,
+            max=_NUISANCE_BOUND,
+        )
         return NuisanceEvaluation(
             nuisance_sr_values=self.network(data.sr_inputs).clamp(
                 min=-_NUISANCE_BOUND,
                 max=_NUISANCE_BOUND,
             ),
-            nuisance_cr_values=self.network(data.cr_inputs).clamp(
-                min=-_NUISANCE_BOUND,
-                max=_NUISANCE_BOUND,
+            nuisance_cr_a=WeightedNuisanceValues(
+                nuisance_cr_values[: data.number_of_a_cr_events]
             ),
-            nuisance_cr_a_weights=data.a_cr_mask.to(self._dtype),
-            nuisance_cr_b_weights=data.b_cr_mask.to(self._dtype),
+            nuisance_cr_b=WeightedNuisanceValues(
+                nuisance_cr_values[data.number_of_a_cr_events :]
+            ),
         )
 
     def initialize_parameters(self, gain: float) -> None:

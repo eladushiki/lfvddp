@@ -16,6 +16,7 @@ from neural_networks.nuisance_calculation import (
     NeuralPerEventNuisanceEstimator,
     NuisanceEvaluation,
     ScalarBinnedNuisanceEstimator,
+    WeightedNuisanceValues,
     _ThetaEstimator,
 )
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
@@ -197,26 +198,12 @@ def _assemble_compact_loss_for_test(
 ):
     number_of_sr = number_of_a_sr + number_of_b_sr
     number_of_cr = number_of_a_cr + number_of_b_cr
-    a_sr_mask = torch.cat(
-        (
-            torch.ones(number_of_a_sr, dtype=torch.bool),
-            torch.zeros(number_of_b_sr, dtype=torch.bool),
-        )
-    )
-    b_sr_mask = torch.cat(
-        (
-            torch.zeros(number_of_a_sr, dtype=torch.bool),
-            torch.ones(number_of_b_sr, dtype=torch.bool),
-        )
-    )
     control_region_linear_nuisance_coefficient = (
         number_of_a_cr - number_of_b_cr
     ) / number_of_cr
     data = _PreparedTrainingData(
         sr_events=torch.empty((number_of_sr, 0), dtype=eta_sr.dtype),
         nuisance_data=None,
-        a_sr_mask=a_sr_mask,
-        b_sr_mask=b_sr_mask,
         N_a_sr=number_of_a_sr,
         N_b_sr=number_of_b_sr,
         N_a_cr=number_of_a_cr,
@@ -229,9 +216,8 @@ def _assemble_compact_loss_for_test(
     )
     nuisance = NuisanceEvaluation(
         nuisance_sr_values=eta_sr,
-        nuisance_cr_values=eta_cr,
-        nuisance_cr_a_weights=a_cr_multiplicities,
-        nuisance_cr_b_weights=b_cr_multiplicities,
+        nuisance_cr_a=WeightedNuisanceValues(eta_cr, a_cr_multiplicities),
+        nuisance_cr_b=WeightedNuisanceValues(eta_cr, b_cr_multiplicities),
     )
     return DifferentiatingModel._assemble_loss(
         signal_hypothesis_sr_shift=signal_region_shift,
@@ -442,10 +428,12 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceEstimator)
     assert prepared.nuisance_data.cr_inputs is not None
     assert prepared.nuisance_data.cr_inputs.shape[0] == prepared.number_of_cr_events
-    assert prepared.nuisance_data.a_cr_mask.shape[0] == prepared.number_of_cr_events
-    assert prepared.nuisance_data.b_cr_mask.shape[0] == prepared.number_of_cr_events
-    assert int(prepared.nuisance_data.a_cr_mask.sum()) == prepared.N_a_cr
-    assert int(prepared.nuisance_data.b_cr_mask.sum()) == prepared.N_b_cr
+    assert prepared.nuisance_data.number_of_a_cr_events == prepared.N_a_cr
+    nuisance_evaluation = model.nuisance_calculation.evaluate(prepared.nuisance_data)
+    assert nuisance_evaluation.nuisance_cr_a.values.shape[0] == prepared.N_a_cr
+    assert nuisance_evaluation.nuisance_cr_b.values.shape[0] == prepared.N_b_cr
+    assert nuisance_evaluation.nuisance_cr_a.weights is None
+    assert nuisance_evaluation.nuisance_cr_b.weights is None
 
     loss = model(prepared)
     assert torch.isfinite(loss)
@@ -863,6 +851,7 @@ def test_training_profile_is_saved(
     assert "training/forward_and_loss" in summary
     assert "training/nuisance_theta" in summary
     assert "training/backward" in summary
+    assert "aten::nonzero" not in summary
 
 
 def test_t_history_is_logged_to_tensorboard():
