@@ -230,17 +230,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
 
-        For a signal-region event x, theta(x) the learned detector nuisance,
-        and f(x), g(x) the learned signal hypothesis sifts for a, b in the
-        signal region.
+        For a signal-region event x, theta(x) is the learned detector nuisance
+        and f(x) is the single learned signal shift. The A and B signal weights
+        reciprocate as 1 + f(x) and 1 - f(x), respectively.
 
         The SR loss term:
             in the numerator (signal hypotehsis) is:
 
                 sum_sr (
-                    N_a_sr exp(f(x)) (1 + theta(x)) + N_b_sr exp(g(x)) (1 - theta(x))
+                    a (1 + f(x)) (1 + theta(x))
+                    + b (1 - f(x)) (1 - theta(x))
                 )
-                - sum_a_sr f(x) - sum_b_sr g(x)
+                - sum_a_sr [log(1 + f(x)) + log(1 + theta(x))]
+                - sum_b_sr [log(1 - f(x)) + log(1 - theta(x))]
 
             in the denominator (null hypothesis) is:
 
@@ -253,7 +255,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             sum_cr (
                 N_a_cr (1 + theta(x)) + N_b_cr (1 - theta(x))
             )
-            - sum_a log(1 + theta(x)) - sum_b (1 - theta(x))
+            - sum_a log(1 + theta(x)) - sum_b log(1 - theta(x))
 
         """
 
