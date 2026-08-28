@@ -44,22 +44,47 @@ def test_theta_estimator_matches_network_dimensions_and_bounds_output():
 
 
 ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
-    ConfigType.DATASET.value: Path(
+    ConfigType.DATASET: Path(
         "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
     ),
-    ConfigType.DETECTOR.value: Path(
+    ConfigType.DETECTOR: Path(
         "test/configs/detector/basic_1D_detector_config.json"
     ),
-    ConfigType.TRAIN.value: Path(
+    ConfigType.TRAIN: Path(
         "test/configs/train/short_1D_train_config_without_nuisance.json"
     ),
 }
 ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
     **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
-    ConfigType.TRAIN.value: Path(
+    ConfigType.TRAIN: Path(
         "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
+
+
+@pytest.mark.parametrize(
+    "train_config_path, error_message",
+    [
+        (
+            "test/configs/train/short_1D_train_config_with_mixed_binned_nuisance.json",
+            "Binned nuisance configuration must not define",
+        ),
+        (
+            "test/configs/train/short_1D_train_config_with_mixed_neural_nuisance.json",
+            "Neural nuisance configuration must not define",
+        ),
+    ],
+)
+def test_mixed_nuisance_configurations_are_rejected(
+    train_config_path, error_message
+):
+    config_paths = {
+        **DEFAULT_CONFIG_PATHS,
+        ConfigType.TRAIN: Path(train_config_path),
+    }
+
+    with pytest.raises(ValueError, match=error_message):
+        create_config_from_paths(list(config_paths.values()))
 ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG = {
     **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
     ConfigType.TRAIN.value: Path(
