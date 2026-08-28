@@ -444,17 +444,18 @@ Training entry points:
 `DifferentiatingModel._assemble_loss` is the single implementation of the
 negative log-likelihood. This section expands the nuisance-dependent expression
 from the paper into the terms used in code. Let `theta(x)` be the bounded detector
-nuisance, `f(x)` and `g(x)` the learned log-density ratios, and `a` and `b` the
-fractions of A and B events in the signal region (SR). The SR contribution is
+nuisance, `f(x)` the single bounded signal shift, and `a` and `b` the fractions
+of A and B events in the signal region (SR). The A and B signal weights
+reciprocate as `1 + f(x)` and `1 - f(x)`. The SR contribution is
 
 ```text
-L_SR = sum_x in SR [a exp(f(x)) (1 + theta(x))
-                     + b exp(g(x)) (1 - theta(x))]
-       - sum_x in A_SR [f(x) + log(1 + theta(x))]
-       - sum_x in B_SR [g(x) + log(1 - theta(x))].
+L_SR = sum_x in SR [a (1 + f(x)) (1 + theta(x))
+                     + b (1 - f(x)) (1 - theta(x))]
+       - sum_x in A_SR [log(1 + f(x)) + log(1 + theta(x))]
+       - sum_x in B_SR [log(1 - f(x)) + log(1 - theta(x))].
 ```
 
-The control region (CR) fixes `f = g = 0`. With
+The control region (CR) fixes `f = 0`. With
 `c = (N_A_CR - N_B_CR) / N_CR`, its contribution is
 
 ```text
@@ -463,18 +464,18 @@ L_CR = N_CR + c sum_x in CR theta(x)
        - sum_x in B_CR log(1 - theta(x)).
 ```
 
-With f/g estimates, the implementation returns the paper's numerator loss
-`L^num = L_SR + L_CR`. When f/g estimates are absent, it returns the denominator
-loss `L^denom`: equivalently, set `f = g = 0` above, so the SR expected-density
+With an `f` estimate, the implementation returns the paper's numerator loss
+`L^num = L_SR + L_CR`. When the estimate is absent, it returns the denominator
+loss `L^denom`: equivalently, set `f = 0` above, so the SR expected-density
 term reduces to `N_SR + (a - b) sum_x in SR theta(x)` while the nuisance observed
 log terms remain. This is how the two paper expressions select the two branches
 of `_assemble_loss`.
 
-In the implementation, `signal_region_expected_density`, the f/g and nuisance
-`*_observed_log_term` values, and `control_region_linear_nuisance_term` map
-directly to the expected-density, observed, and linear terms above.
+In the implementation, `signal_hypothesis_sr_integral`, the signal-shift and
+nuisance log terms, and `cr_linear_nuisance_term` map directly to the expected,
+observed, and linear terms above.
 `NuisanceCalculation` only supplies `theta` values and CR event
-weights: neural nuisance uses one weight per event, while scalar nuisance uses
-one weight per occupied detector bin equal to its event multiplicity. Thus both
-representations evaluate the same expression without duplicating its loss
-formula.
+weights: neural nuisance uses one value per event with implicit unit weight,
+while scalar nuisance uses one value per occupied detector bin with its event
+multiplicity. Thus both representations evaluate the same expression without
+duplicating its loss formula.
