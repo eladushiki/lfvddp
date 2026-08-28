@@ -784,8 +784,8 @@ def plot_prediction_process_1d(
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
     The numerator model's ``predict`` and ``predict_secondary`` outputs provide
-    the combined e^f(1+theta) and e^g(1-theta) predictions. NPLM model compatibility
-    is intentionally out of scope.
+    the reciprocal ``(1+f)(1+theta)`` and ``(1-f)(1-theta)`` predictions.
+    NPLM model compatibility is intentionally out of scope.
     """
     selected_observables = utils__prediction_process_observables(
         context, along_observables, required_dimensions=1
@@ -825,18 +825,17 @@ def plot_prediction_process_1d(
 
     plot_colors = {
         "background": "gray",
-        "f": "tab:blue",
-        "f_light": "cornflowerblue",
-        "g": "tab:orange",
-        "g_light": "sandybrown",
-        "eta_plus": "cornflowerblue",
-        "eta_plus_light": "lightskyblue",
-        "eta_minus": "sandybrown",
-        "eta_minus_light": "moccasin",
+        "sample_a": "tab:blue",
+        "sample_b": "tab:orange",
+        "signal_plus": "cornflowerblue",
+        "signal_minus": "sandybrown",
+        "theta_plus": "cornflowerblue",
+        "theta_plus_null": "lightskyblue",
+        "theta_minus": "sandybrown",
+        "theta_minus_null": "moccasin",
     }
     prediction_linestyles = {
         "component": "-",
-        "product": "-.",
         "denominator": "--",
     }
 
@@ -867,8 +866,8 @@ def plot_prediction_process_1d(
         along_observables=selected_observables,
         region_name="SR",
         background_color=plot_colors["background"],
-        sample_a_color=plot_colors["f"],
-        sample_b_color=plot_colors["g"],
+        sample_a_color=plot_colors["sample_a"],
+        sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
     )
     utils__plot_region_histograms_sliced(
@@ -880,8 +879,8 @@ def plot_prediction_process_1d(
         along_observables=selected_observables,
         region_name="CR",
         background_color=plot_colors["background"],
-        sample_a_color=plot_colors["f"],
-        sample_b_color=plot_colors["g"],
+        sample_a_color=plot_colors["sample_a"],
+        sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
     )
 
@@ -912,23 +911,25 @@ def plot_prediction_process_1d(
             ) in prediction_specs
         ]
 
-    sr_exp_f_eta_plus = utils__model_prediction_values(
+    sr_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, sr_background
     )
-    sr_exp_g_eta_minus = utils__model_prediction_values(
+    sr_signal_minus_prediction = utils__model_prediction_values(
         numerator_model.predict_secondary, sr_background
     )
-    sr_product_predictions = (
+    sr_signal_predictions = (
         (
-            sr_exp_f_eta_plus,
+            sr_signal_plus_prediction,
             a_sr.n_samples,
-            r"$(1+f(x))(1+\theta(x))$ prediction",            plot_colors["f"],
+            r"$(1+f(x))(1+\theta(x))$ prediction",
+            plot_colors["sample_a"],
             "o",
         ),
         (
-            sr_exp_g_eta_minus,
+            sr_signal_minus_prediction,
             b_sr.n_samples,
-            r"$(1-g(x))(1-\theta(x))$ prediction",            plot_colors["g"],
+            r"$(1-f(x))(1-\theta(x))$ prediction",
+            plot_colors["sample_b"],
             "s",
         ),
     )
@@ -936,7 +937,7 @@ def plot_prediction_process_1d(
         ax=sr_distribution_ax,
         reference_dataset=sr_background,
         predictions=weighted_distribution_predictions(
-            sr_background, sr_product_predictions
+            sr_background, sr_signal_predictions
         ),
         bins=bins,
         bin_centers=bin_centers,
@@ -944,22 +945,22 @@ def plot_prediction_process_1d(
         normalize_each_prediction=normalize_top_distributions,
     )
 
-    cr_eta = utils__model_prediction_values(
+    cr_null_theta = utils__model_prediction_values(
         denominator_model.predict_theta, cr_background
     )
-    cr_eta_predictions = (
+    cr_null_theta_predictions = (
         (
-            1.0 + cr_eta,
+            1.0 + cr_null_theta,
             a_cr.n_samples,
             r"null hypothesis $1+\theta(x)$ prediction",
-            plot_colors["eta_plus"],
+            plot_colors["theta_plus"],
             "o",
         ),
         (
-            1.0 - cr_eta,
+            1.0 - cr_null_theta,
             b_cr.n_samples,
             r"null hypothesis $1-\theta(x)$ prediction",
-            plot_colors["eta_minus"],
+            plot_colors["theta_minus"],
             "s",
         ),
     )
@@ -967,7 +968,7 @@ def plot_prediction_process_1d(
         ax=cr_distribution_ax,
         reference_dataset=cr_background,
         predictions=weighted_distribution_predictions(
-            cr_background, cr_eta_predictions
+            cr_background, cr_null_theta_predictions
         ),
         bins=bins,
         bin_centers=bin_centers,
@@ -1028,76 +1029,76 @@ def plot_prediction_process_1d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
-    spanning_exp_f_eta_plus = utils__model_prediction_values(
+    spanning_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
     )
-    spanning_exp_g_eta_minus = utils__model_prediction_values(
+    spanning_signal_minus_prediction = utils__model_prediction_values(
         numerator_model.predict_secondary, prediction_spanning_dataset
     )
-    nuisance_numerator_eta = utils__model_prediction_values(
+    numerator_theta = utils__model_prediction_values(
         numerator_model.predict_theta, prediction_spanning_dataset
     )
-    nuisance_denominator_eta = utils__model_prediction_values(
+    denominator_theta = utils__model_prediction_values(
         denominator_model.predict_theta, prediction_spanning_dataset
     )
 
     sr_prediction_specs = {
         "signal_region_shift_theta_plus": (
             r"signal hypothesis $(1+f(x))(1+\theta(x))$",
-            spanning_exp_f_eta_plus,
-            plot_colors["f_light"],
+            spanning_signal_plus_prediction,
+            plot_colors["signal_plus"],
             prediction_linestyles["component"],
         ),
         "signal_region_shift_theta_minus": (
             r"signal hypothesis $(1-f(x))(1-\theta(x))$",
-            spanning_exp_g_eta_minus,
-            plot_colors["g_light"],
+            spanning_signal_minus_prediction,
+            plot_colors["signal_minus"],
             prediction_linestyles["component"],
         ),
     }
 
     def nuisance_prediction_specs(
-        numerator_eta: np.ndarray,
-        denominator_eta: np.ndarray,
+        numerator_theta: np.ndarray,
+        denominator_theta: np.ndarray,
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
-            "numerator_eta_plus": (
+            "numerator_theta_plus": (
                 r"signal hypothesis $1+\theta(x)$",
-                1.0 + numerator_eta,
-                plot_colors["eta_plus"],
+                1.0 + numerator_theta,
+                plot_colors["theta_plus"],
                 prediction_linestyles["component"],
             ),
-            "numerator_eta_minus": (
+            "numerator_theta_minus": (
                 r"signal hypothesis $1-\theta(x)$",
-                1.0 - numerator_eta,
-                plot_colors["eta_minus"],
+                1.0 - numerator_theta,
+                plot_colors["theta_minus"],
                 prediction_linestyles["component"],
             ),
-            "denominator_eta_plus": (
+            "denominator_theta_plus": (
                 r"null hypothesis $1+\theta(x)$",
-                1.0 + denominator_eta,
-                plot_colors["eta_plus_light"],
+                1.0 + denominator_theta,
+                plot_colors["theta_plus_null"],
                 prediction_linestyles["denominator"],
             ),
-            "denominator_eta_minus": (
+            "denominator_theta_minus": (
                 r"null hypothesis $1-\theta(x)$",
-                1.0 - denominator_eta,
-                plot_colors["eta_minus_light"],
+                1.0 - denominator_theta,
+                plot_colors["theta_minus_null"],
                 prediction_linestyles["denominator"],
             ),
         }
 
-    eta_prediction_specs = nuisance_prediction_specs(
-        nuisance_numerator_eta,
-        nuisance_denominator_eta,
+    theta_prediction_specs = nuisance_prediction_specs(
+        numerator_theta,
+        denominator_theta,
     )
     sr_prediction_specs.update(
         {
-            key: eta_prediction_specs[key]
-            for key in ("denominator_eta_plus", "denominator_eta_minus")
+            key: theta_prediction_specs[key]
+            for key in ("denominator_theta_plus", "denominator_theta_minus")
         }
     )
-    cr_prediction_specs = eta_prediction_specs
+    cr_prediction_specs = theta_prediction_specs
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
@@ -1202,8 +1203,8 @@ def plot_prediction_process_2d(
     Plot the SR/CR data distributions and the corresponding LFVDDP predictions.
 
     The numerator model's ``predict`` and ``predict_secondary`` outputs provide
-    the combined e^f(1+theta) and e^g(1-theta) predictions. NPLM model compatibility
-    is intentionally out of scope.
+    the reciprocal ``(1+f)(1+theta)`` and ``(1-f)(1-theta)`` predictions.
+    NPLM model compatibility is intentionally out of scope.
     """
     selected_observables = utils__prediction_process_observables(
         context, along_observables, required_dimensions=2
@@ -1243,14 +1244,13 @@ def plot_prediction_process_2d(
 
     plot_colors = {
         "background": "gray",
-        "f": "tab:blue",
-        "g": "tab:orange",
-        "eta_plus": "cornflowerblue",
-        "eta_minus": "sandybrown",
+        "sample_a": "tab:blue",
+        "sample_b": "tab:orange",
+        "theta_plus": "cornflowerblue",
+        "theta_minus": "sandybrown",
     }
     prediction_linestyles = {
         "component": "-",
-        "product": "-.",
         "denominator": "--",
     }
 
@@ -1281,8 +1281,8 @@ def plot_prediction_process_2d(
         along_observables=selected_observables,
         region_name="SR",
         background_color=plot_colors["background"],
-        sample_a_color=plot_colors["f"],
-        sample_b_color=plot_colors["g"],
+        sample_a_color=plot_colors["sample_a"],
+        sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
     )
     utils__plot_region_histogram_meshes_2d(
@@ -1294,8 +1294,8 @@ def plot_prediction_process_2d(
         along_observables=selected_observables,
         region_name="CR",
         background_color=plot_colors["background"],
-        sample_a_color=plot_colors["f"],
-        sample_b_color=plot_colors["g"],
+        sample_a_color=plot_colors["sample_a"],
+        sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
     )
 
@@ -1326,23 +1326,25 @@ def plot_prediction_process_2d(
             ) in prediction_specs
         ]
 
-    sr_exp_f_eta_plus = utils__model_prediction_values(
+    sr_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, sr_background
     )
-    sr_exp_g_eta_minus = utils__model_prediction_values(
+    sr_signal_minus_prediction = utils__model_prediction_values(
         numerator_model.predict_secondary, sr_background
     )
-    sr_product_predictions = (
+    sr_signal_predictions = (
         (
-            sr_exp_f_eta_plus,
+            sr_signal_plus_prediction,
             a_sr.n_samples,
-            r"$(1+f(x))(1+\theta(x))$ prediction",            plot_colors["f"],
+            r"$(1+f(x))(1+\theta(x))$ prediction",
+            plot_colors["sample_a"],
             "o",
         ),
         (
-            sr_exp_g_eta_minus,
+            sr_signal_minus_prediction,
             b_sr.n_samples,
-            r"$(1-g(x))(1-\theta(x))$ prediction",            plot_colors["g"],
+            r"$(1-f(x))(1-\theta(x))$ prediction",
+            plot_colors["sample_b"],
             "s",
         ),
     )
@@ -1350,7 +1352,7 @@ def plot_prediction_process_2d(
         ax=sr_distribution_ax,
         reference_dataset=sr_background,
         predictions=weighted_distribution_predictions(
-            sr_background, sr_product_predictions
+            sr_background, sr_signal_predictions
         ),
         bins=bins,
         bin_centers=bin_centers,
@@ -1358,22 +1360,22 @@ def plot_prediction_process_2d(
         normalize_each_prediction=normalize_top_distributions,
     )
 
-    cr_eta = utils__model_prediction_values(
+    cr_null_theta = utils__model_prediction_values(
         denominator_model.predict_theta, cr_background
     )
-    cr_eta_predictions = (
+    cr_null_theta_predictions = (
         (
-            1.0 + cr_eta,
+            1.0 + cr_null_theta,
             a_cr.n_samples,
             r"null hypothesis $1+\theta(x)$ prediction",
-            plot_colors["eta_plus"],
+            plot_colors["theta_plus"],
             "o",
         ),
         (
-            1.0 - cr_eta,
+            1.0 - cr_null_theta,
             b_cr.n_samples,
             r"null hypothesis $1-\theta(x)$ prediction",
-            plot_colors["eta_minus"],
+            plot_colors["theta_minus"],
             "s",
         ),
     )
@@ -1381,7 +1383,7 @@ def plot_prediction_process_2d(
         ax=cr_distribution_ax,
         reference_dataset=cr_background,
         predictions=weighted_distribution_predictions(
-            cr_background, cr_eta_predictions
+            cr_background, cr_null_theta_predictions
         ),
         bins=bins,
         bin_centers=bin_centers,
@@ -1442,73 +1444,75 @@ def plot_prediction_process_2d(
         values_by_observable=prediction_values_by_observable,
         observable_names=configured_observables,
     )
-    spanning_exp_f_eta_plus = utils__model_prediction_values(
+    spanning_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
     )
-    spanning_exp_g_eta_minus = utils__model_prediction_values(
+    spanning_signal_minus_prediction = utils__model_prediction_values(
         numerator_model.predict_secondary, prediction_spanning_dataset
     )
-    nuisance_numerator_eta = utils__model_prediction_values(
-        numerator_model.predict_eta, prediction_spanning_dataset
+    numerator_theta = utils__model_prediction_values(
+        numerator_model.predict_theta, prediction_spanning_dataset
     )
-    nuisance_denominator_eta = utils__model_prediction_values(
+    denominator_theta = utils__model_prediction_values(
         denominator_model.predict_theta, prediction_spanning_dataset
     )
     sr_prediction_specs = {
-        "exp_f_eta_plus": (
-            r"signal hypothesis $(1+f(x))(1+\theta(x))$",            spanning_exp_f_eta_plus,
-            plot_colors["f"],
+        "signal_region_shift_theta_plus": (
+            r"signal hypothesis $(1+f(x))(1+\theta(x))$",
+            spanning_signal_plus_prediction,
+            plot_colors["sample_a"],
             prediction_linestyles["component"],
         ),
-        "exp_g_eta_minus": (
-            r"signal hypothesis $(1-g(x))(1-\theta(x))$",            spanning_exp_g_eta_minus,
-            plot_colors["g"],
+        "signal_region_shift_theta_minus": (
+            r"signal hypothesis $(1-f(x))(1-\theta(x))$",
+            spanning_signal_minus_prediction,
+            plot_colors["sample_b"],
             prediction_linestyles["component"],
         ),
     }
 
     def nuisance_prediction_specs(
-        numerator_eta: np.ndarray,
-        denominator_eta: np.ndarray,
+        numerator_theta: np.ndarray,
+        denominator_theta: np.ndarray,
     ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
         return {
-            "numerator_eta_plus": (
+            "numerator_theta_plus": (
                 r"signal hypothesis $1+\theta(x)$",
-                1.0 + numerator_eta,
-                plot_colors["eta_plus"],
+                1.0 + numerator_theta,
+                plot_colors["theta_plus"],
                 prediction_linestyles["component"],
             ),
-            "numerator_eta_minus": (
+            "numerator_theta_minus": (
                 r"signal hypothesis $1-\theta(x)$",
-                1.0 - numerator_eta,
-                plot_colors["eta_minus"],
+                1.0 - numerator_theta,
+                plot_colors["theta_minus"],
                 prediction_linestyles["component"],
             ),
-            "denominator_eta_plus": (
+            "denominator_theta_plus": (
                 r"null hypothesis $1+\theta(x)$",
-                1.0 + denominator_eta,
-                plot_colors["eta_plus"],
+                1.0 + denominator_theta,
+                plot_colors["theta_plus"],
                 prediction_linestyles["denominator"],
             ),
-            "denominator_eta_minus": (
+            "denominator_theta_minus": (
                 r"null hypothesis $1-\theta(x)$",
-                1.0 - denominator_eta,
-                plot_colors["eta_minus"],
+                1.0 - denominator_theta,
+                plot_colors["theta_minus"],
                 prediction_linestyles["denominator"],
             ),
         }
 
-    eta_prediction_specs = nuisance_prediction_specs(
-        nuisance_numerator_eta,
-        nuisance_denominator_eta,
+    theta_prediction_specs = nuisance_prediction_specs(
+        numerator_theta,
+        denominator_theta,
     )
     sr_prediction_specs.update(
         {
-            key: eta_prediction_specs[key]
-            for key in ("denominator_eta_plus", "denominator_eta_minus")
+            key: theta_prediction_specs[key]
+            for key in ("denominator_theta_plus", "denominator_theta_minus")
         }
     )
-    cr_prediction_specs = eta_prediction_specs
+    cr_prediction_specs = theta_prediction_specs
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
