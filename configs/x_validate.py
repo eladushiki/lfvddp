@@ -22,6 +22,8 @@ def cross_configure(config: Union[
     if config.train__nn_input_dimension is None:
         config.train__nn_input_dimension = detector_dimension
 
+    config.configure_nuisance_binning(detector_dimension)
+
     generated_type = GeneratedDatasetParameters.DATASET_PARAMETER_TYPE_NAME()
     for dataset_definition in config.dataset__definitions:
         if dataset_definition.get(config._dataset__type_property) == generated_type:

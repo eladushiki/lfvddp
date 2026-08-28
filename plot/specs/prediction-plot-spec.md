@@ -46,7 +46,7 @@ A 2 × 2 figure with four panels:
 | --- | --- | --- | --- |
 | Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Same 2D SR histograms of the data. If more than 2D, its projection over the first two dimensions. |
 | Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | Same 2D CR histograms of the data. If more than 2D, its projection over the first two dimensions. |
-| Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $1+f(x)(1+\theta(x))$ and $1-f(x)(1-\theta(x))$, evaluated over the SR. | Same four SR functions as 2D surfaces. |
+| Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$, evaluated over the SR. | Same four SR functions as 2D surfaces. |
 | Bottom right | CR prediction | Exactly the signal nuisance terms $1+\theta(x)$ and $1-\theta(x)$ plus the null nuisance terms $1+\theta(x)$ and $1-\theta(x)$, evaluated over the CR. | Same four CR functions as 2D surfaces. |
 
 ### Plot axes
@@ -82,9 +82,9 @@ A 2 × 2 figure with four panels:
 The bottom-left panel displays exactly four functions over the signal region:
 
 - Null hypothesis: $1+\theta(x)$ and $1-\theta(x)$ from the denominator model.
-- Signal hypothesis: $1+f(x)(1+\theta(x))$ and $1-f(x)(1-\theta(x))$ from the numerator model.
+- Signal hypothesis: $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$ from the numerator model.
 
-It does not display eta-removed $1+f(x)$ or $1-f(x)$ terms, numerator nuisance-only terms, or detector efficiency.
+It does not display nuisance-removed $1+f(x)$ or $1-f(x)$ terms, numerator nuisance-only terms, or detector efficiency.
 
 ### CR prediction panel
 
@@ -93,7 +93,7 @@ The bottom-right panel displays exactly four nuisance functions over the control
 - Signal hypothesis: $1+\theta(x)$ and $1-\theta(x)$ from the numerator model.
 - Null hypothesis: $1+\theta(x)$ and $1-\theta(x)$ from the denominator model.
 
-It does not display signal product terms, eta-removed terms, or detector efficiency.
+It does not display signal product terms, nuisance-removed terms, or detector efficiency.
 
 ### Common behavior
 
@@ -108,10 +108,10 @@ It does not display signal product terms, eta-removed terms, or detector efficie
 | Element | Current encoding |
 | --- | --- |
 | Combined background | Gray |
-| \(f\)-family / A component | Blue (`tab:blue`) |
-| \(g\)-family / B component | Orange (`tab:orange`) |
-| Lighter \(f\)-family variants | Cornflower blue / lightsky blue |
-| Lighter \(g\)-family variants | Sandybrown / moccasin |
+| Positive signal-shift / A component | Blue (`tab:blue`) |
+| Negative signal-shift / B component | Orange (`tab:orange`) |
+| Positive signal and nuisance variants | Cornflower blue / lightsky blue |
+| Negative signal and nuisance variants | Sandybrown / moccasin |
 | Reference prediction | Gray dotted horizontal line at 1.0 |
 
 The figure uses the global plotting configuration. The baseline configuration sets a white figure face, classic Matplotlib style, serif font family, font size 24, and figure size 10 × 9 inches.

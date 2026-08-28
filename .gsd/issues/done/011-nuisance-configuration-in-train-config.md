@@ -8,3 +8,7 @@ Move the detector bin bound and counting configuration parameters to the trainin
 ## Acceptance criteria
 - Either mixed combination of parameters should result in an error when creating the Config.
 - Existing, git backed configuration packs should preserve functionality but update structure.
+
+## Completed
+- Moved scalar nuisance binning bounds and counts from detector configuration to `TrainConfig` and made them mutually exclusive with neural nuisance configuration.
+- Migrated committed configuration packs and test fixtures; added configuration-creation tests for both invalid mixed combinations.
