@@ -41,7 +41,7 @@ Automatically scan pairs of lepton-flavor-differentiated HEP datasets for discre
 
 ## Statistical Training Invariant
 
-The paper's symmetrized test statistic with efficiency weights is minimized in two parts: one over \(f(x)\) for dataset A and one over \(g(x)\) for dataset B. This mathematical objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
+The symmetrized test statistic with efficiency weights uses one bounded signal shift \(f(x)\), applied reciprocally as \(1+f(x)\) for dataset A and \(1-f(x)\) for dataset B. This mathematical objective, rather than the particular job orchestration, model implementation, or runtime mechanics, is the scientific invariant that future training changes must preserve.
 
 ## Constraints
 
