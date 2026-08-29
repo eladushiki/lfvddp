@@ -27,6 +27,7 @@ class TrainConfig:
     train__learning_rate: float = 0.001  # optimizer learning rate
     train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
+    train__lfvnn_max_cpu_threads: Optional[int] = None
     # Opt-in CPU profiling. The warmup epochs are observed by the profiler but
     # omitted from its measurements; the following active epochs are recorded.
     train__profiling_enabled: bool = False
@@ -160,6 +161,14 @@ class TrainConfig:
         if self.train__profiling_enabled and self.train__like_NPLM:
             raise ValueError(
                 "Training profiling is only supported for LFVNN training."
+            )
+        if self.train__lfvnn_max_cpu_threads is not None and (
+            isinstance(self.train__lfvnn_max_cpu_threads, bool)
+            or not isinstance(self.train__lfvnn_max_cpu_threads, int)
+            or self.train__lfvnn_max_cpu_threads < 1
+        ):
+            raise ValueError(
+                "train__lfvnn_max_cpu_threads must be a positive integer or null."
             )
 
         if self.train__epochs < 1e5 and self.train__like_NPLM or \

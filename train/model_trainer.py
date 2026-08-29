@@ -52,18 +52,20 @@ from train.training_profiler import TrainingResourceProfiler
 from train.training_names import training_name
 
 
-MAX_LFVNN_CPU_THREADS = 4
-
-
 def _training_cpu_threads(
     config: TrainConfig,
     device: str,
     available_cpu_threads: int,
 ) -> int:
-    """Cap CPU LFVNN's fine-grained arithmetic without limiting NPLM or CUDA."""
+    """Apply the user-selected CPU LFVNN thread cap when configured."""
 
-    if device == "cpu" and not config.train__like_NPLM:
-        return min(available_cpu_threads, MAX_LFVNN_CPU_THREADS)
+    configured_cap = config.train__lfvnn_max_cpu_threads
+    if (
+        device == "cpu"
+        and not config.train__like_NPLM
+        and configured_cap is not None
+    ):
+        return min(available_cpu_threads, configured_cap)
     return available_cpu_threads
 
 

@@ -56,6 +56,18 @@ ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_without_nuisance.json"
     ),
 }
+ONE_DIMENSION_WITH_CPU_THREAD_CAP_CONFIG = {
+    **RESOURCE_CLUSTER_CONFIG,
+    ConfigType.DATASET.value: Path(
+        "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+    ),
+    ConfigType.DETECTOR.value: Path(
+        "test/configs/detector/basic_1D_detector_config.json"
+    ),
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_with_cpu_thread_cap.json"
+    ),
+}
 ONE_DIMENSION_LIKE_NPLM_CONFIG = {
     **RESOURCE_CLUSTER_CONFIG,
     ConfigType.DATASET.value: Path(
@@ -285,7 +297,7 @@ def test_nonparallel_training_modes_select_sequential_launcher(
 @pytest.mark.parametrize(
     "cpus,gpus,expected",
     [
-        (8, 0, [("cpu", 4), ("cpu", 1)]),
+        (8, 0, [("cpu", 7), ("cpu", 1)]),
         (8, 1, [("cuda:0", 7), ("cpu", 1)]),
         (8, 2, [("cuda:0", 7), ("cuda:1", 1)]),
         (8, 4, [("cuda:0", 7), ("cuda:1", 1)]),
@@ -322,6 +334,48 @@ def test_parallel_branch_placement(
 
     assert [(item.device, item.cpu_threads) for item in assignments] == expected
     assert bool(profiler.unused_resources) is (gpus > 2)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_CPU_THREAD_CAP_CONFIG],
+    indirect=True,
+)
+@pytest.mark.parametrize(
+    "cpus,gpus,expected",
+    [
+        (8, 0, [("cpu", 3), ("cpu", 1)]),
+        (2, 0, [("cpu", 1), ("cpu", 1)]),
+        (8, 1, [("cuda:0", 7), ("cpu", 1)]),
+    ],
+)
+def test_configured_lfvnn_thread_cap_only_applies_to_cpu_branches(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+    cpus,
+    gpus,
+    expected,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    launcher = ParallelTrainLauncher(
+        function_execution_context,
+        detector_effect,
+        allocation=_allocation(cpus, gpus),
+    )
+    indices = [
+        launcher.add_training(
+            detected_batch,
+            detector_effect,
+            is_numerator=is_numerator,
+            name=f"capped_branch_{is_numerator}",
+        )
+        for is_numerator in (True, False)
+    ]
+
+    assignments = launcher._parallel_assignments(indices)
+
+    assert [(item.device, item.cpu_threads) for item in assignments] == expected
 
 
 @pytest.mark.parametrize(
@@ -391,12 +445,16 @@ def test_sequential_launcher_calculates_static_denominator_without_worker(
 
 
 @pytest.mark.parametrize(
-    "function_execution_context",
-    [ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG],
-    indirect=True,
+    "function_execution_context,expected_threads",
+    [
+        (ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG, [1, 8]),
+        (ONE_DIMENSION_WITH_CPU_THREAD_CAP_CONFIG, [1, 3]),
+    ],
+    indirect=["function_execution_context"],
 )
 def test_sequential_parent_path_applies_each_cpu_thread_assignment(
     function_execution_context,
+    expected_threads,
     isolated_data_generation,
     detector_effect,
     monkeypatch,
@@ -433,9 +491,9 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
 
     launcher.execute_trainings()
 
-    # The static denominator runs first with one thread.  The sole trainable
-    # numerator then receives the LFVNN arithmetic thread cap.
-    assert configured_threads == [1, 4]
+    # The static denominator runs first with one thread. The numerator then
+    # receives either the complete allocation or the configured LFVNN cap.
+    assert configured_threads == expected_threads
 
 
 @pytest.mark.parametrize(

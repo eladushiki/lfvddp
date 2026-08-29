@@ -60,6 +60,12 @@ ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
+ONE_DIMENSION_WITH_INVALID_CPU_THREAD_CAP_CONFIG = {
+    **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+    ConfigType.TRAIN: Path(
+        "test/configs/train/short_1D_train_config_with_invalid_cpu_thread_cap.json"
+    ),
+}
 
 
 @pytest.mark.parametrize(
@@ -85,6 +91,20 @@ def test_mixed_nuisance_configurations_are_rejected(
 
     with pytest.raises(ValueError, match=error_message):
         create_config_from_paths(list(config_paths.values()))
+
+
+def test_lfvnn_cpu_thread_cap_must_be_positive():
+    config_paths = (
+        DEFAULT_CONFIG_PATHS | ONE_DIMENSION_WITH_INVALID_CPU_THREAD_CAP_CONFIG
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="train__lfvnn_max_cpu_threads must be a positive integer or null",
+    ):
+        create_config_from_paths(list(config_paths.values()))
+
+
 ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG = {
     **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
     ConfigType.TRAIN.value: Path(
