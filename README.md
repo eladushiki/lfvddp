@@ -226,7 +226,10 @@ configuration.
 
 After the job starts, the execution script passes its affinity-aware CPU count
 and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
-uses those observed values to choose its execution mode.
+uses those observed values to choose its execution mode. CPU LFVNN branches use
+at most four intra-op threads: their small dense networks and per-event loss
+reductions become slower with larger thread pools. CUDA and NPLM branches retain
+their full assigned CPU budget.
 
 Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
 kernel-managed lock is released automatically if the owning job is interrupted

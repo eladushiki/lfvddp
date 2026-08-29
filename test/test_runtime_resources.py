@@ -285,7 +285,7 @@ def test_nonparallel_training_modes_select_sequential_launcher(
 @pytest.mark.parametrize(
     "cpus,gpus,expected",
     [
-        (8, 0, [("cpu", 7), ("cpu", 1)]),
+        (8, 0, [("cpu", 4), ("cpu", 1)]),
         (8, 1, [("cuda:0", 7), ("cpu", 1)]),
         (8, 2, [("cuda:0", 7), ("cuda:1", 1)]),
         (8, 4, [("cuda:0", 7), ("cuda:1", 1)]),
@@ -407,7 +407,7 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
     launcher = SequentialTrainLauncher(
         function_execution_context,
         detector_effect,
-        allocation=_allocation(4),
+        allocation=_allocation(8),
     )
     launcher.add_training(
         detected_batch, detector_effect, is_numerator=True, name="cpu_numerator"
@@ -434,7 +434,7 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
     launcher.execute_trainings()
 
     # The static denominator runs first with one thread.  The sole trainable
-    # numerator then receives the complete observed CPU allocation.
+    # numerator then receives the LFVNN arithmetic thread cap.
     assert configured_threads == [1, 4]
 
 
