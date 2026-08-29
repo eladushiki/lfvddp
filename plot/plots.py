@@ -793,29 +793,13 @@ def _prediction_spanning_dataset(
         }
     )
 
-    def dense_display_axis_values(observable_name: str) -> np.ndarray:
+    def selected_axis_values(observable_name: str) -> np.ndarray:
         display_edges = display_edges_by_observable[observable_name]
-        if nuisance_is_neural_network:
-            return np.linspace(
-                display_edges[0],
-                display_edges[-1],
-                _CONTINUOUS_PREDICTION_AXIS_POINTS,
-            )
-
-        step = np.min(np.diff(display_edges)) / 10.0
-        values = [
-            np.arange(display_edges[0], display_edges[-1], step),
-            display_edges,
-        ]
-        if observable_name in detector_bins_by_observable:
-            detector_edges = detector_bins_by_observable[observable_name][0]
-            values.append(
-                detector_edges[
-                    (detector_edges >= display_edges[0])
-                    & (detector_edges <= display_edges[-1])
-                ]
-            )
-        return np.unique(np.concatenate(values))
+        return np.linspace(
+            display_edges[0],
+            display_edges[-1],
+            _CONTINUOUS_PREDICTION_AXIS_POINTS,
+        )
 
     def projection_axis_values(observable_name: str) -> np.ndarray:
         if observable_name in detector_bins_by_observable:
@@ -826,7 +810,7 @@ def _prediction_spanning_dataset(
     return _spanning_dataset_from_observable_values(
         values_by_observable={
             observable_name: (
-                dense_display_axis_values(observable_name)
+                selected_axis_values(observable_name)
                 if observable_name in selected_observables
                 else projection_axis_values(observable_name)
             )

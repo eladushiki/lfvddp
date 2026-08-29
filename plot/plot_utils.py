@@ -1323,6 +1323,9 @@ def utils__project_prediction_values_sliced(
     along_observables: List[str],
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Project evaluated model values by summing over unselected observables."""
+    if along_observables == spanning_dataset.observable_names:
+        return spanning_dataset.events, utils__flatten_histogram_values(values)
+
     return utils__contour_model_prediction(
         prediction_function=lambda _: values,
         spanning_dataset=spanning_dataset,
