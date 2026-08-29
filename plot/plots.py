@@ -53,6 +53,9 @@ from train.train_config import TrainConfig
 from train.train_utils import statistic_degrees_of_freedom
 
 
+_CONTINUOUS_PREDICTION_AXIS_POINTS = 1000
+
+
 def _prediction_process_suptitle(
     context: ExecutionContext, title: str
 ) -> str:
@@ -792,6 +795,13 @@ def _prediction_spanning_dataset(
 
     def dense_display_axis_values(observable_name: str) -> np.ndarray:
         display_edges = display_edges_by_observable[observable_name]
+        if nuisance_is_neural_network:
+            return np.linspace(
+                display_edges[0],
+                display_edges[-1],
+                _CONTINUOUS_PREDICTION_AXIS_POINTS,
+            )
+
         step = np.min(np.diff(display_edges)) / 10.0
         values = [
             np.arange(display_edges[0], display_edges[-1], step),

@@ -398,8 +398,8 @@ Any function that is implemented in `plot/plots.py` can be called by name from t
 
 The prediction-process plot supports both binned and neural-network nuisance
 estimators. Binned nuisances retain their configured bin boundaries in the
-prediction grid; neural nuisances are evaluated on a dense grid derived from the
-display range.
+prediction grid; neural nuisances are evaluated as continuous functions on a
+uniform 1,000-point grid spanning the display range of each plotted observable.
 
 Generate the configured plots for a submitted training batch with:
 

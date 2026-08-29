@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 import pytest
 
 from neural_networks.differentiating_model import DifferentiatingModel
-from plot.plots import plot_prediction_process_1d
+from plot.plots import (
+    _CONTINUOUS_PREDICTION_AXIS_POINTS,
+    plot_prediction_process_1d,
+)
 from test.environment import ConfigType
 from train.model_trainer import TrainLauncher
 
@@ -60,4 +63,15 @@ def test_prediction_process_1d_supports_neural_nuisance(
     assert all(
         axis.lines or axis.patches or axis.collections for axis in figure.axes
     )
+    prediction_lines = [
+        line
+        for axis in figure.axes[2:]
+        for line in axis.lines
+        if "hypothesis" in line.get_label()
+    ]
+    assert prediction_lines
+    for line in prediction_lines:
+        x_values = line.get_xdata()
+        assert len(x_values) == _CONTINUOUS_PREDICTION_AXIS_POINTS
+        assert (x_values[1:] > x_values[:-1]).all()
     plt.close(figure)
