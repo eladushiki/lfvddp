@@ -14,6 +14,7 @@ class Carpenter:
     STANDARD_LEFT_BORDER = 0.125
     STANDARD_RIGHT_BORDER = 0.9
     STANDARD_TOP_BORDER = 0.88
+    _active_config = None
     _instance = None
 
     def __new__(cls, context: ExecutionContext):
@@ -28,6 +29,7 @@ class Carpenter:
             raise TypeError(f"Can't instantiate a Carpenter without a PlottingConfig, got {type(config)}")
         
         self._config = config
+        Carpenter._active_config = config
         self.initialize_styling()
 
         self._figure_styling = self._config.plot__figure_styling
@@ -52,9 +54,9 @@ class Carpenter:
         # Stamp for run
         fig.text(
             x=0,
-            y=self.RUN_STAMP_Y,
+            y=self._config.plot__run_stamp_y,
             s=f"run hash: {self._context.run_hash}",
-            fontsize=self.RUN_STAMP_FONT_SIZE,
+            fontsize=self._config.plot__run_stamp_font_size,
             verticalalignment="bottom",
             horizontalalignment="left",
         )
@@ -62,12 +64,15 @@ class Carpenter:
 
         return fig
 
-    @staticmethod
-    def reserve_run_stamp_row(fig: Figure, **subplot_adjustments) -> None:
+    @classmethod
+    def reserve_run_stamp_row(cls, fig: Figure, **subplot_adjustments) -> None:
         """Reserve a crop-safe bottom row exclusively for the run stamp."""
         requested_bottom = subplot_adjustments.pop("bottom", 0.0)
         fig.subplots_adjust(
-            bottom=max(requested_bottom, Carpenter.RUN_STAMP_ROW_HEIGHT),
+            bottom=max(
+                requested_bottom,
+                getattr(cls._active_config, "plot__run_stamp_row_height", cls.RUN_STAMP_ROW_HEIGHT),
+            ),
             **subplot_adjustments,
         )
 
@@ -75,8 +80,8 @@ class Carpenter:
     def standardize_plot_borders(cls, fig: Figure) -> None:
         """Apply the common one-panel plot borders after all artists are added."""
         fig.subplots_adjust(
-            left=cls.STANDARD_LEFT_BORDER,
-            right=cls.STANDARD_RIGHT_BORDER,
-            bottom=cls.RUN_STAMP_ROW_HEIGHT,
-            top=cls.STANDARD_TOP_BORDER,
+            left=getattr(cls._active_config, "plot__standard_left_border", cls.STANDARD_LEFT_BORDER),
+            right=getattr(cls._active_config, "plot__standard_right_border", cls.STANDARD_RIGHT_BORDER),
+            bottom=getattr(cls._active_config, "plot__run_stamp_row_height", cls.RUN_STAMP_ROW_HEIGHT),
+            top=getattr(cls._active_config, "plot__standard_top_border", cls.STANDARD_TOP_BORDER),
         )

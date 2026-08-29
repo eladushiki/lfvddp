@@ -1,6 +1,16 @@
 from dataclasses import dataclass
 from logging import warning
+from enum import Enum
 from typing import List, Optional
+
+
+class NuisanceMode(str, Enum):
+    """Supported nuisance parameter strategies."""
+
+    OFF = "off"
+    ON = "on"
+    BINNED = "binned"
+    NEURAL = "neural"
 
 
 @dataclass
@@ -20,8 +30,8 @@ class TrainConfig:
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
-    train__nn_xavier_gain: float = 4
-    train__learning_rate: float = 0.001  # optimizer learning rate
+    train__nn_xavier_gain: float = 1
+    train__learning_rate: float = 0.03  # optimizer learning rate
     train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
     # Opt-in CPU profiling. The warmup epochs are observed by the profiler but
@@ -29,8 +39,10 @@ class TrainConfig:
     train__profiling_enabled: bool = False
     train__profiling_warmup_epochs: int = 5
     train__profiling_active_epochs: int = 10
-    
+
     ## Training for nuisance parameters
+    # Canonical selector; None keeps legacy configurations compatible.
+    train__nuisance_mode: Optional[str] = None
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
     train__nuisance_is_neural_network: bool = False
     train__nuisance_nn_inner_layer_nodes: int = 2
@@ -65,10 +77,43 @@ class TrainConfig:
         )
         return total_params - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
 
+    @property
+    def nuisance_mode(self) -> NuisanceMode:
+        """Return the canonical nuisance strategy for this configuration."""
+        if self.train__nuisance_mode is not None:
+            try:
+                return NuisanceMode(self.train__nuisance_mode.lower())
+            except ValueError as error:
+                raise ValueError(
+                    "train__nuisance_mode must be one of: off, on, binned, neural"
+                ) from error
+        if not self.train__data_is_train_for_nuisances:
+            return NuisanceMode.OFF
+        if self.train__nuisance_is_neural_network:
+            return NuisanceMode.NEURAL
+        return NuisanceMode.BINNED
+
+    @property
+    def nuisances_enabled(self) -> bool:
+        return self.nuisance_mode is not NuisanceMode.OFF
+
+    @property
+    def nuisance_uses_neural_network(self) -> bool:
+        return self.nuisance_mode is NuisanceMode.NEURAL
+
     def __post_init__(self):
         self.validate()
 
     def validate(self):
+        mode = self.nuisance_mode
+        if self.train__like_NPLM and mode in (NuisanceMode.BINNED, NuisanceMode.NEURAL):
+            raise ValueError(
+                "NPLM training supports nuisance_mode 'off' or 'on', not 'binned' or 'neural'."
+            )
+        if mode is NuisanceMode.NEURAL and self.train__nuisance_nn_inner_layer_nodes is None:
+            raise ValueError(
+                "Neural nuisance mode requires train__nuisance_nn_inner_layer_nodes."
+            )
         if self.train__profiling_warmup_epochs < 0:
             raise ValueError("Profiling warmup epochs cannot be negative.")
         if self.train__profiling_active_epochs < 1:

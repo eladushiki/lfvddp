@@ -133,12 +133,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return self._assigned_device
 
     def _build_nuisance_estimators(self):
-        if not self._config.train__data_is_train_for_nuisances:
+        if not self._config.nuisances_enabled:
             return BlankNuisanceEstimator(
                 dtype=self._dtype,
                 device=self._device,
             )
-        if self._config.train__nuisance_is_neural_network:
+        if self._config.nuisance_uses_neural_network:
             return NeuralPerEventNuisanceEstimator(
                 input_dimension=self._config.train__nn_input_dimension,
                 hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
@@ -594,7 +594,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             else:
                 f_estimate, g_estimate = self.paired_network(x_tensor)
                 network_estimate = g_estimate if secondary else f_estimate
-            if self._config.train__data_is_train_for_nuisances:
+            if self._config.nuisances_enabled:
                 theta_inputs = (
                     x_tensor
                     if self.theta_network is not None
@@ -617,7 +617,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         """Evaluate the configured nuisance function theta over a dataset."""
         self.eval()
         with torch.no_grad():
-            if self._config.train__data_is_train_for_nuisances:
+            if self._config.nuisances_enabled:
                 if self.theta_network is not None:
                     if self._norm_factor is None:
                         raise RuntimeError(

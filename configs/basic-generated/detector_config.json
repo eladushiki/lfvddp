@@ -8,5 +8,12 @@
         2.450
     ],
     "detector__binning_minima": 0,
-    "detector__binning_number_of_bins": 10
+    "detector__binning_number_of_bins": 10,
+    "detector__effects": {
+        "A": {
+            "efficiency": "detector_efficiency_tanh",
+            "efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
+            "error": ""
+        }
+    }
 }

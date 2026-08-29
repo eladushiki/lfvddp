@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -13,6 +13,13 @@ class DetectorConfig:
     # Default enabled parameters
     detector__binning_minima: List[int] = field(default=0)
     detector__binning_number_of_bins: List[int] = field(default=30)
+    # Effects are detector properties shared by all datasets in family A or B.
+    detector__effects: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
+    def effects_for_category(self, category: Any) -> Dict[str, Any]:
+        """Return the configured effects for a dataset's A/B family."""
+        family = getattr(category, "name", str(category)).split("_")[0].upper()
+        return dict(self.detector__effects.get(family, {}))
     
     def __post_init__(self):
         # Detector dimensions should fit DataSet dimension. Inserts default and expands dimensions if given an int.

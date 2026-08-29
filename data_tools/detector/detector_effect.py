@@ -70,12 +70,22 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
 
     @detection_parameters.setter
     def detection_parameters(self, dataset_parameters: DatasetParameters):
-        # Detector effects on the data
-        self._true_efficiency = self.__retrieve_detector_efficiency_filter(dataset_parameters.dataset__detector_efficiency)
-        self._error = self.__get_detector_error_inducer(dataset_parameters.dataset__detector_error)
+        # Detector effects belong to the detector configuration.  Fall back to
+        # legacy dataset fields while old configuration packs are migrated.
+        effects = self._config.effects_for_category(dataset_parameters.category)
+        efficiency = effects.get(
+            "efficiency", dataset_parameters.dataset__detector_efficiency
+        )
+        error = effects.get("error", dataset_parameters.dataset__detector_error)
+        uncertainty = effects.get(
+            "efficiency_uncertainty",
+            dataset_parameters.dataset__detector_efficiency_uncertainty,
+        )
+        self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency)
+        self._error = self.__get_detector_error_inducer(error)
 
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(
-            dataset_parameters.dataset__detector_efficiency_uncertainty
+            uncertainty
         )
 
         # finally, finish updating internal state
