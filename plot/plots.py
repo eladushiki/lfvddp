@@ -13,6 +13,7 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
 from data_tools.detector.detector_config import DetectorConfig
+from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME
@@ -772,6 +773,59 @@ def _spanning_dataset_from_observable_values(
     )
 
 
+def _prediction_spanning_dataset(
+    display_edges_by_observable: dict[str, np.ndarray],
+    selected_observables: List[str],
+    configured_observables: List[str],
+    detector_effect: DetectorEffect,
+    nuisance_is_neural_network: bool,
+) -> DataSet:
+    """Build the prediction grid for either binned or neural nuisances."""
+    detector_bins_by_observable = (
+        {}
+        if nuisance_is_neural_network
+        else {
+            observable_name: detector_effect.get_observable_bins(observable_name)
+            for observable_name in configured_observables
+        }
+    )
+
+    def dense_display_axis_values(observable_name: str) -> np.ndarray:
+        display_edges = display_edges_by_observable[observable_name]
+        step = np.min(np.diff(display_edges)) / 10.0
+        values = [
+            np.arange(display_edges[0], display_edges[-1], step),
+            display_edges,
+        ]
+        if observable_name in detector_bins_by_observable:
+            detector_edges = detector_bins_by_observable[observable_name][0]
+            values.append(
+                detector_edges[
+                    (detector_edges >= display_edges[0])
+                    & (detector_edges <= display_edges[-1])
+                ]
+            )
+        return np.unique(np.concatenate(values))
+
+    def projection_axis_values(observable_name: str) -> np.ndarray:
+        if observable_name in detector_bins_by_observable:
+            return detector_bins_by_observable[observable_name][1]
+        display_edges = display_edges_by_observable[observable_name]
+        return 0.5 * (display_edges[:-1] + display_edges[1:])
+
+    return _spanning_dataset_from_observable_values(
+        values_by_observable={
+            observable_name: (
+                dense_display_axis_values(observable_name)
+                if observable_name in selected_observables
+                else projection_axis_values(observable_name)
+            )
+            for observable_name in configured_observables
+        },
+        observable_names=configured_observables,
+    )
+
+
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def plot_prediction_process_1d(
     context: ExecutionContext,
@@ -982,52 +1036,12 @@ def plot_prediction_process_1d(
     for panel in distribution_axes:
         utils__add_prediction_process_legend(panel, fontsize=8)
 
-    detector_effect = denominator_training.detector_effect
-    detector_bins_by_observable = {
-        observable_name: detector_effect.get_observable_bins(observable_name)
-        for observable_name in configured_observables
-    }
-    detector_edges_by_observable = {
-        observable_name: detector_bins[0]
-        for observable_name, detector_bins in detector_bins_by_observable.items()
-    }
-    detector_centers_by_observable = {
-        observable_name: detector_bins[1]
-        for observable_name, detector_bins in detector_bins_by_observable.items()
-    }
-
-    def dense_display_axis_values(
-        display_edges: np.ndarray,
-        detector_edges: np.ndarray,
-    ) -> np.ndarray:
-        step = np.min(np.diff(display_edges)) / 10.0
-        return np.unique(
-            np.concatenate(
-                (
-                    np.arange(display_edges[0], display_edges[-1], step),
-                    display_edges,
-                    detector_edges[
-                        (detector_edges >= display_edges[0])
-                        & (detector_edges <= display_edges[-1])
-                    ],
-                )
-            )
-        )
-
-    prediction_values_by_observable = {
-        observable_name: (
-            dense_display_axis_values(
-                display_edges_by_observable[observable_name],
-                detector_edges_by_observable[observable_name],
-            )
-            if observable_name in selected_observables
-            else detector_centers_by_observable[observable_name]
-        )
-        for observable_name in configured_observables
-    }
-    prediction_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=prediction_values_by_observable,
-        observable_names=configured_observables,
+    prediction_spanning_dataset = _prediction_spanning_dataset(
+        display_edges_by_observable=display_edges_by_observable,
+        selected_observables=selected_observables,
+        configured_observables=configured_observables,
+        detector_effect=denominator_training.detector_effect,
+        nuisance_is_neural_network=config.train__nuisance_is_neural_network,
     )
     spanning_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
@@ -1397,52 +1411,12 @@ def plot_prediction_process_2d(
     for panel in distribution_axes:
         utils__add_prediction_process_legend(panel, fontsize=8)
 
-    detector_effect = denominator_training.detector_effect
-    detector_bins_by_observable = {
-        observable_name: detector_effect.get_observable_bins(observable_name)
-        for observable_name in configured_observables
-    }
-    detector_edges_by_observable = {
-        observable_name: detector_bins[0]
-        for observable_name, detector_bins in detector_bins_by_observable.items()
-    }
-    detector_centers_by_observable = {
-        observable_name: detector_bins[1]
-        for observable_name, detector_bins in detector_bins_by_observable.items()
-    }
-
-    def dense_display_axis_values(
-        display_edges: np.ndarray,
-        detector_edges: np.ndarray,
-    ) -> np.ndarray:
-        step = np.min(np.diff(display_edges)) / 10.0
-        return np.unique(
-            np.concatenate(
-                (
-                    np.arange(display_edges[0], display_edges[-1], step),
-                    display_edges,
-                    detector_edges[
-                        (detector_edges >= display_edges[0])
-                        & (detector_edges <= display_edges[-1])
-                    ],
-                )
-            )
-        )
-
-    prediction_values_by_observable = {
-        observable_name: (
-            dense_display_axis_values(
-                display_edges_by_observable[observable_name],
-                detector_edges_by_observable[observable_name],
-            )
-            if observable_name in selected_observables
-            else detector_centers_by_observable[observable_name]
-        )
-        for observable_name in configured_observables
-    }
-    prediction_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=prediction_values_by_observable,
-        observable_names=configured_observables,
+    prediction_spanning_dataset = _prediction_spanning_dataset(
+        display_edges_by_observable=display_edges_by_observable,
+        selected_observables=selected_observables,
+        configured_observables=configured_observables,
+        detector_effect=denominator_training.detector_effect,
+        nuisance_is_neural_network=config.train__nuisance_is_neural_network,
     )
     spanning_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset

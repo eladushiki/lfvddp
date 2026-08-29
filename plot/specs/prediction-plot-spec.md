@@ -98,7 +98,11 @@ It does not display signal product terms, nuisance-removed terms, or detector ef
 ### Common behavior
 
 - A horizontal reference line is drawn at prediction value **1.0** in 1D prediction panels.
-- Prediction values are evaluated over a spanning dataset built from detector-bin coordinates.
+- Prediction values are evaluated over a spanning dataset. Binned nuisances use
+  their detector-bin edges and centers so discontinuities remain visible. Neural
+  nuisances use dense display-range coordinates for selected observables and
+  display-bin centers for projected observables because they do not define
+  detector bins.
 - The model output is projected onto the selected observable(s) before rendering, only if there are more then 2 observables in the data.
 - Null hypothesis terms use dashed lines; signal hypothesis terms use solid lines.
 - Every subplot title is positioned inside its own panel at 90% of panel height, avoiding the suptitle and adjacent plots.

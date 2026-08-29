@@ -396,6 +396,11 @@ declared bound, indicating that `domain_max` must be increased.
 
 Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `plot_config.json` for example).
 
+The prediction-process plot supports both binned and neural-network nuisance
+estimators. Binned nuisances retain their configured bin boundaries in the
+prediction grid; neural nuisances are evaluated on a dense grid derived from the
+display range.
+
 Generate the configured plots for a submitted training batch with:
 
 ```bash
