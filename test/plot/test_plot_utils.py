@@ -7,6 +7,7 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from plot.carpenter import Carpenter
+from plot.plots import _eventually_converged_histories, _t_distribution_outlier_masks
 from plot.plot_utils import (
     _filter_t_distribution_outliers,
     _humanize_signal_description,
@@ -17,6 +18,30 @@ from plot.plot_utils import (
     utils__project_prediction_values_sliced,
     utils__set_prediction_process_subplot_title,
 )
+
+
+def test_t_distribution_lower_reference_boundary_is_non_negative():
+    low_tail_mask, _ = _t_distribution_outlier_masks(
+        np.array([-5.0, -3.0, -1.0, 0.5, 2.0, 4.0])
+    )
+
+    assert not low_tail_mask[3]
+    assert not low_tail_mask[4]
+    assert not low_tail_mask[5]
+
+
+def test_percentile_progression_history_filter_uses_final_t_value():
+    histories = np.array(
+        [
+            [1.0, 2.0, np.nan],
+            [10.0, 20.0, 30.0],
+            [100.0, 200.0, 300.0],
+        ]
+    )
+
+    np.testing.assert_array_equal(
+        _eventually_converged_histories(histories), histories[1:]
+    )
 
 
 def test_humanize_signal_description_replaces_generator_identifier_separators():

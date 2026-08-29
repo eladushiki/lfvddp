@@ -1,6 +1,6 @@
 # Issue 010: Linear Loss Func
 
-**Status:** Open
+**Status:** Done
 
 ## Statement
 
@@ -17,3 +17,7 @@ d. Restrict the parameter space in which we search for optimum in a way that wou
 - `DifferentiatingNetwork` should export the exact same interface.
 - If implemented correctly, convergence states should be almost identical as well.
 - Plots of sorts should display the updated expressions as well.
+
+## Implementation
+
+ Replaced the SR exponential parameterization with bounded linear weights and updated predictions, labels, and loss-reference tests. The reciprocal linear SR integral is reduced algebraically to scalar sums and one dot product, while contiguous A/B event groups are sliced directly instead of scanned through boolean masks. Neural nuisance CR terms likewise retain their category-contiguous representation, avoiding full-array zero-weight arithmetic each epoch. Prediction-process plot internals and legends now consistently describe the reciprocal signal-shift and `theta` branches in both 1D and 2D.

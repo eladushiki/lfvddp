@@ -33,15 +33,15 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         self._config = self._context.config
         self.__dataset_parameters_for_detection = None
 
-        # Detector dimensions and binning
+        # Detector binning is needed only by the scalar nuisance estimator.
         self._observable_names = self._config.detector__detect_observable_names
-        self._numbers_of_bins = self._config.detector__binning_number_of_bins
-
+        self._numbers_of_bins = self._config.train__nuisance_binning_number_of_bins
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}
-        for obs in self._observable_names:
-            self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
-                self._config.observable_bins(obs)
+        if not self._config.train__nuisance_is_neural_network:
+            for obs in self._observable_names:
+                self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
+                    self._config.observable_bins(obs)
 
     @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
