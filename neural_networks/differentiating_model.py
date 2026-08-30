@@ -5,7 +5,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from logging import info
 from time import time
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -47,8 +47,7 @@ class _PreparedTrainingData:
     N_b_sr: int
     N_a_cr: int
     N_b_cr: int
-    n_a_sr_over_n_sr: float
-    n_b_sr_over_n_sr: float
+    sr_category_imbalance: float
     nuisance_cr_coefficient: float
 
     @property
@@ -206,7 +205,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 else self._signal_region_shift(data.sr_events)
             )
         with profile_region("training/nuisance_theta"):
-            nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
+            nuisance_estimates = (
+                None
+                if isinstance(self.nuisance_calculation, BlankNuisanceEstimator)
+                else self.nuisance_calculation.evaluate(data=data.nuisance_data)
+            )
         return self._assemble_loss(
             signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
             nuisance_estimates=nuisance_estimates,
@@ -222,10 +225,66 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return torch.dot(nuisance_values.values, nuisance_values.weights)
 
     @staticmethod
+    def _scaled_term(
+        coefficient: float,
+        term: Callable[[], torch.Tensor],
+    ) -> Union[float, torch.Tensor]:
+        """Evaluate a tensor term only when its exact scalar coefficient is nonzero."""
+
+        if coefficient == 0.0:
+            return 0.0
+        return coefficient * term()
+
+    @staticmethod
+    def _signal_shift_log_terms(
+        signal_region_shift: torch.Tensor,
+        number_of_a_sr_events: int,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the signal-shift log terms shared by both nuisance paths."""
+
+        a_sr_log_term = -torch.log1p(
+            signal_region_shift[:number_of_a_sr_events]
+        ).sum()
+        b_sr_log_term = -torch.log1p(
+            -signal_region_shift[number_of_a_sr_events:]
+        ).sum()
+        return a_sr_log_term, b_sr_log_term
+
+    @staticmethod
+    def _assemble_loss_without_nuisance(
+        *,
+        signal_hypothesis_sr_shift: Optional[torch.Tensor],
+        data: _PreparedTrainingData,
+    ) -> torch.Tensor:
+        """Assemble the same loss without constructing zero nuisance arithmetic."""
+
+        if signal_hypothesis_sr_shift is None:
+            return data.sr_events.new_tensor(data.N_sr) + data.number_of_cr_events
+
+        signal_region_shift = signal_hypothesis_sr_shift
+        signal_hypothesis_sr_integral = data.N_sr + DifferentiatingModel._scaled_term(
+            data.sr_category_imbalance,
+            signal_region_shift.sum,
+        )
+        (
+            signal_hypothesis_a_sr_f_log_term,
+            signal_hypothesis_b_sr_f_log_term,
+        ) = DifferentiatingModel._signal_shift_log_terms(
+            signal_region_shift,
+            data.N_a_sr,
+        )
+        signal_hypothesis_sr_loss = (
+            signal_hypothesis_sr_integral
+            + signal_hypothesis_a_sr_f_log_term
+            + signal_hypothesis_b_sr_f_log_term
+        )
+        return signal_hypothesis_sr_loss + data.number_of_cr_events
+
+    @staticmethod
     def _assemble_loss(
         *,
         signal_hypothesis_sr_shift: Optional[torch.Tensor],
-        nuisance_estimates: NuisanceEvaluation,
+        nuisance_estimates: Optional[NuisanceEvaluation],
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
@@ -259,6 +318,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         """
 
+        if nuisance_estimates is None:
+            return DifferentiatingModel._assemble_loss_without_nuisance(
+                signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
+                data=data,
+            )
+
         nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
         common_a_sr_nuisance_log_term = -torch.log1p(
             nuisance_sr_estimates[: data.N_a_sr]
@@ -267,14 +332,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             -nuisance_sr_estimates[data.N_a_sr :]
         ).sum()
 
-        cr_linear_nuisance_term = (
-            data.nuisance_cr_coefficient
-            * (
+        cr_linear_nuisance_term = DifferentiatingModel._scaled_term(
+            data.nuisance_cr_coefficient,
+            lambda: (
                 DifferentiatingModel._weighted_sum(nuisance_estimates.nuisance_cr_a)
                 + DifferentiatingModel._weighted_sum(
                     nuisance_estimates.nuisance_cr_b
                 )
-            )
+            ),
         )
         a_cr_log_term = -DifferentiatingModel._weighted_sum(
             WeightedNuisanceValues(
@@ -298,27 +363,31 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if signal_hypothesis_sr_shift is None:
             null_hypothesis_sr_loss = (
                 data.N_sr
-                + (data.n_a_sr_over_n_sr - data.n_b_sr_over_n_sr)
-                * nuisance_sr_estimates.sum()
+                + DifferentiatingModel._scaled_term(
+                    data.sr_category_imbalance,
+                    nuisance_sr_estimates.sum,
+                )
                 + common_a_sr_nuisance_log_term
                 + common_b_sr_nuisance_log_term
             )
             return null_hypothesis_sr_loss + cr_loss
 
         signal_region_shift = signal_hypothesis_sr_shift
-        category_imbalance = data.n_a_sr_over_n_sr - data.n_b_sr_over_n_sr
         signal_hypothesis_sr_integral = (
             data.N_sr
-            + category_imbalance
-            * (signal_region_shift.sum() + nuisance_sr_estimates.sum())
+            + DifferentiatingModel._scaled_term(
+                data.sr_category_imbalance,
+                lambda: signal_region_shift.sum() + nuisance_sr_estimates.sum(),
+            )
             + torch.dot(signal_region_shift, nuisance_sr_estimates)
         )
-        signal_hypothesis_a_sr_f_log_term = -torch.log1p(
-            signal_region_shift[: data.N_a_sr]
-        ).sum()
-        signal_hypothesis_b_sr_f_log_term = -torch.log1p(
-            -signal_region_shift[data.N_a_sr :]
-        ).sum()
+        (
+            signal_hypothesis_a_sr_f_log_term,
+            signal_hypothesis_b_sr_f_log_term,
+        ) = DifferentiatingModel._signal_shift_log_terms(
+            signal_region_shift,
+            data.N_a_sr,
+        )
         signal_hypothesis_sr_loss = (
             signal_hypothesis_sr_integral
             + signal_hypothesis_a_sr_f_log_term
@@ -371,8 +440,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             N_b_sr=b_sr.n_samples,
             N_a_cr=a_cr.n_samples,
             N_b_cr=b_cr.n_samples,
-            n_a_sr_over_n_sr=a_sr.n_samples / N_sr,
-            n_b_sr_over_n_sr=b_sr.n_samples / N_sr,
+            sr_category_imbalance=(
+                a_sr.n_samples / N_sr - b_sr.n_samples / N_sr
+            ),
             nuisance_cr_coefficient=(a_cr.n_samples - b_cr.n_samples)
             / N_cr,
         )

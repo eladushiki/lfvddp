@@ -60,8 +60,6 @@ ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
-
-
 @pytest.mark.parametrize(
     "train_config_path, error_message",
     [
@@ -224,8 +222,9 @@ def _assemble_compact_loss_for_test(
         N_b_sr=number_of_b_sr,
         N_a_cr=number_of_a_cr,
         N_b_cr=number_of_b_cr,
-        n_a_sr_over_n_sr=number_of_a_sr / number_of_sr,
-        n_b_sr_over_n_sr=number_of_b_sr / number_of_sr,
+        sr_category_imbalance=(
+            number_of_a_sr / number_of_sr - number_of_b_sr / number_of_sr
+        ),
         nuisance_cr_coefficient=(
             control_region_linear_nuisance_coefficient
         ),
@@ -399,6 +398,127 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(category_size
         torch.testing.assert_close(
             actual_gradient, expected_gradient, rtol=1e-12, atol=1e-12
         )
+
+
+def test_no_nuisance_loss_is_bitwise_equivalent_to_explicit_zero_nuisance():
+    number_of_a_sr = 25_019
+    number_of_b_sr = 25_255
+    number_of_sr = number_of_a_sr + number_of_b_sr
+    signal_region_shift = torch.linspace(
+        -0.8,
+        0.8,
+        number_of_sr,
+        dtype=torch.float64,
+        requires_grad=True,
+    )
+    data = _PreparedTrainingData(
+        sr_events=torch.empty((number_of_sr, 1), dtype=torch.float64),
+        nuisance_data=None,
+        N_a_sr=number_of_a_sr,
+        N_b_sr=number_of_b_sr,
+        N_a_cr=24_900,
+        N_b_cr=25_100,
+        sr_category_imbalance=(
+            number_of_a_sr / number_of_sr - number_of_b_sr / number_of_sr
+        ),
+        nuisance_cr_coefficient=-0.004,
+    )
+    empty = torch.empty(0, dtype=torch.float64)
+    explicit_zero_nuisance = NuisanceEvaluation(
+        nuisance_sr_values=torch.zeros(number_of_sr, dtype=torch.float64),
+        nuisance_cr_a=WeightedNuisanceValues(empty),
+        nuisance_cr_b=WeightedNuisanceValues(empty),
+    )
+
+    optimized = DifferentiatingModel._assemble_loss(
+        signal_hypothesis_sr_shift=signal_region_shift,
+        nuisance_estimates=None,
+        data=data,
+    )
+    reference = DifferentiatingModel._assemble_loss(
+        signal_hypothesis_sr_shift=signal_region_shift,
+        nuisance_estimates=explicit_zero_nuisance,
+        data=data,
+    )
+    optimized_gradient = torch.autograd.grad(
+        optimized, signal_region_shift, retain_graph=True
+    )[0]
+    reference_gradient = torch.autograd.grad(reference, signal_region_shift)[0]
+
+    assert torch.equal(optimized, reference)
+    assert torch.equal(optimized_gradient, reference_gradient)
+
+
+def test_balanced_cr_skips_zero_weighted_dot_products(monkeypatch):
+    dot_calls = 0
+    original_dot = torch.dot
+
+    def count_dot_calls(*args, **kwargs):
+        nonlocal dot_calls
+        dot_calls += 1
+        return original_dot(*args, **kwargs)
+
+    monkeypatch.setattr(torch, "dot", count_dot_calls)
+    _assemble_compact_loss_for_test(
+        signal_region_shift=torch.linspace(-0.2, 0.2, 6, dtype=torch.float64),
+        theta_sr=torch.linspace(-0.1, 0.1, 6, dtype=torch.float64),
+        theta_cr=torch.tensor([-0.2, 0.3], dtype=torch.float64),
+        a_cr_multiplicities=torch.tensor([2.0, 3.0], dtype=torch.float64),
+        b_cr_multiplicities=torch.tensor([1.0, 4.0], dtype=torch.float64),
+        number_of_a_sr=3,
+        number_of_b_sr=3,
+        number_of_a_cr=5,
+        number_of_b_cr=5,
+    )
+
+    # One SR interaction and two CR log terms remain. The two CR linear dots
+    # have an exactly zero coefficient and must never enter the autograd graph.
+    assert dot_calls == 3
+
+
+def test_cpu_thread_count_preserves_loss_and_gradient_bits():
+    number_of_a_sr = 25_019
+    number_of_b_sr = 25_255
+    number_of_sr = number_of_a_sr + number_of_b_sr
+    base_signal = torch.linspace(-0.8, 0.8, number_of_sr, dtype=torch.float64)
+    base_theta_sr = torch.linspace(-0.7, 0.7, number_of_sr, dtype=torch.float64)
+    base_theta_cr = torch.linspace(-0.6, 0.6, 32, dtype=torch.float64)
+    a_cr_multiplicities = torch.arange(1, 33, dtype=torch.float64)
+    b_cr_multiplicities = torch.arange(32, 0, -1, dtype=torch.float64)
+
+    def loss_and_gradients(number_of_threads):
+        torch.set_num_threads(number_of_threads)
+        signal = base_signal.clone().requires_grad_()
+        theta_sr = base_theta_sr.clone().requires_grad_()
+        theta_cr = base_theta_cr.clone().requires_grad_()
+        loss = _assemble_compact_loss_for_test(
+            signal,
+            theta_sr,
+            theta_cr,
+            a_cr_multiplicities,
+            b_cr_multiplicities,
+            number_of_a_sr,
+            number_of_b_sr,
+            530,
+            526,
+        )
+        gradients = torch.autograd.grad(loss, (signal, theta_sr, theta_cr))
+        return loss.detach(), tuple(gradient.detach() for gradient in gradients)
+
+    original_thread_count = torch.get_num_threads()
+    try:
+        four_threads = loss_and_gradients(4)
+        eight_threads = loss_and_gradients(8)
+    finally:
+        torch.set_num_threads(original_thread_count)
+
+    assert torch.equal(four_threads[0], eight_threads[0])
+    assert all(
+        torch.equal(four_thread_gradient, eight_thread_gradient)
+        for four_thread_gradient, eight_thread_gradient in zip(
+            four_threads[1], eight_threads[1]
+        )
+    )
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
