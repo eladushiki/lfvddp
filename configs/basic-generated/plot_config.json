@@ -1,25 +1,5 @@
 {
     "plot__target_run_parent_directory": "",
-    "plot__pyplot_styling": {
-        "rcParams": {
-            "font.family": "serif",
-            "font.size": 24
-        },
-        "style.use": "classic"
-    },
-    "plot__figure_styling": {
-        "patch_set_facecolor": "white",
-        "plot": {
-            "histogram_color": "plum",
-            "edge_color": "darkorchid",
-            "chi2_color": "grey",
-            "linewidth": 5,
-            "alpha": 0.8
-        }
-    },
-    "plot__figure_size": [10, 9],
-    "plot__prediction_process_number_of_bins": 30,
-    "plot__prediction_process_normalize_each_prediction": true,
     "plot__plot_specifications": [
         {
             "name": "t_distribution_plot",
