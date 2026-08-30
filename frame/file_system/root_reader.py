@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import awkward as ak
+import awkward_pandas  # noqa: F401  # registers pandas' Awkward extension dtype
 from numpy.typing import NDArray
 import uproot
 
@@ -43,27 +44,69 @@ def load_root_events(
 
         data_sets = []
 
-        # Load the desired range by batches
-        for batch in tree.iterate(
-            step_size=step_size,
-            filter_branch=lambda TBranch: TBranch.name in branch_names,
-            cut=cut,
-            aliases=aliases,
-            entry_start=start,
-            entry_stop=stop,
-            library="pd",
-        ):
+        # Load the desired range by batches.  Uproot's pandas backend cannot
+        # apply a jagged particle-level mask to event-level data, so evaluate
+        # cuts with Awkward and reduce them to one boolean per event first.
+        if cut is None:
+            batches = tree.iterate(
+                step_size=step_size,
+                filter_branch=lambda TBranch: TBranch.name in branch_names,
+                aliases=aliases,
+                entry_start=start,
+                entry_stop=stop,
+                library="pd",
+            )
+        else:
+            batches = (
+                __apply_cut_and_convert_batch(batch, cut, aliases)
+                for batch in tree.iterate(
+                    step_size=step_size,
+                    filter_branch=lambda TBranch: TBranch.name in branch_names,
+                    entry_start=start,
+                    entry_stop=stop,
+                    library="ak",
+                )
+            )
+
+        for batch in batches:
             if observable_renames:
                 batch.rename(columns=observable_renames, inplace=True)
-            data_sets.append(
-                __expand_awkward_cols(batch)
-            )
+            data_sets.append(__expand_awkward_cols(batch))
 
     collected_data = pd.concat(data_sets).reset_index(level=0, drop=True)
     return DataSet(
         collected_data,
         observable_names=collected_data.columns,
     )
+
+
+def __apply_cut_and_convert_batch(
+    batch: ak.Array,
+    cut: str,
+    aliases: Optional[Dict[str, str]],
+) -> pd.DataFrame:
+    """Apply an event cut to an Awkward batch and return its pandas form."""
+    values = {field: batch[field] for field in batch.fields}
+    for name, expression in (aliases or {}).items():
+        values[name] = eval(expression, {"__builtins__": {}}, values)
+
+    mask = eval(cut, {"__builtins__": {}}, values)
+    if not isinstance(mask, ak.Array):
+        mask = ak.Array(mask)
+    if ak.to_layout(mask).purelist_depth > 1:
+        # Empty jagged collections must not turn a particle predicate into
+        # True through ``all([])`` when it is combined with scalar predicates.
+        mask = ak.all(mask, axis=1) & ak.any(mask, axis=1)
+
+    selected = batch[mask]
+    columns = {}
+    for field in selected.fields:
+        values = selected[field]
+        if ak.to_layout(values).purelist_depth > 1:
+            columns[field] = pd.Series(values.tolist(), dtype="awkward")
+        else:
+            columns[field] = np.asarray(values)
+    return pd.DataFrame(columns)
 
 
 def __expand_awkward_cols(

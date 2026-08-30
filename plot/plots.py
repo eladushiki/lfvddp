@@ -28,6 +28,7 @@ from plot.plot_utils import (
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
+    _t_distribution_outlier_masks,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
@@ -182,55 +183,6 @@ def t_train_percentile_progression_plot(
     c.standardize_plot_borders(fig)
 
     return fig
-
-
-def _t_distribution_outlier_masks(
-    t_values: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Identify failed low-tail and overfitted high-tail training results."""
-    lower_reference_boundary = max(
-        np.percentile(t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE),
-        0,
-    )
-    upper_reference_boundary = np.percentile(
-        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
-    )
-    lower_reference = t_values[t_values >= lower_reference_boundary]
-    upper_reference = t_values[t_values <= upper_reference_boundary]
-
-    lower_threshold = np.mean(lower_reference) - (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
-    )
-    upper_threshold = np.mean(upper_reference) + (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
-    )
-    return t_values < lower_threshold, t_values > upper_threshold
-
-
-def _filter_t_distribution_outliers(
-    t_values: np.ndarray,
-    cut_non_converged: bool,
-    cut_overfitted: bool,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply the configured t-distribution tail exclusions."""
-    finite_values = np.isfinite(t_values)
-    did_not_converge = ~finite_values
-    overfitted = np.zeros(t_values.shape, dtype=bool)
-    if np.any(finite_values):
-        finite_did_not_converge, finite_overfitted = (
-            _t_distribution_outlier_masks(t_values[finite_values])
-        )
-        did_not_converge[finite_values] = finite_did_not_converge
-        overfitted[finite_values] = finite_overfitted
-
-    # Non-finite values cannot be rendered in a histogram, even when the user
-    # elects to retain finite non-converged values for diagnostic purposes.
-    excluded = ~finite_values
-    if cut_non_converged:
-        excluded |= did_not_converge
-    if cut_overfitted:
-        excluded |= overfitted
-    return t_values[~excluded], did_not_converge, overfitted
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
