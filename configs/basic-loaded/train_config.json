@@ -2,7 +2,9 @@
     "train__epochs": 40000,
     "train__number_of_epochs_for_checkpoint": 1000,
     "train__nn_input_dimension": 2,
+
     "train__nn_inner_layer_nodes": 4,
+
     "train__learning_rate": 0.1,
     "train__nuisance_binning_minima": 0,
     "train__nuisance_binning_maxima": [
