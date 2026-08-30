@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from dataclasses import dataclass
+from typing import List
 
 
 @dataclass
@@ -7,12 +7,16 @@ class DetectorConfig:
     """Configuration for detector observable selection."""
 
     detector__detect_observable_names: List[str]
-    # Detector effects are shared by datasets in each detector family.
-    detector__effects: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
-    def effects_for_category(self, category: Any) -> Dict[str, Any]:
-        family = getattr(category, "name", str(category)).split("_")[0].upper()
-        return dict(self.detector__effects.get(family, {}))
+    # Detector effects are shared by datasets in each detector family.  Keep
+    # these explicit so the configuration schema exposes exactly one A and one
+    # B value for each effect kind.
+    detector__effect_a_efficiency: str = ""
+    detector__effect_b_efficiency: str = ""
+    detector__effect_a_efficiency_uncertainty: str = ""
+    detector__effect_b_efficiency_uncertainty: str = ""
+    detector__effect_a_error: str = ""
+    detector__effect_b_error: str = ""
 
     @property
     def detector__number_of_dimensions(self) -> int:

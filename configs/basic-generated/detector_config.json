@@ -3,11 +3,7 @@
         "Tau_mass_0",
         "Lepton_mass_0"
     ],
-    "detector__effects": {
-        "A": {
-            "efficiency": "detector_efficiency_tanh",
-            "efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
-            "error": ""
-        }
-    }
+    "detector__effect_a_efficiency": "detector_efficiency_tanh",
+    "detector__effect_a_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
+    "detector__effect_a_error": ""
 }

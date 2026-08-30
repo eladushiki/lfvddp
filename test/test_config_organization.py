@@ -1,4 +1,3 @@
-from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
 from plot.plotting_config import PlottingConfig
@@ -25,13 +24,14 @@ def test_nuisance_configuration_remains_on_train_config():
     assert config.train__nuisance_nn_inner_layer_nodes == 3
 
 
-def test_detector_effects_are_selected_by_dataset_family():
+def test_detector_effects_have_explicit_a_and_b_attributes():
     config = DetectorConfig(
         detector__detect_observable_names=["x"],
-        detector__effects={"A": {"efficiency": "eff_a"}, "B": {"efficiency": "eff_b"}},
+        detector__effect_a_efficiency="eff_a",
+        detector__effect_b_efficiency="eff_b",
     )
-    assert config.effects_for_category(DataSet.DataSetCategory.A_SR)["efficiency"] == "eff_a"
-    assert config.effects_for_category(DataSet.DataSetCategory.B_CR)["efficiency"] == "eff_b"
+    assert config.detector__effect_a_efficiency == "eff_a"
+    assert config.detector__effect_b_efficiency == "eff_b"
 
 
 def test_plotting_defaults_leave_plot_specifications_explicit():
