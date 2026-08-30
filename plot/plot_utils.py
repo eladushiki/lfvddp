@@ -746,6 +746,10 @@ def utils__datset_histogram_sliced(
             dx_bar = dx.ravel()[positive_mask.ravel()]
             dy_bar = dy.ravel()[positive_mask.ravel()]
             dz_bar = counts.ravel()[positive_mask.ravel()]
+            if log_scale:
+                # A logarithmic mplot3d axis cannot represent bars based at zero.
+                # Plot the exponents directly so the geometry matches log10(events).
+                dz_bar = _log10_positive_output_values(dz_bar)
 
             # Slightly offset overlaid histograms so mplot3d does not hide a tall bar
             # behind a shorter one that shares the same 3D footprint.
@@ -773,8 +777,6 @@ def utils__datset_histogram_sliced(
             )
             if label is not None:
                 ax.scatter([], [], [], color=color, label=label)
-            if log_scale and np.any(positive_mask):
-                ax.set_zscale("log")
         else:
             if log_scale:
                 hist2d_kwargs.setdefault("norm", LogNorm())
