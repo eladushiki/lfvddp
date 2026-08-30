@@ -1,7 +1,7 @@
 {
     "detector__detect_observable_names": [
-        "Tau_mass_0",
-        "Lepton_mass_0"
+        "param_0",
+        "param_1"
     ],
     "detector__effect_a_efficiency": "detector_efficiency_tanh",
     "detector__effect_a_efficiency_uncertainty": "detector_efficiency_10_percent_constant_diminish",
