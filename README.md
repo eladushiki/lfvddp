@@ -22,7 +22,7 @@ The lockfile is the source of truth for local dependencies. The optional NPLM pa
 - `mattiasdata` has some useful (legacy) datasets (and frankly, needs to be cleaned)
 - `neural_networks` handles NN tools operated here, as well as `NPLM` tools.
 - `paper_scripts` has specific code to reproduce figures used in each of our papers. This is an interactive section which is mostly made of `jupyter` notebooks.
-- `plot` defines the tools to create plots.
+- `plot` defines the tools to create plots, with rendering contracts in `plot/specs`. The t-distribution and percentile-progression plots share one final-statistic quality filter so finite failed runs do not distort either view.
 - `train` handles physical datasets and weighs hypotheses for new physics, returning a profile likelihood goodness of fit measure.
 - Additional project files such as `.gitignore` and this very file.
 

@@ -200,7 +200,7 @@ def _t_distribution_outlier_masks(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Return masks for the non-converged and overfitted t-distribution tails."""
     finite_values = np.isfinite(t_values)
-    did_not_converge = np.zeros(t_values.shape, dtype=bool)
+    did_not_converge = ~finite_values
     overfitted = np.zeros(t_values.shape, dtype=bool)
     if not np.any(finite_values):
         return did_not_converge, overfitted
@@ -213,18 +213,42 @@ def _t_distribution_outlier_masks(
     upper_reference_boundary = np.percentile(
         reference_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
     )
-    lower_reference = reference_values[reference_values >= lower_reference_boundary]
-    upper_reference = reference_values[reference_values <= upper_reference_boundary]
+    central_reference = reference_values[
+        (reference_values >= lower_reference_boundary)
+        & (reference_values <= upper_reference_boundary)
+    ]
+    if central_reference.size == 0:
+        did_not_converge[finite_values] = reference_values < 0
+        return did_not_converge, overfitted
 
-    lower_threshold = np.mean(lower_reference) - (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
+    reference_mean = np.mean(central_reference)
+    reference_std = np.std(central_reference)
+    lower_threshold = reference_mean - (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * reference_std
     )
-    upper_threshold = np.mean(upper_reference) + (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
+    upper_threshold = reference_mean + (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * reference_std
     )
-    did_not_converge[finite_values] = reference_values < lower_threshold
+    did_not_converge[finite_values] = (reference_values < 0) | (
+        reference_values < lower_threshold
+    )
     overfitted[finite_values] = reference_values > upper_threshold
     return did_not_converge, overfitted
+
+
+def _t_distribution_included_mask(
+    t_values: np.ndarray,
+    cut_non_converged: bool,
+    cut_overfitted: bool,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Select valid statistics using the shared convergence-tail policy."""
+    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
+    included = np.isfinite(t_values) & (t_values >= 0)
+    if cut_non_converged:
+        included &= ~did_not_converge
+    if cut_overfitted:
+        included &= ~overfitted
+    return included, did_not_converge, overfitted
 
 
 def _filter_t_distribution_outliers(
@@ -233,13 +257,12 @@ def _filter_t_distribution_outliers(
     cut_overfitted: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply tail exclusions and remove invalid negative or non-finite values."""
-    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
-    excluded = ~np.isfinite(t_values) | (t_values < 0)
-    if cut_non_converged:
-        excluded |= did_not_converge
-    if cut_overfitted:
-        excluded |= overfitted
-    return t_values[~excluded], did_not_converge, overfitted
+    included, did_not_converge, overfitted = _t_distribution_included_mask(
+        t_values,
+        cut_non_converged=cut_non_converged,
+        cut_overfitted=cut_overfitted,
+    )
+    return t_values[included], did_not_converge, overfitted
 
 
 def utils__calculate_performance_curve(

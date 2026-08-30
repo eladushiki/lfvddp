@@ -4,7 +4,7 @@
 
 - **Implementation status:** Ongoing - up to date behavior documented below
 - **Primary implementation:** `plot/plots.py`: `t_distribution_plot`
-- **Primary utilities:** `plot/plots.py`: `_filter_t_distribution_outliers`
+- **Primary utilities:** `plot/plot_utils.py`: `_filter_t_distribution_outliers`
 - **Plot scope:** Single submission
 
 ## Purpose
@@ -31,8 +31,9 @@ A reader should be able to determine:
 
 - Values are aggregated from the current submission's training results.
 - Non-finite values are classified as non-converged.
-- Finite outliers are classified from the tail of the finite distribution using the implementation's robust thresholding rule.
-- Each category is removed only when its corresponding `cut_*` option is enabled.
+- Non-finite and negative values are invalid for the rendered distribution and are always removed.
+- Finite outliers are classified against the central 5%-95% non-negative reference population, preventing either extreme from contaminating the opposite tail's threshold.
+- Other lower- and upper-tail outliers are removed when their corresponding `cut_*` option is enabled.
 - The legend reports the resulting sample count and omitted-category counts.
 
 ## Rendering

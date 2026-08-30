@@ -8,11 +8,15 @@ import pytest
 from data_tools.data_utils import DataSet
 from plot.carpenter import Carpenter
 from plot.plotting_config import PlottingConfig
-from plot.plots import _eventually_converged_histories, _t_distribution_outlier_masks
+from plot.plots import (
+    _eventually_converged_histories,
+    _percentile_progression_y_upper_limit,
+)
 from plot.plot_utils import (
     _filter_t_distribution_outliers,
     _humanize_signal_description,
     _integration_upper_limits_for_dimensions,
+    _t_distribution_outlier_masks,
     utils__discover_background_only_parent_directory,
     utils__finalize_prediction_process_layout,
     utils__prediction_mesh_mask,
@@ -31,18 +35,46 @@ def test_t_distribution_lower_reference_boundary_is_non_negative():
     assert not low_tail_mask[5]
 
 
+def test_t_distribution_reference_is_not_contaminated_by_opposite_extremes():
+    central_values = np.linspace(5.0, 30.0, 70)
+    low_failures = np.linspace(-1_300_000.0, -600_000.0, 9)
+    high_failures = np.array([1_310_000.0, 1_315_000.0])
+
+    did_not_converge, overfitted = _t_distribution_outlier_masks(
+        np.concatenate((central_values, low_failures, high_failures))
+    )
+
+    assert did_not_converge[-11:-2].all()
+    assert overfitted[-2:].all()
+    assert not did_not_converge[:70].any()
+    assert not overfitted[:70].any()
+
+
 def test_percentile_progression_history_filter_uses_final_t_value():
-    histories = np.array(
-        [
-            [1.0, 2.0, np.nan],
-            [10.0, 20.0, 30.0],
-            [100.0, 200.0, 300.0],
-        ]
+    central_histories = np.column_stack(
+        (np.linspace(1.0, 10.0, 100), np.linspace(2.0, 11.0, 100))
+    )
+    histories = np.vstack(
+        (
+            [[1.0, np.nan], [2.0, -1000.0]],
+            central_histories,
+            [[3.0, 1000.0]],
+        )
     )
 
     np.testing.assert_array_equal(
-        _eventually_converged_histories(histories), histories[1:]
+        _eventually_converged_histories(histories), central_histories
     )
+
+
+def test_percentile_progression_y_axis_fits_empirical_and_reference_curves():
+    percentiles = np.array([[-1000.0, -900.0], [5.0, 20.0]])
+    reference_quantiles = np.array([3.0, 25.0])
+
+    assert _percentile_progression_y_upper_limit(
+        percentiles,
+        reference_quantiles,
+    ) == pytest.approx(26.25)
 
 
 def test_humanize_signal_description_replaces_generator_identifier_separators():
