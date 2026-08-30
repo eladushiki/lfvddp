@@ -54,7 +54,7 @@ def test_humanize_signal_description_replaces_generator_identifier_separators():
 def test_carpenter_reserves_a_dedicated_run_stamp_row():
     figure = plt.figure()
     carpenter = object.__new__(Carpenter)
-    carpenter._config = PlottingConfig("", [])
+    carpenter._config = PlottingConfig(plot__plot_specifications=[])
 
     carpenter.reserve_run_stamp_row(figure, bottom=0.01)
 

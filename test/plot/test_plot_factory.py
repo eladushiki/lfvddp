@@ -10,7 +10,6 @@ from plot.plotting_config import PlotInstructions, PlotScope, PlottingConfig
 
 def _plotting_config() -> PlottingConfig:
     return PlottingConfig(
-        plot__target_run_parent_directory="",
         plot__pyplot_styling={"rcParams": {}, "style.use": "default"},
         plot__figure_styling={"patch_set_facecolor": "white"},
         plot__figure_size=(10, 9),

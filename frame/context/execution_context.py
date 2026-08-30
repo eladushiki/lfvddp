@@ -87,7 +87,6 @@ def create_config_from_paramters(
     # Configuration according to arguments
     if out_dir:
         config_params["config__out_dir"] = out_dir
-        config_params["plot__target_run_parent_directory"] = out_dir
 
     config = DynamicConfig(**config_params)
 

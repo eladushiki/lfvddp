@@ -57,7 +57,7 @@ The horizontal axis is ideal significance $\sqrt{q_0}$; the vertical axis is mea
 
 | Key | Current default | Effect |
 | --- | ---: | --- |
-| `plot__target_run_parent_directory` | `""` | Parent location from which multi-run plotting input is discovered. |
+The multi-run plotting input is the first positional command-line argument, stored as `config__out_dir`.
 | `plot__figure_size` | `[10, 9]` | Figure dimensions in inches. |
 | `plot__pyplot_styling` | Basic plot config | Global Matplotlib typography and style. |
 | `plot__figure_styling` | Basic plot config | Figure appearance settings. |

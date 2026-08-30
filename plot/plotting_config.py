@@ -40,8 +40,6 @@ class PlottingConfig:
     Class for structuring all the data needed for plotting instructions.
     """
 
-    plot__target_run_parent_directory: str
-
     # Plot specifications intentionally remain explicit: they define the
     # requested output rather than a communal styling default.
     plot__plot_specifications: List[Dict[str, Any]]

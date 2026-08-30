@@ -35,7 +35,7 @@ def test_detector_effects_have_explicit_a_and_b_attributes():
 
 
 def test_plotting_defaults_leave_plot_specifications_explicit():
-    config = PlottingConfig("runs", [])
+    config = PlottingConfig(plot__plot_specifications=[])
     assert config.plot__pyplot_styling["style.use"] == "classic"
     assert config.plot__figure_styling["plot"]["linewidth"] == 5
     assert config.plot__figure_size == (10, 9)
