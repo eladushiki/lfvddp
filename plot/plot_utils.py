@@ -199,14 +199,22 @@ def _t_distribution_outlier_masks(
     t_values: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Return masks for the non-converged and overfitted t-distribution tails."""
-    lower_reference_boundary = np.percentile(
-        t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    finite_values = np.isfinite(t_values)
+    did_not_converge = np.zeros(t_values.shape, dtype=bool)
+    overfitted = np.zeros(t_values.shape, dtype=bool)
+    if not np.any(finite_values):
+        return did_not_converge, overfitted
+
+    reference_values = t_values[finite_values]
+    lower_reference_boundary = max(
+        np.percentile(reference_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE),
+        0,
     )
     upper_reference_boundary = np.percentile(
-        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+        reference_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
     )
-    lower_reference = t_values[t_values >= lower_reference_boundary]
-    upper_reference = t_values[t_values <= upper_reference_boundary]
+    lower_reference = reference_values[reference_values >= lower_reference_boundary]
+    upper_reference = reference_values[reference_values <= upper_reference_boundary]
 
     lower_threshold = np.mean(lower_reference) - (
         _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
@@ -214,7 +222,9 @@ def _t_distribution_outlier_masks(
     upper_threshold = np.mean(upper_reference) + (
         _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
     )
-    return t_values < lower_threshold, t_values > upper_threshold
+    did_not_converge[finite_values] = reference_values < lower_threshold
+    overfitted[finite_values] = reference_values > upper_threshold
+    return did_not_converge, overfitted
 
 
 def _filter_t_distribution_outliers(
@@ -222,9 +232,9 @@ def _filter_t_distribution_outliers(
     cut_non_converged: bool,
     cut_overfitted: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply the configured t-distribution tail exclusions."""
+    """Apply tail exclusions and remove invalid negative or non-finite values."""
     did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
-    excluded = np.zeros(t_values.shape, dtype=bool)
+    excluded = ~np.isfinite(t_values) | (t_values < 0)
     if cut_non_converged:
         excluded |= did_not_converge
     if cut_overfitted:

@@ -207,32 +207,6 @@ def _t_distribution_outlier_masks(
     return t_values < lower_threshold, t_values > upper_threshold
 
 
-def _filter_t_distribution_outliers(
-    t_values: np.ndarray,
-    cut_non_converged: bool,
-    cut_overfitted: bool,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply the configured t-distribution tail exclusions."""
-    finite_values = np.isfinite(t_values)
-    did_not_converge = ~finite_values
-    overfitted = np.zeros(t_values.shape, dtype=bool)
-    if np.any(finite_values):
-        finite_did_not_converge, finite_overfitted = (
-            _t_distribution_outlier_masks(t_values[finite_values])
-        )
-        did_not_converge[finite_values] = finite_did_not_converge
-        overfitted[finite_values] = finite_overfitted
-
-    # Non-finite values cannot be rendered in a histogram, even when the user
-    # elects to retain finite non-converged values for diagnostic purposes.
-    excluded = ~finite_values
-    if cut_non_converged:
-        excluded |= did_not_converge
-    if cut_overfitted:
-        excluded |= overfitted
-    return t_values[~excluded], did_not_converge, overfitted
-
-
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_distribution_plot(
     context: ExecutionContext,

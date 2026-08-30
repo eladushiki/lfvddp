@@ -277,3 +277,13 @@ def test_filter_t_distribution_outliers_honors_each_tail_switch():
     assert overfitted[-1]
     assert -100 not in filtered
     assert 100 in filtered
+
+
+def test_filter_t_distribution_outliers_excludes_negative_t_values():
+    filtered, _, _ = _filter_t_distribution_outliers(
+        np.array([-1.0, 0.0, 2.0]),
+        cut_non_converged=False,
+        cut_overfitted=False,
+    )
+
+    np.testing.assert_array_equal(filtered, [0.0, 2.0])
