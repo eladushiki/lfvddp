@@ -7,6 +7,7 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from plot.carpenter import Carpenter
+from plot.plotting_config import PlottingConfig
 from plot.plots import _eventually_converged_histories, _t_distribution_outlier_masks
 from plot.plot_utils import (
     _filter_t_distribution_outliers,
@@ -52,15 +53,17 @@ def test_humanize_signal_description_replaces_generator_identifier_separators():
 
 def test_carpenter_reserves_a_dedicated_run_stamp_row():
     figure = plt.figure()
+    carpenter = object.__new__(Carpenter)
+    carpenter._config = PlottingConfig("", [])
 
-    Carpenter.reserve_run_stamp_row(figure, bottom=0.01)
+    carpenter.reserve_run_stamp_row(figure, bottom=0.01)
 
     assert figure.subplotpars.bottom == pytest.approx(
-        Carpenter.RUN_STAMP_ROW_HEIGHT
+        carpenter._config.plot__run_stamp_row_height
     )
-    Carpenter.standardize_plot_borders(figure)
+    carpenter.standardize_plot_borders(figure)
     assert figure.subplotpars.top == pytest.approx(
-        Carpenter.STANDARD_TOP_BORDER
+        carpenter._config.plot__standard_top_border
     )
     plt.close(figure)
 

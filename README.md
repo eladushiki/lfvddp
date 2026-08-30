@@ -16,7 +16,7 @@ uv run pytest
 The lockfile is the source of truth for local dependencies. The optional NPLM path requires TensorFlow and is supported on Linux/Windows; regular PyTorch development and tests do not require TensorFlow on macOS.
 
 # Contents
-- `configs` contains complete configuration packs. Pass one pack directory to `--configs`; copy a tracked pack to create a local, ignored pack for modification.
+- `configs` contains complete configuration packs. Pass one pack directory to `--configs`; copy a tracked pack to create a local, ignored pack for modification. Domain defaults belong to their owning config dataclass; pack files should omit values that equal those defaults. Detector effects use explicit A/B fields, while nuisance parameters remain owned by `TrainConfig`.
 - `data_tools` directory handles mathematical and statistical calculations needed to operate this project.
 - `frame` is a place for all framework tools needed for this project to run and communicate.
 - `mattiasdata` has some useful (legacy) datasets (and frankly, needs to be cleaned)

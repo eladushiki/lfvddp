@@ -14,7 +14,6 @@ class Carpenter:
     STANDARD_LEFT_BORDER = 0.125
     STANDARD_RIGHT_BORDER = 0.9
     STANDARD_TOP_BORDER = 0.88
-    _active_config = None
     _instance = None
 
     def __new__(cls, context: ExecutionContext):
@@ -29,7 +28,6 @@ class Carpenter:
             raise TypeError(f"Can't instantiate a Carpenter without a PlottingConfig, got {type(config)}")
         
         self._config = config
-        Carpenter._active_config = config
         self.initialize_styling()
 
         self._figure_styling = self._config.plot__figure_styling
@@ -64,24 +62,19 @@ class Carpenter:
 
         return fig
 
-    @classmethod
-    def reserve_run_stamp_row(cls, fig: Figure, **subplot_adjustments) -> None:
+    def reserve_run_stamp_row(self, fig: Figure, **subplot_adjustments) -> None:
         """Reserve a crop-safe bottom row exclusively for the run stamp."""
         requested_bottom = subplot_adjustments.pop("bottom", 0.0)
         fig.subplots_adjust(
-            bottom=max(
-                requested_bottom,
-                getattr(cls._active_config, "plot__run_stamp_row_height", cls.RUN_STAMP_ROW_HEIGHT),
-            ),
+            bottom=max(requested_bottom, self._config.plot__run_stamp_row_height),
             **subplot_adjustments,
         )
 
-    @classmethod
-    def standardize_plot_borders(cls, fig: Figure) -> None:
+    def standardize_plot_borders(self, fig: Figure) -> None:
         """Apply the common one-panel plot borders after all artists are added."""
         fig.subplots_adjust(
-            left=getattr(cls._active_config, "plot__standard_left_border", cls.STANDARD_LEFT_BORDER),
-            right=getattr(cls._active_config, "plot__standard_right_border", cls.STANDARD_RIGHT_BORDER),
-            bottom=getattr(cls._active_config, "plot__run_stamp_row_height", cls.RUN_STAMP_ROW_HEIGHT),
-            top=getattr(cls._active_config, "plot__standard_top_border", cls.STANDARD_TOP_BORDER),
+            left=self._config.plot__standard_left_border,
+            right=self._config.plot__standard_right_border,
+            bottom=self._config.plot__run_stamp_row_height,
+            top=self._config.plot__standard_top_border,
         )
