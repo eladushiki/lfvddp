@@ -236,7 +236,7 @@ def _filter_t_distribution_outliers(
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_distribution_plot(
     context: ExecutionContext,
-    number_of_bins: int,
+    number_of_bins: int = 30,
     cut_non_converged: bool = True,
     cut_overfitted: bool = True,
 ) -> Figure:

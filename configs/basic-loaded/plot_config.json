@@ -3,7 +3,6 @@
         {
             "name": "t_distribution_plot",
             "instructions": {
-                "number_of_bins": 30
             }
         },
         {

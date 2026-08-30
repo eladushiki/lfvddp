@@ -21,7 +21,8 @@ class ClusterConfig:
     cluster__qsub_ncpus: int = 8
     cluster__uv_cache_dir: Optional[Path] = None
     cluster__qsub_walltime_limit: str = "72:00:00"
-    cluster__qsub_total_walltime: Optional[str] = None
+    # Derived internally from cluster__qsub_walltime; never read from config files.
+    cluster__qsub_total_walltime: Optional[str] = field(init=False)
     cluster__qsub_walltime_chunks: list[str] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -29,9 +30,7 @@ class ClusterConfig:
             raise ValueError("cluster__qsub_ncpus must be positive.")
         if self.cluster__qsub_ngpus_for_train < 0:
             raise ValueError("cluster__qsub_ngpus_for_train cannot be negative.")
-        self._set_total_walltime(
-            self.cluster__qsub_total_walltime or self.cluster__qsub_walltime
-        )
+        self._set_total_walltime(self.cluster__qsub_walltime)
 
     def _set_total_walltime(self, total_walltime: str) -> None:
         """Set the total budget and derive every per-submission walltime value."""
