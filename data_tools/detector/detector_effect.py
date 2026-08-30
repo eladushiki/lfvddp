@@ -70,12 +70,30 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
 
     @detection_parameters.setter
     def detection_parameters(self, dataset_parameters: DatasetParameters):
-        # Detector effects on the data
-        self._true_efficiency = self.__retrieve_detector_efficiency_filter(dataset_parameters.dataset__detector_efficiency)
-        self._error = self.__get_detector_error_inducer(dataset_parameters.dataset__detector_error)
+        # Detector effects are selected exclusively from the detector config.
+        if dataset_parameters.category in {
+            DataSet.DataSetCategory.A_SR,
+            DataSet.DataSetCategory.A_CR,
+            DataSet.DataSetCategory.A,
+        }:
+            efficiency = self._config.detector__effect_a_efficiency
+            error = self._config.detector__effect_a_error
+            uncertainty = self._config.detector__effect_a_efficiency_uncertainty
+        elif dataset_parameters.category in {
+            DataSet.DataSetCategory.B_SR,
+            DataSet.DataSetCategory.B_CR,
+            DataSet.DataSetCategory.B,
+        }:
+            efficiency = self._config.detector__effect_b_efficiency
+            error = self._config.detector__effect_b_error
+            uncertainty = self._config.detector__effect_b_efficiency_uncertainty
+        else:
+            raise ValueError(f"Unsupported detector dataset family: {family!r}")
+        self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency)
+        self._error = self.__get_detector_error_inducer(error)
 
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(
-            dataset_parameters.dataset__detector_efficiency_uncertainty
+            uncertainty
         )
 
         # finally, finish updating internal state

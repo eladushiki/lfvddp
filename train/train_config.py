@@ -23,8 +23,8 @@ class TrainConfig:
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
-    train__nn_xavier_gain: float = 4
-    train__learning_rate: float = 0.001  # optimizer learning rate
+    train__nn_xavier_gain: float = 1
+    train__learning_rate: float = 0.03  # optimizer learning rate
     train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
     # Opt-in CPU profiling. The warmup epochs are observed by the profiler but

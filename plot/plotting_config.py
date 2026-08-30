@@ -40,21 +40,45 @@ class PlottingConfig:
     Class for structuring all the data needed for plotting instructions.
     """
 
-    plot__target_run_parent_directory: str
+    # Plot specifications intentionally remain explicit: they define the
+    # requested output rather than a communal styling default.
+    plot__plot_specifications: List[Dict[str, Any]]
 
     # General plot settings
     ## Styling
-    plot__pyplot_styling: Dict[str, Any]
-    plot__figure_styling: Dict[str, Any]
+    plot__pyplot_styling: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "rcParams": {"font.family": "serif", "font.size": 24},
+            "style.use": "classic",
+        }
+    )
+    plot__figure_styling: Dict[str, Any] = field(
+        default_factory=lambda: {
+            "patch_set_facecolor": "white",
+            "plot": {
+                "histogram_color": "plum",
+                "edge_color": "darkorchid",
+                "chi2_color": "grey",
+                "linewidth": 5,
+                "alpha": 0.8,
+            },
+        }
+    )
 
     ## Sizing
-    plot__figure_size: Tuple[int, int]
+    plot__figure_size: Tuple[int, int] = (10, 9)
 
-    # Additional settings for each plot
-    plot__plot_specifications: List[Dict[str, Any]] = field(default_factory=list)
     plot__prediction_process_number_of_bins: int = 30
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True
+
+    # Shared layout values used by Carpenter for every plot.
+    plot__run_stamp_row_height: float = 0.12
+    plot__run_stamp_y: float = 0.02
+    plot__run_stamp_font_size: int = 10
+    plot__standard_left_border: float = 0.125
+    plot__standard_right_border: float = 0.9
+    plot__standard_top_border: float = 0.88
 
     @property
     def plot_instructions(self) -> List[PlotInstructions]:

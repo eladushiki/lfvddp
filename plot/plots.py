@@ -119,7 +119,7 @@ def t_train_percentile_progression_plot(
         )
 
     # Training results aggregation
-    agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
+    agg = ResultAggregator(Path(config.config__out_dir))
     all_history_values = agg.all_history_values
     epochs = agg.all_epochs
 
@@ -236,7 +236,7 @@ def _filter_t_distribution_outliers(
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_distribution_plot(
     context: ExecutionContext,
-    number_of_bins: int,
+    number_of_bins: int = 30,
     cut_non_converged: bool = True,
     cut_overfitted: bool = True,
 ) -> Figure:
@@ -263,12 +263,12 @@ def t_distribution_plot(
     fig = c.figure()
     ax = fig.add_subplot(111)
 
-    agg = ResultAggregator(Path(config.plot__target_run_parent_directory))
+    agg = ResultAggregator(Path(config.config__out_dir))
     all_finite_t = agg.all_t_values
 
     if all_finite_t.size == 0:
         raise ValueError(
-            f"No finite t values found in {config.plot__target_run_parent_directory}, meaning \
+            f"No finite t values found in {config.config__out_dir}, meaning \
             no training finished properly."
         )
 
@@ -424,7 +424,7 @@ def performance_plot(
         distribution. Compatible dataset configurations are grouped,
         and each group is overlaid as a separate curve.
 
-    The plot__target_run_parent_directory has no use here to
+    The config__out_dir has no use here to
     not cause ambiguity.
     """
     if not isinstance(plot_config := context.config, PlottingConfig):

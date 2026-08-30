@@ -52,9 +52,9 @@ class Carpenter:
         # Stamp for run
         fig.text(
             x=0,
-            y=self.RUN_STAMP_Y,
+            y=self._config.plot__run_stamp_y,
             s=f"run hash: {self._context.run_hash}",
-            fontsize=self.RUN_STAMP_FONT_SIZE,
+            fontsize=self._config.plot__run_stamp_font_size,
             verticalalignment="bottom",
             horizontalalignment="left",
         )
@@ -62,21 +62,19 @@ class Carpenter:
 
         return fig
 
-    @staticmethod
-    def reserve_run_stamp_row(fig: Figure, **subplot_adjustments) -> None:
+    def reserve_run_stamp_row(self, fig: Figure, **subplot_adjustments) -> None:
         """Reserve a crop-safe bottom row exclusively for the run stamp."""
         requested_bottom = subplot_adjustments.pop("bottom", 0.0)
         fig.subplots_adjust(
-            bottom=max(requested_bottom, Carpenter.RUN_STAMP_ROW_HEIGHT),
+            bottom=max(requested_bottom, self._config.plot__run_stamp_row_height),
             **subplot_adjustments,
         )
 
-    @classmethod
-    def standardize_plot_borders(cls, fig: Figure) -> None:
+    def standardize_plot_borders(self, fig: Figure) -> None:
         """Apply the common one-panel plot borders after all artists are added."""
         fig.subplots_adjust(
-            left=cls.STANDARD_LEFT_BORDER,
-            right=cls.STANDARD_RIGHT_BORDER,
-            bottom=cls.RUN_STAMP_ROW_HEIGHT,
-            top=cls.STANDARD_TOP_BORDER,
+            left=self._config.plot__standard_left_border,
+            right=self._config.plot__standard_right_border,
+            bottom=self._config.plot__run_stamp_row_height,
+            top=self._config.plot__standard_top_border,
         )
