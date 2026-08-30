@@ -52,23 +52,6 @@ from train.training_profiler import TrainingResourceProfiler
 from train.training_names import training_name
 
 
-def _training_cpu_threads(
-    config: TrainConfig,
-    device: str,
-    available_cpu_threads: int,
-) -> int:
-    """Apply the user-selected CPU LFVNN thread cap when configured."""
-
-    configured_cap = config.train__lfvnn_max_cpu_threads
-    if (
-        device == "cpu"
-        and not config.train__like_NPLM
-        and configured_cap is not None
-    ):
-        return min(available_cpu_threads, configured_cap)
-    return available_cpu_threads
-
-
 class TrainLauncher(ABC):
     """Common queue, naming, checkpoint, and model-execution operations.
 
@@ -439,12 +422,9 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
         gpu_count = self._allocation.usable_gpu_count
         if len(indices) == 1:
             self._note_unused_gpus(used_gpu_count=min(1, gpu_count))
-            device = "cuda:0" if gpu_count else "cpu"
             return [
                 _TrainingAssignment(
-                    indices[0],
-                    device,
-                    _training_cpu_threads(self._config, device, cpu_count),
+                    indices[0], "cuda:0" if gpu_count else "cpu", cpu_count
                 )
             ]
 
@@ -452,7 +432,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             index for index in indices if self._train_stack[index].is_numerator
         )
         denominator_index = next(index for index in indices if index != numerator_index)
-        numerator_available_threads = max(1, cpu_count - 1)
+        numerator_threads = max(1, cpu_count - 1)
 
         if not allocation_supports_parallel_training(self._allocation):
             raise RuntimeError(
@@ -462,35 +442,17 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
 
         if gpu_count >= 2:
             assignments = [
-                _TrainingAssignment(
-                    numerator_index,
-                    "cuda:0",
-                    _training_cpu_threads(
-                        self._config, "cuda:0", numerator_available_threads
-                    ),
-                ),
+                _TrainingAssignment(numerator_index, "cuda:0", numerator_threads),
                 _TrainingAssignment(denominator_index, "cuda:1", 1),
             ]
         elif gpu_count == 1 and cpu_count >= 2:
             assignments = [
-                _TrainingAssignment(
-                    numerator_index,
-                    "cuda:0",
-                    _training_cpu_threads(
-                        self._config, "cuda:0", numerator_available_threads
-                    ),
-                ),
+                _TrainingAssignment(numerator_index, "cuda:0", numerator_threads),
                 _TrainingAssignment(denominator_index, "cpu", 1),
             ]
         else:
             assignments = [
-                _TrainingAssignment(
-                    numerator_index,
-                    "cpu",
-                    _training_cpu_threads(
-                        self._config, "cpu", numerator_available_threads
-                    ),
-                ),
+                _TrainingAssignment(numerator_index, "cpu", numerator_threads),
                 _TrainingAssignment(denominator_index, "cpu", 1),
             ]
 
@@ -507,15 +469,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
         self._note_unused_gpus(used_gpu_count=used_gpu_count)
         device = "cuda:0" if gpu_count else "cpu"
         return [
-            _TrainingAssignment(
-                index,
-                device,
-                _training_cpu_threads(
-                    self._config,
-                    device,
-                    self._allocation.cpu_count,
-                ),
-            )
+            _TrainingAssignment(index, device, self._allocation.cpu_count)
             for index in indices
         ]
 

@@ -236,6 +236,21 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return coefficient * term()
 
     @staticmethod
+    def _signal_shift_log_terms(
+        signal_region_shift: torch.Tensor,
+        number_of_a_sr_events: int,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the signal-shift log terms shared by both nuisance paths."""
+
+        a_sr_log_term = -torch.log1p(
+            signal_region_shift[:number_of_a_sr_events]
+        ).sum()
+        b_sr_log_term = -torch.log1p(
+            -signal_region_shift[number_of_a_sr_events:]
+        ).sum()
+        return a_sr_log_term, b_sr_log_term
+
+    @staticmethod
     def _assemble_loss_without_nuisance(
         *,
         signal_hypothesis_sr_shift: Optional[torch.Tensor],
@@ -251,12 +266,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             data.sr_category_imbalance,
             signal_region_shift.sum,
         )
-        signal_hypothesis_a_sr_f_log_term = -torch.log1p(
-            signal_region_shift[: data.N_a_sr]
-        ).sum()
-        signal_hypothesis_b_sr_f_log_term = -torch.log1p(
-            -signal_region_shift[data.N_a_sr :]
-        ).sum()
+        (
+            signal_hypothesis_a_sr_f_log_term,
+            signal_hypothesis_b_sr_f_log_term,
+        ) = DifferentiatingModel._signal_shift_log_terms(
+            signal_region_shift,
+            data.N_a_sr,
+        )
         signal_hypothesis_sr_loss = (
             signal_hypothesis_sr_integral
             + signal_hypothesis_a_sr_f_log_term
@@ -365,12 +381,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
             + torch.dot(signal_region_shift, nuisance_sr_estimates)
         )
-        signal_hypothesis_a_sr_f_log_term = -torch.log1p(
-            signal_region_shift[: data.N_a_sr]
-        ).sum()
-        signal_hypothesis_b_sr_f_log_term = -torch.log1p(
-            -signal_region_shift[data.N_a_sr :]
-        ).sum()
+        (
+            signal_hypothesis_a_sr_f_log_term,
+            signal_hypothesis_b_sr_f_log_term,
+        ) = DifferentiatingModel._signal_shift_log_terms(
+            signal_region_shift,
+            data.N_a_sr,
+        )
         signal_hypothesis_sr_loss = (
             signal_hypothesis_sr_integral
             + signal_hypothesis_a_sr_f_log_term

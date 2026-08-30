@@ -226,11 +226,9 @@ configuration.
 
 After the job starts, the execution script passes its affinity-aware CPU count
 and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
-uses those observed values to choose its execution mode. By default CPU LFVNN
-branches use their full assigned CPU budget. Set
-`train__lfvnn_max_cpu_threads` to a positive integer to cap each CPU LFVNN
-branch when small dense networks and per-event loss reductions become slower
-with a large thread pool. The setting does not limit CUDA or NPLM branches.
+uses those observed values to choose its execution mode. Each training branch's
+thread count is bounded by its share of the scheduler-assigned CPUs; set
+`cluster__qsub_ncpus` to cap the CPU budget for the job.
 
 Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
 kernel-managed lock is released automatically if the owning job is interrupted
