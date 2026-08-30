@@ -34,10 +34,10 @@ def test_detection_basic(
     "function_execution_context",
     [{
         ConfigType.DATASET.value: Path("test/detector/configs/detector_affected_basic_ds.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/detector/configs/detector_affected_basic_detector_config.json"),
     },{
         ConfigType.DATASET.value: Path("test/detector/configs/detector_affected_basic_ds_2.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/detector/configs/detector_affected_basic_detector_config_2.json"),
     }],
     indirect=True,
 )

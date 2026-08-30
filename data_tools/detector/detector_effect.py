@@ -70,8 +70,7 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
 
     @detection_parameters.setter
     def detection_parameters(self, dataset_parameters: DatasetParameters):
-        # Detector effects belong to the detector configuration.  Fall back to
-        # legacy dataset fields while old configuration packs are migrated.
+        # Detector effects are selected exclusively from the detector config.
         family = getattr(dataset_parameters.category, "name", str(dataset_parameters.category)).split("_")[0].lower()
         if family == "a":
             efficiency = self._config.detector__effect_a_efficiency
@@ -83,10 +82,6 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
             uncertainty = self._config.detector__effect_b_efficiency_uncertainty
         else:
             raise ValueError(f"Unsupported detector dataset family: {family!r}")
-        if not any((efficiency, error, uncertainty)):
-            efficiency = dataset_parameters.dataset__detector_efficiency
-            error = dataset_parameters.dataset__detector_error
-            uncertainty = dataset_parameters.dataset__detector_efficiency_uncertainty
         self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency)
         self._error = self.__get_detector_error_inducer(error)
 

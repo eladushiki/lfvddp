@@ -1,7 +1,18 @@
 from data_tools.detector.detector_config import DetectorConfig
 from frame.cluster.cluster_config import ClusterConfig
+from frame.config_handle import UserConfig
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
+
+
+def test_user_log_level_defaults_to_info():
+    config = UserConfig(
+        config__user="test",
+        config__runtag="run",
+        config__out_dir="results",
+        config__bind_directories={},
+    )
+    assert config.config__log_level == "INFO"
 
 
 def test_requested_cluster_defaults():
