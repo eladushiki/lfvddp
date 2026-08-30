@@ -71,12 +71,19 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
     @detection_parameters.setter
     def detection_parameters(self, dataset_parameters: DatasetParameters):
         # Detector effects are selected exclusively from the detector config.
-        family = getattr(dataset_parameters.category, "name", str(dataset_parameters.category)).split("_")[0].lower()
-        if family == "a":
+        if dataset_parameters.category in {
+            DataSet.DataSetCategory.A_SR,
+            DataSet.DataSetCategory.A_CR,
+            DataSet.DataSetCategory.A,
+        }:
             efficiency = self._config.detector__effect_a_efficiency
             error = self._config.detector__effect_a_error
             uncertainty = self._config.detector__effect_a_efficiency_uncertainty
-        elif family == "b":
+        elif dataset_parameters.category in {
+            DataSet.DataSetCategory.B_SR,
+            DataSet.DataSetCategory.B_CR,
+            DataSet.DataSetCategory.B,
+        }:
             efficiency = self._config.detector__effect_b_efficiency
             error = self._config.detector__effect_b_error
             uncertainty = self._config.detector__effect_b_efficiency_uncertainty
