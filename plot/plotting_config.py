@@ -6,23 +6,6 @@ from typing import Any, Callable, Dict, List, Tuple
 from frame.file_structure import PLOT_FILE_EXTENSION
 
 
-DEFAULT_PYPLOT_STYLING = {
-    "rcParams": {"font.family": "serif", "font.size": 24},
-    "style.use": "classic",
-}
-DEFAULT_FIGURE_STYLING = {
-    "patch_set_facecolor": "white",
-    "plot": {
-        "histogram_color": "plum",
-        "edge_color": "darkorchid",
-        "chi2_color": "grey",
-        "linewidth": 5,
-        "alpha": 0.8,
-    },
-}
-DEFAULT_FIGURE_SIZE = (10, 9)
-
-
 class PlotScope(Enum):
     SINGLE_SUBMISSION = "single_submission"
     MULTI_RUN = "multi_run"
@@ -67,19 +50,25 @@ class PlottingConfig:
     ## Styling
     plot__pyplot_styling: Dict[str, Any] = field(
         default_factory=lambda: {
-            "rcParams": DEFAULT_PYPLOT_STYLING["rcParams"].copy(),
-            "style.use": DEFAULT_PYPLOT_STYLING["style.use"],
+            "rcParams": {"font.family": "serif", "font.size": 24},
+            "style.use": "classic",
         }
     )
     plot__figure_styling: Dict[str, Any] = field(
         default_factory=lambda: {
-            "patch_set_facecolor": DEFAULT_FIGURE_STYLING["patch_set_facecolor"],
-            "plot": DEFAULT_FIGURE_STYLING["plot"].copy(),
+            "patch_set_facecolor": "white",
+            "plot": {
+                "histogram_color": "plum",
+                "edge_color": "darkorchid",
+                "chi2_color": "grey",
+                "linewidth": 5,
+                "alpha": 0.8,
+            },
         }
     )
 
     ## Sizing
-    plot__figure_size: Tuple[int, int] = DEFAULT_FIGURE_SIZE
+    plot__figure_size: Tuple[int, int] = (10, 9)
 
     plot__prediction_process_number_of_bins: int = 30
     # Normalize every upper data/prediction histogram independently to unit probability.

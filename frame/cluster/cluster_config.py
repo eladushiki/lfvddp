@@ -5,12 +5,6 @@ from typing import Optional
 from frame.cluster.walltime import format_walltime, parse_walltime, split_walltime
 
 
-DEFAULT_QSUB_IO = 0.1
-DEFAULT_QSUB_MEM = 2
-DEFAULT_QSUB_NCPUS = 8
-DEFAULT_QSUB_NGPUS_FOR_TRAIN = 0
-
-
 @dataclass
 class ClusterConfig:
     cluster__repo_url: str
@@ -21,10 +15,10 @@ class ClusterConfig:
     cluster__qsub_queue: str
     cluster__qsub_n_jobs: int
     cluster__qsub_walltime: str  # in the form of "12:00:00"
-    cluster__qsub_io: float = DEFAULT_QSUB_IO
-    cluster__qsub_mem: int = DEFAULT_QSUB_MEM
-    cluster__qsub_ngpus_for_train: int = DEFAULT_QSUB_NGPUS_FOR_TRAIN
-    cluster__qsub_ncpus: int = DEFAULT_QSUB_NCPUS
+    cluster__qsub_io: float = 0.1
+    cluster__qsub_mem: int = 2
+    cluster__qsub_ngpus_for_train: int = 0
+    cluster__qsub_ncpus: int = 8
     cluster__uv_cache_dir: Optional[Path] = None
     cluster__qsub_walltime_limit: str = "72:00:00"
     cluster__qsub_total_walltime: Optional[str] = None
