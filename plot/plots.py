@@ -28,6 +28,7 @@ from plot.plot_utils import (
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
+    _t_distribution_outlier_masks,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__datset_histogram_sliced,
@@ -182,29 +183,6 @@ def t_train_percentile_progression_plot(
     c.standardize_plot_borders(fig)
 
     return fig
-
-
-def _t_distribution_outlier_masks(
-    t_values: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Identify failed low-tail and overfitted high-tail training results."""
-    lower_reference_boundary = max(
-        np.percentile(t_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE),
-        0,
-    )
-    upper_reference_boundary = np.percentile(
-        t_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
-    )
-    lower_reference = t_values[t_values >= lower_reference_boundary]
-    upper_reference = t_values[t_values <= upper_reference_boundary]
-
-    lower_threshold = np.mean(lower_reference) - (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(lower_reference)
-    )
-    upper_threshold = np.mean(upper_reference) + (
-        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * np.std(upper_reference)
-    )
-    return t_values < lower_threshold, t_values > upper_threshold
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
