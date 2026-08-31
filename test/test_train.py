@@ -12,6 +12,10 @@ from neural_networks.differentiating_model import (
     _SignalRegionShiftEstimator,
     _PreparedTrainingData,
 )
+from neural_networks.likelihood_parameterization import (
+    LIKELIHOOD_SHIFT_BOUND,
+    smoothly_bounded_likelihood_shift,
+)
 from neural_networks.nuisance_calculation import (
     NeuralPerEventNuisanceEstimator,
     NuisanceEvaluation,
@@ -29,18 +33,42 @@ from train.runtime_resources import RuntimeAllocation
 from train.tensorboard_clutch import log_t_history
 
 
-def test_theta_estimator_matches_network_dimensions_and_bounds_output():
+@pytest.mark.parametrize("unbounded_value", [-2.0, 2.0])
+def test_smooth_likelihood_bound_retains_gradient_past_old_clamp(
+    unbounded_value,
+):
+    unbounded_shift = torch.tensor(
+        unbounded_value,
+        dtype=torch.float64,
+        requires_grad=True,
+    )
+
+    bounded_shift = smoothly_bounded_likelihood_shift(unbounded_shift)
+    bounded_shift.backward()
+
+    assert torch.abs(bounded_shift) < LIKELIHOOD_SHIFT_BOUND
+    assert unbounded_shift.grad is not None
+    assert unbounded_shift.grad > 0
+
+
+def test_theta_estimator_smoothly_bounds_output_without_zeroing_gradient():
     estimator = _ThetaEstimator(
         input_dimension=2,
         hidden_size=2,
         output_dimension=1,
         dtype=torch.float64,
     )
+    with torch.no_grad():
+        estimator.output.weight.zero_()
+        estimator.output.bias.fill_(2.0)
 
     theta = estimator(torch.zeros((3, 2), dtype=torch.float64))
+    theta.sum().backward()
 
     assert theta.shape == (3,)
-    assert torch.all(torch.abs(theta) < 1)
+    assert torch.all(torch.abs(theta) < LIKELIHOOD_SHIFT_BOUND)
+    assert estimator.output.bias.grad is not None
+    assert torch.all(estimator.output.bias.grad > 0)
 
 
 ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
@@ -522,7 +550,7 @@ def test_cpu_thread_count_preserves_loss_and_gradient_bits():
 
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
-def test_signal_region_shift_estimator_clamps_result(input_dimension):
+def test_signal_region_shift_estimator_smoothly_bounds_result(input_dimension):
     estimator = _SignalRegionShiftEstimator(
         input_dimension=input_dimension,
         hidden_size=4,
@@ -530,12 +558,16 @@ def test_signal_region_shift_estimator_clamps_result(input_dimension):
         dtype=torch.float64,
     )
     with torch.no_grad():
-        estimator.output.weight.fill_(2)
-        estimator.output.bias.fill_(-2)
+        estimator.output.weight.zero_()
+        estimator.output.bias.fill_(2.0)
 
     estimate = estimator(torch.ones((7, input_dimension), dtype=torch.float64))
+    estimate.sum().backward()
+
     assert estimate.shape == (7, 1)
-    assert torch.all(estimate.abs() < 1)
+    assert torch.all(estimate.abs() < LIKELIHOOD_SHIFT_BOUND)
+    assert estimator.output.bias.grad is not None
+    assert torch.all(estimator.output.bias.grad > 0)
 
 
 @pytest.mark.parametrize(
