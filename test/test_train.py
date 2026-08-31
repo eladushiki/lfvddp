@@ -111,6 +111,88 @@ def test_mixed_nuisance_configurations_are_rejected(
 
     with pytest.raises(ValueError, match=error_message):
         create_config_from_paths(list(config_paths.values()))
+
+
+def test_disabled_nuisance_training_does_not_require_nuisance_parameters():
+    config_paths = {
+        **DEFAULT_CONFIG_PATHS,
+        **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+        ConfigType.TRAIN: Path(
+            "test/configs/train/short_1D_train_config_without_nuisance_parameters.json"
+        ),
+    }
+
+    config = create_config_from_paths(list(config_paths.values()))
+
+    assert config.train__data_is_train_for_nuisances is False
+    assert config.train__nuisance_binning_minima is None
+    assert config.train__nuisance_binning_maxima is None
+    assert config.train__nuisance_binning_number_of_bins is None
+    assert config.train__number_of_nuisance_parameters == 0
+
+
+@pytest.mark.parametrize(
+    "function_execution_context, has_configured_bins",
+    [
+        (
+            {
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/short_1D_train_config_without_nuisance_parameters.json"
+                ),
+            },
+            False,
+        ),
+        (
+            {
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/short_1D_train_config_without_nuisance.json"
+                ),
+            },
+            True,
+        ),
+    ],
+    indirect=["function_execution_context"],
+)
+def test_disabled_nuisance_training_preserves_optional_detector_binning(
+    function_execution_context,
+    detector_effect,
+    has_configured_bins,
+):
+    assert (
+        function_execution_context.config.train__data_is_train_for_nuisances is False
+    )
+    if not has_configured_bins:
+        with pytest.raises(ValueError, match="is not detected"):
+            detector_effect.get_observable_bins("param_0")
+        return
+
+    edges, centers = detector_effect.get_observable_bins("param_0")
+    np.testing.assert_allclose(edges, np.linspace(0, 10, 11))
+    np.testing.assert_allclose(centers, np.linspace(0.5, 9.5, 10))
+
+
+def test_enabled_binned_nuisance_still_requires_binning_parameters():
+    config_paths = {
+        **DEFAULT_CONFIG_PATHS,
+        **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
+        ConfigType.TRAIN: Path(
+            "test/configs/train/short_1D_train_config_with_missing_nuisance_parameters.json"
+        ),
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Binned nuisance configuration requires minima, maxima, and number of bins",
+    ):
+        create_config_from_paths(list(config_paths.values()))
+
+
 ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG = {
     **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
     ConfigType.TRAIN.value: Path(
