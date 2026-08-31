@@ -28,6 +28,7 @@ from plot.plot_utils import (
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
+    _t_distribution_included_mask,
     _t_distribution_outlier_masks,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
@@ -55,6 +56,7 @@ from train.train_utils import statistic_degrees_of_freedom
 
 
 _CONTINUOUS_PREDICTION_AXIS_POINTS = 1000
+_PERCENTILE_PROGRESSION_Y_HEADROOM = 0.05
 
 
 def _prediction_process_suptitle(
@@ -99,11 +101,34 @@ def _prediction_process_subplot_adjustments(
 def _eventually_converged_histories(
     histories: np.ndarray,
 ) -> np.ndarray:
-    """Return histories whose final recorded t value is finite."""
-    eventually_converged = np.isfinite(histories[:, -1])
+    """Return complete histories whose final t passes the shared tail filter."""
+    eventually_converged, _, _ = _t_distribution_included_mask(
+        histories[:, -1],
+        cut_non_converged=True,
+        cut_overfitted=True,
+    )
     if not np.any(eventually_converged):
         raise ValueError("No eventually converged training histories found.")
     return histories[eventually_converged]
+
+
+def _percentile_progression_y_upper_limit(
+    percentiles: np.ndarray,
+    reference_quantiles: np.ndarray,
+) -> float:
+    """Fit the visible non-negative percentile and reference curves."""
+    plotted_values = np.concatenate(
+        (np.ravel(percentiles), np.ravel(reference_quantiles))
+    )
+    visible_values = plotted_values[
+        np.isfinite(plotted_values) & (plotted_values >= 0)
+    ]
+    if visible_values.size == 0:
+        return 1.0
+    return max(
+        1.0,
+        float(np.max(visible_values)) * (1 + _PERCENTILE_PROGRESSION_Y_HEADROOM),
+    )
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
@@ -133,13 +158,21 @@ def t_train_percentile_progression_plot(
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
     chi2_dof = statistic_degrees_of_freedom(config)
+    reference_quantiles = np.asarray(
+        [chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles]
+    )
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
         ax = axes[row, 0]
         values = all_history_values[sample_name][HistoryKeys.T.value]
         converged_values = _eventually_converged_histories(values)
         percentiles = np.percentile(converged_values, quantiles, axis=0)
-        for quantile, percentile, color in zip(quantiles, percentiles, colors):
+        for quantile, percentile, reference_quantile, color in zip(
+            quantiles,
+            percentiles,
+            reference_quantiles,
+            colors,
+        ):
             (line,) = ax.plot(
                 epochs,
                 percentile,
@@ -150,13 +183,19 @@ def t_train_percentile_progression_plot(
             if row == 0:
                 legend_handles.append(line)
             ax.axhline(
-                chi2.ppf(quantile / 100, df=chi2_dof),
+                reference_quantile,
                 color=color,
                 linestyle="--",
                 linewidth=1.5,
             )
         ax.set_ylabel(HistoryKeys.T.value)
-        ax.set_ylim(bottom=0)
+        ax.set_ylim(
+            0,
+            _percentile_progression_y_upper_limit(
+                percentiles,
+                reference_quantiles,
+            ),
+        )
         ax.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
         if row == len(sample_names) - 1:
             ax.set_xlabel("Training epochs")
