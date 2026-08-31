@@ -4,33 +4,168 @@
 % This file contains LaTeX function definitions and shortcuts to be included
 % in other tex files. Include with: \input{../common/definitions.tex}
 
+
+% =============================================================================
+% APS recommendattions
+% =============================================================================
+% \mathfrak{#1} % Fraktur
+% \mathbb{#1}   % Blackboard
+
+% single line eq:
+% (\begin{widetext})      % protect from two column mode in release mode
+% (\begin{subequations})  % for multiple equations with a shared number
+% \begin{eqnarray(*)}
+% ...
+% (\nonumber\\)
+% \label{eq:one}.
+% \end{eqnarray(*)}
+% (\end{subequations})
+
+% unnumbered equations
+% \[
+% ...
+% \]
+
+% figures should be put into the text as floats.
+% surround with turnpage environment for landscape figure
+
+% \begin{figure}      % figure* for full page width
+% \label{}
+% \includegraphics[width=\textwidth, trim=0 10bp 0 0, clip]{}
+% \caption{}
+% \end{figure}
+
+% tables should appear as floats within the text
+
+% \begin{table}%[H] add [H] placement to break table across pages
+% \caption{\label{}}
+% \begin{ruledtabular}
+% \begin{tabular}{}
+% Lines of table here ending with \\
+% \end{tabular}
+% \end{ruledtabular}
+% \end{table}
+
+
 % =============================================================================
 % NOTATIONS
 % =============================================================================
 
 %% Data sets
+\newcommand{\eventsymbol}{{x}}
+\newcommand{\anyevent}{\vec{\eventsymbol}}
+\newcommand{\event}{{\vec{\eventsymbol_i}}}
 \newcommand{\dataset}[1]{{\mathbf{#1}}}         % A dataset
 \newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
 \newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}   % A measured dataset
-\newcommand{\reco}[1]{{\dataset{\dot{#1}}}}     % A reconstructed dataset
+\newcommand{\crmeas}[1]{{\meas{#1}^{CR}}}
+\newcommand{\srmeas}[1]{{\meas{#1}^{SR}}}
 
 %% Detecting events
-\newcommand{\detector}{\mathrm{Det}}            % Detector function
+\newcommand{\detector}{\delta}            % Detector function
+
+%% Hypothesis testing
+\newcommand{\hypothesis}[1]{{\mathcal{H}_{#1}}}
+\newcommand{\nullhypothesis}{{\hypothesis{0}}}
+%%% Parameterizations and pdfs
+\newcommand{\pdf}{{\lambda}}
+\newcommand{\param}{{\mu}}
+\newcommand{\nparam}{{\theta}}
+\newcommand{\parametrized}[1]{{#1}_{\nparam}^{\param}}
+\newcommand{\parampdf}{{\parametrized{\pdf}}}
+\newcommand{\paramf}{{f^{\param}}}
+\newcommand{\paramg}{{g^{\param}}}
 
 %% Hypotheses
 %%% Distributions
-\newcommand{\dist}[1]{{n_{\dataset{#1}}(x)}}    % Any distribution of x
-\newcommand{\refdist}[1][x]{n_{\mathcal{R}}({#1})}  % Reference distribution
+\newcommand{\dist}[1]{{\pdf_{#1}(\anyevent)}}   % Any distribution of x
+\newcommand{\srdist}[1]{{\pdf_{#1}^{SR}(\anyevent)}}   % Any distribution of x
+\newcommand{\crdist}[1]{{\pdf_{#1}^{CR}(\anyevent)}}   % Any distribution of x
+\newcommand{\distevent}[1]{\pdf_{#1}(\event)}
+\newcommand{\srdistevent}[1]{\pdf_{#1}^{SR}(\event)}
+\newcommand{\crdistevent}[1]{\pdf_{#1}^{CR}(\event)}
+\newcommand{\refdist}[1][\anyevent]{n_{\mathcal{R}}({#1})}  % Reference distribution
+\newcommand{\crrefdist}[1][\anyevent]{n_{\mathcal{R}}^{CR}({#1})}
+\newcommand{\srrefdist}[1][\anyevent]{n_{\mathcal{R}}^{SR}({#1})}
+
 %% Likelihood
 \newcommand{\likelihood}{\mathcal{L}}           % Likelihood function
 \newcommand{\llikelihood}{\log\mathcal{L}}      % Log-likelihood function
+\newcommand{\plratio}{\lambda(\param)}
+\newcommand{\invllratio}{{q_{0}}}
 
 % =============================================================================
-% CUSTOM COLORS (if needed)
+% Theorems
 % =============================================================================
 
-% Define custom colors for highlighting, etc.
-% \definecolor{...}{RGB}{...}
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{notation}[theorem]{Notation}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{property}[theorem]{Property}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\newtheorem*{theorem*}{Theorem}
+
+% =============================================================================
+% Display Macros
+% =============================================================================
+
+\newcommand{\addgraph}[1]{%
+        \centering
+        \includegraphics[
+            width=\textwidth,
+            height=0.8\textheight,
+            keepaspectratio,
+            trim=0 22bp 0 0,
+            clip
+        ]{#1}
+}
+\newcommand{\addsizedpic}[2]{%
+        \centering
+        \includegraphics[
+            width=#1\textwidth,
+            keepaspectratio
+        ]{#2}
+}
+\newcommand{\addpic}[1]{\addsizedpic{0.8}{#1}}
+
+% =============================================================================
+% DRAFT MARKERS (TODO/FIXME/TBD)
+% =============================================================================
+% Usage:
+%   \TODO{finish this paragraph}
+%   \FIXME{replace placeholder with measured value}
+%   \TBD{insert citation}
+%
+% Release behavior:
+%   - Default is draft mode (markers visible in PDF).
+%   - Set \draftfalse (after loading definitions) to make unresolved markers
+%     fail the build.
+\makeatletter
+\@ifundefined{ifdraft}{\newif\ifdraft\drafttrue}{}
+\makeatother
+
+\ifdraft
+  \newcommand{\draftmarker}[2]{%
+    \begingroup
+    \setlength{\fboxsep}{1pt}%
+    \textcolor{#1}{\fbox{\textbf{#2}}}%
+    \endgroup
+  }
+  \newcommand{\TODO}[1]{\draftmarker{red}{TODO: #1}}
+  \newcommand{\FIXME}[1]{\draftmarker{orange}{FIXME: #1}}
+  \newcommand{\TBD}[1]{\draftmarker{blue}{TBD: #1}}
+\else
+  \newcommand{\TODO}[1]{\errmessage{Unresolved TODO: #1}}
+  \newcommand{\FIXME}[1]{\errmessage{Unresolved FIXME: #1}}
+  \newcommand{\TBD}[1]{\errmessage{Unresolved TBD: #1}}
+\fi
 
 % =============================================================================
 % END OF DEFINITIONS

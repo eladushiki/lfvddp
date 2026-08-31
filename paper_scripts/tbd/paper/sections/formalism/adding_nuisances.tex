@@ -1,0 +1,31 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Nuisance Parameters Account for Imperfect Knowledge}
+
+We would like to account for the imperfect knowledge of the detector's operation via the incorporation of said $\nparam$'s, now referred to as nuisance parameters. That being said, our method is applicable for any other nuisance parameter a theory might have.
+
+\subsubsection{Learning Nuisance from Control Region}
+
+As in a real experiment, we would like to learn about uncertainties in our system from an environment that is clean of signal (i.e. a controlled system). For our process, we introduce two pairs of event sets, elaborated in Table \ref{table:division_of_data}: the signal region (SR), which is a pair of two datasets that are of interest and may contain a signal, and the control region (CR), which is assumed to be clean of unknown physics, hence fully expressible by our known physics model and nuisance parameters.
+
+\begin{table}[ht]%[H] add [H] placement to break table across pages
+\centering
+\caption{\label{table:division_of_data}}
+\begin{ruledtabular}
+\begin{tabular}{| l | c | c |}
+ & $\dataset{A}$ & $\dataset{B}$ \\
+\hline
+SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
+CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
+\end{tabular}
+\end{ruledtabular}
+\caption{Division of available data from different cuts into subsets for signal and control regions.}
+\end{table}
+
+The CR dataset pair would serve as a constraint to the nuisance parameters, which are incorporated to the SR hypothesis as well.
+
+\end{document}

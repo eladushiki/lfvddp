@@ -1,0 +1,72 @@
+{
+    "requested": {
+        "CPUs": 8,
+        "GPUs": 0,
+        "memory GiB": 2
+    },
+    "observed": {
+        "cpu_count": 8,
+        "cpu_affinity": [
+            1,
+            3,
+            5,
+            7,
+            9,
+            11,
+            13,
+            15
+        ],
+        "assigned_gpu_ids": [],
+        "visible_gpu_count": 0,
+        "gpu_names": [],
+        "gpu_total_memory_bytes": [],
+        "requested_cpus": 8,
+        "requested_gpus": 0,
+        "usable_gpu_count": 0
+    },
+    "assignments": {
+        "A_numerator": {
+            "device": "cpu",
+            "CPU threads": 7,
+            "elapsed seconds": 2030.7616227660328,
+            "epochs": 500000,
+            "epochs per second": 246.21304361610234,
+            "static": false,
+            "peak resident set size": 821048,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        },
+        "A_denominator": {
+            "device": "cpu",
+            "CPU threads": 1,
+            "elapsed seconds": 594.7986076709349,
+            "epochs": 500000,
+            "epochs per second": 840.6206631146301,
+            "static": false,
+            "peak resident set size": 764564,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        }
+    },
+    "unused resources": [],
+    "timing seconds": {
+        "data generation": 0.0031137201003730297,
+        "detector simulation": 0.006492007989436388,
+        "training": 2035.3308768428396,
+        "total": 2035.3418916459195
+    },
+    "peaks": {
+        "maximum resident set size": 1126012,
+        "maximum resident set size units": "KiB",
+        "CUDA": {}
+    },
+    "environment": {
+        "LFVDDP_ALLOCATED_CPUS": "8",
+        "LFVDDP_ALLOCATED_GPU_IDS": "",
+        "CUDA_VISIBLE_DEVICES": "unset",
+        "PBS_JOBID": "4855054[2].pbs",
+        "PBS_ARRAY_INDEX": "2",
+        "PBS_NCPUS": "",
+        "PBS_GPUFILE": ""
+    }
+}

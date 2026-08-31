@@ -1,0 +1,70 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Distribution Likelihood}
+
+Likelihood of observed data $\dataset{A}$ and a statistical model with parameters $\param$ is defined to be
+
+\subsubsection{Singular Distribution}
+
+\begin{equation}
+    \likelihood(\lambda_{\param} | \dataset{A}) = P(\dataset{A} | \lambda_{\param}),
+\end{equation}
+
+\noindent and the likelihood of a process governed by Poisson statistics (as in~\cite{LastDDPPaper}) is given by
+
+\begin{equation}
+\label{eq:likelihood_of_a_distribution}
+    \likelihood(\lambda_{\param} | \dataset{A})
+    = \dfrac{e^{-N_{\dataset{A}}(\param)}}{N_{\dataset{A}}!}
+    \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
+    = \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{N_{\dataset{A}}!}
+    \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event).
+\end{equation}
+
+\noindent For our test statistic, we take the log-likelihood measure to be
+
+\begin{equation}
+\label{eq:log_likelihood_of_a_distribution}
+    \llikelihood( \lambda_\param | \dataset{A}) = -\int \lambda(\anyevent)d\anyevent + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A},
+\end{equation}
+
+\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute Eq.~\ref{eq:learnable_distribution} into Eq.~\ref{eq:log_likelihood_of_a_distribution} to get
+
+\begin{equation}
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{f(\event)} \refdist[\event]\big) + C_\dataset{A},
+\end{equation}
+
+\noindent which can be rewritten as
+
+\begin{equation}
+\label{eq:log_likelihood_of_a_learnable_distribution}
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} f(\event) + N_{\dataset{A}}\log{N_{\dataset{A}}} + \sum_{\event \in \dataset{A}} \log \refdist[\event] + C'_\dataset{A}.
+\end{equation}
+
+\subsubsection{Likelihood Comparison}
+
+Using $\likelihood$ as a measure for plausibility of a distribution, we would like to have a relative measure between the two distributions. For that goal, we define the profile likelihood ratio test statistic to be
+
+\begin{equation}
+\label{eq:profile_likelihood_ratio}
+\plratio = \dfrac{\likelihood(\param, \hat{\hat{\nparam}}(\param))}{\likelihood(\hat{\param}, \hat{\nparam})},
+\end{equation}
+
+\noindent from which we derive the inverse log likelihood ratio, of a signal hypothesis with respect to the null hypothesis
+
+\begin{equation}
+\label{eq:inverse_log_likelihood_ratio}
+    \invllratio = - 2 \log \plratio = 2 \left( \dfrac{\likelihood(\hat{\param}, \hat{\nparam})}{\likelihood(\param = 0, \hat{\hat{\nparam(0)}})} \right)
+\end{equation}
+
+\noindent to favor the signal hypothesis. In the large sample limit, from~\cite{Cowan_and_Eilam_PL_formulation} we get that
+
+\begin{equation}
+    Z_0 = \sqrt{\invllratio}. 
+\end{equation}
+
+\end{document}

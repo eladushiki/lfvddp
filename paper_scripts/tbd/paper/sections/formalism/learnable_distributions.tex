@@ -1,0 +1,29 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Modeling Physical Process Sampling}
+Our hypothetical accelerator causes particles to collide, creating the set $\true{A}$ of events, $\event \in \mathbb{R}^k$, which are represented as a vector of some of their physical quantities. We know that these events are the result of an inhomogeneous Poisson process with intensity
+
+\begin{equation}   
+    \lambda(\anyevent)={N_{\true{A}}} p(\anyevent),
+\end{equation}
+
+\noindent where $p(\anyevent)$ is the theoretical probability density of the physical process we measure. In addition, we introduce a common reference number density function (NDF), $\refdist$, and parametrize
+
+\begin{equation}
+    p(\anyevent) = e^{f(\anyevent)} \refdist,
+\end{equation}
+
+\noindent drawing from our probability density $p_{\true{A}}$, the intensity becomes
+
+\begin{eqnarray}
+\label{eq:learnable_distribution}
+    \lambda_\param = N_{\true{A}} e^{f(\anyevent)} \refdist.
+\end{eqnarray}
+
+\noindent For now, $f$ is arbitrary and is composed from parameters $\param$ that are of interest for us, which gives us the freedom to shape the reference NDF.
+
+\end{document}

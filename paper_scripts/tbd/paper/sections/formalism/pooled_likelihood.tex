@@ -1,0 +1,28 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Pooled (symmetrized) likelihood}
+The symmetrized construction treats the pooled set of detected events \(\meas{P}=\meas{A} \cup \meas{B}\) as being drawn from a mixture of the two models. Define
+
+\[
+N_\meas{P} = N_\meas{A} + N_\meas{B},\qquad \alpha=\frac{N_\meas{A}}{N_\meas{P}}
+\]
+
+For the pooled model one can write the pooled intensity (per unit \(x\)) as
+
+\[
+\lambda_{P}(x) = N_\meas{P}\,\Big[\alpha \frac{1}{Z_\meas{A}}e^{f(x)} + (1-\alpha)\frac{1}{Z_\meas{B}}e^{g(x)}\Big] \refdist
+\]
+
+The pooled log-likelihood (for observed pooled points \(\event\in\meas{P}\)) is
+
+\[ \label{eq:pooled_log_likelihood}
+\log\mathcal{L}_{\meas{P}}(f,g) = -N_\meas{P} + \sum_{\event\in\meas{P}} w_i \log\Big(N_\meas{P}\big[\alpha \tfrac{1}{Z_\meas{A}}e^{f(\event)} + (1-\alpha)\tfrac{1}{Z_\meas{B}}e^{g(\event)}\big] \refdist[\event] \Big) + C_{\meas{P}}
+\]
+
+Drop terms that do not depend on \(f,g\) (constants and \(\log \refdist\) terms).
+
+\end{document}

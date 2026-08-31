@@ -1,0 +1,91 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Testing Hypotheses}
+
+We now define the null and alternative hypotheses, whose goal is to determine whether the two given sets in the signal region stem from the same underlying probability distribution. Each of our hypotheses would consist of a pair of (parametrized) probability distributions, allowing us to further compare them by likelihood measures.
+As for the control region - we assume no there is no detected signal, hence both parts of the hypothesis are a result of the same probability distribution, apart from some nuisance parameters that express differences that are a result of our system.
+
+\begin{equation}
+\label{eq:sr_hypothesis_statement}
+\begin{aligned}
+    \nullhypothesis |_{SR} &: \quad
+    \begin{cases}
+        {\srdist{\meas{A}}^0} = N_\srmeas{A} (1 + {\nparam(\anyevent)}) \srrefdist \\
+        {\srdist{\meas{B}}^0} = N_\srmeas{B} (1 - {\nparam(\anyevent)}) \srrefdist
+    \end{cases} \\
+    \hypothesis{1} |_{SR} &: \quad
+    \begin{cases}
+        {\srdist{\meas{A}}^1} = N_\srmeas{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
+        {\srdist{\meas{B}}^1} = N_\srmeas{B} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+To which we add, for the control region
+
+\begin{equation}
+\label{eq:cr_hypothesis_statement}
+\begin{aligned}
+    \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
+    \begin{cases}
+        \crdist{\meas{A}}^i = N_\crmeas{A} (1 + {\nparam(\anyevent)}) \crrefdist \\
+        \crdist{\meas{B}}^i = N_\crmeas{B} (1 - {\nparam(\anyevent)}) \crrefdist
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+Given our estimation for the appearing probability densities of the datasets we can get a likelihood value for each of them from Equation~\ref{eq:log_likelihood_of_a_learnable_distribution}. To estimate the likelihood of a hypothesis, we should multiply all its distributions' likelihoods in both regions:
+
+\begin{equation}
+\likelihood(\hypothesis{i} | \meas{A}, \meas{B})
+    = \likelihood(\hypothesis{i}|\srmeas{A}, \srmeas{B}) \cdot \likelihood(\hypothesis{i}|\crmeas{A}, \crmeas{B}), 
+\end{equation}
+
+\noindent which equals to $\likelihood(\srdist{\meas{A}}^i|\srmeas{A}) \cdot \likelihood(\srdist{\meas{B}}^i|\srmeas{B}) \cdot \likelihood(\crdist{\meas{A}}^i|\crmeas{A}) \cdot \likelihood(\crdist{\meas{B}}^i|\crmeas{B})$ (for $i=0,1$). Then, to compare between the likelihood of both hypotheses, we use the inverse log likelihood ratio, as in Eq.~\ref{eq:inverse_log_likelihood_ratio}, to get:
+
+\begin{equation*}
+\invllratio = 2 \log \left(
+    \frac{
+        \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}|\meas{A}, \meas{B}, \nparam))
+    }{
+        \max\limits_{\nparam} (\likelihood(\nullhypothesis|\meas{A}, \meas{B}, \nparam))
+}\right).
+\end{equation*}
+
+\noindent Since $\log$ is a monotonically increasing function, we have that
+
+\begin{equation}
+\label{eq:high_level_overall_test_statistic}
+    \invllratio = 2 \left( {\max\limits_{f, g, \nparam}(\log \likelihood(\hypothesis{1}|\meas{A}, \meas{B}, \nparam))} - {\max\limits_{\nparam}(\log \likelihood(\nullhypothesis|\meas{A}, \meas{B}, \nparam))} \right),
+\end{equation}
+
+\TODO{refactor $\eta$s in this expression}
+
+\noindent which we can directly compute (for more details, see Appendix~\ref{Appendix_Tvalue}) to be:
+
+\begin{equation*}
+\begin{aligned}
+    \invllratio &= - 2 \min\limits_{f, g, \nparam} \Bigg(
+        \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0)
+        + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+        \\&
+        - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
+        - \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
+        - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+        - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    \Bigg)
+    \\&
+    2 \min\limits_{\nparam} \Bigg(
+        \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
+        + \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+        \\&
+        - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
+        - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    \Bigg).
+\end{aligned}
+\end{equation*}
+\end{document}

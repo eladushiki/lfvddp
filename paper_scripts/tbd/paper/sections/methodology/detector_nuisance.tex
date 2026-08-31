@@ -1,0 +1,25 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsection{Accounting for Detector Imperfections}
+
+We now add a slightly imperfect detector function, and a slight difference between its function on either of the sets. We allow nuisance parameters to be adjusted in the process such that they would be learned and compensate for the differences.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]{paper/sections/methodology/plots/detector_effect/clean_example/dataset_process_plot_3749356563362969805.png}
+    \caption{An example of a train result with a $\dfrac{1}{2}tanh + \dfrac{1}{2}$ detector efficiency for dataset $\dataset{A}$ (and perfect efficiency for $\dataset{B}$). Top: normalized distributions of the SR, CR, together with the maximized hypotheses' predictions. Bottom left: both hypotheses' predictions over the SR (as in Eq.~\ref{eq:sr_hypothesis_statement}). Bottom right: comparison of their predictions on the CR (see Eq.~\ref{eq:cr_hypothesis_statement}).}
+    \label{fig:detector_effect_with_nuisance_train}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]{paper/sections/methodology/plots/detector_effect/significance-plot/performance_plot_523146808810648944.png}
+    \caption{[PLACEHOLDER] Observed vs injected significances while simulating an imperfect detector, as in Figure~\ref{fig:detector_effect_with_nuisance_train}.}
+    \label{fig:detector_affected_significances}
+\end{figure}
+
+\end{document}

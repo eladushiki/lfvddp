@@ -1,15 +1,47 @@
 \usepackage[utf8]{inputenc}
+\usepackage{adjustbox}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsfonts}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{array}
+% \usepackage[noaffiliation]{authblk}
+\usepackage[english]{babel}
+\usepackage{bbold}
 \usepackage{bm}
-\usepackage{amsfonts}
-\usepackage{hyperref}
+\usepackage{color}
+\usepackage{dsfont}
+\usepackage{faktor}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref} % load as late as possible to prevent warning
+\usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{geometry}
 \usepackage[english]{babel} % enables hyphenation
+\usepackage{mathtools}
 \usepackage{microtype} % improves spacing overall
 \usepackage{physics}
 \usepackage{soul}
+\usepackage{tikz}
+\usepackage{tikz-cd}
+
+\@ifclassloaded{beamer}{  % Context dependent inclusions
+    % Do nothing if compiling the presentation
+}{
+    % Apply this only when compiling the main paper
+    \usepackage{enumitem}
+}
+
+\usetikzlibrary{arrows}
+\tikzcdset{arrow style=tikz,
+diagrams={>={Stealth[round,length=4pt,width=6pt,inset=3pt]}}}
+
+\setlength{\marginparwidth}{2cm}
+\usepackage{todonotes}
+
 \usepackage{xcolor}
+\usepackage{xfrac}
 
 \usepackage{subfiles} % Best loaded last

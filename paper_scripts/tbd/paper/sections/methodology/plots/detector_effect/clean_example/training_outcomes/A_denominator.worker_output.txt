@@ -1,0 +1,6 @@
+INFO:root:Training worker started: A_denominator on cpu with 1 CPU thread(s).
+INFO:root:Starting training
+INFO:root:Training time (seconds): 493.86901116371155
+INFO:root:Minimum loss achieved: 79873.157906
+INFO:root:Documented product: results/run_20260811_131801_1786443481.819155_detector_effect_background_run_of_single_train.py_pid_3925641/training_outcomes/A_denominator_training_result_3749356563362969805.weights.h5
+INFO:root:Training worker finished: A_denominator in 493.872 seconds.
