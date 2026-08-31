@@ -69,15 +69,17 @@ class PlotFactory:
         self,
         scope: PlotScope,
         performance_directory: Optional[str] = None,
+        background_directory: Optional[str] = None,
     ) -> list[PlotInstructions]:
         if scope is PlotScope.MULTI_RUN and performance_directory is None:
             raise ValueError("Multi-run plots require a performance directory.")
 
-        background_directory = (
-            utils__discover_background_only_parent_directory(performance_directory)
-            if scope is PlotScope.MULTI_RUN
-            else None
-        )
+        if scope is PlotScope.MULTI_RUN and background_directory is None:
+            background_directory = str(
+                utils__discover_background_only_parent_directory(
+                    performance_directory
+                )
+            )
         selected_instructions = []
         for instructions in self._config:
             if getattr(self[instructions.name], "plot_scope", None) is not scope:

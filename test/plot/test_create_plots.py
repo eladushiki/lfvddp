@@ -29,6 +29,7 @@ def test_multi_run_plots_uses_discovered_background_configs(
         submission_directory,
         multi_run_plots,
         debug,
+        explicit_background_directory,
     ) = _plot_options_from_args([
         str(runs_directory), "--multi-run-plots", "--debug"
     ])
@@ -36,10 +37,42 @@ def test_multi_run_plots_uses_discovered_background_configs(
     assert submission_directory == runs_directory
     assert multi_run_plots is True
     assert debug is True
+    assert explicit_background_directory is None
     assert _config_paths_for_plots(
         submission_directory,
         multi_run_plots,
     ) == [plot_config]
+
+
+def test_multi_run_plots_accepts_explicit_background_directory(tmp_path):
+    runs_directory = tmp_path / "signals"
+    background_directory = tmp_path / "background"
+    background_config = background_directory / "configs" / "plot.json"
+    runs_directory.mkdir()
+    background_config.parent.mkdir(parents=True)
+    background_config.write_text("{}")
+
+    (
+        submission_directory,
+        multi_run_plots,
+        debug,
+        explicit_background_directory,
+    ) = _plot_options_from_args([
+        str(runs_directory),
+        "--multi-run-plots",
+        "--background-directory",
+        str(background_directory),
+    ])
+
+    assert submission_directory == runs_directory
+    assert multi_run_plots is True
+    assert debug is False
+    assert explicit_background_directory == background_directory
+    assert _config_paths_for_plots(
+        submission_directory,
+        multi_run_plots,
+        explicit_background_directory,
+    ) == [background_config]
 
 
 def test_plot_cli_rejects_additional_config_path(capsys, tmp_path):
@@ -52,6 +85,21 @@ def test_plot_cli_rejects_additional_config_path(capsys, tmp_path):
             str(submission_directory / "configs"),
         ])
     assert "unrecognized arguments" in capsys.readouterr().err
+
+
+def test_plot_cli_rejects_background_without_multi_run(capsys, tmp_path):
+    submission_directory = tmp_path / "submission"
+    background_directory = tmp_path / "background"
+    (submission_directory / "configs").mkdir(parents=True)
+    background_directory.mkdir()
+
+    with pytest.raises(SystemExit):
+        _plot_options_from_args([
+            str(submission_directory),
+            "--background-directory",
+            str(background_directory),
+        ])
+    assert "requires --multi-run-plots" in capsys.readouterr().err
 
 
 def test_single_submission_plots_include_staged_configs(tmp_path):
@@ -95,12 +143,16 @@ def test_create_plots_builds_context_without_reparsing_plot_options(
         yield context
 
     def fake_create_configured_plots(
-        actual_context, scope, performance_directory=None
+        actual_context,
+        scope,
+        performance_directory=None,
+        background_directory=None,
     ):
         observed["plot_arguments"] = (
             actual_context,
             scope,
             performance_directory,
+            background_directory,
         )
 
     monkeypatch.setattr(
@@ -147,4 +199,5 @@ def test_create_plots_builds_context_without_reparsing_plot_options(
         context,
         PlotScope.MULTI_RUN,
         submission_directory,
+        background_directory,
     )

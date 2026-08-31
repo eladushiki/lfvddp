@@ -141,3 +141,31 @@ def test_multi_run_scope_supplies_discovered_context_directories(monkeypatch, tm
         "background_only_t_values_parent_directory": str(background_directory),
         "signal_t_values_parent_directory": str(tmp_path),
     }
+
+
+def test_multi_run_scope_uses_explicit_background_directory(monkeypatch, tmp_path):
+    config = _plotting_config()
+    config.plot__plot_specifications = [
+        {"name": "performance_plot", "instructions": {}}
+    ]
+    plot_factory = PlotFactory(context=SimpleNamespace(config=config))
+    explicit_background = tmp_path / "external-background"
+
+    def fail_discovery(_):
+        pytest.fail("Explicit backgrounds must bypass discovery")
+
+    monkeypatch.setattr(
+        "plot.plot_factory.utils__discover_background_only_parent_directory",
+        fail_discovery,
+    )
+
+    [instructions] = plot_factory.plot_instructions_for_scope(
+        PlotScope.MULTI_RUN,
+        performance_directory=str(tmp_path),
+        background_directory=str(explicit_background),
+    )
+
+    assert instructions.instructions == {
+        "background_only_t_values_parent_directory": str(explicit_background),
+        "signal_t_values_parent_directory": str(tmp_path),
+    }

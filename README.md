@@ -193,6 +193,15 @@ submissions, use:
 python plot/create_plots.py <multi-run-directory> --multi-run-plots
 ```
 
+When a signal group uses a background submission outside its directory tree,
+provide that saved submission explicitly:
+
+```bash
+python plot/create_plots.py <signal-directory> \
+  --multi-run-plots \
+  --background-directory <background-submission-directory>
+```
+
 ## Outputs and reproducibility
 
 Runs are written below `config__out_dir` in a unique directory containing

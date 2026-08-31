@@ -11,16 +11,14 @@ Implementing ML machinery to differentiate between similar and different pairs o
   - NO TESTING NEEDED FOR PLOT OR PLOT UTILITIES!
   When adding a test, examine `conftest.py`, `test_train.py:test_learning` and it's use of fixtures. Mimic config file creation and fixture use rather than adding filename variables and/or editing configuration values in runtime.
   For every refactor, rename, or deletion, first inventory all callers and public entry points, then test each affected entry point with every meaningful configuration mode and at least one enabled-feature fixture. A no-feature fixture is not sufficient: for model changes this includes training, checkpoint restore, primary prediction, secondary prediction, nuisance prediction, and plotting integration where applicable. Do not declare the change verified until the inventory has corresponding tests or an explicit reason why a path is not applicable.
-- DOCUMENTATION: Change README.md indicating any significant user facing change.
+- DOCUMENTATION: Change README.md only for indicating any user facing change.
 - DIMENSIONAL PLOT PARITY: When changing a 1D graph or its n-dimensional equivalent, locate the corresponding graph function and apply the equivalent change where appropriate, or explicitly verify that no corresponding change is needed.
 
 ## Development Workflow
 - Do not add unrelated work to an existing feature branch or pull request.
 - Use one branch per issue, created directly from the latest `main` branch.
 - For independent issues, use separate isolated worktrees and parallel workers when doing so reduces elapsed time without coupling their changes.
-- When issues that appear in `.gsd/issues/open` are done, use `git mv` to move to `.gsd/issues/done` directory, in the same pr that solves 
-- 
-- them, for traceability. Add brief explanation on what was done.
+- When issues that appear in `.gsd/issues/open` are done, use `git mv` to move to `.gsd/issues/done` directory, in the same pr that solves them, for traceability. Add brief explanation on what was done.
 - Open exactly one pull request per issue, from that dedicated branch to `main`.
   - If asked, answer questions inside Github threads.
   - If you solved a concern raised in a thread on Github, comment on that thread what you did to this end. Never mark as resolved yourself.
