@@ -36,3 +36,15 @@ Results were collected from source commit f28eace after correcting the experimen
 | profile baseline | 4931809 | 0 | 286 | 250.163 + 8.124 | 2 checkpoints (one per model), 2 profiler reports |
 
 The profiler reports are A_numerator.2D.profile.txt and A_denominator.2D.profile.txt. Training outputs and histories were produced for all three successful runs. No automated bitwise-equivalence or checksum comparison was recorded in these jobs; equivalence remains unverified. The wall-time difference is therefore observational only and is not a validated speedup claim.
+
+
+### Repeat results and aggregate view
+
+The two repeat jobs also completed successfully from the isolated experiment worktree:
+
+| Variant | PBS job | Exit | PBS wall s | Reported training s (numerator + denominator) | Artifacts |
+|---|---:|---:|---:|---:|---|
+| baseline repeat | 4932270 | 0 | 329 | 292.451 + 5.285 | 2 checkpoints, 2 weights, 1 history |
+| checkpoint sparse repeat | 4932271 | 0 | 318 | 264.015 + 6.889 | 2 checkpoints, 2 weights, 1 history |
+
+Across the two baseline and two sparse runs, mean PBS wall time was 313.0 seconds for baseline versus 305.5 seconds for sparse checkpointing, a 2.4 percent reduction. Mean total reported training time was 278.86 seconds versus 268.57 seconds, a 3.7 percent reduction. The samples are not seed-paired and vary substantially, so this is a cautious observational result rather than proof of a speedup. No bitwise-equivalence comparison was executed; model-output equivalence remains unverified.
