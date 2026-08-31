@@ -264,6 +264,13 @@ the constant learning rate behavior. A continued run with `--epochs-target`
 uses the replacement target for the entire schedule, then resumes at the
 learning rate for its current absolute epoch.
 
+Neural signal shifts `f` and neural nuisances `theta` are mapped into their
+log-safe open interval with a shared scaled `tanh` parameterization. Unlike a
+hard output clamp, this keeps a gradient when a raw output crosses the former
+boundary, allowing optimization to recover instead of permanently trapping the
+model at the hard bound. Scalar-binned nuisance parameters retain their explicit
+post-step constraint.
+
 If the original walltime was insufficient, add more time to the saved budget and
 continue from the latest LFVNN/PyTorch checkpoint with:
 
