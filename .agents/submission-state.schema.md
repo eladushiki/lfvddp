@@ -7,17 +7,21 @@ entries, but it must never add a new request unless the user explicitly asks.
 ## Top-level structure
 
 ```yaml
-version: 2
+version: 3
 last_checked_at: null
 
 limits:
   max_queued_elements: 1000
+  limit_source: configured
   observed_admin_max_queued_elements: null
-
-remote_main:
-  status: waiting_for_empty_queue
-  commit: null
+  inferred_max_queued_elements: null
   updated_at: null
+
+remote_checkout:
+  branch: null
+  commit: null
+  observed_at: null
+  latest_main_checked_at: null
 
 plot_groups: []
 submissions: []
@@ -26,11 +30,18 @@ submissions: []
 - `last_checked_at` is the completion time of the most recent successful
   scheduler reconciliation. A failed SSH attempt does not advance it.
 - `limits.max_queued_elements` is the enforced limit. It starts at 1000 with no
-  reserve. Update it only when the scheduler reports a new numeric administrator
-  limit, and preserve that observed value separately.
-- `remote_main.status` is `waiting_for_empty_queue`, `ready`, or `blocked`.
-  `commit` records the latest-main commit verified at the start of the current
-  empty-queue cycle.
+  reserve. `limit_source` is `configured`, `scheduler_message`, or
+  `rejection_inference`.
+- Save an explicit numeric scheduler limit in
+  `observed_admin_max_queued_elements`. When a quota rejection provides no
+  number, set `inferred_max_queued_elements` to
+  `queued_before_submission + array_size - 1`. Enforce the smallest known bound
+  and timestamp every change.
+- `remote_checkout` records what the routine actually observed. Never replace
+  or update the checkout while jobs are active. The targeted source-pack
+  walltime correction is safe because active jobs use staged config copies. An
+  empty queue permits a clean `main` fast-forward, but submission does not wait
+  for a Git update.
 
 ## Submission entries
 
@@ -56,8 +67,12 @@ Submission statuses and their additional fields are:
 - `requested`: explicitly authorized and waiting in FIFO order.
 - `blocked`: temporarily unable to submit; requires `blocked_reason` and
   `last_error`. A retry keeps the same list position.
-- `submitted`: requires `job_ids`, `submitted_at`, `remote_commit`, and the
-  runtime-discovered `remote_submission_directory`.
+- `submitted`: requires `attempts`, `remote_commit`, and the runtime-discovered
+  `remote_submission_directory`.
+- `continuation_requested`: a saved attempt was killed specifically for
+  walltime and its whole continuation array is waiting for quota. Requires
+  `pending_continuation.extra_time`, scheduler evidence, and source-pack update
+  status.
 - `finished`: every saved array job completed successfully; requires
   `finished_at`. Failed or partial arrays remain blocked with evidence.
 - `analyzed`: the single-submission plot completed; requires
@@ -65,6 +80,30 @@ Submission statuses and their additional fields are:
 
 `last_error` may be retained on any non-successful stage for reporting, but it
 must be cleared when that same stage later succeeds.
+
+Each initial submission or continuation is saved once in `attempts`:
+
+```yaml
+attempts:
+  - kind: initial
+    job_ids: ["12345[]"]
+    submitted_at: 2026-08-31T09:05:00+03:00
+    scheduler_outcome: active
+  - kind: continuation
+    job_ids: ["12399[]"]
+    submitted_at: 2026-09-01T09:07:00+03:00
+    extra_time: "12:00:00"
+    scheduler_outcome: active
+    source_config_updated_at: 2026-09-01T09:06:00+03:00
+```
+
+Match scheduler history against the job IDs in all attempts. For a verified
+walltime kill, choose an evidence-based `extra_time`, defaulting to the killed
+attempt's configured total when the scheduler provides no better estimate. The
+continuation command persists the increased total in the saved context; update
+the original `config_pack` to that same total so later fresh runs use it too.
+Walltime remains defined in configuration; only the per-attempt added duration
+is retained as audit evidence in state.
 
 ## Plot groups
 
@@ -98,8 +137,8 @@ background.
 ## Update guarantees
 
 - Save state immediately after each verified submission or plotting stage.
-- Match scheduler output only against saved `job_ids`; pre-existing jobs affect
-  counts but are never adopted.
+- Match scheduler output only against job IDs saved in `attempts`; pre-existing
+  jobs affect counts but are never adopted.
 - Never predict timestamped output directories. Discover and save the directory
   created by the submission command.
 - Skip completed stages on retries. State transitions make the daily routine

@@ -143,19 +143,6 @@ The cluster user configuration supplies the repository URL, Singularity
 executable and activation command. Set `cluster__uv_cache_dir` in the local pack
 if cluster jobs need a persistent UV cache.
 
-### Automated cluster queue
-
-The daily cluster routine keeps its ignored local queue and processing state in
-`.agents/submission-state.yaml`. Its complete schema, lifecycle states, quota
-rules, and multi-run grouping contract are documented in
-[`.agents/submission-state.schema.md`](.agents/submission-state.schema.md).
-
-Only explicitly requested entries are submitted, in file order. Existing
-untracked scheduler jobs still count toward the 1000 queued-array-element limit
-but are not adopted into state. Once the scheduler is empty, the routine
-fast-forwards the clean remote `main` checkout before starting the next
-submission cycle.
-
 ## Continue a cluster submission
 
 Pass either a run directory or its `context.json`. The saved configuration,

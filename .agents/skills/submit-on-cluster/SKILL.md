@@ -20,17 +20,22 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 - The intended queued-element limit is read from state and starts at exactly
   1000, with no reserved capacity.
 - Existing untracked jobs are not added to state, but their scheduler rows
-  count toward both the initial empty-queue gate and quota calculations.
-- Do not update the remote checkout until both queued and running counts are
-  zero. At the start of that empty-queue cycle, require branch `main`, a clean
-  worktree, and then fast-forward to `origin/main`. Save the verified commit in
-  `remote_main.commit` and mark it ready.
-- Do not change the checkout under running jobs. Later submissions in the same
-  cycle use the saved verified main commit; refresh again when the scheduler is
-  empty.
+  count toward quota calculations.
+- Never pull, checkout, reset, merge, rebase, or replace the checkout while any
+  jobs are queued or running. This is not a submission gate: record the current
+  branch and commit, then submit more jobs from the same checkout when quota
+  permits. The targeted walltime correction defined by
+  `generate-plots-on-cluster` is allowed because active jobs use staged config
+  copies.
+- When queued and running counts are both zero, a clean `main` checkout may be
+  fast-forwarded to `origin/main`. Record the observed checkout either way; a
+  Git update is not required before submission.
 - If the scheduler reports a changed administrator quota with an explicit
-  numeric value, update the intended and observed limits in state. Never infer
-  a new limit from a rejection alone.
+  numeric value, save it as the observed and enforced limit. If a whole-array
+  submission is rejected for quota without an explicit limit, infer the upper
+  bound `queued_before_submission + array_size - 1`, store it separately, and
+  lower the enforced limit to the smallest known bound. Repeated quota
+  rejections may tighten that bound further.
 
 ## FIFO submission
 
@@ -45,7 +50,7 @@ For the first `requested` entry:
 4. Use the entry's `output_root`. Explicit pack values take precedence; seeded
    Plot 01-05 requests derive missing roots as
    `results/highlights/2026-09/plot-XX`.
-5. Run the current submission entry point from the verified remote checkout:
+5. Run the current submission entry point from the observed remote checkout:
 
    ```sh
    python train/submit_train.py --configs <config-pack> \
@@ -56,18 +61,20 @@ For the first `requested` entry:
    `*_run_of_submit_train.py_*` directory under `output_root`; do not predict its
    name. Save it as `remote_submission_directory`.
 7. Verify the job with `qstat -wu $USER`, then update the same entry to
-   `submitted` with `job_ids`, `submitted_at`, the timestamped directory, and
-   `remote_main.commit`.
+   `submitted` with an initial `attempt` containing its job IDs and timestamp,
+   the timestamped directory, and the observed remote commit.
 8. Continue with the next FIFO entry while its whole array fits.
 
 If submission or verification fails, keep the entry in place, set it `blocked`
 with `blocked_reason` and `last_error`, and stop FIFO processing so later
-requests cannot overtake it.
+requests cannot overtake it. Apply the inferred-limit update above before
+recording a quota rejection.
 
 ## Summary
 
-Report scheduler counts, remote-main readiness, every submitted or blocked
-request, job IDs, timestamped output directories, and remaining FIFO work.
+Report scheduler counts, observed checkout, every submitted or blocked request,
+explicit or inferred quota changes, job IDs, timestamped output directories,
+and remaining FIFO work.
 
 ## Safety
 
