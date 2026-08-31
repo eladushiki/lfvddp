@@ -12,9 +12,10 @@ import torch.nn as nn
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_effect import DetectorEffect
-
-
-_NUISANCE_BOUND = 1.0 - 1e-6
+from neural_networks.likelihood_parameterization import (
+    LIKELIHOOD_SHIFT_BOUND,
+    smoothly_bounded_likelihood_shift,
+)
 
 
 @dataclass(frozen=True)
@@ -159,7 +160,10 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
             values = value if values is None else values * value
         if values is None:
             raise RuntimeError("Detector nuisance configuration has no observables.")
-        return values.clamp(min=-_NUISANCE_BOUND, max=_NUISANCE_BOUND)
+        return values.clamp(
+            min=-LIKELIHOOD_SHIFT_BOUND,
+            max=LIKELIHOOD_SHIFT_BOUND,
+        )
 
     def prepare(
         self,
@@ -216,7 +220,10 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
     def clamp_parameters(self) -> None:
         with torch.no_grad():
             for parameter in self._detector_deltas.values():
-                parameter.clamp_(min=-_NUISANCE_BOUND, max=_NUISANCE_BOUND)
+                parameter.clamp_(
+                    min=-LIKELIHOOD_SHIFT_BOUND,
+                    max=LIKELIHOOD_SHIFT_BOUND,
+                )
 
 
 class _ThetaEstimator(nn.Module):
@@ -235,7 +242,9 @@ class _ThetaEstimator(nn.Module):
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return self.output(self.activation(self.hidden(events))).squeeze(-1)
+        return smoothly_bounded_likelihood_shift(
+            self.output(self.activation(self.hidden(events)))
+        ).squeeze(-1)
 
 
 class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
@@ -290,15 +299,9 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         if not isinstance(data, self._PreparedData):
             raise TypeError("Neural nuisance data was not prepared by this calculation.")
 
-        nuisance_cr_values = self.network(data.cr_inputs).clamp(
-            min=-_NUISANCE_BOUND,
-            max=_NUISANCE_BOUND,
-        )
+        nuisance_cr_values = self.network(data.cr_inputs)
         return NuisanceEvaluation(
-            nuisance_sr_values=self.network(data.sr_inputs).clamp(
-                min=-_NUISANCE_BOUND,
-                max=_NUISANCE_BOUND,
-            ),
+            nuisance_sr_values=self.network(data.sr_inputs),
             nuisance_cr_a=WeightedNuisanceValues(
                 nuisance_cr_values[: data.number_of_a_cr_events]
             ),

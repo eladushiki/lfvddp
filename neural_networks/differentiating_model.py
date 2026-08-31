@@ -19,6 +19,9 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
+from neural_networks.likelihood_parameterization import (
+    smoothly_bounded_likelihood_shift,
+)
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
     NeuralPerEventNuisanceEstimator,
@@ -36,7 +39,6 @@ from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
 LFVNN_DTYPE = torch.float64
-_SIGNAL_REGION_SHIFT_BOUND = 1.0 - 1e-6
 
 
 @dataclass(frozen=True)
@@ -75,9 +77,8 @@ class _SignalRegionShiftEstimator(nn.Module):
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return self.output(self.activation(self.hidden(events))).clamp(
-            min=-_SIGNAL_REGION_SHIFT_BOUND,
-            max=_SIGNAL_REGION_SHIFT_BOUND,
+        return smoothly_bounded_likelihood_shift(
+            self.output(self.activation(self.hidden(events)))
         )
 
 
@@ -625,10 +626,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 dtype=self._dtype,
                 device=self._device,
             )
-            return self.nuisance_calculation.network(normalized_events).clamp(
-                min=-_SIGNAL_REGION_SHIFT_BOUND,
-                max=_SIGNAL_REGION_SHIFT_BOUND,
-            )
+            return self.nuisance_calculation.network(normalized_events)
         if isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
             return self.nuisance_calculation._values(
                 self.nuisance_calculation._bin_indices(data)
