@@ -27,12 +27,12 @@ All experiments in this directory are run from a commit-stamped branch and must 
 
 ## Round 01 results
 
-Results were collected from source commit  after correcting the experiment packs to use the explicit no-op detector uncertainty modifier. Earlier submissions (, -, , ) were setup/configuration failures and are excluded from performance measurements.
+Results were collected from source commit f28eace after correcting the experiment packs to use the explicit no-op detector uncertainty modifier. Earlier submissions (4931611, 4931638-4931640, 4931649, 4931655) were setup/configuration failures and are excluded from performance measurements.
 
 | Variant | PBS job | Exit | PBS wall s | Reported training s (numerator + denominator) | Checkpoint/profile artifacts |
 |---|---:|---:|---:|---:|---|
-| baseline |  | 0 | 297 | 252.311 + 7.669 | 2 checkpoints (one per model), no profile |
-| checkpoint sparse |  | 0 | 293 | 258.601 + 7.641 | 2 checkpoints (one per model), checkpoint interval 2,000 epochs |
-| profile baseline |  | 0 | 286 | 250.163 + 8.124 | 2 checkpoints (one per model), 2 profiler reports |
+| baseline | 4931801 | 0 | 297 | 252.311 + 7.669 | 2 checkpoints (one per model), no profile |
+| checkpoint sparse | 4931808 | 0 | 293 | 258.601 + 7.641 | 2 checkpoints (one per model), checkpoint interval 2,000 epochs |
+| profile baseline | 4931809 | 0 | 286 | 250.163 + 8.124 | 2 checkpoints (one per model), 2 profiler reports |
 
-The profiler reports are  and . Training outputs and histories were produced for all three successful runs. No automated bitwise-equivalence or checksum comparison was recorded in these jobs; equivalence remains unverified. The wall-time difference is therefore observational only and is not a validated speedup claim.
+The profiler reports are A_numerator.2D.profile.txt and A_denominator.2D.profile.txt. Training outputs and histories were produced for all three successful runs. No automated bitwise-equivalence or checksum comparison was recorded in these jobs; equivalence remains unverified. The wall-time difference is therefore observational only and is not a validated speedup claim.
