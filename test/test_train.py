@@ -132,27 +132,49 @@ def test_disabled_nuisance_training_does_not_require_nuisance_parameters():
 
 
 @pytest.mark.parametrize(
-    "function_execution_context",
+    "function_execution_context, has_configured_bins",
     [
-        {
-            ConfigType.DETECTOR: Path(
-                "test/configs/detector/basic_1D_detector_config.json"
-            ),
-            ConfigType.TRAIN: Path(
-                "test/configs/train/short_1D_train_config_without_nuisance_parameters.json"
-            ),
-        }
+        (
+            {
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/short_1D_train_config_without_nuisance_parameters.json"
+                ),
+            },
+            False,
+        ),
+        (
+            {
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/short_1D_train_config_without_nuisance.json"
+                ),
+            },
+            True,
+        ),
     ],
-    indirect=True,
+    indirect=["function_execution_context"],
 )
-def test_detector_does_not_require_bins_when_nuisance_training_is_disabled(
+def test_disabled_nuisance_training_preserves_optional_detector_binning(
     function_execution_context,
     detector_effect,
+    has_configured_bins,
 ):
     assert (
         function_execution_context.config.train__data_is_train_for_nuisances is False
     )
-    assert detector_effect._dimensional_bin_edges == {}
+    if not has_configured_bins:
+        with pytest.raises(ValueError, match="is not detected"):
+            detector_effect.get_observable_bins("param_0")
+        return
+
+    edges, centers = detector_effect.get_observable_bins("param_0")
+    np.testing.assert_allclose(edges, np.linspace(0, 10, 11))
+    np.testing.assert_allclose(centers, np.linspace(0.5, 9.5, 10))
 
 
 def test_enabled_binned_nuisance_still_requires_binning_parameters():

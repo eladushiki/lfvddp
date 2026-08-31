@@ -82,18 +82,8 @@ class TrainConfig:
     def configure_nuisance_binning(self, number_of_dimensions: int) -> None:
         """Normalize scalar binning parameters after detector dimensions are known."""
         if (
-            self.train__data_is_train_for_nuisances
-            and self.train__nuisance_is_neural_network
-        ):
-            return
-
-        if not any(
-            parameter is not None
-            for parameter in (
-                self.train__nuisance_binning_minima,
-                self.train__nuisance_binning_maxima,
-                self.train__nuisance_binning_number_of_bins,
-            )
+            self.train__nuisance_is_neural_network
+            or self.train__nuisance_binning_minima is None
         ):
             return
 

@@ -39,8 +39,8 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}
         if (
-            self._config.train__data_is_train_for_nuisances
-            and not self._config.train__nuisance_is_neural_network
+            not self._config.train__nuisance_is_neural_network
+            and self._numbers_of_bins is not None
         ):
             for obs in self._observable_names:
                 self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
