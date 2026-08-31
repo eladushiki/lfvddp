@@ -1,495 +1,239 @@
-# LFVNN Symmetrized - Overview
+# LFVDDP
 
-> The LFVNN Symmetrized project aims to harness the power of the machine to look for deviations from the Standard Model in existic high energy physics collider data.
+LFVDDP is a research codebase for learning a likelihood-ratio test statistic that
+distinguishes statistically different pairs of physically equivalent collider
+datasets. It supports generated studies and ROOT datasets, local single runs,
+parallel training on the WIS ATLAS cluster, and plots that summarize convergence
+and statistical performance.
 
-This project runs on the WIS's ATLAS cluster, as well as on any singularity containing machine, to use our tools on real or simulated physical datasets.
+## Workflow
 
-## Local development
+1. Set up and activate the project environment.
+2. Copy one of the tracked configuration packs and adapt it to the study.
+3. Run one training locally, or submit an ensemble to the cluster.
+4. Continue incomplete cluster submissions when needed.
+5. Generate plots from the saved submission directory.
 
-Use [uv](https://docs.astral.sh/uv/) with Python 3.11 or newer to create the reproducible local environment and run tests:
+## Prerequisites
+
+- Git and access to this repository.
+- Python 3.11 or newer for the initial setup command.
+- A mounted [CVMFS](https://cvmfs.readthedocs.io/en/stable/) installation. The
+  project selects its pinned CVMFS Python environment automatically.
+- For cluster submission: access to the WIS ATLAS PBS cluster, its `qsub`
+  command, and Singularity. Connect through the institute network or VPN as
+  required by WIS.
+
+TensorFlow is installed only on non-macOS systems. This affects the optional
+NPLM training path; the regular PyTorch workflow is available on macOS.
+
+## Setup
+
+Unless noted otherwise, run the commands below from the repository root.
+
+Clone the repository and its submodules, then run the setup script from the
+repository root:
 
 ```bash
-uv sync
-uv run pytest
+git clone https://github.com/eladushiki/lfvddp.git
+cd lfvddp
+git submodule update --init --recursive
+source scripts/setup_python_environment.sh
 ```
 
-The lockfile is the source of truth for local dependencies. The optional NPLM path requires TensorFlow and is supported on Linux/Windows; regular PyTorch development and tests do not require TensorFlow on macOS.
-
-# Contents
-- `configs` contains complete configuration packs. Pass one pack directory to `--configs`; copy a tracked pack to create a local, ignored pack for modification. Domain defaults belong to their owning config dataclass; pack files should omit values that equal those defaults. Detector effects use explicit A/B fields, while nuisance parameters remain owned by `TrainConfig`.
-- `data_tools` directory handles mathematical and statistical calculations needed to operate this project.
-- `frame` is a place for all framework tools needed for this project to run and communicate.
-- `mattiasdata` has some useful (legacy) datasets (and frankly, needs to be cleaned)
-- `neural_networks` handles NN tools operated here, as well as `NPLM` tools.
-- `paper_scripts` has specific code to reproduce figures used in each of our papers. This is an interactive section which is mostly made of `jupyter` notebooks.
-- `plot` defines the tools to create plots, with rendering contracts in `plot/specs`. The t-distribution and percentile-progression plots share one final-statistic quality filter so finite failed runs do not distort either view.
-- `train` handles physical datasets and weighs hypotheses for new physics, returning a profile likelihood goodness of fit measure.
-- Additional project files such as `.gitignore` and this very file.
-
-# Installation Steps
-
-Can be installed on any python running machine, or as a singularity container.
-
-## Local Setup
-Start by cloning this repository to your desired location, using
-
-> git clone \<url for clone\> [\<desired direcotory name\>]
-
-> git submodule update --init --recursive
-
-You need an operative Python interpreter to run this project. You can choose any of the following options
-
-Optional: when finished, you need a weights file to use the `"SHAPE"` training mechanism of NPLM. You can train a weights file yourself, or you can copy the existing one from them to us (works for 1 physical observable = 1D data):
-
-> cp neural_networks/NPLM/example_1D/LINEAR_Parametric_EXPO1D_batches_ref40000_bkg40000_sigmaS0.1_-1.0_-0.5_0.5_1.0_patience300_epochs30000_layers1_4_1_actrelu_model_weights9300.h5 neural_networks/weights/taylor_expansion_net/LINEAR_Parametric_EXPO1D_batches_ref40000_bkg40000_sigmaS0.1_-1.0_-0.5_0.5_1.0_patience300_epochs30000_layers1_4_1_actrelu_model_weights9300.h5
-
-todo: this name is hardcoded in `parameters.py`, to be improved in the future.
-
-### Python environment
-
-The CVMFS Python activation path is defined once in `frame/python_environment.py`.
-After CVMFS is available (see its [installation instructions](https://cvmfs.readthedocs.io/en/stable/cpt-quickstart.html)), initialize the locked project environment:
-
-> source scripts/setup_python_environment.sh
-
-This sources CVMFS Python, creates `.venv` with its site packages available, installs UV into that venv, and synchronizes the exact dependencies recorded in `uv.lock`. It uses the project default unless `UV_CACHE_DIR` is already set. In cluster user config, set optional `cluster__uv_cache_dir` to choose the cache directory for generated execution jobs. In later shells, reactivate the same environment before running any project script:
-
-> source scripts/activate_python_environment.sh
-
-WSL: I found it also necessary to use
-
-> sudo apt-get update
-> sudo apt-get install libicu-dev
-> sudo apt-get install libscrypt-dev
-
-upon installation (restart afterwards), and
-
-> echo <your password> | sudo -S cvmfs_config wsl2_start
-
-Each time the systems is up (may be configured to happen automatically in vairous ways).
-### Local Venv
-
-The setup script installs the project in editable mode and synchronizes the exact dependency versions from `uv.lock`; do not use a separate `pip install -r` step.
-
-The requirements include the XRootD backend for `fsspec`, which is needed to
-load remote ROOT files whose URLs use the `root://` protocol. The loader honors
-`dataset_loaded__event_amount_load_limit` for remote files, so a bounded run
-only requests the metadata and branch baskets needed for that entry range.
-
-Dataset normalization supports constant observables, such as multiplicity
-columns fixed by an event-selection cut. They are mapped to zero for training
-instead of producing a zero normalization scale.
-
-## Singularity
-
-Alternatively, either clone project and use `singularity build` or build it directly from repo (for recent enough versions).
-
-WIS Cluster requires for us to use `singularity build --remote`, and setting this up requires logging in to the sylabs site and generate a token at the first time (instructions are shown when typing this command).
-
-Remote Singularity builders cannot access CVMFS, so the image build does not create a Python environment. Before executing a container job, initialize `.venv` in the host project checkout with the Python setup above. The standard bind configuration maps that checkout to `/app`; at runtime the container sources CVMFS and activates the bound `/app/.venv` by setting `VIRTUAL_ENV` and `PATH`, avoiding shell-specific activation scripts. Container builds are pinned to the selected remote commit, validate the source layout, and replace the existing SIF only after those checks pass.
-
-## Environment Configuration
-
-### VPN
-
-Call 4444 for WIS IT or read guide for help with insatlling WIS VPN.
-
-The communication with the cluster and CVMFS is enables from within the WIS (or equivalent) network.
-
-### ATLAS Cluster SSH connection
-
-There is adifferent way to connect to WIS ATLAS cluster, whether you're inside WIS_Secure wifi or outside the institute using a VPN.
-
-Starting form the simple part - if you're in the institute you should be able to SSH seamlessly to the cluster using your username and password, after creating one - Contact the department's lcg-managers@weizmann.ac.il for help on this (or any cluster related issue).
-
-There is a more complex procedure if you're using a VPN to connect from outside the institute which requires you to use a proxy jump (as of the time of writing this). You can contact Elad to save time on configuring this, or follow the internal guide.
-
-## Job Submission to WIS ATLAS Cluster [under construction]
-
-> NOTE: Submitting from your own PC is under construction. Run anything from an SSH connection for now.
-
-Generally, to also be able to run on the cluster, the same command sould be also run there. The following command might be of use beforehand:
-
-> export PATH="$PATH:/srv01/agrp/<your-username>/.local/bin"
-
-if pip is not already recognized.
-
-To submit SGE jobs to the WIS cluster, you should install slurm. The [specific isntallation command](https://command-not-found.com/qsub) depends on your OS.
-
-### Local submission state
-
-Record cluster submissions and deferred submission requests in the ignored local file `.agents/submission-state.yaml`. Create the file if it does not exist. Use one entry per submission or request:
-
-```yaml
-submissions:
-  - id: nuisance-study-2026-08-25
-    status: submitted
-    config_pack: configs/packs/nuisance-study
-    purpose: Compare the nuisance-aware and baseline models.
-    requested_at: 2026-08-25T10:00:00Z
-    job_ids: ["12345", "12346"]
-    notes: Awaiting plot review.
-
-  - id: high-statistics-follow-up
-    status: blocked
-    config_pack: configs/packs/high-statistics
-    purpose: Run the follow-up training sweep.
-    requested_at: 2026-08-25T10:15:00Z
-    blocked_reason: Queue limit reached; retry after active jobs complete.
-    notes: Do not submit until the blocker is resolved.
-```
-
-Allowed statuses are `requested`, `blocked`, `submitted`, and `analyzed`. A `submitted` entry must include its `job_ids`. A `blocked` entry must include `blocked_reason`, which may describe a queued-job limit or any other reason the request cannot yet run. Keep deferred requests in the file until they are submitted, then update the same entry rather than creating a duplicate.
-
-## IDE configuration (examle in VSCode)
-
-Use dialog (`ctrl+shift+P`) to create or create manualy a `launch.json` file. In them, configure basic running configuration for the project to run easily. For exmaple,
-
-```json
-{
-    "version": "0.2.0",
-    "configurations": [
-        { // DEBUG Single train
-            "name": "[DEBUG] Single train with config files",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "train/single_train.py",
-            "console": "integratedTerminal",
-            "args": [
-                "--configs",
-                "${config:myConfig.configPack}",
-                "--debug",
-            ]
-        },
-        { // Submit train
-            "name": "Submit train with config files",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "train/submit_train.py",
-            "console": "integratedTerminal",
-            "args": [
-                "--configs",
-                "${config:myConfig.configPack}",
-            ]
-        },
-        { // Plot a submitted training batch
-            "name": "[DEBUG] Plot submission with prompt",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "plot/create_plots.py",
-            "console": "integratedTerminal",
-            "args": [
-                "${input:submissionDirectory}"
-            ]
-        }
-    ],
-    "inputs": [
-        {
-            "id": "submissionDirectory",
-            "type": "promptString",
-            "description": "Enter the submitted training directory",
-            "default": ""
-        }
-    ]
-}
-```
-
-The custom file paths here refer to a different file, `settings.json`, of the form:
-```json
-{
-    "myConfig.configPack": "configs/basic-loaded"
-}
-```
-Which you create and direct to. Pass that single directory after `--configs`.
-
-The tracked `configs/basic-loaded` and `configs/basic-generated` packs each contain every required configuration fragment. Copy either directory to create a local pack; local pack files remain ignored by Git. Set `cluster__uv_cache_dir` in a local pack when you need a persistent UV cache on your cluster; the tracked basic-loaded value is intentionally empty. Configuration files passed through `--configs` are shallow-merged from left to right. A directory is recursively expanded to its JSON and YAML config files in sorted order.
-The plotting entry point does not accept `--configs`; it reads the staged
-configuration files from the selected submission's `configs` directory.
-Plotting configuration is required,
-although `plot__plot_specifications` may be omitted when no configured batch plots
-are needed. A top-level `random_seed` can reproduce a fresh run if provided and is
-generated otherwise.
-
-Fresh cluster submissions reuse the existing container by default and submit
-the training job followed by the plotting job. Pass `--build-container` to
-`train/submit_train.py` to build a new container first; the training job will
-wait for that build to succeed before starting.
-
-### Runtime resource placement
-
-Cluster configuration describes the resources to request from PBS; it does not
-describe the capacity that training is allowed to assume it received. In
-particular, `cluster__qsub_ncpus`, `cluster__qsub_ngpus_for_train`, and
-`cluster__qsub_mem` remain scheduler requests. The CPU request defaults to 32
-when `cluster__qsub_ncpus` is omitted and can be overridden in cluster
-configuration.
-
-After the job starts, the execution script passes its affinity-aware CPU count
-and scheduler-scoped GPU visibility into the container. LFVNN/PyTorch training
-uses those observed values to choose its execution mode. Each training branch's
-thread count is bounded by its share of the scheduler-assigned CPUs; set
-`cluster__qsub_ncpus` to cap the CPU budget for the job.
-
-Parallel jobs on the same node share an unpacked Singularity sandbox cache. Its
-kernel-managed lock is released automatically if the owning job is interrupted
-or killed, so a failed sandbox build cannot leave later jobs blocked by a stale
-cache lock. A job that cannot acquire the cache lock within five minutes exits
-with a nonzero cache-contention status, releasing its CPU and memory
-allocation instead of waiting in the running state. It is not automatically
-requeued or resubmitted. This window allows a live owner to extract a
-multi-gigabyte image; dead owners release the kernel lock immediately. Set
-`SINGULARITY_CACHE_LOCK_TIMEOUT_SEC` in the job environment to override it.
-
-The final job using a cache entry removes its unpacked sandbox and lease
-directory, so the many extracted files do not remain against a filesystem
-quota after the workflow. The empty `.flock` file is retained intentionally to
-keep lock identity stable across concurrent jobs.
-
-Continue a saved run with `--continue <run-directory-or-context.json>`. The
-optional `--debug` flag may be combined with it; configuration paths and all
-other runtime settings are restored from the saved context. If training reached
-its saved epoch target without converging, replace that target for the continued
-run with:
-
-```bash
-python train/submit_train.py --continue <run-directory-or-context.json> --epochs-target 750000
-```
-
-`--epochs-target` accepts a positive integer and may be used with or without
-`--extra-time`.
-
-Training configurations may set `train__final_learning_rate` to linearly lower
-`train__learning_rate` over the configured epoch target. Omitting it preserves
-the constant learning rate behavior. A continued run with `--epochs-target`
-uses the replacement target for the entire schedule, then resumes at the
-learning rate for its current absolute epoch.
-
-Neural signal shifts `f` and neural nuisances `theta` are mapped into their
-log-safe open interval with a shared scaled `tanh` parameterization. Unlike a
-hard output clamp, this keeps a gradient when a raw output crosses the former
-boundary, allowing optimization to recover instead of permanently trapping the
-model at the hard bound. Scalar-binned nuisance parameters retain their explicit
-post-step constraint.
-
-If the original walltime was insufficient, add more time to the saved budget and
-continue from the latest LFVNN/PyTorch checkpoint with:
-
-```bash
-python train/submit_train.py --continue <run-directory-or-context.json> --extra-time 24:00:00
-```
-
-The extra time uses `HH:MM:SS` format. It is added to the original total rather
-than replacing it, and the next submission is capped by
-`cluster__qsub_walltime_limit` (72 hours by default). Repeat `--continue` without
-`--extra-time` if the enlarged budget requires another scheduler chunk.
-The option is accepted by every entry point that supports `--continue`; cluster
-submission history is updated for every job submitted through `submit_train.py`,
-including jobs whose total walltime fits in a single chunk.
-
-To configure a custom terminal `source`ing the environmet as explained above, you can create a custom rc file (text file) and write said commands in it. i.e., for WSL2:
+The script creates `.venv`, installs UV into it, and synchronizes the exact
+dependencies in `uv.lock`. To use the existing environment in a later shell,
+run this from any directory:
 
 ```bash
 source /path/to/lfvddp/scripts/activate_python_environment.sh
-set TF_USE_LEGACY_KERAS=True  # Set legacy Keras usage, needed for NPLM
 ```
 
-To have it run automatically when running stuff, have the "integrated terminal" (seen in above `launch.json`) configured by having:
-```json
-{
-    // ...existing settings...
-    "terminal.integrated.defaultProfile.windows": "WSL with Custom Commands",
-    "terminal.integrated.profiles.windows": {
-        // ...existing profiles...
-        "WSL with Custom Commands": {
-            "path": "C:\\Windows\\System32\\wsl.exe",
-            "args": ["--exec", "bash", "-c", "source <your rc path> && echo 'Custom WSL Terminal Initialized' && exec bash"],
-            "icon": "terminal-bash"
-        }
-    }
-}
-```
-and choose with VSCode command "Terminal: Select Default Profile" the "WSL with Custom Commands".
+Do not create a second environment or install a separate requirements file. To
+use a different UV download cache, export `UV_CACHE_DIR` before running the
+setup script.
 
-# Design Concepts Details
-## Everyting runs in a context
+## Configuration
 
-To be able to keep track of every run and its products, a running context is implemented. It does a few things:
+Every run is configured with JSON or YAML files. Start from the pack that
+matches the data source:
 
-- Records the current running configuration
-- Records the current Git commit
-- To do so reliably, forces you to commit changes before running
-- Enables the user to add any additional context as new parameters of the context to be documented
-- Documents time of run
-- Forces seeding of numpy random, for reproducibility of the results
-- Saves it in a file, that should be adjacent to the resulting output
+- [`configs/basic-generated`](configs/basic-generated) generates all datasets.
+- [`configs/basic-loaded`](configs/basic-loaded) loads ROOT data and can inject
+  a generated signal.
 
-What is not version controlled:
-
-- External databases used, should be version controlled separately (although their locations are).
-- That inclueds the version of NN's and such (although their locations are).
-- Virtual environment dependency versions are not (yet) well documented.
-- Any configuration of external tools. Any scripts in user defined "scripts_dir".
-
-To use this functionality in any new entry point, run the main function inside the context.
-
-**This means that we are not allowed to tamper with git history. Amending or rewriting commits in any other way is prohibited, for it may create results that are non-reproducible!**
-
-## Configuration files
-The configuration files and then the Config* dataclasses are the structures that should contain all the parameters that are run-individual.
-
-While Config* classes' contents are divided logically to different classes, the program needs to be called with each of the `.json` configuration file types, as long as they contain togehter all the necessary parameters. This is implemented so to enable single-file-for-run usage, as well as separation for personal privacy and context-dependent needs [Under construction].
-
-Is is specifically recommended that personal username and password for SSH connection with the WIS cluster would be stored in a separate file and not added to git. This is why the example `user_config.json` file contains `cluster__*` parameters, which later end up in the `ClusterConfig` dataclass.
-
-### Generated dataset dimensions
-
-Generated backgrounds use `dataset_generated__background_generator`, and generated
-signals use `dataset__signal_generator`. Each generator specification contains a class
-name and optional constructor arguments:
-
-```json
-{
-    "function": "gaussian_background",
-    "arguments": {
-        "domain_min": 0,
-        "domain_max": 5,
-        "mean": 2.5
-    }
-}
-```
-
-The specification's JSON shape selects how dimensions are generated:
-
-- A single object is one joint N-dimensional generator. The class receives
-  `dataset_generated__number_of_dimensions` and must generate the entire event in one
-  call, so it can correlate coordinates.
-- A list containing one object repeats that 1D generator independently for every
-  dimension.
-- A list containing exactly N objects uses the corresponding 1D generator for each
-  dimension and concatenates the generated columns in list order.
-
-For example, a correlated two-dimensional signal can be configured as:
-
-```json
-{
-    "dataset_generated__number_of_dimensions": 2,
-    "dataset__signal_generator": {
-        "function": "multivariate_gaussian_signal",
-        "arguments": {
-            "mean": [1.0, 2.0],
-            "covariance": [
-                [1.0, 0.8],
-                [0.8, 1.0]
-            ]
-        }
-    }
-}
-```
-
-Continuous injected-significance calculations require every signal and background
-distribution to supply finite, distribution-specific integration bounds. Gaussian
-defaults use six marginal standard deviations, exponential bounds use the point
-where density falls to 1% of its peak, gamma-like bounds use a tail quantile, and
-explicitly truncated distributions use `domain_max`.
-The integration ceiling is the coordinate-wise maximum of the signal and background
-bounds. One-dimensional significance keeps adaptive quadrature. Multidimensional
-significance uses SciPy's vectorized adaptive cubature with the Genz-Malik rule, a
-0.5% relative error target, and a fixed subdivision cap. This makes its runtime depend
-on the dimension and PDF cost, not on the configured event count. Built-in PDFs
-support batch evaluation; custom scalar-only PDFs remain supported through a slower
-fallback. Signal generation fails with a clear error if any coordinate exceeds its
-declared bound, indicating that `domain_max` must be increased.
-
-
-## Plotting
-
-Any function that is implemented in `plot/plots.py` can be called by name from the "name" field in a `plot_config.json` file. It is called with keyword arguments as specified in the `instructions` field inside (see `plot_config.json` for example).
-
-The prediction-process plot supports both binned and neural-network nuisance
-estimators. Every plotted observable uses a uniform 1,000-point prediction grid
-across its display range. Neural nuisances therefore render as continuous
-functions, while binned nuisances retain their piecewise-constant model values.
-
-Generate the configured plots for a submitted training batch with:
+Copy a pack before editing it:
 
 ```bash
-python plot/create_plots.py <submission-directory> [--debug]
+cp -R configs/basic-generated configs/my-study
 ```
 
-The submission directory must contain the staged `configs` directory and the
-individual training runs. Plotting reads those configs, aggregates the runs, and
-creates its normal stamped output directory inside the submission directory.
+Local configuration packs below `configs/` are ignored by Git. Each tracked
+pack contains separate files for the dataset, detector, training, plotting,
+cluster, and user settings.
 
-`create_plots.py` creates single-submission overview plots by default. To create
-multi-run plots such as `performance_plot`, add `--multi-run-plots`:
+Pass files or directories after `--configs`. Directories are searched
+recursively for JSON and YAML files. Files are shallow-merged in the order they
+are resolved, and later values override earlier ones. This makes a small
+override file useful when most settings should remain unchanged:
 
 ```bash
-python plot/create_plots.py <submission-directory> --multi-run-plots [--debug]
+python train/single_train.py \
+  --configs configs/basic-generated configs/my-overrides.json \
+  --debug
 ```
 
-In multi-run mode, plotting locates the outermost staged submission containing
-only background runs, loads its `configs` directory, and identifies signal
-contexts from their dataset configuration. Each plot declares its execution
-scope next to its implementation.
+Important configuration choices include:
 
-To implement any new plot, simply define its generating function there in the form of:
-```python
-def plot_something_new(context: ExecutionContext, **kwargs) -> matplotlib.figure.Figure:
-	...
-```
-and you should be able to use it right away through `create_plots.py`.
+- `config__runtag` names the study and `config__out_dir` selects its output root.
+- `random_seed` reproduces a fresh run when supplied; otherwise LFVDDP creates
+  and records one.
+- `dataset__definitions` describes the A/B signal-region and control-region
+  samples. See the two basic packs for generated and loaded examples.
+- `train__epochs`, checkpoint frequency, network width, and learning-rate
+  settings control optimization.
+- The default nuisance model is binned and requires bin minima, maxima, and
+  counts. For a neural nuisance model, set
+  `train__nuisance_is_neural_network` to `true`, remove the bin settings, and
+  provide `train__nuisance_nn_inner_layer_nodes`.
+- `plot__plot_specifications` selects the plots produced for a submission. Plot
+  behavior is documented in [`plot/specs`](plot/specs).
+- `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
 
-# Entry Points
-## Training
+Configuration is validated before work begins, so incompatible or incomplete
+settings fail early with an explanatory error.
 
-Training entry points:
-- `single_train.py` for the server to run each time (and local tests)
-- `submit_train.py` for remote submission of multiple copies of `single_train.py` [Currently only in-place, when running at the ATLAS cluster]
+## Run locally
 
-## Plotting
-- `create_plots.py <submission-directory> [--debug] [--multi-run-plots]` follows the staged configuration files to gather data from completed trainings and produce the plots. Multi-run plotting discovers the background-only submission and uses its staged configuration.
+Activate the environment and run one training process:
 
-## Nuisance implementation
-
-`TrainConfig` selects the nuisance implementation. For the legacy binwise-constant nuisance, configure `train__nuisance_binning_minima`, `train__nuisance_binning_maxima`, and `train__nuisance_binning_number_of_bins`. Set `train__nuisance_is_neural_network` to `true` to use a bounded neural `theta(x)` instead; then configure only `train__nuisance_nn_inner_layer_nodes`. The two parameter sets are mutually exclusive and mixed configurations fail during configuration creation.
-
-### Training-loss expression
-
-`DifferentiatingModel._assemble_loss` is the single implementation of the
-negative log-likelihood. This section expands the nuisance-dependent expression
-from the paper into the terms used in code. Let `theta(x)` be the bounded detector
-nuisance, `f(x)` the single bounded signal shift, and `a` and `b` the fractions
-of A and B events in the signal region (SR). The A and B signal weights
-reciprocate as `1 + f(x)` and `1 - f(x)`. The SR contribution is
-
-```text
-L_SR = sum_x in SR [a (1 + f(x)) (1 + theta(x))
-                     + b (1 - f(x)) (1 - theta(x))]
-       - sum_x in A_SR [log(1 + f(x)) + log(1 + theta(x))]
-       - sum_x in B_SR [log(1 - f(x)) + log(1 - theta(x))].
+```bash
+python train/single_train.py --configs configs/my-study
 ```
 
-The control region (CR) fixes `f = 0`. With
-`c = (N_A_CR - N_B_CR) / N_CR`, its contribution is
+Normal runs require a clean Git working tree so their saved commit identifies
+the executed code. During development, `--debug` disables that check:
 
-```text
-L_CR = N_CR + c sum_x in CR theta(x)
-       - sum_x in A_CR log(1 + theta(x))
-       - sum_x in B_CR log(1 - theta(x)).
+```bash
+python train/single_train.py --configs configs/my-study --debug
 ```
 
-With an `f` estimate, the implementation returns the paper's numerator loss
-`L^num = L_SR + L_CR`. When the estimate is absent, it returns the denominator
-loss `L^denom`: equivalently, set `f = 0` above, so the SR expected-density
-term reduces to `N_SR + (a - b) sum_x in SR theta(x)` while the nuisance observed
-log terms remain. This is how the two paper expressions select the two branches
-of `_assemble_loss`.
+Use `--out-dir <directory>` to override `config__out_dir` for a fresh run.
 
-In the implementation, `signal_hypothesis_sr_integral`, the signal-shift and
-nuisance log terms, and `cr_linear_nuisance_term` map directly to the expected,
-observed, and linear terms above.
-`NuisanceCalculation` only supplies `theta` values and CR event
-weights: neural nuisance uses one value per event with implicit unit weight,
-while scalar nuisance uses one value per occupied detector bin with its event
-multiplicity. Thus both representations evaluate the same expression without
-duplicating its loss formula.
+## Submit to the WIS ATLAS cluster
+
+Run the submission command from a configured cluster login environment:
+
+```bash
+python train/submit_train.py --configs configs/my-study
+```
+
+The command stages the resolved configuration, submits the configured training
+array, and then submits plotting after training completes. It reuses the
+existing Singularity image by default.
+
+Useful fresh-submission options are:
+
+- `--build-container` builds a new image before training.
+- `--only-train` skips both container building and automatic plotting.
+- `--out-dir <directory>` overrides the configured output root.
+- `--debug` permits submission from a dirty working tree.
+
+The cluster user configuration supplies the repository URL, Singularity
+executable and activation command. Set `cluster__uv_cache_dir` in the local pack
+if cluster jobs need a persistent UV cache.
+
+## Continue a cluster submission
+
+Pass either a run directory or its `context.json`. The saved configuration,
+seed, and checkpoints are restored automatically:
+
+```bash
+python train/submit_train.py --continue <run-directory-or-context.json>
+```
+
+If the saved epoch target was reached before convergence, replace it with a
+larger target:
+
+```bash
+python train/submit_train.py \
+  --continue <run-directory-or-context.json> \
+  --epochs-target 750000
+```
+
+If the walltime budget was insufficient, extend it:
+
+```bash
+python train/submit_train.py \
+  --continue <run-directory-or-context.json> \
+  --extra-time 24:00:00
+```
+
+`--extra-time` uses `HH:MM:SS` and adds to the saved total. Long totals are split
+according to `cluster__qsub_walltime_limit`; repeat the continuation command if
+another scheduler chunk is required. A continuation may use only `--debug`,
+`--epochs-target`, and `--extra-time` in addition to `--continue`.
+
+## Create plots
+
+Create the configured plots from one completed submission:
+
+```bash
+python plot/create_plots.py <submission-directory>
+```
+
+The submission must contain the staged `configs` directory and its training
+runs. The plotting command reads that saved configuration; it does not accept
+`--configs`. Use `--debug` while working with an uncommitted tree.
+
+For configured plots that aggregate recursively across background and signal
+submissions, use:
+
+```bash
+python plot/create_plots.py <multi-run-directory> --multi-run-plots
+```
+
+## Outputs and reproducibility
+
+Runs are written below `config__out_dir` in a unique directory containing
+`context.json`. The context records the resolved configuration paths, command,
+Git commit, seed, submission history, completion state, and produced files.
+Training histories, checkpoints, model weights, worker output, results, and
+plots are stored alongside that context as applicable.
+
+The `results/`, `data/`, and local configuration directories are intentionally
+ignored by Git. Back up important run directories and external datasets
+separately.
+
+## Tests
+
+After activating the project environment, run:
+
+```bash
+python -m pytest
+```
+
+## Repository map
+
+- [`configs`](configs) contains the tracked example configuration packs and
+  configuration validation.
+- [`data_tools`](data_tools) defines datasets, generators, detectors, and
+  statistical calculations.
+- [`neural_networks`](neural_networks) contains LFVDDP and NPLM model code.
+- [`train`](train) contains the local and cluster training entry points.
+- [`plot`](plot) contains plot generation and the user-visible plot contracts.
+- [`frame`](frame) contains execution, configuration, cluster, and file-handling
+  infrastructure.
+- [`paper_scripts`](paper_scripts) contains notebooks and scripts used for paper
+  figures.
+
+## Troubleshooting
+
+- If setup cannot find the pinned Python setup file, verify that `/cvmfs` is
+  mounted and accessible.
+- If a loaded dataset uses a `root://` URL, verify network access to its XRootD
+  endpoint. The environment already includes the XRootD backend for `fsspec`.
+- If cluster submission cannot reach PBS or CVMFS, reconnect through the WIS
+  network or VPN and confirm access on the cluster login node.
+- If a non-debug run reports a dirty working tree, commit the intended code and
+  configuration changes or use `--debug` only for exploratory work.
