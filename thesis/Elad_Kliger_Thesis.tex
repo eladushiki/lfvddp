@@ -27,10 +27,9 @@ aps, physrev,
 \input{../common/preamble}
 
 \newcommand{\SB}[1]{\textbf{\textcolor{blue}{[SB: #1]}}}
-\newcommand{\EK}[1]{\textbf{\textcolor{red}{[EK: #1]}}}
 
 \begin{document}
-\preprint{WIS/DDP-01}
+\preprint{WIS/EKTHESIS-01}
 
 % =============================================================================
 % Info
@@ -48,17 +47,12 @@ aps, physrev,
   Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
 }
 
-\author{Yotam Svoray}
-\email{yotam.svoray@mail.huji.ac.il}
-\affiliation{%
-  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
-}
-
 \author{Shikma Bressler}
 \email{shikma.bressler@weizmann.ac.il}
 \affiliation{%
   Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
 }
+\TODO{front page}
 
 \date{\today}
 
@@ -81,29 +75,30 @@ aps, physrev,
 \subfile{sections/introduction.tex}
 
 \section{Formalism}
-\subsection{Reminder}
-\subfile{paper/sections/formalism/reminder}
-\subsection{Adding Dimensions}
-\subfile{paper/sections/formalism/multiple_dimension_distributions}
-\subsection{Adding Nuisance Parameters}
-\subfile{paper/sections/formalism/detector_affected_distributions}
-\subfile{paper/sections/formalism/measuring_our_system}
-\subfile{paper/sections/formalism/full_hypotheses}
-\subsection{Estimating Hypotheses}
+\SB{start from a short reminder of the formalism in the original work. With citations.
+define the pdf as the sum of all events and explain the null and signal hypotheses used
+and also the fitting mechanism using NN. You cal also add a sketch if it helps.} \\
+\SB{Once you remind what was done I would just describe the modifications to the signal and null hypotheses
+separately fro the addition of more variables (so no mention of CR) and separately for the addition
+of nuisance parameters with a generic explanation how they can be constrained in a model.
+than say that here we demonstrate it with CRs} \\
+\SB{Only then write the full null and signal hypotheses. And show what the likelihood function looks like
+after the algebra} \\
+
+\subfile{thesis/formalism/lepton_flavor_universality_and_violation}
+\subfile{paper/sections/formalism/learnable_distributions}
 \subfile{paper/sections/formalism/distribution_likelihood}
-\subfile{paper/sections/formalism/hypothesis_log_likelihood_ratio}
+\subfile{paper/sections/formalism/event_counting}
+\subfile{paper/sections/formalism/adding_nuisances}
+\subfile{paper/sections/formalism/hypothesis_testing}
 \subfile{paper/sections/formalism/loss_mechanics}
-\subsection{Test Statistic Behavior}
-\subfile{paper/sections/formalism/test_statistic_distribution}
+\subfile{paper/sections/formalism/test_statistics}
 \subfile{paper/sections/formalism/significance_estimation}
 
 \section{Methodology}
-\subsection{Implementation Choices}
-\subfile{paper/sections/methodology/neural_network_compute}
-\subsection{Performance}
-\subfile{paper/sections/methodology/datasets_and_signals}
-\subfile{paper/sections/methodology/detector_nuisance}
+\subfile{paper/sections/methodology/implementation_details}
 \subfile{paper/sections/methodology/reproduction}
+\subfile{paper/sections/methodology/detector_nuisance}
 \subfile{paper/sections/methodology/multiple_dimensions}
 \subfile{paper/sections/methodology/simulated_data}
 

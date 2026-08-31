@@ -1,0 +1,65 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Remodeling Physical Process Sampling}
+
+Our hypothetical accelerator causes particles to collide, creating the sets $\true{A}$ and $\true{B}$ of events. Each $\event \in \mathbb{R}^k$ is represented as a vector of its measured their physical quantities, and is assumed to be the result of an inhomogeneous Poisson process with intensity of either
+
+\begin{equation}   
+\begin{aligned}
+    \dist{\true{A}}={N_{\true{A}}} p(\anyevent)\\
+    \dist{\true{B}}={N_{\true{B}}} p(\anyevent)
+\end{aligned}
+\end{equation}
+
+\noindent where $p(\anyevent)$ is the theoretical probability density of the physical process we measure. Using items similar to the original formulation to express $p$, we restate this as:
+
+\begin{eqnarray}
+\label{eq:learnable_distribution}
+\begin{aligned}
+    \dist{\true{A}}_\param = N_{\true{A}} e^{\paramf(\anyevent)} \refdist \\
+    \dist{\true{B}}_\param = N_{\true{B}} e^{\paramg(\anyevent)} \refdist
+\end{aligned}
+\end{eqnarray}
+
+\noindent For now, $f$ and $g$ are arbitrary and are composed from parameters $\param$ that are of interest for us.
+
+This gives us directly the n-dimensional form of our hypotheses:
+
+\begin{equation}
+\begin{aligned}
+    \nullhypothesis &: \quad
+    \begin{cases}
+        \dist{\true{A}}
+        &=
+        \frac{N_{\true{A}}}
+            {\int \refdist\,d\anyevent}
+        e^{h(\anyevent)} \refdist,
+        \\
+        \dist{\true{B}}
+        &=
+        \frac{N_{\true{B}}}
+            {\int \refdist\,d\anyevent}
+        e^{h(\anyevent)+r} \refdist,
+    \end{cases} \\
+    \hypothesis{1} &: \quad
+    \begin{cases}
+        \dist{\true{A}}
+        &=
+        \frac{N_{\true{A}}}
+            {\int \refdist\,d\anyevent}
+        e^{f(\anyevent)} \refdist,
+        \\
+        \dist{\true{B}}
+        &=
+        \frac{N_{\true{B}}}
+            {\int \refdist\,d\anyevent}
+        e^{g(\anyevent)} \refdist.
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+\end{document}
