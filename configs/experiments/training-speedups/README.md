@@ -24,3 +24,15 @@ All experiments in this directory are run from a commit-stamped branch and must 
 | profile-baseline | pending | pending | pending | pending | pending | pending | pending |
 
 **Status:** Config packs created and committed. Cluster submission is pending because scheduler commands are not available on the current login host; no performance result has been claimed.
+
+## Round 01 results
+
+Results were collected from source commit  after correcting the experiment packs to use the explicit no-op detector uncertainty modifier. Earlier submissions (, -, , ) were setup/configuration failures and are excluded from performance measurements.
+
+| Variant | PBS job | Exit | PBS wall s | Reported training s (numerator + denominator) | Checkpoint/profile artifacts |
+|---|---:|---:|---:|---:|---|
+| baseline |  | 0 | 297 | 252.311 + 7.669 | 2 checkpoints (one per model), no profile |
+| checkpoint sparse |  | 0 | 293 | 258.601 + 7.641 | 2 checkpoints (one per model), checkpoint interval 2,000 epochs |
+| profile baseline |  | 0 | 286 | 250.163 + 8.124 | 2 checkpoints (one per model), 2 profiler reports |
+
+The profiler reports are  and . Training outputs and histories were produced for all three successful runs. No automated bitwise-equivalence or checksum comparison was recorded in these jobs; equivalence remains unverified. The wall-time difference is therefore observational only and is not a validated speedup claim.
