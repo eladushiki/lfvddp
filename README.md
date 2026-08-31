@@ -92,8 +92,9 @@ Important configuration choices include:
   samples. See the two basic packs for generated and loaded examples.
 - `train__epochs`, checkpoint frequency, network width, and learning-rate
   settings control optimization.
-- The default nuisance model is binned and requires bin minima, maxima, and
-  counts. For a neural nuisance model, set
+- When `train__data_is_train_for_nuisances` is `false`, nuisance parameters may
+  be omitted. Otherwise, the default nuisance model is binned and requires bin
+  minima, maxima, and counts. For a neural nuisance model, set
   `train__nuisance_is_neural_network` to `true`, remove the bin settings, and
   provide `train__nuisance_nn_inner_layer_nodes`.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
