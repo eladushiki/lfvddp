@@ -36,7 +36,7 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         # Detector binning is needed only by the scalar nuisance estimator.
         # Snapshot names because later config composition may mutate its list.
         # Binning maps must remain keyed by the names used at construction.
-        self._observable_names = tuple(
+        self._observable_names = list(
             self._config.detector__detect_observable_names
         )
         self._numbers_of_bins = self._config.train__nuisance_binning_number_of_bins
@@ -115,6 +115,11 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
     def observable_names(self) -> tuple[str, ...]:
         """Names of the observables detected by this effect."""
         return tuple(self._observable_names)
+
+    @property
+    def binned_observable_names(self) -> tuple[str, ...]:
+        """Names for which detector nuisance bins were configured."""
+        return tuple(self._dimensional_bin_edges)
 
     def get_observable_bins(
         self,
