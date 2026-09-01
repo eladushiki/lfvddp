@@ -34,7 +34,11 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         self.__dataset_parameters_for_detection = None
 
         # Detector binning is needed only by the scalar nuisance estimator.
-        self._observable_names = self._config.detector__detect_observable_names
+        # Snapshot names because later config composition may mutate its list.
+        # Binning maps must remain keyed by the names used at construction.
+        self._observable_names = tuple(
+            self._config.detector__detect_observable_names
+        )
         self._numbers_of_bins = self._config.train__nuisance_binning_number_of_bins
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}

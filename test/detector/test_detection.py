@@ -73,3 +73,17 @@ def test_detector_exposes_its_canonical_observable_names(detector_effect):
     edges, centers = detector_effect.get_observable_bins(expected_names[0])
     assert len(edges) == 11
     assert len(centers) == 10
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{}],
+    indirect=True,
+)
+def test_detector_binning_names_are_snapshot_not_config_aliases(detector_effect):
+    """Later config-list mutation must not desynchronize names and bin maps."""
+    original_names = detector_effect.observable_names
+    detector_effect._config.detector__detect_observable_names[:] = ["param_0"]
+
+    assert detector_effect.observable_names == original_names
+    detector_effect.get_observable_bins(original_names[0])
