@@ -48,3 +48,15 @@ The two repeat jobs also completed successfully from the isolated experiment wor
 | checkpoint sparse repeat | 4932271 | 0 | 318 | 264.015 + 6.889 | 2 checkpoints, 2 weights, 1 history |
 
 Across the two baseline and two sparse runs, mean PBS wall time was 313.0 seconds for baseline versus 305.5 seconds for sparse checkpointing, a 2.4 percent reduction. Mean total reported training time was 278.86 seconds versus 268.57 seconds, a 3.7 percent reduction. The samples are not seed-paired and vary substantially, so this is a cautious observational result rather than proof of a speedup. No bitwise-equivalence comparison was executed; model-output equivalence remains unverified.
+
+## Reproducible cluster environment
+
+The experiment environment is the repository-locked environment, not the login host's default Python.
+
+1. Use Python 3.11 or newer with the repository's CVMFS view mounted.
+2. From the isolated worktree, run COMPILER=native CXX= bash scripts/setup_python_environment.sh. The explicit variables are required on this cluster because the CVMFS setup script is sourced under set -u; native avoids selecting an unavailable compiler toolchain and the empty CXX lets the view initialize compiler variables.
+3. The script creates .venv with --system-site-packages, installs uv, and runs the locked uv sync from uv.lock. Do not install a separate requirements file or use the main checkout's environment.
+4. Verify with .venv/bin/python -c import torch and python -m compileall -q train neural_networks data_tools frame.
+5. For Singularity jobs, /app/.venv must exist in the bound worktree and the verified environment must be explicitly bound there. The experiment packs set SINGULARITY_BINDPATH to the verified environment and retain the worktree bind for source code.
+
+The cluster run path was validated with torch 2.11.0+cu130. Environment setup failures and configuration failures are recorded separately from valid performance measurements.
