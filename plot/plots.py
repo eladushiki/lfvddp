@@ -838,10 +838,10 @@ def plot_prediction_process_1d(
     if not isinstance(config, PlottingConfig):
         raise ValueError("The context config is not a PlottingConfig.")
 
-    configured_observables = config.detector__detect_observable_names
-
     numerator_model = numerator_training.model
     denominator_model = denominator_training.model
+    detector_effect = denominator_training.detector_effect
+    configured_observables = list(detector_effect.observable_names)
 
     ndim = 1
     data_batch = numerator_training.data_batch
@@ -1217,10 +1217,10 @@ def plot_prediction_process_2d(
     if not isinstance(config, PlottingConfig):
         raise ValueError("The context config is not a PlottingConfig.")
 
-    configured_observables = config.detector__detect_observable_names
-
     numerator_model = numerator_training.model
     denominator_model = denominator_training.model
+    detector_effect = denominator_training.detector_effect
+    configured_observables = list(detector_effect.observable_names)
 
     ndim = 2
     data_batch = numerator_training.data_batch
