@@ -107,6 +107,11 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         return self._efficiency_uncertainty(self._true_efficiency)
 
     # Exported functions - uses DataSet
+    @property
+    def observable_names(self) -> tuple[str, ...]:
+        """Names of the observables detected by this effect."""
+        return tuple(self._observable_names)
+
     def get_observable_bins(
         self,
         observable_name: str,
