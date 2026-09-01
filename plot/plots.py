@@ -781,6 +781,7 @@ def _prediction_spanning_dataset(
         else {
             observable_name: detector_effect.get_observable_bins(observable_name)
             for observable_name in configured_observables
+            if observable_name in detector_effect.observable_names
         }
     )
 
