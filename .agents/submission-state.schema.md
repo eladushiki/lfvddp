@@ -1,8 +1,11 @@
 # Cluster submission state
 
 `.agents/submission-state.yaml` is the ignored, local source of truth for the
-daily cluster routine. List order is FIFO order. A routine may update existing
-entries, but it must never add a new request unless the user explicitly asks.
+daily cluster routine. List order defines submission priority. A lower-priority
+whole array may run first only when higher-priority arrays do not fit the
+remaining quota; this never reorders the saved list. A routine may update
+existing entries, but it must never add a new request unless the user explicitly
+asks.
 
 ## Top-level structure
 
@@ -11,7 +14,7 @@ version: 3
 last_checked_at: null
 
 limits:
-  max_queued_elements: 1000
+  max_queued_elements: 1500
   limit_source: configured
   observed_admin_max_queued_elements: null
   inferred_max_queued_elements: null
@@ -29,7 +32,7 @@ submissions: []
 
 - `last_checked_at` is the completion time of the most recent successful
   scheduler reconciliation. A failed SSH attempt does not advance it.
-- `limits.max_queued_elements` is the enforced limit. It starts at 1000 with no
+- `limits.max_queued_elements` is the enforced limit. It starts at 1500 with no
   reserve. `limit_source` is `configured`, `scheduler_message`, or
   `rejection_inference`.
 - Save an explicit numeric scheduler limit in
@@ -64,7 +67,7 @@ immediately before the quota check.
 
 Submission statuses and their additional fields are:
 
-- `requested`: explicitly authorized and waiting in FIFO order.
+- `requested`: explicitly authorized and waiting in priority order.
 - `blocked`: temporarily unable to submit; requires `blocked_reason` and
   `last_error`. A retry keeps the same list position.
 - `submitted`: requires `attempts`, `remote_commit`, and the runtime-discovered
@@ -143,3 +146,6 @@ background.
   created by the submission command.
 - Skip completed stages on retries. State transitions make the daily routine
   idempotent.
+- Greedily fill available quota with whole arrays in priority order. Leave an
+  oversized candidate in place, continue scanning for smaller candidates, and
+  restart from the highest remaining priority after each successful submission.

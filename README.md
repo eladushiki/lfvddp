@@ -175,6 +175,13 @@ according to `cluster__qsub_walltime_limit`; repeat the continuation command if
 another scheduler chunk is required. A continuation may use only `--debug`,
 `--epochs-target`, and `--extra-time` in addition to `--continue`.
 
+The daily cluster routine treats `.agents/submission-state.yaml` list order as
+submission priority. It greedily fills the configured queued-element quota with
+whole arrays: when a higher-priority array does not fit, the routine leaves it
+in place and considers smaller lower-priority requests. Arrays are never split,
+the queue is never reordered by this bypass, and only explicitly requested work
+is submitted.
+
 ## Create plots
 
 Create the configured plots from one completed submission:

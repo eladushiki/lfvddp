@@ -1,12 +1,14 @@
 ---
 name: submit-on-cluster
-description: "Submit explicitly requested ATLAS array jobs in FIFO order without exceeding the queued-element quota."
+description: "Submit explicitly requested ATLAS array jobs in priority order, greedily filling the queued-element quota with whole arrays."
 ---
 
 # Submit on Cluster
 
-Submit only explicit `requested` entries in `.agents/submission-state.yaml`, in
-file order. Never invent requests. Read
+Submit only explicit `requested` entries and verified
+`continuation_requested` entries in `.agents/submission-state.yaml`. List order
+defines priority within each status class; continuations have priority over new
+requests. Never invent requests. Read
 [the submission-state schema](../../submission-state.schema.md) before changing
 state.
 
@@ -18,7 +20,7 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 - Count queued elements with `qstat -tu $USER | grep Q | wc -l` and running
   elements with `qstat -tu $USER | grep R | wc -l`.
 - The intended queued-element limit is read from state and starts at exactly
-  1000, with no reserved capacity.
+  1500, with no reserved capacity.
 - Existing untracked jobs are not added to state, but their scheduler rows
   count toward quota calculations.
 - Never pull, checkout, reset, merge, rebase, or replace the checkout while any
@@ -37,16 +39,21 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
   lower the enforced limit to the smallest known bound. Repeated quota
   rejections may tighten that bound further.
 
-## FIFO submission
+## Priority-ordered quota filling
 
-For the first `requested` entry:
+Make complete passes over eligible entries, visiting all
+`continuation_requested` entries first and then all `requested` entries. Within
+each class, visit entries in file order. Do not reorder the saved list when a
+lower-priority entry fits before a higher-priority one.
+
+For each candidate:
 
 1. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
    definition in the pack and is not copied into state.
 2. Recount queued elements immediately before submission.
 3. Submit only if `queued + cluster__qsub_n_jobs <= limit`. Do not split an
-   array. If it does not fit, leave it requested and stop FIFO processing for
-   this run.
+   array. If it does not fit, leave it in place and continue scanning for a
+   smaller, lower-priority whole array.
 4. Use the entry's `output_root`. Explicit pack values take precedence; seeded
    Plot 01-05 requests derive missing roots as
    `results/highlights/2026-09/plot-XX`.
@@ -63,18 +70,25 @@ For the first `requested` entry:
 7. Verify the job with `qstat -wu $USER`, then update the same entry to
    `submitted` with an initial `attempt` containing its job IDs and timestamp,
    the timestamped directory, and the observed remote commit.
-8. Continue with the next FIFO entry while its whole array fits.
+8. After a successful submission, restart the scan at the highest-priority
+   remaining candidate so newly available priority information is respected.
+
+Stop only after a complete pass submits nothing. Unused capacity is acceptable
+only when no remaining whole array fits. For example, with a 1500-element limit
+and priority-ordered arrays of sizes 1000, 1000, and 100, submit the first 1000,
+leave the second 1000 in place, and then submit the 100.
 
 If submission or verification fails, keep the entry in place, set it `blocked`
-with `blocked_reason` and `last_error`, and stop FIFO processing so later
-requests cannot overtake it. Apply the inferred-limit update above before
-recording a quota rejection.
+with `blocked_reason` and `last_error`, and stop processing because the remote
+submission state may be uncertain. Capacity-based deferral alone is not a
+failure and does not block lower-priority candidates. Apply the inferred-limit
+update above before recording a quota rejection.
 
 ## Summary
 
 Report scheduler counts, observed checkout, every submitted or blocked request,
 explicit or inferred quota changes, job IDs, timestamped output directories,
-and remaining FIFO work.
+capacity-deferred requests, and remaining priority-ordered work.
 
 ## Safety
 

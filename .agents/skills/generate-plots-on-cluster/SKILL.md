@@ -37,9 +37,10 @@ walltime:
    better estimate, use the killed attempt's configured total walltime so the
    recovered total doubles.
 2. Before submitting, apply the same whole-array quota check as
-   `submit-on-cluster`. A continuation has priority over new FIFO requests; if
-   it does not fit, set the submission to `continuation_requested` and stop new
-   submissions for this run.
+   `submit-on-cluster`. A continuation has priority over new requests. If it
+   does not fit, set the submission to `continuation_requested`; the priority
+   filler may still use the remaining capacity for smaller whole arrays without
+   changing the saved priority order.
 3. Continue the saved run without debug mode:
 
    ```sh
