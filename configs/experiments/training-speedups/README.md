@@ -60,3 +60,16 @@ The experiment environment is the repository-locked environment, not the login h
 5. For Singularity jobs, /app/.venv must exist in the bound worktree and the verified environment must be explicitly bound there. The experiment packs set SINGULARITY_BINDPATH to the verified environment and retain the worktree bind for source code.
 
 The cluster run path was validated with torch 2.11.0+cu130. Environment setup failures and configuration failures are recorded separately from valid performance measurements.
+
+
+### Additional batch results
+
+A second five-job batch completed successfully from source commit 03bfa6a. PBS exit status was 0 for every job.
+
+| Variant | PBS jobs | Wall seconds | Training seconds (numerator + denominator) |
+|---|---|---:|---:|
+| baseline repeats | 4933685, 4933689 | 265, 264 | 249.228 + 9.190; 248.141 + 8.071 |
+| sparse-checkpoint repeats | 4933690, 4933691 | 272, 321 | 253.943 + 9.016; 303.717 + 8.562 |
+| profile repeat | 4933692 | 270 | 252.759 + 10.373 |
+
+Combining all four baseline and four sparse runs, mean PBS wall time is 288.75 seconds for baseline and 301.00 seconds for sparse checkpointing. Mean reported training time is 268.09 seconds versus 278.10 seconds. The sparse variant is therefore slower in this expanded sample, with high run-to-run variation; checkpoint frequency is not demonstrated to improve performance. The two profile runs produced profiler reports and completed successfully. No bitwise-equivalence comparison was executed.
