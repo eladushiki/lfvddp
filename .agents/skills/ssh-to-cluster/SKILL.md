@@ -39,9 +39,10 @@ scripts/ssh-to-cluster.sh 'pwd && git status --short --branch'
 
 ## Failure handling
 
-Retry connection failures up to three times. If the host remains unreachable,
-ask the user to connect the WIS VPN and complete its 2FA; only the user can do
-that. Do not attempt cluster work through a different host or connection.
+Make one connection attempt. If it fails because the network, DNS, host, VPN,
+or interactive 2FA is unavailable, stop immediately, leave workflow state
+unchanged, and ask the user to restore access. Wait for the user before trying
+again; do not retry automatically or use a different host or connection.
 
 ## Safety
 
