@@ -116,16 +116,17 @@
 % Display Macros
 % =============================================================================
 
-\newcommand{\addgraph}[1]{%
+\newcommand{\addsizedgraph}[2]{%
         \centering
         \includegraphics[
-            width=\textwidth,
-            height=0.8\textheight,
+            width=#1\textwidth,
             keepaspectratio,
             trim=0 22bp 0 0,
             clip
-        ]{#1}
+        ]{#2}
 }
+\newcommand{\addgraph}[1]{\addsizedgraph{0.8}{#1}}
+
 \newcommand{\addsizedpic}[2]{%
         \centering
         \includegraphics[
