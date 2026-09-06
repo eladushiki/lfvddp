@@ -15,7 +15,7 @@ from frame.command_line.execution import (
 from frame.file_system.textual_data import load_dict_from_json
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
-from train import cpu_runtime
+from train import cpu_runtime, model_trainer
 from train.model_trainer import ParallelTrainLauncher, SequentialTrainLauncher
 from train.runtime_resources import (
     ALLOCATED_CPUS_ENV,
@@ -285,10 +285,11 @@ def test_nonparallel_training_modes_select_sequential_launcher(
 @pytest.mark.parametrize(
     "cpus,gpus,expected",
     [
-        (8, 0, [("cpu", 7), ("cpu", 1)]),
-        (8, 1, [("cuda:0", 7), ("cpu", 1)]),
-        (8, 2, [("cuda:0", 7), ("cuda:1", 1)]),
-        (8, 4, [("cuda:0", 7), ("cuda:1", 1)]),
+        (2, 0, [("cpu", 1), ("cpu", 1)]),
+        (8, 0, [("cpu", 6), ("cpu", 1)]),
+        (8, 1, [("cuda:0", 6), ("cpu", 1)]),
+        (8, 2, [("cuda:0", 6), ("cuda:1", 1)]),
+        (8, 4, [("cuda:0", 6), ("cuda:1", 1)]),
     ],
 )
 def test_parallel_branch_placement(
@@ -322,6 +323,25 @@ def test_parallel_branch_placement(
 
     assert [(item.device, item.cpu_threads) for item in assignments] == expected
     assert bool(profiler.unused_resources) is (gpus > 2)
+
+
+@pytest.mark.parametrize(
+    "cpu_count,branch_count,expected",
+    [
+        (1, 1, 1),
+        (2, 1, 1),
+        (8, 1, 7),
+        (2, 2, 2),
+        (8, 2, 7),
+    ],
+)
+def test_parallel_torch_thread_capacity_reserves_coordinator_cpu(
+    cpu_count, branch_count, expected
+):
+    assert (
+        model_trainer._parallel_torch_thread_capacity(cpu_count, branch_count)
+        == expected
+    )
 
 
 @pytest.mark.parametrize(

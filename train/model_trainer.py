@@ -188,6 +188,16 @@ class _TrainingAssignment:
     cpu_threads: int
 
 
+PARALLEL_COORDINATOR_CPU_RESERVE = 1
+
+
+def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
+    """Reserve CPU capacity for the parent coordinating spawned Torch workers."""
+
+    minimum_capacity = branch_count
+    return max(minimum_capacity, cpu_count - PARALLEL_COORDINATOR_CPU_RESERVE)
+
+
 def lfvnn_denominator_is_trainable(config: TrainConfig) -> bool:
     """Return whether LFVNN must optimize, rather than calculate, its denominator."""
 
@@ -420,11 +430,16 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
 
         cpu_count = self._allocation.cpu_count
         gpu_count = self._allocation.usable_gpu_count
+        torch_thread_capacity = _parallel_torch_thread_capacity(
+            cpu_count, len(indices)
+        )
         if len(indices) == 1:
             self._note_unused_gpus(used_gpu_count=min(1, gpu_count))
             return [
                 _TrainingAssignment(
-                    indices[0], "cuda:0" if gpu_count else "cpu", cpu_count
+                    indices[0],
+                    "cuda:0" if gpu_count else "cpu",
+                    torch_thread_capacity,
                 )
             ]
 
@@ -432,7 +447,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             index for index in indices if self._train_stack[index].is_numerator
         )
         denominator_index = next(index for index in indices if index != numerator_index)
-        numerator_threads = max(1, cpu_count - 1)
+        numerator_threads = max(1, torch_thread_capacity - 1)
 
         if not allocation_supports_parallel_training(self._allocation):
             raise RuntimeError(
