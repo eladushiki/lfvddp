@@ -73,3 +73,17 @@ A second five-job batch completed successfully from source commit 03bfa6a. PBS e
 | profile repeat | 4933692 | 270 | 252.759 + 10.373 |
 
 Combining all four baseline and four sparse runs, mean PBS wall time is 288.75 seconds for baseline and 301.00 seconds for sparse checkpointing. Mean reported training time is 268.09 seconds versus 278.10 seconds. The sparse variant is therefore slower in this expanded sample, with high run-to-run variation; checkpoint frequency is not demonstrated to improve performance. The two profile runs produced profiler reports and completed successfully. No bitwise-equivalence comparison was executed.
+
+
+### Round 02 baseline matrix results
+
+The four baseline cells completed successfully from source commit 28d755d. Event scale is total expected events across the four generated definitions (100001 or 1000002). All jobs requested 8 CPUs and 0 GPUs; PBS initially queued them for insufficient ncpus before dispatching them on wn047.
+
+| Cell | PBS job | Nuisance mode | Expected events | Exit | PBS wall seconds | Reported training seconds |
+|---|---:|---|---:|---:|---:|---|
+| 100k no nuisance | 4976261 | false | 100001 | 0 | 21 | not emitted by this path |
+| 100k nuisance | 4976262 | true | 100001 | 0 | 264 | 246.499 + 6.810 |
+| 1m no nuisance | 4976263 | false | 1000002 | 0 | 505 | not emitted by this path |
+| 1m nuisance | 4976264 | true | 1000002 | 0 | 748 | 729.229 + 22.238 |
+
+Each cell produced two weights, a history, and at least one checkpoint. The no-nuisance path produced valid artifacts but did not emit the per-model training-time log markers, so its wall time is the only reliable timing currently available. The 100k no-nuisance 21-second wall time is an outlier relative to 1m no-nuisance and requires validation before using it for optimization conclusions. No candidate optimization jobs were submitted.
