@@ -205,9 +205,9 @@ def lfvnn_denominator_is_trainable(config: TrainConfig) -> bool:
 
 
 def allocation_supports_parallel_training(allocation: RuntimeAllocation) -> bool:
-    """Return whether two branches can receive independent CPU or GPU capacity."""
+    """Return whether two child processes can receive independent CPU capacity."""
 
-    return allocation.cpu_count >= 2 or allocation.usable_gpu_count >= 2
+    return allocation.cpu_count >= 2
 
 
 def _training_seed(context: ExecutionContext, model_name: str) -> int:

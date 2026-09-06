@@ -282,6 +282,22 @@ def test_nonparallel_training_modes_select_sequential_launcher(
     [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
     indirect=True,
 )
+def test_single_cpu_runs_epoch_loops_without_parallel_coordinator(
+    function_execution_context,
+):
+    assert (
+        select_train_launcher_class(
+            function_execution_context.config, _allocation(1, 2)
+        )
+        is SequentialTrainLauncher
+    )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
+    indirect=True,
+)
 @pytest.mark.parametrize(
     "cpus,gpus,expected",
     [
