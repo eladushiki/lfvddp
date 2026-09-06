@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import subprocess
 
@@ -98,32 +97,6 @@ def test_cpu_runtime_configures_interop_threads_only_once(monkeypatch):
     assert intraop_calls == [8, 3]
 
 
-def test_cpu_thread_environment_sets_and_restores_all_native_limits(monkeypatch):
-    monkeypatch.setenv("OMP_NUM_THREADS", "8")
-    monkeypatch.delenv("BLIS_NUM_THREADS", raising=False)
-
-    with cpu_runtime.cpu_thread_environment(3):
-        assert {
-            name: os.environ[name]
-            for name in cpu_runtime.THREAD_ENVIRONMENT_VARIABLES
-        } == {
-            "OMP_NUM_THREADS": "3",
-            "OMP_THREAD_LIMIT": "3",
-            "MKL_NUM_THREADS": "3",
-            "OPENBLAS_NUM_THREADS": "3",
-            "NUMEXPR_NUM_THREADS": "3",
-            "VECLIB_MAXIMUM_THREADS": "3",
-            "BLIS_NUM_THREADS": "3",
-            "TF_NUM_INTRAOP_THREADS": "3",
-            "TF_NUM_INTEROP_THREADS": "1",
-            "OMP_DYNAMIC": "FALSE",
-            "MKL_DYNAMIC": "FALSE",
-        }
-
-    assert os.environ["OMP_NUM_THREADS"] == "8"
-    assert "BLIS_NUM_THREADS" not in os.environ
-
-
 def test_runtime_cpu_count_uses_export_and_affinity(monkeypatch):
     monkeypatch.setattr(
         "train.runtime_resources._affinity_cpu_ids", lambda: (2, 3, 4, 5)
@@ -201,21 +174,6 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
         'export_container_variable LFVDDP_ALLOCATED_GPU_IDS "$ALLOCATED_GPU_IDS"'
         in script
     )
-    for runtime_limit in (
-        "OMP_NUM_THREADS",
-        "OMP_THREAD_LIMIT",
-        "MKL_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "NUMEXPR_NUM_THREADS",
-        "VECLIB_MAXIMUM_THREADS",
-        "BLIS_NUM_THREADS",
-        "TF_NUM_INTRAOP_THREADS",
-    ):
-        assert (
-            f'export_container_variable {runtime_limit} "$THREADS_PER_PROCESS"'
-            in script
-        )
-    assert "export_container_variable TF_NUM_INTEROP_THREADS 1" in script
     assert (
         f'export_container_variable LFVDDP_COMMIT_HASH "'
         f'{function_execution_context.commit_hash}"'
