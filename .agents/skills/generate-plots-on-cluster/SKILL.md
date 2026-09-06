@@ -93,6 +93,34 @@ python plot/create_plots.py <remote-multi-run-directory> \
 Verify the configured aggregate plots, set the group status to `analyzed`, and
 record `completed_at`. Skip completed groups on later daily runs.
 
+### Submission residue cleanup
+
+Before running a multi-run plot, inspect the timestamped submission directories
+under `remote_multi_run_directory`. A directory is a residue candidate when any
+of these conditions is verified:
+
+- submission setup created the directory but failed before `qsub`, so it has no
+  scheduler job IDs;
+- the submission failed; or
+- no more than 90% of its expected array jobs succeeded.
+
+An earlier residue can be selected instead of a later completed submission for
+the same configuration and make an otherwise ready aggregate plot fail. Prefer
+the completed submission only after the residue has been reviewed; do not hide
+or silently ignore the residue.
+
+Never delete a residue automatically. Report its exact remote path, the
+evidence for its classification, and whether a completed replacement exists,
+then obtain the user's explicit permission before deletion. Until permission is
+given, leave the directory unchanged, keep the group failed, and save the
+candidate and reason in `last_error`. A pre-`qsub` residue is not adopted as a
+tracked attempt because no scheduler job was submitted.
+
+After the underlying failure has been fixed, a failed-job residue becomes
+eligible for the same permission-gated cleanup. After an approved deletion,
+retry the multi-run command, verify its products, and clear the group's stale
+`last_error` only when the retry succeeds.
+
 ## Failure handling
 
 Save the failed stage and concise error without advancing its status. Continue

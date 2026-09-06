@@ -203,6 +203,13 @@ python plot/create_plots.py <signal-directory> \
   --background-directory <background-submission-directory>
 ```
 
+Multi-run discovery can be disrupted by a stale timestamped directory from a
+submission that was empty, failed before or after `qsub`, or completed no more
+than 90% of its expected array jobs. Retain such directories while diagnosing
+the failure. Once the underlying issue is fixed, remove a residue only with the
+owner's explicit permission, then rerun the aggregate plot so the completed
+submission is selected.
+
 ## Outputs and reproducibility
 
 Runs are written below `config__out_dir` in a unique directory containing
