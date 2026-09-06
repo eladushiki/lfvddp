@@ -7,7 +7,12 @@
 
 \makeatletter  % set paper size if not included in presentation
 \@ifclassloaded{beamer}{
-    % Do nothing if compiling the presentation
+    \usepackage[
+        backend=biber,
+        style=numeric,
+        sorting=none
+    ]{biblatex}
+    \addbibresource{../common/bibliography/bibliography.bib}
 }{
     % Apply this only when compiling the main paper
     \geometry{letterpaper}

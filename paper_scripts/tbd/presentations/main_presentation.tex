@@ -23,35 +23,32 @@
     \titlepage
 \end{frame}
 
-% table of contents
-\begin{frame}{Outline}
-    \tableofcontents
-\end{frame}
-
 \section{Motivation}
 
 \begin{frame}{Classic SM Analysis}
     \begin{itemize}
         \item General steps of a classical search for BSM physics:
         \begin{itemize}
-            \item Hypothesize a change from the SM postulates
-            \item Formulate production mechanisms and decay modes
-            \item Construct a statistical model of the model behavior
-            \item Monte Carlo simulation of the new physics in adetector
-            \item Plan an experiment to magnify signal / background
-            \item Estimate uncertainties
-            \item Unblinding and analysis
+            \item Hypothesize a BSM model
+            \item Derive production mechanisms and decay modes
+            \item Define event selection
+            \item Model background and signal processes
+            \item Enhance signal / background ratio by optimizing event selection
+            \item Estimate systematic uncertainties
+            \item Construct a statistical model
+            \item Execute the analysis
         \end{itemize}
-        \item The procedure is thorough, but labor intensive
-        \item Eventually, this examined one specific cut among almost infinite possibilities
+        \item The procedure is thorough and labor intensive
+        \item Eventually, this examined specific selection(s), out of a huge number of possible ones
     \end{itemize}
 \end{frame}
 
 \begin{frame}{DDP}
     \begin{itemize}
-        \item We propose and alternative - start from looking at the data
+        \item We propose an alternative - rapid scanning of a large number of final states
         \item Scan for deviation from what the SM predicts
-        \item Direct model builders to explain found signals
+        \item Direct model builders to explain found signatures
+        \item We cope with the look elsewhere effect by correlating signals of similar masses and object combinations
     \end{itemize}
 \end{frame}
 
@@ -59,22 +56,22 @@
 
 \begin{frame}{LFV - DDP}
     \begin{itemize}
+        \item The Standard Model postulates a $SU(3)_C \times SU(2)_L \times U(1)_Y$ local symmetry
+        \item In addition to the imposed symmetry group, the SM does not exclude several other gloabl symmetries - those are accidental symmetries
         \item The SM predicts an accidental global symmetry of the lepton flavor universality
         \item There is motivation to look for places in which this symmetry does not hold - driven by observed neutrino oscillations
         \item We'll use this symmetry assumption to compare pairs of equivalent datasets and look for differences without modelling
     \end{itemize}
-    \begin{figure}
-        \centering
-        \includegraphics[width=\textwidth, height=0.5\textheight, keepaspectratio]{figures/The Standard Model.jpeg}
-    \end{figure}
+    \addsizedpic{0.3}{figures/The Standard Model.jpeg}
 \end{frame}
 
 \begin{frame}{Our Goal}
     \begin{block}{Goal}
-        Given two symmetric datasets, develop a method to estimate whether or not they created from a same PDF
+        Given two symmetric datasets, develop a method to estimate whether or not they were created from a same PDF.
         \vspace{0.5cm}
 
         We'll use it to detect deviations from the SM's predicition of LF universality, with as little as posible assumptions of the backgrounds and singals expected.
+        This being said, the method is general and can be used to identify deviations from any symmetry.
     \end{block}
 \end{frame}
 
@@ -106,22 +103,32 @@
         \begin{column}{0.42\textwidth}
             \centering
             \addgraph{
-                figures/electron-pt.png
+                figures/generic-pt.png
             }
         \end{column}
 
     \end{columns}
     \end{center}
+    \begin{itemize}
+        \item We record some $k$ physical quantities of each such event, $\event \in \mathbb{R}^k$, and gather them into datasets, $\dataset{A} = \{\event\}$
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Previous Work}
+    \begin{itemize}
+        \item In the original work~\footfullcite{Italian_no_1_Learning_New_Physics_from_a_Machine} the sample dataset was compared to a larger reference dataset, which was assumed to contain no new physics
+        \item We propose the Symmetrized Formalism - comparing two samples, using their combination as the reference distribution, $\refdist$
+        \item With it, we express either distribution as a shift of $\refdist$, with functions that are neural network outputs: $f(\anyevent) \refdist$
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Comparing Dataset Pairs}
     \begin{itemize}
-        \item In our method, we compare pairs of symmetric datasets
+        \item In our method, we compare pairs of physically symmetric datasets
     \end{itemize}
-
     \begin{center}
     \begin{columns}[c]
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.4\textwidth}
             \centering
             \Huge $\mathcal{L}_e$
         \end{column}
@@ -130,47 +137,59 @@
                 \overset{\makebox[0pt][c]{\scalebox{1.5}{?}}}{\scalebox{3}{$=$}}
             \]
         \end{column}
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.4\textwidth}
             \centering
             \Huge $\mathcal{L}_\mu$
         \end{column}
     \end{columns}
     \vspace{0.3cm}
     \begin{columns}[c]
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.4\textwidth}
             \centering
             \Huge $\downarrow$
         \end{column}
         \begin{column}{0.1\textwidth}
         \end{column}
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.4\textwidth}
             \centering
             \Huge $\downarrow$
         \end{column}
     \end{columns}
     \vspace{0.3cm}
     \begin{columns}[c]
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.4\textwidth}
             \centering
-            \addgraph{
+            \addsizedgraph{0.8}{
                 figures/electron-pt.png
             }
         \end{column}
         \begin{column}{0.1\textwidth}    
         \end{column}
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.4\textwidth}
             \centering
-            \addgraph{
+            \addsizedgraph{0.8}{
                 figures/muon-pt.png
             }
         \end{column}
     \end{columns}
     \end{center}
+    \begin{itemize}
+        \item And ask - given the two samples, what are the odds for them being the product of the same underlying probability distribution?
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Statistical Fluctuations}
+    \begin{itemize}
+        \item Consider doing the same experiment twice - same process, same outcomes, same duration
+        \item We still expect the resulting samples to differ - due to statistical fluctuations
+        \item This means that every histogram bar would be of different height, like the total number of events
+        \item But we still claim, in this case, that the datasets are produced by symmetric physical processes
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Hypothesis Testing}
     \begin{itemize}
-        \item Hypothesis formulation:
+        \item Hypothesis formulation, symmterized formalism:
     \end{itemize}
     \begin{block}{null vs signal hypotheses}
         \begin{equation}
@@ -222,9 +241,16 @@
             }
         \right)
     \end{equation}
+    \begin{itemize}
+        \item The maximization is done over each hypothesis space's degrees of freedom by the number of parameters in $f, g$ and $h, r$
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{t Distribution}
+    \begin{itemize}
+        \item Wilk's and Wald's theorems tell us that, in the lack of any difference, the distribution of $t$ should be $\chi^2$ with $r$ degrees of freedom, where $r = (\text{\#DoF in signal hypothesis}) - (\text{\#DoF in null hypothesis})$
+        \item The farther away the resulting $t$ distribution is from the $\chi^2$, the more likely it is that we have observed a signal
+    \end{itemize}
     \begin{center}
     \begin{columns}[c]
         \begin{column}{0.45\textwidth}
@@ -256,12 +282,24 @@
 
 \begin{frame}{Significance Progression}
     \begin{itemize}
-        \item progression of signal significance detection
+        \item We previously showed that with fully simulated samples, we can detect differences with some sensitivity penalty
     \end{itemize}
     \vspace{1cm}
-    \addgraph{
+    \addsizedgraph{1}{
         figures/previous-significance-progression.png
     }
+\end{frame}
+
+\begin{frame}
+    \begin{itemize}
+        \item Up to now, we talked about 1D fully simulated samples
+        \item In our work, we add
+        \begin{itemize}
+            \item Detector effects
+            \item Multiple dimension samples
+            \item CMS Open Data
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 
 \section{Formulation}
@@ -283,6 +321,7 @@
 
 \begin{frame}{Underlying Probability Distributions}
     \begin{itemize}
+        \item \TODO{overlay distributions e,u,refdist}
         \item Looking at pairs of datasets, we express $\pdf$'s relatively to a common reference distribution and a series of shifts:
     \end{itemize}
     \begin{equation}
@@ -296,11 +335,13 @@
         \item the reference distribution, $\refdist$, is composed of the combined datasets
         \item $(1 \pm \nparam(\anyevent))$ represent shifts due to nuisance parameters of the system - in our case, detector effects
         \item $e^{\paramf}, e^{\paramg}$ represent shifts due to potential signal
+        \item \TODO{we implement with CR}
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Distribution Likelihood}
     \begin{itemize}
+        \item this is what we skipped before
         \item Likelihood of a distribution given a dataset $\dataset{A}$ is the probability of observing $\dataset{A}$ had the distribution been true:
     \end{itemize}
     \begin{equation}
@@ -399,6 +440,7 @@
 
 \begin{frame}{Minimization by Loss Function}
     \begin{itemize}
+        \item \TODO{reference the italian paper and why it's good - generic, parameterized}
         \item To estimate $t$ we need to deal with two maximization operation
         \item For that, we define two loss functions
     \end{itemize}
@@ -434,6 +476,9 @@
         \end{equation*}
         with $r$ the number of degrees of freedom of the signal hypothesis minus those of the null one.
     \end{theorem}
+    \begin{itemize}
+        \item in calssical analysis f, g has assumptions on the size of a signal
+    \end{itemize}
 \end{frame}
 
 \section{Methodology}
@@ -654,6 +699,7 @@
 \end{frame}
 
 \begin{frame}{t Value Calculation}
+    \TODO{possibly illustrate}
     \begin{algorithm}[H]
     \footnotesize
     \caption{Single $t$ value stochastic calculation}
