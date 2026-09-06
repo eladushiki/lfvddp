@@ -1,0 +1,19 @@
+{
+    "plot__plot_specifications": [
+        {
+            "name": "t_distribution_plot",
+            "instructions": {
+            }
+        },
+        {
+            "name": "t_train_percentile_progression_plot",
+            "instructions": {
+            }
+        },
+        {
+            "name": "performance_plot",
+            "instructions": {
+            }
+        }
+    ]
+}
