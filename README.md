@@ -252,5 +252,10 @@ python -m pytest
   endpoint. The environment already includes the XRootD backend for `fsspec`.
 - If cluster submission cannot reach PBS or CVMFS, reconnect through the WIS
   network or VPN and confirm access on the cluster login node.
+- PBS CPU allocations cap every supported native runtime (PyTorch, TensorFlow,
+  OpenMP, MKL, OpenBLAS, NumExpr, Accelerate, and BLIS). Parallel training gives
+  each child process only its assigned share before it imports native extension
+  modules, preventing separate runtime pools from each claiming the full
+  allocation.
 - If a non-debug run reports a dirty working tree, commit the intended code and
   configuration changes or use `--debug` only for exploratory work.

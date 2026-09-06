@@ -45,7 +45,7 @@ from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel, calc_min_LFVNN
 from neural_networks.utils import ContextedModel
 from train.checkpoints import find_latest_training_checkpoint
-from train.cpu_runtime import configure_cpu_runtime
+from train.cpu_runtime import configure_cpu_runtime, cpu_thread_environment
 from train.runtime_resources import RuntimeAllocation
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingResourceProfiler
@@ -693,8 +693,13 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
                 )
             )
 
-        for _, process, _, child_connection, _ in workers:
-            process.start()
+        for assignment, process, _, child_connection, _ in workers:
+            # The spawn interpreter imports Torch and its native runtimes before
+            # entering _parallel_training_worker. Give each child its share of
+            # the allocation at process creation so those pools never inherit
+            # the full job-wide cap independently.
+            with cpu_thread_environment(assignment.cpu_threads):
+                process.start()
             child_connection.close()
 
         errors = []

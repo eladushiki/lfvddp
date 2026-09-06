@@ -1,16 +1,23 @@
 import os
 import socket
+from contextlib import contextmanager
 from logging import info, warning
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 import torch
 
 
 THREAD_ENVIRONMENT_VARIABLES = (
     "OMP_NUM_THREADS",
+    "OMP_THREAD_LIMIT",
     "MKL_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+    "BLIS_NUM_THREADS",
+    "TF_NUM_INTRAOP_THREADS",
+    "TF_NUM_INTEROP_THREADS",
     "OMP_DYNAMIC",
     "MKL_DYNAMIC",
 )
@@ -20,6 +27,49 @@ THREAD_ENVIRONMENT_VARIABLES = (
 # builds terminate in C++ before Python can catch anything. Spawned workers load
 # this module afresh, so each process still configures its own pool exactly once.
 _INTEROP_THREADS_CONFIGURED = False
+
+
+def _cpu_thread_environment(number_of_cpus: int) -> dict[str, str]:
+    """Return the native-runtime limits for one process's CPU budget."""
+
+    if number_of_cpus < 1:
+        raise ValueError("The CPU thread count must be positive.")
+    thread_count = str(number_of_cpus)
+    return {
+        "OMP_NUM_THREADS": thread_count,
+        "OMP_THREAD_LIMIT": thread_count,
+        "MKL_NUM_THREADS": thread_count,
+        "OPENBLAS_NUM_THREADS": thread_count,
+        "NUMEXPR_NUM_THREADS": thread_count,
+        "VECLIB_MAXIMUM_THREADS": thread_count,
+        "BLIS_NUM_THREADS": thread_count,
+        "TF_NUM_INTRAOP_THREADS": thread_count,
+        "TF_NUM_INTEROP_THREADS": "1",
+        "OMP_DYNAMIC": "FALSE",
+        "MKL_DYNAMIC": "FALSE",
+    }
+
+
+@contextmanager
+def cpu_thread_environment(number_of_cpus: int) -> Iterator[None]:
+    """Temporarily set native limits inherited by a newly spawned process.
+
+    Native runtimes commonly read these variables while the Python interpreter
+    imports Torch, NumPy, or TensorFlow.  Setting them in the worker target is
+    too late because ``multiprocessing`` imports its target module first.
+    """
+
+    limits = _cpu_thread_environment(number_of_cpus)
+    previous = {name: os.environ.get(name) for name in limits}
+    os.environ.update(limits)
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def _read_first_existing(paths: tuple[Path, ...]) -> Optional[str]:
@@ -93,15 +143,7 @@ def configure_cpu_runtime(number_of_cpus: int, log_metadata: bool = True) -> Non
     """
 
     global _INTEROP_THREADS_CONFIGURED
-    if number_of_cpus < 1:
-        raise ValueError("The CPU thread count must be positive.")
-
-    thread_count = str(number_of_cpus)
-    os.environ["OMP_NUM_THREADS"] = thread_count
-    os.environ["MKL_NUM_THREADS"] = thread_count
-    os.environ["OPENBLAS_NUM_THREADS"] = thread_count
-    os.environ["OMP_DYNAMIC"] = "FALSE"
-    os.environ["MKL_DYNAMIC"] = "FALSE"
+    os.environ.update(_cpu_thread_environment(number_of_cpus))
     torch.set_num_threads(number_of_cpus)
     if not _INTEROP_THREADS_CONFIGURED:
         # Mark before calling: if this PyTorch build reports that parallel work

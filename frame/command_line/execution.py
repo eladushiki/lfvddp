@@ -159,8 +159,14 @@ configure_container_environment() {{
     done
 
     export_container_variable OMP_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable OMP_THREAD_LIMIT "$THREADS_PER_PROCESS"
     export_container_variable MKL_NUM_THREADS "$THREADS_PER_PROCESS"
     export_container_variable OPENBLAS_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable NUMEXPR_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable VECLIB_MAXIMUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable BLIS_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable TF_NUM_INTRAOP_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable TF_NUM_INTEROP_THREADS 1
     export_container_variable OMP_DYNAMIC FALSE
     export_container_variable MKL_DYNAMIC FALSE
     export_container_variable PYTHONUNBUFFERED 1
