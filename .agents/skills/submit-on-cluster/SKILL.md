@@ -68,7 +68,9 @@ For the first `requested` entry:
 If submission or verification fails, keep the entry in place, set it `blocked`
 with `blocked_reason` and `last_error`, and stop FIFO processing so later
 requests cannot overtake it. Apply the inferred-limit update above before
-recording a quota rejection.
+recording a quota rejection. If that quota rejection created a pre-`qsub`
+directory, apply the narrowly authorized cleanup rule in
+`generate-plots-on-cluster`; do not treat the directory as an attempt.
 
 ## Summary
 

@@ -109,12 +109,19 @@ the same configuration and make an otherwise ready aggregate plot fail. Prefer
 the completed submission only after the residue has been reviewed; do not hide
 or silently ignore the residue.
 
-Never delete a residue automatically. Report its exact remote path, the
-evidence for its classification, and whether a completed replacement exists,
-then obtain the user's explicit permission before deletion. Until permission is
-given, leave the directory unchanged, keep the group failed, and save the
-candidate and reason in `last_error`. A pre-`qsub` residue is not adopted as a
-tracked attempt because no scheduler job was submitted.
+The user has granted standing permission to delete one narrow class of residue:
+a newly created pre-`qsub` directory when the submission error clearly says the
+whole array could not fit the queued-element quota. Before deleting it, verify
+from its saved context that `run_successful` is false and `qsub_submissions` is
+empty; delete only that exact timestamped directory and verify that it is gone.
+A pre-`qsub` residue is not adopted as a tracked attempt because no scheduler
+job was submitted.
+
+For every other residue, report its exact remote path, the evidence for its
+classification, and whether a completed replacement exists, then obtain the
+user's explicit permission before deletion. Until permission is given, leave
+the directory unchanged, keep the group failed, and save the candidate and
+reason in `last_error`.
 
 After the underlying failure has been fixed, a failed-job residue becomes
 eligible for the same permission-gated cleanup. After an approved deletion,
