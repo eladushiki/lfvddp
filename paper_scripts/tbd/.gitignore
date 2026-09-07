@@ -6,6 +6,7 @@
 *(busy)
 *.fdb_latexmk
 *.fls
+*.gz
 *.lof
 *.log
 *.lot
@@ -15,6 +16,12 @@
 *.synctex
 *.synctex.gz
 *.toc
+
+## Beamer
+*.nav
+*.snm
+*.bcf
+*.run.xml
 
 # IDE
 .vscode/

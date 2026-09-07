@@ -1,2 +1,8 @@
+# Paper and presentation images
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs
+
+# Training documentation products
+*.history.h5 filter=lfs diff=lfs merge=lfs
+*.weights.h5 filter=lfs diff=lfs merge=lfs
+*.checkpoint.pt filter=lfs diff=lfs merge=lfs
