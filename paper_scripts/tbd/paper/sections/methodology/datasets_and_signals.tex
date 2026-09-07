@@ -1,0 +1,53 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Data and Signals}
+
+In the following graphs we use several sources for background and signal data sources.
+
+For the background distributions, we mostly use exponentially decaying pdfs in each dimension separately:
+
+\begin{equation}
+    \dist{\text{background}} = \prod\limits_{j=0}^k (\dfrac{1}{a} \cdot e^{a\anyevent^j})
+\end{equation}
+
+For simulated data, we use the CMS Open Data simulated \texttt{VVTo2L2Nu} sample corresponding to the 2016 collision dataset~\cite{CMS_OpenData_VVTo2L2Nu_2016}.
+
+When injecting signals, we add a desired average amount of excessive events from either distributions:
+
+\begin{equation}
+\begin{aligned}
+    \dist{\text{nd gaussian}}
+    &=
+    \frac{1}{(2\pi\sigma^2)^{k/2}}
+    \exp\left[
+        -\frac{1}{2\sigma^2}
+        \sum_{j=1}^{k}(x^j-\mu)^2
+    \right]
+    \\
+    \dist{\text{multivariate gaussian}}
+    &=
+    \frac{1}
+    {(2\pi)^{d/2}\sqrt{\det\boldsymbol{\Sigma}}}
+    \exp\left[
+        -\frac{1}{2}
+        (\mathbf{x}-\boldsymbol{\mu})^{T}
+        \boldsymbol{\Sigma}^{-1}
+        (\mathbf{x}-\boldsymbol{\mu})
+    \right]
+    \\
+    \pdf_{\text{gamma3}}(\eventsymbol)
+    &=
+    \frac{s}{2}
+    (s \eventsymbol)^2
+    e^{-s \eventsymbol}
+    =
+    \frac{s^3}{2}\eventsymbol^2 e^{-s \eventsymbol},
+    \qquad \eventsymbol \geq 0,
+\end{aligned}
+\end{equation}
+
+\end{document}
