@@ -13,87 +13,87 @@ Treating separately the numerator and denominator here, for they will soon requi
 \label{eq:overall_test_statistic_numerator}
 \begin{aligned}
     \log \nu &= \log \Bigg(
-        e^{- \int \srdist{\meas{A}}^1} \prod\limits_{\event \in \srmeas{A}} \srdistevent{\meas{A}}^1
+        e^{- \int \srdist{\dataset{A}}^1} \prod\limits_{\event \in \srdataset{A}} \srdistevent{\dataset{A}}^1
         \cdot
-        e^{- \int \srdist{\meas{B}}^1} \prod\limits_{\event \in \srmeas{B}} \srdistevent{\meas{B}}^1 \\&
+        e^{- \int \srdist{\dataset{B}}^1} \prod\limits_{\event \in \srdataset{B}} \srdistevent{\dataset{B}}^1 \\&
         \cdot
-        e^{- \int \crdist{\meas{A}}^0} \prod\limits_{\event \in \crmeas{A}} \crdistevent{\meas{A}}^0
+        e^{- \int \crdist{\dataset{A}}^0} \prod\limits_{\event \in \crdataset{A}} \crdistevent{\dataset{A}}^0
         \cdot
-        e^{- \int \crdist{\meas{B}}^0} \prod\limits_{\event \in \crmeas{B}} \crdistevent{\meas{B}}^0
+        e^{- \int \crdist{\dataset{B}}^0} \prod\limits_{\event \in \crdataset{B}} \crdistevent{\dataset{B}}^0
     \Bigg)
     \\
     &= \Bigg(
         - \left(
-            \int \srdist{\meas{A}}^1 + \srdist{\meas{B}}^1
-            + \crdist{\meas{A}}^0 + \crdist{\meas{B}}^0
+            \int \srdist{\dataset{A}}^1 + \srdist{\dataset{B}}^1
+            + \crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0
         \right)
-        + \sum\limits_{\event \in \srmeas{A}} \log({N_\srmeas{A}} (1 + {\nparam(\anyevent)}) e^{f(\anyevent)} \srrefdist) \\&
-        + \sum\limits_{\event \in \srmeas{B}} \log({N_\srmeas{B}}  (1 - {\nparam(\anyevent)}) e^{g(\anyevent)} \srrefdist)
-        + \sum\limits_{\event \in \crmeas{A}} \log({N_\crmeas{A}} (1 + {\nparam(\anyevent)}) \crrefdist) \\&
-        + \sum\limits_{\event \in \crmeas{B}} \log({N_\crmeas{B}}  (1 - {\nparam(\anyevent)}) \crrefdist)
+        + \sum\limits_{\event \in \srdataset{A}} \log({N_\srdataset{A}} (1 + {\nparam(\anyevent)}) e^{f(\anyevent)} \srrefdist) \\&
+        + \sum\limits_{\event \in \srdataset{B}} \log({N_\srdataset{B}}  (1 - {\nparam(\anyevent)}) e^{g(\anyevent)} \srrefdist)
+        + \sum\limits_{\event \in \crdataset{A}} \log({N_\crdataset{A}} (1 + {\nparam(\anyevent)}) \crrefdist) \\&
+        + \sum\limits_{\event \in \crdataset{B}} \log({N_\crdataset{B}}  (1 - {\nparam(\anyevent)}) \crrefdist)
     \Bigg)
     \\
     &= \Bigg(
-            - \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0 )
-            - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+            - \int (e^{f(\anyevent)}\srdist{\dataset{A}}^0 + e^{g(\anyevent)}\srdist{\dataset{B}}^0 )
+            - \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
         \\&
-        + N_{\srmeas{A}}\log({N_\srmeas{A}})
-        + N_{\srmeas{B}}\log({N_\srmeas{B}})
-        + N_{\crmeas{A}}\log({N_\crmeas{A}})
-        + N_{\crmeas{B}}\log({N_\crmeas{B}})
+        + N_{\srdataset{A}}\log({N_\srdataset{A}})
+        + N_{\srdataset{B}}\log({N_\srdataset{B}})
+        + N_{\crdataset{A}}\log({N_\crdataset{A}})
+        + N_{\crdataset{B}}\log({N_\crdataset{B}})
         \\&
-        + \sum\limits_{\event \in \srmeas{A}} [\log(1 + {\nparam(\anyevent)}) + f(\anyevent)]
-        + \sum\limits_{\event \in \srmeas{B}} [\log(1 - {\nparam(\anyevent)}) + g(\anyevent)] \\&
-        + \sum\limits_{\event \in \crmeas{A}} \log(1 + {\nparam(\anyevent)})
-        + \sum\limits_{\event \in \crmeas{B}} \log(1 - {\nparam(\anyevent)})
+        + \sum\limits_{\event \in \srdataset{A}} [\log(1 + {\nparam(\anyevent)}) + f(\anyevent)]
+        + \sum\limits_{\event \in \srdataset{B}} [\log(1 - {\nparam(\anyevent)}) + g(\anyevent)] \\&
+        + \sum\limits_{\event \in \crdataset{A}} \log(1 + {\nparam(\anyevent)})
+        + \sum\limits_{\event \in \crdataset{B}} \log(1 - {\nparam(\anyevent)})
     \Bigg) + C
 \end{aligned}
 \end{equation}
 
 \noindent leaving out the $C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist$ for it cancels in the division.
 
-\noindent using the substitution $\srdist{\meas{A}}^1 = e^{f(\anyevent)}\srdist{\meas{A}}^0, \quad \srdist{\meas{B}}^1 = e^{g(\anyevent)}\srdist{\meas{B}}^0$.
+\noindent using the substitution $\srdist{\dataset{A}}^1 = e^{f(\anyevent)}\srdist{\dataset{A}}^0, \quad \srdist{\dataset{B}}^1 = e^{g(\anyevent)}\srdist{\dataset{B}}^0$.
 
 \begin{equation}
 \label{eq:overall_test_statistic_denominator}
 \begin{aligned}
 \log \Delta &= \log \Bigg(
-    e^{- \int \srdist{\meas{A}}^0} \prod\limits_{\event \in \srmeas{A}} \srdistevent{\meas{A}}^0
+    e^{- \int \srdist{\dataset{A}}^0} \prod\limits_{\event \in \srdataset{A}} \srdistevent{\dataset{A}}^0
     \cdot
-    e^{- \int \srdist{\meas{B}}^0} \prod\limits_{\event \in \srmeas{B}} \srdistevent{\meas{B}}^0 \\&
+    e^{- \int \srdist{\dataset{B}}^0} \prod\limits_{\event \in \srdataset{B}} \srdistevent{\dataset{B}}^0 \\&
     \cdot
-    e^{- \int \crdist{\meas{A}}^0} \prod\limits_{\event \in \crmeas{A}} \crdistevent{\meas{A}}^0
+    e^{- \int \crdist{\dataset{A}}^0} \prod\limits_{\event \in \crdataset{A}} \crdistevent{\dataset{A}}^0
     \cdot
-    e^{- \int \crdist{\meas{B}}^0} \prod\limits_{\event \in \crmeas{B}} \crdistevent{\meas{B}}^0
+    e^{- \int \crdist{\dataset{B}}^0} \prod\limits_{\event \in \crdataset{B}} \crdistevent{\dataset{B}}^0
 \Bigg)
 \\&
 = \Bigg(
     - \int \left(
-        \srdist{\meas{A}}^0
-        + \srdist{\meas{B}}^0
-        + \crdist{\meas{A}}^0
-        + \crdist{\meas{B}}^0
+        \srdist{\dataset{A}}^0
+        + \srdist{\dataset{B}}^0
+        + \crdist{\dataset{A}}^0
+        + \crdist{\dataset{B}}^0
     \right)
     \\&
-    + \sum\limits_{\event \in \srmeas{A}} \log({N_\srmeas{A}} (1 + {\nparam(\anyevent)}) \srrefdist)
-    + \sum\limits_{\event \in \srmeas{B}} \log({N_\srmeas{B}} (1 - {\nparam(\anyevent)}) \srrefdist) \\&
-    + \sum\limits_{\event \in \crmeas{A}} \log({N_\crmeas{A}} (1 + {\nparam(\anyevent)}) \crrefdist)
-    + \sum\limits_{\event \in \crmeas{B}} \log({N_\crmeas{B}} (1 - {\nparam(\anyevent)}) \crrefdist)
+    + \sum\limits_{\event \in \srdataset{A}} \log({N_\srdataset{A}} (1 + {\nparam(\anyevent)}) \srrefdist)
+    + \sum\limits_{\event \in \srdataset{B}} \log({N_\srdataset{B}} (1 - {\nparam(\anyevent)}) \srrefdist) \\&
+    + \sum\limits_{\event \in \crdataset{A}} \log({N_\crdataset{A}} (1 + {\nparam(\anyevent)}) \crrefdist)
+    + \sum\limits_{\event \in \crdataset{B}} \log({N_\crdataset{B}} (1 - {\nparam(\anyevent)}) \crrefdist)
 \Bigg)
 \\&
 = \Bigg(
-    - \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
-    - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+    - \int (\srdist{\dataset{A}}^0 + \srdist{\dataset{B}}^0)
+    - \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
     \\&
-    + N_{\srmeas{A}}\log({N_\srmeas{A}})
-    + N_{\srmeas{B}}\log({N_\srmeas{B}})
-    + N_{\crmeas{A}}\log({N_\crmeas{A}})
-    + N_{\crmeas{B}}\log({N_\crmeas{B}})
+    + N_{\srdataset{A}}\log({N_\srdataset{A}})
+    + N_{\srdataset{B}}\log({N_\srdataset{B}})
+    + N_{\crdataset{A}}\log({N_\crdataset{A}})
+    + N_{\crdataset{B}}\log({N_\crdataset{B}})
     \\&
-    + \sum\limits_{\event \in \srmeas{A}} \log(1 + {\nparam(\anyevent)})
-    + \sum\limits_{\event \in \srmeas{B}} \log(1 - {\nparam(\anyevent)}) \\&
-    + \sum\limits_{\event \in \crmeas{A}} \log(1 + {\nparam(\anyevent)})
-    + \sum\limits_{\event \in \crmeas{B}} \log(1 - {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \srdataset{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \srdataset{B}} \log(1 - {\nparam(\anyevent)}) \\&
+    + \sum\limits_{\event \in \crdataset{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \crdataset{B}} \log(1 - {\nparam(\anyevent)})
 \Bigg) + C
 \end{aligned}
 \end{equation}
@@ -103,51 +103,51 @@ Plugging back in the expressions cancels some independent terms. From Equations~
 \begin{equation}
 \begin{aligned}
 \invllratio &= 2 \max\limits_{f, g, \nparam} \Bigg(
-    - \int (e^{f(\anyevent)}\srdist{\meas{A}}^0 + e^{g(\anyevent)}\srdist{\meas{B}}^0)
-    - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+    - \int (e^{f(\anyevent)}\srdist{\dataset{A}}^0 + e^{g(\anyevent)}\srdist{\dataset{B}}^0)
+    - \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
     \\&
-    + \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
-    + \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
-    + \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
-    + \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \srdataset{A}} f(\anyevent)
+    + \sum\limits_{\event \in \srdataset{B}} g(\anyevent)
+    + \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
 \Bigg)
 \\&
 - 2 \max\limits_{\nparam} \Bigg(
-    - \int (\srdist{\meas{A}}^0 + \srdist{\meas{B}}^0)
-    - \int (\crdist{\meas{A}}^0 + \crdist{\meas{B}}^0)
+    - \int (\srdist{\dataset{A}}^0 + \srdist{\dataset{B}}^0)
+    - \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
     \\&
-    + \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
-    + \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    + \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
 \Bigg) \\
 &= - 2 \min\limits_{f, g, \nparam} \Bigg(
     \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
-        N_\srmeas{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)})
-        + N_\srmeas{B}e^{g(\anyevent)} (1 - {\nparam(\anyevent)})
+        N_\srdataset{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)})
+        + N_\srdataset{B}e^{g(\anyevent)} (1 - {\nparam(\anyevent)})
     \right)
     \\&
     + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
-        N_\crmeas{A} (1 + {\nparam(\anyevent)})
-        + N_\crmeas{B} (1 - {\nparam(\anyevent)})
+        N_\crdataset{A} (1 + {\nparam(\anyevent)})
+        + N_\crdataset{B} (1 - {\nparam(\anyevent)})
     \right)
     \\&
-    - \sum\limits_{\event \in \srmeas{A}} f(\anyevent)
-    - \sum\limits_{\event \in \srmeas{B}} g(\anyevent)
-    - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
-    - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \srdataset{A}} f(\anyevent)
+    - \sum\limits_{\event \in \srdataset{B}} g(\anyevent)
+    - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
 \Bigg)
 \\&
 + 2 \min\limits_{\nparam} \Bigg(
     \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
-        N_\srmeas{A} (1 + {\nparam(\anyevent)})
-        + N_\srmeas{B}(1 - {\nparam(\anyevent)})
+        N_\srdataset{A} (1 + {\nparam(\anyevent)})
+        + N_\srdataset{B}(1 - {\nparam(\anyevent)})
     \right) \\&
     + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
-        N_\crmeas{A} (1 + {\nparam(\anyevent)})
-        + N_\crmeas{B}(1 - {\nparam(\anyevent)})
+        N_\crdataset{A} (1 + {\nparam(\anyevent)})
+        + N_\crdataset{B}(1 - {\nparam(\anyevent)})
     \right)
     \\&
-    - \sum\limits_{\event \in \meas{A}} \log(1 + {\nparam(\anyevent)})
-    - \sum\limits_{\event \in \meas{B}} \log(1 - {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
 \Bigg)
 \end{aligned}
 \end{equation}

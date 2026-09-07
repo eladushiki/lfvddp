@@ -4,7 +4,7 @@
 
 \begin{document}
 
-\subsection{Reproducing Previous Results}
+\subsubsection{Reproducing Previous Results}
 \label{sec:reproduction}
 
 The following results are generated using the new, improved codebase, with a subset of parameters that mimic the conditions for the previous paper \cite{LastDDPPaper}. In Figure~\ref{fig:single_train_visualization} we can see the results of a single calculation, with nuisance values, visualized.
@@ -46,5 +46,25 @@ We further investigate the correlation between the significance of an injected s
     \caption{Observed significances of the detection process by the injected significance. The process is run several times, with several configuration. The background only detection process is run 1000 times to generate a sample of the $\plratio$. Three signal shapes are picked, each is run for 100 times with varying intensities. The injected significance is calculated directly from the signal and background NDF, as in Eq.~\ref{eq:analytic_significance_from_pdfs}. The observed significance is calculated twice; once by the percentile of the mean of the signal $\plratio$s within the background only distribution (solid line), and the number of STDs it is above the mean of the background distribution (dashed line). All $\plratio$s are calculated from datasets with 1e5 events, learning rate of 0.03 and 5e5 epochs of learning.}
     \label{fig:observed_vs_injected_significances}
 \end{figure}
+
+\subsubsection{$\chi^2$ Degrees of Freedom (DOF)}
+When considering the free parameters of either hypothesis space the following calculation follows:
+\begin{itemize}
+    \item In $\hypothesis{1}$, the degrees of freedom are in $f$, $g$, $\nparam$ and $\refdist$.
+    \item In $\nullhypothesis$, the degrees of freedom are in $\nparam$ and $\refdist$.
+\end{itemize}
+
+When counting the true DOF, rather than looking at $f$, $g$, we should examine $\Delta = f - g$ and $\Sigma = f + g$. $\hypothesis{1}$ can obviously be restated to use the latter instead of the former. Then, we can see that by choice of $\refdist$, $\Sigma$ is actually swallowed and should amount to 0. We can express $\Delta$ in a form that resembles Equation~\ref{eq:neural_net_explicit}, with the substitution $\omega_\Delta = \omega_f - \omega_g$, and get convinced that the actual DOF represented are those of a single NN.
+All training graphs we show here support this by showing that the converged $f$, $g$ are the inverse of one another.
+Each bin of $\nparam$ add one DOF to both the signal and null hypotheses, and hence does not change the difference.
+
+The total DOF, then, goes by
+
+\begin{equation}
+    N_\text{DOF} = (k + 2) \times N + 1
+\end{equation}
+
+\noindent as the number of resulting weights and biases, and for $N = 4$, amount to 13.
+
 
 \end{document}
