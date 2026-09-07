@@ -57,9 +57,8 @@
 \newcommand{\event}{{\vec{\eventsymbol_i}}}
 \newcommand{\dataset}[1]{{\mathbf{#1}}}         % A dataset
 \newcommand{\true}[1]{{\dataset{#1}}_{\text{true}}}  % A true dataset
-\newcommand{\meas}[1]{{\dataset{\tilde{#1}}}}   % A measured dataset
-\newcommand{\crmeas}[1]{{\meas{#1}^{CR}}}
-\newcommand{\srmeas}[1]{{\meas{#1}^{SR}}}
+\newcommand{\crdataset}[1]{{\dataset{#1}^{CR}}}
+\newcommand{\srdataset}[1]{{\dataset{#1}^{SR}}}
 
 %% Detecting events
 \newcommand{\detector}{\delta}            % Detector function
@@ -91,7 +90,7 @@
 %% Likelihood
 \newcommand{\likelihood}{\mathcal{L}}           % Likelihood function
 \newcommand{\llikelihood}{\log\mathcal{L}}      % Log-likelihood function
-\newcommand{\plratio}{\lambda(\param)}
+\newcommand{\plratio}{\Lambda(\param)}
 \newcommand{\invllratio}{{q_{0}}}
 
 % =============================================================================

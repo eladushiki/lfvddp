@@ -1,0 +1,27 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\sunsubsection{Measuring Effects of Our System}
+
+We would like to learn about our system's effect of the samples, expressed via $\nparam$'s, in order to tell them apart from real signals. This can be done in an environment that is clean of signal. For our process, we introduce two additional samples that would be called the Control Region (CR). The original pair is now called the Signal Region (SR), and the new physics is assumed to be expressed only there. Dataset names are elaborated in Table~\ref{table:division_of_data}
+
+\begin{table}[ht]%[H] add [H] placement to break table across pages
+\centering
+\caption{\label{table:division_of_data}}
+\begin{ruledtabular}
+\begin{tabular}{| l | c | c |}
+ & $\dataset{A}$ & $\dataset{B}$ \\
+\hline
+SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
+CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
+\end{tabular}
+\end{ruledtabular}
+\caption{Division of available data from different cuts into subsets for signal and control regions.}
+\end{table}
+
+The CR dataset pair would serve as a constraint to the nuisance parameters, which are incorporated to the SR hypothesis as well.
+
+\end{document}
