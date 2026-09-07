@@ -1,0 +1,9 @@
+{
+    "detector__detect_observable_names": [
+        "param_0",
+        "param_1"
+    ],
+    "detector__effect_a_efficiency": "detector_efficiency_tanh",
+    "detector__effect_a_efficiency_uncertainty": "detector_uncertainty_gaussian_noise",
+    "detector__effect_a_error": "detector_constant_shift_error"
+}

@@ -40,9 +40,6 @@ class DatasetParameters(ABC):
     dataset__mean_number_of_background_events: int = field(default=None)
 
     # Detector simulation
-    dataset__detector_efficiency: str = field(default="")
-    dataset__detector_efficiency_uncertainty: str = field(default="")
-    dataset__detector_error: str = field(default="")
 
     # Induced nuisance parameters (relevant for old NPLM implementation)
     dataset__induced_shape_nuisance_value: float = field(default=0.0)

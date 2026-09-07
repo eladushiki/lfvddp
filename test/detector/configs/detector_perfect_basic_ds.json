@@ -9,10 +9,7 @@
             "dataset_generated__background_generator": {
                 "function": "exponential_background"
             },
-            "dataset__mean_number_of_background_events": 10,
-            "dataset__detector_efficiency": "detector_efficiency_perfect_efficiency",
-            "dataset__detector_error": "detector_no_error",
-            "dataset__detector_efficiency_uncertainty": "detector_uncertainty_no_uncertainty"
+            "dataset__mean_number_of_background_events": 10
         }
     ]
 }

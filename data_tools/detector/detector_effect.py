@@ -33,15 +33,22 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         self._config = self._context.config
         self.__dataset_parameters_for_detection = None
 
-        # Detector dimensions and binning
-        self._observable_names = self._config.detector__detect_observable_names
-        self._numbers_of_bins = self._config.detector__binning_number_of_bins
-
+        # Detector binning is needed only by the scalar nuisance estimator.
+        # Snapshot names because later config composition may mutate its list.
+        # Binning maps must remain keyed by the names used at construction.
+        self._observable_names = list(
+            self._config.detector__detect_observable_names
+        )
+        self._numbers_of_bins = self._config.train__nuisance_binning_number_of_bins
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}
-        for obs in self._observable_names:
-            self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
-                self._config.observable_bins(obs)
+        if (
+            not self._config.train__nuisance_is_neural_network
+            and self._numbers_of_bins is not None
+        ):
+            for obs in self._observable_names:
+                self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
+                    self._config.observable_bins(obs)
 
     @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
@@ -70,12 +77,30 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
 
     @detection_parameters.setter
     def detection_parameters(self, dataset_parameters: DatasetParameters):
-        # Detector effects on the data
-        self._true_efficiency = self.__retrieve_detector_efficiency_filter(dataset_parameters.dataset__detector_efficiency)
-        self._error = self.__get_detector_error_inducer(dataset_parameters.dataset__detector_error)
+        # Detector effects are selected exclusively from the detector config.
+        if dataset_parameters.category in {
+            DataSet.DataSetCategory.A_SR,
+            DataSet.DataSetCategory.A_CR,
+            DataSet.DataSetCategory.A,
+        }:
+            efficiency = self._config.detector__effect_a_efficiency
+            error = self._config.detector__effect_a_error
+            uncertainty = self._config.detector__effect_a_efficiency_uncertainty
+        elif dataset_parameters.category in {
+            DataSet.DataSetCategory.B_SR,
+            DataSet.DataSetCategory.B_CR,
+            DataSet.DataSetCategory.B,
+        }:
+            efficiency = self._config.detector__effect_b_efficiency
+            error = self._config.detector__effect_b_error
+            uncertainty = self._config.detector__effect_b_efficiency_uncertainty
+        else:
+            raise ValueError(f"Unsupported detector dataset family: {family!r}")
+        self._true_efficiency = self.__retrieve_detector_efficiency_filter(efficiency)
+        self._error = self.__get_detector_error_inducer(error)
 
         self._efficiency_uncertainty = self.__retrieve_detector_efficiency_uncertainty_modifier(
-            dataset_parameters.dataset__detector_efficiency_uncertainty
+            uncertainty
         )
 
         # finally, finish updating internal state
@@ -86,6 +111,16 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         return self._efficiency_uncertainty(self._true_efficiency)
 
     # Exported functions - uses DataSet
+    @property
+    def observable_names(self) -> tuple[str, ...]:
+        """Names of the observables detected by this effect."""
+        return tuple(self._observable_names)
+
+    @property
+    def binned_observable_names(self) -> tuple[str, ...]:
+        """Names for which detector nuisance bins were configured."""
+        return tuple(self._dimensional_bin_edges)
+
     def get_observable_bins(
         self,
         observable_name: str,
@@ -101,11 +136,20 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
                 f"Observable {observable_name} is not detected by this detector effect."
             ) from error
 
+    def efficiency_values(self, dataset: DataSet) -> np.ndarray:
+        """Return the detector efficiency at each dataset point without sampling."""
+        if self.detection_parameters is None:
+            raise RuntimeError(
+                "Detector efficiency cannot be evaluated before detection "
+                "parameters are set."
+            )
+        return np.asarray(self._uncertain_efficiency(dataset._data))
+
     def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
         """
         Generate a filter for the dataset based on the true efficiency.
         """
-        dataset_efficiency = self._uncertain_efficiency(dataset._data)
+        dataset_efficiency = self.efficiency_values(dataset)
         return np.random.uniform(size=(dataset.n_samples,)) < dataset_efficiency
 
     def generate_errors(self, dataset: DataSet) -> np.ndarray:

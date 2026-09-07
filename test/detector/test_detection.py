@@ -1,4 +1,6 @@
 from pathlib import Path
+
+import numpy as np
 import pytest
 from test.environment import ConfigType
 from data_tools.data_utils import DataSet
@@ -22,15 +24,20 @@ def test_detection_basic(
 
     # Expect data to remain unchanged
     assert (A.events == A_affected.events).all()
+    np.testing.assert_array_equal(
+        detector_effect.efficiency_values(A),
+        np.ones(A.n_samples),
+    )
+
 
 @pytest.mark.parametrize(
     "function_execution_context",
     [{
         ConfigType.DATASET.value: Path("test/detector/configs/detector_affected_basic_ds.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/detector/configs/detector_affected_basic_detector_config.json"),
     },{
         ConfigType.DATASET.value: Path("test/detector/configs/detector_affected_basic_ds_2.json"),
-        ConfigType.DETECTOR.value: Path("test/configs/detector/basic_2D_detector_config.json"),
+        ConfigType.DETECTOR.value: Path("test/detector/configs/detector_affected_basic_detector_config_2.json"),
     }],
     indirect=True,
 )
@@ -50,3 +57,33 @@ def test_detection_effect(
     for i in range(min(100, A_affected.n_samples)):
         event = A.events[i]
         assert not (event in A_affected.events[:100])
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{}],
+    indirect=True,
+)
+def test_detector_exposes_its_canonical_observable_names(detector_effect):
+    """Plotting must use names owned by the detector, not stale plot config names."""
+    expected_names = tuple(
+        detector_effect._context.config.detector__detect_observable_names
+    )
+    assert detector_effect.observable_names == expected_names
+    edges, centers = detector_effect.get_observable_bins(expected_names[0])
+    assert len(edges) == 11
+    assert len(centers) == 10
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{}],
+    indirect=True,
+)
+def test_detector_binning_names_are_snapshot_not_config_aliases(detector_effect):
+    """Later config-list mutation must not desynchronize names and bin maps."""
+    original_names = detector_effect.observable_names
+    detector_effect._config.detector__detect_observable_names[:] = ["param_0"]
+
+    assert detector_effect.observable_names == original_names
+    detector_effect.get_observable_bins(original_names[0])

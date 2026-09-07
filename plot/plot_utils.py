@@ -20,12 +20,11 @@ from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
-    GeneratedDatasetParameters,
 )
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_median_t_significance_relative_to_background,
+    calc_mean_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
     calc_t_significance_relative_to_background,
 )
@@ -43,6 +42,9 @@ from train.train_config import TrainConfig
 _MESH_LINE_WIDTH = 0.4
 _DENSE_MESH_LINE_WIDTH = 0.3
 _MESH_BORDER_WIDTH = 0.15
+_T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 4
+_T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
+_PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.90
 
 
 def utils__prediction_mesh_mask(
@@ -193,6 +195,76 @@ def _integration_upper_limits_for_dimensions(
     return np.full(number_of_dimensions, np.inf)
 
 
+def _t_distribution_outlier_masks(
+    t_values: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Return masks for the non-converged and overfitted t-distribution tails."""
+    finite_values = np.isfinite(t_values)
+    did_not_converge = ~finite_values
+    overfitted = np.zeros(t_values.shape, dtype=bool)
+    if not np.any(finite_values):
+        return did_not_converge, overfitted
+
+    reference_values = t_values[finite_values]
+    lower_reference_boundary = max(
+        np.percentile(reference_values, _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE),
+        0,
+    )
+    upper_reference_boundary = np.percentile(
+        reference_values, 100 - _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE
+    )
+    central_reference = reference_values[
+        (reference_values >= lower_reference_boundary)
+        & (reference_values <= upper_reference_boundary)
+    ]
+    if central_reference.size == 0:
+        did_not_converge[finite_values] = reference_values < 0
+        return did_not_converge, overfitted
+
+    reference_mean = np.mean(central_reference)
+    reference_std = np.std(central_reference)
+    lower_threshold = reference_mean - (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * reference_std
+    )
+    upper_threshold = reference_mean + (
+        _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS * reference_std
+    )
+    did_not_converge[finite_values] = (reference_values < 0) | (
+        reference_values < lower_threshold
+    )
+    overfitted[finite_values] = reference_values > upper_threshold
+    return did_not_converge, overfitted
+
+
+def _t_distribution_included_mask(
+    t_values: np.ndarray,
+    cut_non_converged: bool,
+    cut_overfitted: bool,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Select valid statistics using the shared convergence-tail policy."""
+    did_not_converge, overfitted = _t_distribution_outlier_masks(t_values)
+    included = np.isfinite(t_values) & (t_values >= 0)
+    if cut_non_converged:
+        included &= ~did_not_converge
+    if cut_overfitted:
+        included &= ~overfitted
+    return included, did_not_converge, overfitted
+
+
+def _filter_t_distribution_outliers(
+    t_values: np.ndarray,
+    cut_non_converged: bool,
+    cut_overfitted: bool,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply tail exclusions and remove invalid negative or non-finite values."""
+    included, did_not_converge, overfitted = _t_distribution_included_mask(
+        t_values,
+        cut_non_converged=cut_non_converged,
+        cut_overfitted=cut_overfitted,
+    )
+    return t_values[included], did_not_converge, overfitted
+
+
 def utils__calculate_performance_curve(
     signal_group: List[Tuple[ExecutionContext, Path]],
     background_t_dist: np.ndarray,
@@ -203,7 +275,6 @@ def utils__calculate_performance_curve(
     observed_significance_lower_bounds = []
     observed_significance_upper_bounds = []
     gaussian_fit_significances = []
-    uses_injected_significance = None
 
     for signal_context, context_path in signal_group:
         signal_t_values_dir = context_path.parent
@@ -211,37 +282,30 @@ def utils__calculate_performance_curve(
             signal_context
         )
         signal_agg = ResultAggregator(signal_t_values_dir)
-        signal_t_dist = signal_agg.all_t_values
-
-        is_generated = isinstance(
-            signal_dataset_parameters, GeneratedDatasetParameters
+        signal_t_dist, _, _ = _filter_t_distribution_outliers(
+            signal_agg.all_t_values,
+            cut_non_converged=True,
+            cut_overfitted=True,
         )
-        if uses_injected_significance is None:
-            uses_injected_significance = is_generated
-        elif uses_injected_significance != is_generated:
+        if signal_t_dist.size == 0:
             raise ValueError(
-                "A performance subgroup cannot mix generated and loaded signal datasets."
+                f"No finite t values remain for {signal_t_values_dir} after "
+                "outlier filtering."
             )
 
-        if is_generated:
-            x_values.append(
-                calc_injected_t_significance_by_sqrt_q0_continuous(
-                    background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                    signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                    n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-                    n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                    upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
-                )
+        x_values.append(
+            calc_injected_t_significance_by_sqrt_q0_continuous(
+                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
             )
-            x_errors.append(np.std(signal_agg.all_injected_significances))
-        else:
-            x_values.append(
-                signal_dataset_parameters.dataset__number_of_signal_events
-            )
-            x_errors.append(0.0)
+        )
+        x_errors.append(np.std(signal_agg.all_injected_significances))
 
         observed_significances.append(
-            calc_median_t_significance_relative_to_background(
+            calc_mean_t_significance_relative_to_background(
                 background_t_dist,
                 signal_t_dist,
             )
@@ -272,8 +336,6 @@ def utils__calculate_performance_curve(
         x_errors=np.asarray(x_errors)[sort],
         x_label=(
             r"injected $\sqrt{q_0}$"
-            if uses_injected_significance
-            else "mean signal number of events"
         ),
         observed_significances=np.asarray(observed_significances)[sort],
         observed_significance_lower_bounds=np.asarray(
@@ -286,6 +348,11 @@ def utils__calculate_performance_curve(
     )
 
 
+def _humanize_signal_description(description: str) -> str:
+    """Turn generator identifiers into readable significance-plot labels."""
+    return description.replace("_", " ")
+
+
 def utils__performance_group_label(
     signal_context: ExecutionContext,
 ) -> str:
@@ -295,7 +362,9 @@ def utils__performance_group_label(
         parameters = signal_config.get_parameters(category)
         if not parameters.dataset__has_signal:
             continue
-        signal_descriptions.append(parameters.dataset__signal_description)
+        signal_descriptions.append(
+            _humanize_signal_description(parameters.dataset__signal_description)
+        )
 
     return "; ".join(signal_descriptions) or "no signal"
 
@@ -710,6 +779,10 @@ def utils__datset_histogram_sliced(
             dx_bar = dx.ravel()[positive_mask.ravel()]
             dy_bar = dy.ravel()[positive_mask.ravel()]
             dz_bar = counts.ravel()[positive_mask.ravel()]
+            if log_scale:
+                # A logarithmic mplot3d axis cannot represent bars based at zero.
+                # Plot the exponents directly so the geometry matches log10(events).
+                dz_bar = _log10_positive_output_values(dz_bar)
 
             # Slightly offset overlaid histograms so mplot3d does not hide a tall bar
             # behind a shorter one that shares the same 3D footprint.
@@ -737,8 +810,6 @@ def utils__datset_histogram_sliced(
             )
             if label is not None:
                 ax.scatter([], [], [], color=color, label=label)
-            if log_scale and np.any(positive_mask):
-                ax.set_zscale("log")
         else:
             if log_scale:
                 hist2d_kwargs.setdefault("norm", LogNorm())
@@ -857,13 +928,21 @@ def utils__add_subplot_sliced(
 
 
 def utils__add_prediction_process_legend(
-    ax: plt.Axes, fontsize: float
+    ax: plt.Axes,
+    fontsize: float,
+    location: str = "upper left",
 ) -> None:
-    """Place a prediction-process legend below the title and against the left edge."""
+    """Place a prediction-process legend in the specified unobtrusive corner."""
+    anchor_by_location = {
+        "upper left": (0.02, 0.82),
+        "lower left": (0.02, 0.02),
+    }
+    if location not in anchor_by_location:
+        raise ValueError(f"Unsupported legend location: {location}")
     legend = ax.legend(
         fontsize=fontsize,
-        loc="upper left",
-        bbox_to_anchor=(0.02, 0.92),
+        loc=location,
+        bbox_to_anchor=anchor_by_location[location],
         borderaxespad=0,
         framealpha=1.0,
     )
@@ -921,10 +1000,13 @@ def utils__prediction_process_observables(
         selected_observables = list(along_observables)
 
     if len(selected_observables) != required_dimensions:
-        raise ValueError(
-            f"The {required_dimensions}D prediction-process plot requires exactly "
-            f"{required_dimensions} observable(s), got {len(selected_observables)}."
-        )
+        if required_dimensions == 2 and len(selected_observables) > 2:
+            selected_observables = selected_observables[:2]
+        else:
+            raise ValueError(
+                f"The {required_dimensions}D prediction-process plot requires exactly "
+                f"{required_dimensions} observable(s), got {len(selected_observables)}."
+            )
     unknown_observables = set(selected_observables) - set(configured_observables)
     if unknown_observables:
         raise ValueError(
@@ -1049,7 +1131,16 @@ def _configure_region_histogram_panel_sliced(
         if normalize_distributions
         else "number density functions"
     )
-    ax.set_title(f"{region_name} {title_suffix}")
+    utils__set_prediction_process_subplot_title(
+        ax, f"{region_name} {title_suffix}"
+    )
+
+
+def utils__set_prediction_process_subplot_title(
+    ax: plt.Axes, title: str
+) -> None:
+    """Place a prediction-process title inside its own subplot boundary."""
+    ax.set_title(title, y=_PREDICTION_PROCESS_SUBPLOT_TITLE_Y)
 
 
 def utils__plot_region_histogram_meshes_2d(
@@ -1126,7 +1217,7 @@ def utils__plot_region_histogram_meshes_2d(
 def utils__plot_weighted_histogram_predictions_sliced(
     ax: plt.Axes,
     reference_dataset: DataSet,
-    predictions: List[Tuple[np.ndarray, str, str, str]],
+    predictions: List[Tuple[np.ndarray, str, str, str, float]],
     bins: Union[np.ndarray, List[np.ndarray]],
     bin_centers: Union[np.ndarray, List[np.ndarray]],
     along_observables: List[str],
@@ -1143,7 +1234,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
             bin_centers[0], bin_centers[1], indexing="ij"
         )
 
-    for weights, label, color, marker in predictions:
+    for weights, label, color, marker, normalization_size in predictions:
         flattened_weights = utils__flatten_histogram_values(weights)
         if number_of_dimensions == 1:
             predicted_counts, _ = np.histogram(
@@ -1161,7 +1252,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
 
         if normalize_each_prediction:
             predicted_counts = utils__normalize_histogram_values(
-                predicted_counts, np.sum(predicted_counts)
+                predicted_counts, normalization_size
             )
 
         if number_of_dimensions == 1:
@@ -1216,6 +1307,31 @@ def utils__synchronize_output_axis_limits(
         getattr(ax, set_limits_name)(shared_limits)
 
 
+def utils__finalize_prediction_process_layout(
+    distribution_axes: List[plt.Axes],
+    prediction_axes: List[plt.Axes],
+    number_of_dimensions: int,
+) -> None:
+    """Apply shared axis ranges and the compact 1D prediction-process layout."""
+    utils__synchronize_output_axis_limits(distribution_axes, number_of_dimensions)
+    utils__synchronize_output_axis_limits(prediction_axes, number_of_dimensions)
+    if number_of_dimensions != 1:
+        return
+
+    all_axes = distribution_axes + prediction_axes
+    shared_x_limits = (
+        min(axis.get_xlim()[0] for axis in all_axes),
+        max(axis.get_xlim()[1] for axis in all_axes),
+    )
+    for axis in all_axes:
+        axis.set_xlim(shared_x_limits)
+    for axis in distribution_axes:
+        axis.set_xlabel("")
+        axis.tick_params(labelbottom=False)
+    for axis in (distribution_axes[1], prediction_axes[1]):
+        axis.set_ylabel("")
+
+
 def utils__model_prediction_values(
     prediction_function: Callable[[DataSet], npt.NDArray],
     dataset: DataSet,
@@ -1224,14 +1340,16 @@ def utils__model_prediction_values(
     return utils__flatten_histogram_values(prediction_function(dataset))
 
 
-def utils__remove_eta_from_prediction_values(
+def utils__remove_theta_from_prediction_values(
     prediction_values: np.ndarray,
-    eta_values: np.ndarray,
-    eta_sign: float,
+    theta_values: np.ndarray,
+    theta_sign: float,
 ) -> np.ndarray:
-    """Remove the clamped 1±eta factor from a combined LFVDDP prediction."""
-    eta_term = np.clip(1.0 + eta_sign * eta_values, a_min=1e-12, a_max=None)
-    return prediction_values / eta_term
+    """Remove the clamped 1±theta factor from a combined LFVDDP prediction."""
+    theta_term = np.clip(
+        1.0 + theta_sign * theta_values, a_min=1e-12, a_max=None
+    )
+    return prediction_values / theta_term
 
 
 def utils__project_prediction_values_sliced(
@@ -1240,6 +1358,9 @@ def utils__project_prediction_values_sliced(
     along_observables: List[str],
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Project evaluated model values by summing over unselected observables."""
+    if along_observables == spanning_dataset.observable_names:
+        return spanning_dataset.events, utils__flatten_histogram_values(values)
+
     return utils__contour_model_prediction(
         prediction_function=lambda _: values,
         spanning_dataset=spanning_dataset,
@@ -1452,5 +1573,5 @@ def utils__plot_model_predictions_sliced(
         along_observables=along_observables,
         output_label="model prediction",
     )
-    ax.set_title(title)
+    utils__set_prediction_process_subplot_title(ax, title)
     utils__add_prediction_process_legend(ax, fontsize=7)

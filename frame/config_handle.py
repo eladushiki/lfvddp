@@ -12,8 +12,8 @@ class UserConfig:  # todo: convert all configs to pydantic's BaseModels
     config__user: str
     config__runtag: str
     config__out_dir: Path
-    config__log_level: str
     config__bind_directories: Dict[Path, PurePosixPath]
+    config__log_level: str = "INFO"
 
     @property
     def config__dirsafe_runtag(self) -> str:

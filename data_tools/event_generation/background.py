@@ -79,6 +79,14 @@ class GaussianBackground(DataDistribution):
         )
         self._mean = mean
         self._covariance_matrix = np.eye(number_of_dimensions)
+        self._frozen_distribution = (
+            stats.norm(loc=mean, scale=1)
+            if number_of_dimensions == 1
+            else stats.multivariate_normal(
+                mean=np.full(number_of_dimensions, mean),
+                cov=self._covariance_matrix,
+            )
+        )
 
     @property
     def integration_upper_limits(self) -> np.ndarray:
@@ -105,9 +113,4 @@ class GaussianBackground(DataDistribution):
         return DataSet(np.column_stack(samples))
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
-        if self._number_of_dimensions == 1:
-            return stats.norm(loc=self._mean, scale=1).pdf(x)
-        return stats.multivariate_normal(
-            mean=np.full(self._number_of_dimensions, self._mean),
-            cov=self._covariance_matrix,
-        ).pdf(x)
+        return self._frozen_distribution.pdf(x)

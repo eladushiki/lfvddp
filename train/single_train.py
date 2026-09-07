@@ -88,7 +88,8 @@ def select_train_launcher_class(
 
     NPLM remains sequential.  LFVNN parallelism is useful only when both
     numerator and denominator are trainable and the observed allocation can
-    give them independent CPU or GPU capacity.
+    give their Python processes independent CPU capacity. A one-CPU allocation
+    always runs the epoch loops directly in the parent, even with multiple GPUs.
     """
 
     if (

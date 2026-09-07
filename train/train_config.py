@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from logging import warning
-from typing import List, Optional
+from typing import List, Optional, Tuple
+
+import numpy as np
+import numpy.typing as npt
 
 
 @dataclass
@@ -20,8 +23,8 @@ class TrainConfig:
     def train__nn_architecture(self) -> List[int]:
         return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
     
-    train__nn_xavier_gain: float = 4
-    train__learning_rate: float = 0.001  # optimizer learning rate
+    train__nn_xavier_gain: float = 1
+    train__learning_rate: float = 0.03  # optimizer learning rate
     train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
     # Opt-in CPU profiling. The warmup epochs are observed by the profiler but
@@ -32,7 +35,96 @@ class TrainConfig:
     
     ## Training for nuisance parameters
     train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
+    train__nuisance_is_neural_network: bool = False
+    train__nuisance_nn_inner_layer_nodes: Optional[int] = None
+    train__nuisance_binning_minima: Optional[List[float]] = None
+    train__nuisance_binning_maxima: Optional[List[float]] = None
+    train__nuisance_binning_number_of_bins: Optional[List[int]] = None
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
+
+    def _validate_nuisance_configuration(self) -> None:
+        binning_parameters = (
+            self.train__nuisance_binning_minima,
+            self.train__nuisance_binning_maxima,
+            self.train__nuisance_binning_number_of_bins,
+        )
+        has_binning = any(parameter is not None for parameter in binning_parameters)
+        has_complete_binning = all(
+            parameter is not None for parameter in binning_parameters
+        )
+        if not self.train__data_is_train_for_nuisances:
+            if has_binning and not has_complete_binning:
+                raise ValueError(
+                    "Nuisance binning configuration must define minima, maxima, "
+                    "and number of bins together."
+                )
+            return
+
+        if self.train__nuisance_is_neural_network:
+            if has_binning:
+                raise ValueError(
+                    "Neural nuisance configuration must not define nuisance binning parameters."
+                )
+            if self.train__nuisance_nn_inner_layer_nodes is None:
+                raise ValueError(
+                    "Neural nuisance configuration requires train__nuisance_nn_inner_layer_nodes."
+                )
+        else:
+            if self.train__nuisance_nn_inner_layer_nodes is not None:
+                raise ValueError(
+                    "Binned nuisance configuration must not define train__nuisance_nn_inner_layer_nodes."
+                )
+            if not has_complete_binning:
+                raise ValueError(
+                    "Binned nuisance configuration requires minima, maxima, and number of bins."
+                )
+
+    def configure_nuisance_binning(self, number_of_dimensions: int) -> None:
+        """Normalize scalar binning parameters after detector dimensions are known."""
+        if (
+            self.train__nuisance_is_neural_network
+            or self.train__nuisance_binning_minima is None
+        ):
+            return
+
+        for parameter_name in (
+            "train__nuisance_binning_minima",
+            "train__nuisance_binning_maxima",
+            "train__nuisance_binning_number_of_bins",
+        ):
+            parameter = getattr(self, parameter_name)
+            if isinstance(parameter, (int, float)):
+                setattr(self, parameter_name, [parameter] * number_of_dimensions)
+            elif len(parameter) != number_of_dimensions:
+                raise ValueError(
+                    f"{parameter_name} length {len(parameter)} does not match detector dimensions {number_of_dimensions}."
+                )
+
+    def observable_bins(self, observable_name: str) -> Tuple[npt.NDArray, npt.NDArray]:
+        """Return bin edges and centers for a scalar binned nuisance observable."""
+        try:
+            index = self.detector__detect_observable_names.index(observable_name)
+        except ValueError as error:
+            raise ValueError(
+                f"Observable name {observable_name} not found in detector observable names "
+                f"{self.detector__detect_observable_names}"
+            ) from error
+
+        bins_edges = np.linspace(
+            self.train__nuisance_binning_minima[index],
+            self.train__nuisance_binning_maxima[index],
+            self.train__nuisance_binning_number_of_bins[index] + 1,
+        )
+        return bins_edges, 0.5 * (bins_edges[:-1] + bins_edges[1:])
+
+    @property
+    def train__number_of_nuisance_parameters(self) -> int:
+        if (
+            not self.train__data_is_train_for_nuisances
+            or self.train__nuisance_is_neural_network
+        ):
+            return 0
+        return sum(self.train__nuisance_binning_number_of_bins)
     
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
     train__nn_weight_clipping: float = False
@@ -67,6 +159,8 @@ class TrainConfig:
         self.validate()
 
     def validate(self):
+        self._validate_nuisance_configuration()
+
         if self.train__profiling_warmup_epochs < 0:
             raise ValueError("Profiling warmup epochs cannot be negative.")
         if self.train__profiling_active_epochs < 1:

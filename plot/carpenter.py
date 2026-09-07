@@ -4,7 +4,16 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
+
 class Carpenter:
+    """Create figures with a consistent, crop-safe run-stamp row."""
+
+    RUN_STAMP_ROW_HEIGHT = 0.12
+    RUN_STAMP_Y = 0.02
+    RUN_STAMP_FONT_SIZE = 10
+    STANDARD_LEFT_BORDER = 0.125
+    STANDARD_RIGHT_BORDER = 0.9
+    STANDARD_TOP_BORDER = 0.88
     _instance = None
 
     def __new__(cls, context: ExecutionContext):
@@ -43,11 +52,29 @@ class Carpenter:
         # Stamp for run
         fig.text(
             x=0,
-            y=0,
+            y=self._config.plot__run_stamp_y,
             s=f"run hash: {self._context.run_hash}",
-            fontsize=10,
-            verticalalignment='bottom',
-            horizontalalignment='left',
+            fontsize=self._config.plot__run_stamp_font_size,
+            verticalalignment="bottom",
+            horizontalalignment="left",
         )
+        self.reserve_run_stamp_row(fig)
 
         return fig
+
+    def reserve_run_stamp_row(self, fig: Figure, **subplot_adjustments) -> None:
+        """Reserve a crop-safe bottom row exclusively for the run stamp."""
+        requested_bottom = subplot_adjustments.pop("bottom", 0.0)
+        fig.subplots_adjust(
+            bottom=max(requested_bottom, self._config.plot__run_stamp_row_height),
+            **subplot_adjustments,
+        )
+
+    def standardize_plot_borders(self, fig: Figure) -> None:
+        """Apply the common one-panel plot borders after all artists are added."""
+        fig.subplots_adjust(
+            left=self._config.plot__standard_left_border,
+            right=self._config.plot__standard_right_border,
+            bottom=self._config.plot__run_stamp_row_height,
+            top=self._config.plot__standard_top_border,
+        )
