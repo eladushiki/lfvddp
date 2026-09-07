@@ -40,16 +40,6 @@ tmp*/
 # Singularity
 *.sif
 
-# TeX Processing artifacts
-*.aux
-*.pdf
-*.out
-*.gz
-*.toc
-## Beamer
-*.nav
-*.snm
-
 # IDE
 .vscode/
 **.code-workspace

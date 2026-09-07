@@ -1,0 +1,130 @@
+ %   This file uses a template that is part of the APS files in the
+%   REVTeX 4.2 distribution.
+%   Version 4.2a of REVTeX, December 2014
+%
+%   Copyright (c) 2014 The American Physical Society.
+%
+%   See the REVTeX 4 README file for restrictions and more information.
+%
+% TeX'ing this file requires that you have AMS-LaTeX 2.0 installed
+% as well as the rest of the prerequisites for REVTeX 4.2
+%
+% See the REVTeX 4 README file
+% It also requires running BibTeX. The commands are as follows:
+%
+%  1)  latex apssamp.tex
+%  2)  bibtex apssamp
+%  3)  latex apssamp.tex
+%  4)  latex apssamp.tex
+
+\documentclass[%
+preprint, linenumbers,
+groupedaddress,
+amsmath,amssymb,
+aps, physrev,
+]{revtex4-2}
+
+\input{../common/preamble}
+
+\newcommand{\SB}[1]{\textbf{\textcolor{blue}{[SB: #1]}}}
+\newcommand{\EK}[1]{\textbf{\textcolor{red}{[EK: #1]}}}
+
+\begin{document}
+\preprint{WIS/DDP-01}
+
+% =============================================================================
+% Info
+% =============================================================================
+
+\title{TITLE WORK IN PROGRESS: A Lepton Flavor Violation Search by the Data Directed Paradigm}
+\date{\today}
+
+%% Authors
+\author{Elad Kliger}
+\email{elad.kliger@weizmann.ac.il}
+% \homepage{}
+% \altaffiliation{}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\author{Yotam Svoray}
+\email{yotam.svoray@mail.huji.ac.il}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\author{Shikma Bressler}
+\email{shikma.bressler@weizmann.ac.il}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\date{\today}
+
+% =============================================================================
+% Article headers
+% =============================================================================
+
+\begin{abstract}
+\TODO{Abstract}
+\end{abstract}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =============================================================================
+% Article body
+% =============================================================================
+
+\subfile{sections/introduction.tex}
+
+\section{Formalism}
+\subsection{Reminder}
+\subfile{paper/sections/formalism/reminder}
+\subsection{Adding Dimensions}
+\subfile{paper/sections/formalism/multiple_dimension_distributions}
+\subsection{Adding Nuisance Parameters}
+\subfile{paper/sections/formalism/detector_affected_distributions}
+\subfile{paper/sections/formalism/measuring_our_system}
+\subfile{paper/sections/formalism/full_hypotheses}
+\subsection{Estimating Hypotheses}
+\subfile{paper/sections/formalism/distribution_likelihood}
+\subfile{paper/sections/formalism/hypothesis_log_likelihood_ratio}
+\subfile{paper/sections/formalism/loss_mechanics}
+\subsection{Test Statistic Behavior}
+\subfile{paper/sections/formalism/test_statistic_distribution}
+\subfile{paper/sections/formalism/significance_estimation}
+
+\section{Methodology}
+\subsection{Implementation Choices}
+\subfile{paper/sections/methodology/neural_network_compute}
+\subsection{Performance}
+\subfile{paper/sections/methodology/datasets_and_signals}
+\subfile{paper/sections/methodology/detector_nuisance}
+\subfile{paper/sections/methodology/reproduction}
+\subfile{paper/sections/methodology/multiple_dimensions}
+\subfile{paper/sections/methodology/simulated_data}
+
+\section{Conclusion}
+\subfile{paper/sections/conclusion}
+
+% =============================================================================
+% Acknowledgments, appendices, bibliography
+% =============================================================================
+
+\begin{acknowledgments}
+\TODO{acknowledge}
+\end{acknowledgments}
+
+\appendix
+\subfile{paper/sections/appendices/t_value_computation}
+
+% Print out all entries in the bibliography, even if they are not cited in the text.
+% Produce the bibliography via BibTeX.
+\nocite{*}
+\bibliographystyle{apsrev4-2}
+\bibliography{common/bibliography/bibliography}
+
+\end{document}

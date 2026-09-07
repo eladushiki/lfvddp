@@ -1,0 +1,62 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Loss Mechanics for Calculating $\invllratio$}
+
+As in \cite{LastDDPPaper}, we use a simple 3-layer neural net's ability to minimize an arbitrary function with a set number of parameters to approximate each minimization expression. Expanding to more than one physical observable describing each event, we can express $f$ and $g$ by choosing an arbitrary number of neurons $N$ and write
+
+\begin{equation}
+\label{eq:neural_net_explicit}
+    f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha),
+\end{equation}
+
+\noindent with a similar expression holds for $g$.
+
+The loss expression stems directly from the test statistic minimization parts, as:
+
+\begin{equation}
+\label{eq:discrete_loss_functions}
+\begin{aligned}
+L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] &= \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        {N_\srdataset{A}} e^{f(\anyevent)} (1 + {\nparam(\anyevent)})
+        + {N_\srdataset{B}} e^{g(\anyevent)} (1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        {N_\crdataset{A}} (1 + {\nparam(\anyevent)})
+        + {N_\crdataset{B}} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \srdataset{A}} f(\anyevent)
+    - \sum\limits_{\event \in \srdataset{B}} g(\anyevent)
+    - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\\
+L^{denom}[\nparam] &= \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        {N_\srdataset{A}} (1 + {\nparam(\anyevent)})
+        + {N_\srdataset{B}} (1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        {N_\crdataset{A}} (1 + {\nparam(\anyevent)})
+        + {N_\crdataset{B}} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\end{aligned}
+\end{equation}
+
+A quick look convinces us that this function is indeed differentiable and finite, for each part of it is so, and so can serve as a loss function for a NN. the test statistic is then obtained by
+
+\begin{equation}
+\label{eq:t_value_from_two_losses}
+    \invllratio = -2 \cdot L^{num}[b^f, \omega^f, b^g, \omega^g, \nparam] + 2 \cdot L^{denom}[\nparam]
+\end{equation}.
+
+\end{document}

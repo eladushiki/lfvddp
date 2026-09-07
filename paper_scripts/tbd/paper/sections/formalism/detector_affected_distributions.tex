@@ -1,0 +1,69 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Building an Observed Dataset}
+\label{sec:building_an_observed_dataset}
+
+During a HEP experiment, the collision events occur inside a detector. When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components, and angles. Due to limited detector efficiency, not all events that occur inside the detector are successfully reconstructed, so we say that only a subset of the true events is observed.
+
+We denote by $\detector(\event)$ the probability with which an event $\event$ is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\dataset{A}$ to be the dataset after stochastically removing events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\detector(\event)$. We denote the observed number of events by $|\dataset{A}| = N_\dataset{A}$. 
+
+\subsection{Modeling Detector Efficiency as Nuisance Parameters}
+
+We know our model of the detector's behavior is not perfect, and even more - can be different for our $\dataset{A}$ and $\dataset{B}$ samples, and hence break an originally-true symmetry of them. We now formulate our accounting to deviations and uncertainties of this kind.
+
+We denote by $\nparam(\anyevent)$ half of the difference between the probability to detect an event of either sample within a specific point in the observable space
+
+\begin{equation}
+\label{eq:nuisance_from_detector_efficiencies}
+    \nparam(\anyevent) \coloneqq \frac{\detector_{A}(\anyevent) - \detector_{B}(\anyevent)}{2}   
+\end{equation}
+
+That is, given our reference distribution, we expect the two detected samples to be shifted as:
+
+\begin{equation}
+\begin{aligned}
+    \dist{\dataset{A}} &= (1 + \nparam(\anyevent))\refdist \\
+    \dist{\dataset{B}} &= (1 - \nparam(\anyevent))\refdist
+\end{aligned}
+\end{equation}
+
+This gives us directly the detector efficiency modified hypotheses:
+
+\begin{equation}
+\begin{aligned}
+    \nullhypothesis &: \quad
+    \begin{cases}
+        \dist{\dataset{A}}
+        &=
+        N_{\dataset{A}}
+        e^{h(\anyevent)} (1 + \nparam(\anyevent)) \refdist,
+        \\
+        \dist{\dataset{B}}
+        &=
+        N_{\dataset{B}}
+        e^{h(\anyevent)+r} (1 - \nparam(\anyevent))\refdist,
+    \end{cases} \\
+    \hypothesis{1} &: \quad
+    \begin{cases}
+        \dist{\dataset{A}}
+        &=
+        N_{\dataset{A}}
+        e^{f(\anyevent)} (1 + \nparam(\anyevent))\refdist,
+        \\
+        \dist{\dataset{B}}
+        &=
+        N_{\dataset{B}}
+        e^{g(\anyevent)} (1 - \nparam(\anyevent))\refdist.
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+The discrepancy between the samples in the null hypothesis in now fully addressed by the effects of our system. Normalization is swallowed for we are now using the evident amounts of events.
+
+Just denoting for now, the information of our detection system would come from a control region.
+
+\end{document}

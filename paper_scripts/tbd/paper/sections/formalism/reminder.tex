@@ -1,0 +1,50 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Previous Work}
+
+In our original work~\cite{LastDDPPaper} we postualed the signal and null hypotheses as:
+
+\begin{equation}
+\begin{aligned}
+    \nullhypothesis &: \quad
+    \begin{cases}
+        \pdf_{\dataset{A}}(\eventsymbol)
+        &=
+        \frac{N_{\dataset{A}}}
+            {\int \refdist[\eventsymbol]\,d\eventsymbol}
+        e^{h(\eventsymbol)} \refdist[\eventsymbol],
+        \\
+        \pdf_{\dataset{B}}(\eventsymbol)
+        &=
+        \frac{N_{\dataset{B}}}
+            {\int \refdist[\eventsymbol]\,d\eventsymbol}
+        e^{h(\eventsymbol)+r} \refdist[\eventsymbol],
+    \end{cases} \\
+    \hypothesis{1} &: \quad
+    \begin{cases}
+        \pdf_{\dataset{A}}(\eventsymbol)
+        &=
+        \frac{N_{\dataset{A}}}
+            {\int \refdist[\eventsymbol]\,d\eventsymbol}
+        e^{f(\eventsymbol)} \refdist[\eventsymbol],
+        \\
+        \pdf_{\dataset{B}}(\eventsymbol)
+        &=
+        \frac{N_{\dataset{B}}}
+            {\int \refdist[\eventsymbol]\,d\eventsymbol}
+        e^{g(\eventsymbol)} \refdist[\eventsymbol].
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+$\hypothesis{1}$ and $\nullhypothesis$ being the signal and null hypotheses, accordingly. $\pdf$'s are probability distributions, that are assumed to be the underlying distributions of either of the samples - $\dataset{A}$ and $\dataset{B}$. All distributions reference a common probability distribution, $\refdist[\eventsymbol]$, that is taken to be the combined sample, and allows us to easily compare between them. $f$ and $g$ express shifts between the two distributions due to a signal, while $h$ and $r$ express a communal shift due to system effects and scale effects only. The rest are normalization factors.
+
+$f, g, h$ and $r$ are parameters of the hypotheses, hence this formulates a hypothesis space. Given two samples, neural networks are used to find the best fitting hypothesis parameters from within each space.
+
+\TODO{sketch?}
+
+\end{document}

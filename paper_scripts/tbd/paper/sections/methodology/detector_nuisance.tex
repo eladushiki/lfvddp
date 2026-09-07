@@ -1,0 +1,73 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\SB{Here I suggest the following subsections which should include plots that demonstrate the procedure:
+\begin{itemize}
+
+    \item Detector effects
+    \begin{itemize}
+        \item Implementation
+        \item modeling in the likelihood (binning) 
+    \end{itemize}
+
+\end{itemize}}
+
+\begin{document}
+
+\subsubsection{Nuisance Function Implementation}
+
+\TODO{update with final implementation decision}
+
+At this point, we still lack some concrete implementation for $\nparam$ and its degrees of freedom in order to run our program. While many detector functioning and uncertainty models exist, sophisticated and sophisticated even more, we chose a simplistic one to make our point. We split our efficiency to be a product of the detector efficiency in each observable dimension:
+
+\begin{equation}
+    \detector(\anyevent) = \prod\limits_{j=0}^k \detector^j(\anyevent^j)
+\end{equation},
+
+\noindent each of which being a piecewise constant function, separated to a constant number of segments with borders $b_i^j$ across any dimension.
+
+\begin{equation}
+    \detector^j(\anyevent^j) = 
+    \begin{cases}
+        \detector^{j0}, &x \in \left(-\infty, b_1^j\right) \\
+        \detector^{j1}, &x \in \left[b_1^j, b_2^j\right) \\
+        ... \\
+        \detector^{jn}, &x \in \left[b_{n-1}^j, \infty\right) \\
+    \end{cases}
+\end{equation}
+
+To give, together with Eq.~\ref{eq:nuisance_from_detector_efficiencies}:
+
+\begin{equation}
+    \nparam(\anyevent) = \prod\limits_{j=0}^{k} \dfrac{1}{2}(\detector^{jh}_\dataset{A} - \detector^{jh}_\dataset{B})
+\end{equation}
+
+\noindent for the binned $h$ value.
+
+Each of the $\detector^{ih}$ elements is set to be a single learnable value in our program, and is expected to be close to 0.
+
+That being said, any specific detector model can be run and tested in our method by cloning our repository and changing a single function.
+
+
+\subsection{Accounting for Detector Imperfections}
+
+\TODO{write about induced detector errors}
+
+We now add a slightly imperfect detector function, and a slight difference between its function on either of the sets. We allow nuisance parameters to be adjusted in the process such that they would be learned and compensate for the differences.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]{paper/sections/methodology/plots/detector_effect/clean_example/dataset_process_plot_3749356563362969805.png}
+    \caption{An example of a train result with a $\dfrac{1}{2}tanh + \dfrac{1}{2}$ detector efficiency for dataset $\dataset{A}$ (and perfect efficiency for $\dataset{B}$). Top: normalized distributions of the SR, CR, together with the maximized hypotheses' predictions. Bottom left: both hypotheses' predictions over the SR (as in Eq.~\ref{eq:sr_hypothesis_statement}). Bottom right: comparison of their predictions on the CR (see Eq.~\ref{eq:cr_hypothesis_statement}).}
+    \label{fig:detector_effect_with_nuisance_train}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]{paper/sections/methodology/plots/detector_effect/significance-plot/performance_plot_523146808810648944.png}
+    \caption{[PLACEHOLDER] Observed vs injected significances while simulating an imperfect detector, as in Figure~\ref{fig:detector_effect_with_nuisance_train}.}
+    \label{fig:detector_affected_significances}
+\end{figure}
+
+\end{document}

@@ -1,0 +1,125 @@
+ %   This file uses a template that is part of the APS files in the
+%   REVTeX 4.2 distribution.
+%   Version 4.2a of REVTeX, December 2014
+%
+%   Copyright (c) 2014 The American Physical Society.
+%
+%   See the REVTeX 4 README file for restrictions and more information.
+%
+% TeX'ing this file requires that you have AMS-LaTeX 2.0 installed
+% as well as the rest of the prerequisites for REVTeX 4.2
+%
+% See the REVTeX 4 README file
+% It also requires running BibTeX. The commands are as follows:
+%
+%  1)  latex apssamp.tex
+%  2)  bibtex apssamp
+%  3)  latex apssamp.tex
+%  4)  latex apssamp.tex
+
+\documentclass[%
+preprint, linenumbers,
+groupedaddress,
+amsmath,amssymb,
+aps, physrev,
+]{revtex4-2}
+
+\input{../common/preamble}
+
+\newcommand{\SB}[1]{\textbf{\textcolor{blue}{[SB: #1]}}}
+
+\begin{document}
+\preprint{WIS/EKTHESIS-01}
+
+% =============================================================================
+% Info
+% =============================================================================
+
+\title{TITLE WORK IN PROGRESS: A Lepton Flavor Violation Search by the Data Directed Paradigm}
+\date{\today}
+
+%% Authors
+\author{Elad Kliger}
+\email{elad.kliger@weizmann.ac.il}
+% \homepage{}
+% \altaffiliation{}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+
+\author{Shikma Bressler}
+\email{shikma.bressler@weizmann.ac.il}
+\affiliation{%
+  Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
+}
+\TODO{front page}
+
+\date{\today}
+
+% =============================================================================
+% Article headers
+% =============================================================================
+
+\begin{abstract}
+\TODO{Abstract}
+\end{abstract}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =============================================================================
+% Article body
+% =============================================================================
+
+\subfile{sections/introduction.tex}
+
+\section{Formalism}
+\SB{start from a short reminder of the formalism in the original work. With citations.
+define the pdf as the sum of all events and explain the null and signal hypotheses used
+and also the fitting mechanism using NN. You cal also add a sketch if it helps.} \\
+\SB{Once you remind what was done I would just describe the modifications to the signal and null hypotheses
+separately fro the addition of more variables (so no mention of CR) and separately for the addition
+of nuisance parameters with a generic explanation how they can be constrained in a model.
+than say that here we demonstrate it with CRs} \\
+\SB{Only then write the full null and signal hypotheses. And show what the likelihood function looks like
+after the algebra} \\
+
+\subfile{thesis/formalism/lepton_flavor_universality_and_violation}
+\subfile{paper/sections/formalism/learnable_distributions}
+\subfile{paper/sections/formalism/distribution_likelihood}
+\subfile{paper/sections/formalism/event_counting}
+\subfile{paper/sections/formalism/adding_nuisances}
+\subfile{paper/sections/formalism/hypothesis_testing}
+\subfile{paper/sections/formalism/loss_mechanics}
+\subfile{paper/sections/formalism/test_statistics}
+\subfile{paper/sections/formalism/significance_estimation}
+
+\section{Methodology}
+\subfile{paper/sections/methodology/implementation_details}
+\subfile{paper/sections/methodology/reproduction}
+\subfile{paper/sections/methodology/detector_nuisance}
+\subfile{paper/sections/methodology/multiple_dimensions}
+\subfile{paper/sections/methodology/simulated_data}
+
+\section{Conclusion}
+\subfile{paper/sections/conclusion}
+
+% =============================================================================
+% Acknowledgments, appendices, bibliography
+% =============================================================================
+
+\begin{acknowledgments}
+\TODO{acknowledge}
+\end{acknowledgments}
+
+\appendix
+\subfile{paper/sections/appendices/t_value_computation}
+
+% Print out all entries in the bibliography, even if they are not cited in the text.
+% Produce the bibliography via BibTeX.
+\nocite{*}
+\bibliographystyle{apsrev4-2}
+\bibliography{common/bibliography/bibliography}
+
+\end{document}

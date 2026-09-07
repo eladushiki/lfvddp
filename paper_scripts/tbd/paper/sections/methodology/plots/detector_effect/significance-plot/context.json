@@ -1,0 +1,165 @@
+{
+    "commit_hash": "deb2a069e6f29c328f504f15d623ad22da3164fd",
+    "config": {
+        "cluster__repo_url": "https://github.com/eladushiki/lfvddp.git",
+        "cluster__environment_activation_command": "export TF_USE_LEGACY_KERAS=True && source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc12-opt/setup.sh && export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH\"",
+        "cluster__singularity_executable": "singularity",
+        "cluster__qsub_queue": "N",
+        "cluster__qsub_n_jobs": 1000,
+        "cluster__qsub_walltime": "144:00:00",
+        "cluster__qsub_io": 1,
+        "cluster__qsub_mem": 2,
+        "cluster__qsub_ngpus_for_train": 0,
+        "cluster__qsub_ncpus": 1,
+        "cluster__qsub_walltime_limit": "72:00:00",
+        "dataset__definitions": [
+            {
+                "name": "A_SR",
+                "type": "generated",
+                "category": "a_sr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_function": "exponential_background",
+                "dataset__mean_number_of_background_events": 25000
+            },
+            {
+                "name": "B_SR",
+                "type": "generated",
+                "category": "b_sr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_function": "exponential_background",
+                "dataset__mean_number_of_background_events": 25000
+            },
+            {
+                "name": "A_CR",
+                "type": "generated",
+                "category": "a_cr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_function": "exponential_background",
+                "dataset__mean_number_of_background_events": 25000
+            },
+            {
+                "name": "B_CR",
+                "type": "generated",
+                "category": "b_cr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_function": "exponential_background",
+                "dataset__mean_number_of_background_events": 25000
+            }
+        ],
+        "detector__detect_observable_names": [
+            "param_0",
+            "param_1"
+        ],
+        "detector__binning_maxima": [
+            13,
+            13
+        ],
+        "detector__binning_minima": [
+            0,
+            0
+        ],
+        "detector__binning_number_of_bins": [
+            5,
+            5
+        ],
+        "train__epochs": 500000,
+        "train__number_of_epochs_for_checkpoint": 10000,
+        "train__nn_inner_layer_nodes": 4,
+        "train__nn_input_dimension": 2,
+        "train__nn_xavier_gain": 1,
+        "train__learning_rate": 0.03,
+        "train__enable_progress_bar": false,
+        "train__run_symmetric_in_parallel": false,
+        "train__data_is_train_for_nuisances": false,
+        "train__like_NPLM": false,
+        "train__nn_weight_clipping": false,
+        "train__nuisance_correction_types": "",
+        "train__shape_nuisance_std": 0,
+        "train__shape_nuisance_mean": 0,
+        "train__shape_nuisance_reference": 0,
+        "train__norm_nuisance_std": 0,
+        "train__norm_nuisance_mean": 0,
+        "train__norm_nuisance_reference": 0,
+        "config__user": "eladklig",
+        "config__runtag": "2d 1e5 events bkg",
+        "config__out_dir": "results",
+        "config__log_level": "INFO",
+        "config__bind_directories": {
+            ".": "/app",
+            "/cvmfs/": "/cvmfs/"
+        },
+        "plot__target_run_parent_directory": "",
+        "plot__pyplot_styling": {
+            "rcParams": {
+                "font.family": "serif",
+                "font.size": 24
+            },
+            "style.use": "classic"
+        },
+        "plot__figure_styling": {
+            "patch_set_facecolor": "white",
+            "plot": {
+                "histogram_color": "plum",
+                "edge_color": "darkorchid",
+                "chi2_color": "grey",
+                "linewidth": 5,
+                "alpha": 0.8
+            }
+        },
+        "plot__figure_size": [
+            10,
+            9
+        ],
+        "plot__plot_specifications": [
+            {
+                "name": "performance_plot",
+                "instructions": {
+                    "background_only_t_values_parent_directory": "results/highlights/2026-07/03-detector-effect/run_20260728_101559_1785222959.107719_detector_effect_background_run_of_submit_train.py_pid_738903",
+                    "signal_t_values_parent_directory": "results/highlights/2026-07/03-detector-effect/signals"
+                }
+            }
+        ],
+        "plot__prediction_process_number_of_bins": 30,
+        "plot__prediction_process_normalize_each_prediction": true
+    },
+    "config_paths": [
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/cluster_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/dataset_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/detector_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/train_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/eladklig.json",
+        "configs/plot/meta_plot_config.json"
+    ],
+    "command_line_args": [
+        "/storage/agrp/eladklig/SymmetrizedDDP/plot/create_plots.py",
+        "--configs",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/cluster_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/dataset_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/detector_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/train_config.json",
+        "configs/packs/plot-04-nd/2d-100k-events-bkg/eladklig.json",
+        "configs/plot/meta_plot_config.json",
+        "--debug"
+    ],
+    "run_hash": 523146808810648944,
+    "run_descriptor": "run_20260729_204614_1785347174.072914_2d_1e5_events_bkg_run_of_create_plots.py_pid_1330657",
+    "time": "run_20260729_204614_1785347174.072914",
+    "random_seed": 1759739974,
+    "is_debug_mode": true,
+    "is_no_build": false,
+    "is_only_train": false,
+    "is_continue": false,
+    "continue_from": null,
+    "array_index": null,
+    "qsub_submissions": [],
+    "qsub_walltime_chunk": null,
+    "run_successful": true,
+    "products": {
+        "products": [
+            {
+                "store_path": "results/run_20260729_204614_1785347174.072914_2d_1e5_events_bkg_run_of_create_plots.py_pid_1330657/performance_plot_523146808810648944.png"
+            }
+        ]
+    },
+    "is_reloaded": false
+}
