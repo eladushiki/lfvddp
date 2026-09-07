@@ -1,0 +1,93 @@
+Job started at: Sun Sep  6 11:20:52 AM IDT 2026
+Running on host: wn047
+Job ID: 4976261.pbs
+Current directory: /srv01/agrp/eladklig
+Requested CPUs: 8
+Effective CPUs passed to training: 8
+Scheduler-assigned GPU IDs: none
+PBS job ID: 4976261.pbs
+PBS array ID: unavailable
+Host-visible CPUs: 8
+Process affinity: pid 1058083's current affinity list: 16-23
+PBS node file: /var/spool/pbs/aux/4976261.pbs
+PBS allocated slots: 1
+PBS node file contents:
+wn047.hep.weizmann.ac.il
+PBS slots grouped by host:
+      1 wn047.hep.weizmann.ac.il
+CPU topology:
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           52 bits physical, 57 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  384
+On-line CPU(s) list:                     0-383
+Vendor ID:                               AuthenticAMD
+Model name:                              AMD EPYC 9654 96-Core Processor
+CPU family:                              25
+Model:                                   17
+Thread(s) per core:                      2
+Core(s) per socket:                      96
+Socket(s):                               2
+Stepping:                                1
+Frequency boost:                         enabled
+CPU(s) scaling MHz:                      76%
+CPU max MHz:                             3709.3569
+CPU min MHz:                             1500.0000
+BogoMIPS:                                4800.01
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd amd_ppin cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid overflow_recov succor smca fsrm flush_l1d debug_swap
+Virtualization:                          AMD-V
+L1d cache:                               6 MiB (192 instances)
+L1i cache:                               6 MiB (192 instances)
+L2 cache:                                192 MiB (192 instances)
+L3 cache:                                768 MiB (24 instances)
+NUMA node(s):                            2
+NUMA node0 CPU(s):                       0-95,192-287
+NUMA node1 CPU(s):                       96-191,288-383
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Indirect target selection: Not affected
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Not affected
+Vulnerability Old microcode:             Not affected
+Vulnerability Reg file data sampling:    Not affected
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Mitigation; Safe RET
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; STIBP always-on; PBRSB-eIBRS Not affected; BHI Not affected
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Vulnerable: No microcode
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Mitigation; IBPB before exit to userspace
+Host GPU diagnostics (not used for allocation):
+No host CUDA devices reported
+/sys/fs/cgroup/cpuset/cpuset.cpus: 0-383 
+/sys/fs/cgroup/cpu/cpu.cfs_quota_us: -1 
+/sys/fs/cgroup/cpu/cpu.cfs_period_us: 100000 
+INFO:    Starting build...
+INFO:    Verifying bootstrap image /storage/agrp/eladklig/SymmetrizedDDP/lfvddp.sif
+WARNING: integrity: signature not found for object group 1
+WARNING: Bootstrap image could not be verified, but build will continue.
+INFO:    Creating sandbox directory...
+INFO:    Build complete: /tmp/eladklig/singularity-node-cache/.lfvddp.sif.144115379571023627.835944448.1787224373.build.wd9GnG/sandbox
+Singularity executable: singularity
+singularity version 3.8.5-2.el7
+Container SIF path: /storage/agrp/eladklig/SymmetrizedDDP/lfvddp.sif
+Sandbox cache root: /tmp/eladklig/singularity-node-cache
+WARNING:root:Training epochs not sufficient, train may not converge
+A_numerator training:   0%|          | 0/2000 [00:00<?, ?it/s]A_numerator training:   3%|▎         | 64/2000 [00:00<00:03, 632.93it/s]A_numerator training:   7%|▋         | 136/2000 [00:00<00:02, 679.68it/s]A_numerator training:  10%|█         | 208/2000 [00:00<00:02, 697.55it/s]A_numerator training:  14%|█▍        | 280/2000 [00:00<00:02, 706.15it/s]A_numerator training:  18%|█▊        | 351/2000 [00:00<00:02, 706.58it/s]A_numerator training:  21%|██        | 422/2000 [00:00<00:02, 707.59it/s]A_numerator training:  25%|██▍       | 495/2000 [00:00<00:02, 711.88it/s]A_numerator training:  28%|██▊       | 568/2000 [00:00<00:02, 714.56it/s]A_numerator training:  32%|███▏      | 641/2000 [00:00<00:01, 716.46it/s]A_numerator training:  36%|███▌      | 713/2000 [00:01<00:01, 717.38it/s]A_numerator training:  39%|███▉      | 785/2000 [00:01<00:01, 717.76it/s]A_numerator training:  43%|████▎     | 858/2000 [00:01<00:01, 719.17it/s]A_numerator training:  46%|████▋     | 930/2000 [00:01<00:01, 718.59it/s]A_numerator training:  50%|█████     | 1002/2000 [00:01<00:01, 709.96it/s]A_numerator training:  54%|█████▎    | 1074/2000 [00:01<00:01, 712.94it/s]A_numerator training:  57%|█████▋    | 1147/2000 [00:01<00:01, 716.29it/s]A_numerator training:  61%|██████    | 1220/2000 [00:01<00:01, 718.74it/s]A_numerator training:  65%|██████▍   | 1293/2000 [00:01<00:00, 720.18it/s]A_numerator training:  68%|██████▊   | 1366/2000 [00:01<00:00, 722.86it/s]A_numerator training:  72%|███████▏  | 1439/2000 [00:02<00:00, 716.54it/s]A_numerator training:  76%|███████▌  | 1511/2000 [00:02<00:00, 717.31it/s]A_numerator training:  79%|███████▉  | 1583/2000 [00:02<00:00, 716.73it/s]A_numerator training:  83%|████████▎ | 1655/2000 [00:02<00:00, 717.64it/s]A_numerator training:  86%|████████▋ | 1728/2000 [00:02<00:00, 721.16it/s]A_numerator training:  90%|█████████ | 1801/2000 [00:02<00:00, 722.93it/s]A_numerator training:  94%|█████████▎| 1874/2000 [00:02<00:00, 724.78it/s]A_numerator training:  97%|█████████▋| 1947/2000 [00:02<00:00, 726.08it/s]A_numerator training: 100%|██████████| 2000/2000 [00:02<00:00, 715.13it/s]
+/app/.venv/bin/python
+TensorBoard: 2.20.0 /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/lib/python3.13/site-packages/tensorboard/__init__.py
+PyTorch: 2.11.0
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1788682866.743851 1060271 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+I0000 00:00:1788682866.886968 1060271 cpu_feature_guard.cc:227] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI AVX512_BF16 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1788682871.276245 1060271 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+Job finished at: Sun Sep  6 11:21:13 AM IDT 2026
+Job elapsed seconds: 21
+Job exit status: 0

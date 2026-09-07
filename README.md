@@ -92,8 +92,9 @@ Important configuration choices include:
   samples. See the two basic packs for generated and loaded examples.
 - `train__epochs`, checkpoint frequency, network width, and learning-rate
   settings control optimization.
-- The default nuisance model is binned and requires bin minima, maxima, and
-  counts. For a neural nuisance model, set
+- When `train__data_is_train_for_nuisances` is `false`, nuisance parameters may
+  be omitted. Otherwise, the default nuisance model is binned and requires bin
+  minima, maxima, and counts. For a neural nuisance model, set
   `train__nuisance_is_neural_network` to `true`, remove the bin settings, and
   provide `train__nuisance_nn_inner_layer_nodes`.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
@@ -193,6 +194,22 @@ submissions, use:
 python plot/create_plots.py <multi-run-directory> --multi-run-plots
 ```
 
+When a signal group uses a background submission outside its directory tree,
+provide that saved submission explicitly:
+
+```bash
+python plot/create_plots.py <signal-directory> \
+  --multi-run-plots \
+  --background-directory <background-submission-directory>
+```
+
+Multi-run discovery can be disrupted by a stale timestamped directory from a
+submission that was empty, failed before or after `qsub`, or completed no more
+than 90% of its expected array jobs. Retain such directories while diagnosing
+the failure. Once the underlying issue is fixed, remove a residue only with the
+owner's explicit permission, then rerun the aggregate plot so the completed
+submission is selected.
+
 ## Outputs and reproducibility
 
 Runs are written below `config__out_dir` in a unique directory containing
@@ -235,5 +252,10 @@ python -m pytest
   endpoint. The environment already includes the XRootD backend for `fsspec`.
 - If cluster submission cannot reach PBS or CVMFS, reconnect through the WIS
   network or VPN and confirm access on the cluster login node.
+- Parallel LFVNN training reserves one requested CPU for the parent Python
+  coordinator. The remaining CPU capacity is divided between the spawned Torch
+  training processes, except at the two-thread minimum where each branch must
+  receive one Torch thread. A one-CPU allocation uses no child processes or
+  coordinator and runs the epoch loops sequentially in the parent process.
 - If a non-debug run reports a dirty working tree, commit the intended code and
   configuration changes or use `--debug` only for exploratory work.

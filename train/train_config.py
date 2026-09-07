@@ -43,14 +43,23 @@ class TrainConfig:
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
 
     def _validate_nuisance_configuration(self) -> None:
-        has_binning = any(
-            parameter is not None
-            for parameter in (
-                self.train__nuisance_binning_minima,
-                self.train__nuisance_binning_maxima,
-                self.train__nuisance_binning_number_of_bins,
-            )
+        binning_parameters = (
+            self.train__nuisance_binning_minima,
+            self.train__nuisance_binning_maxima,
+            self.train__nuisance_binning_number_of_bins,
         )
+        has_binning = any(parameter is not None for parameter in binning_parameters)
+        has_complete_binning = all(
+            parameter is not None for parameter in binning_parameters
+        )
+        if not self.train__data_is_train_for_nuisances:
+            if has_binning and not has_complete_binning:
+                raise ValueError(
+                    "Nuisance binning configuration must define minima, maxima, "
+                    "and number of bins together."
+                )
+            return
+
         if self.train__nuisance_is_neural_network:
             if has_binning:
                 raise ValueError(
@@ -65,21 +74,17 @@ class TrainConfig:
                 raise ValueError(
                     "Binned nuisance configuration must not define train__nuisance_nn_inner_layer_nodes."
                 )
-            if not all(
-                parameter is not None
-                for parameter in (
-                    self.train__nuisance_binning_minima,
-                    self.train__nuisance_binning_maxima,
-                    self.train__nuisance_binning_number_of_bins,
-                )
-            ):
+            if not has_complete_binning:
                 raise ValueError(
                     "Binned nuisance configuration requires minima, maxima, and number of bins."
                 )
 
     def configure_nuisance_binning(self, number_of_dimensions: int) -> None:
         """Normalize scalar binning parameters after detector dimensions are known."""
-        if self.train__nuisance_is_neural_network:
+        if (
+            self.train__nuisance_is_neural_network
+            or self.train__nuisance_binning_minima is None
+        ):
             return
 
         for parameter_name in (
@@ -114,7 +119,10 @@ class TrainConfig:
 
     @property
     def train__number_of_nuisance_parameters(self) -> int:
-        if self.train__nuisance_is_neural_network:
+        if (
+            not self.train__data_is_train_for_nuisances
+            or self.train__nuisance_is_neural_network
+        ):
             return 0
         return sum(self.train__nuisance_binning_number_of_bins)
     

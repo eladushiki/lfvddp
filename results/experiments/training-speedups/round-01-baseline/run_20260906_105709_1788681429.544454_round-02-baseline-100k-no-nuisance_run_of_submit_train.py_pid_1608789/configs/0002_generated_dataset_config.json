@@ -1,0 +1,52 @@
+{
+    "dataset__definitions": [
+        {
+            "name": "A",
+            "type": "generated",
+            "category": "a_sr",
+            "dataset_generated__number_of_dimensions": 2,
+            "dataset_generated__background_generator": {
+                "function": "exponential_background"
+            },
+            "dataset__mean_number_of_background_events": 24938,
+            "dataset__signal_generator": {
+                "function": "gaussian_signal",
+                "arguments": {
+                    "location": 6.4,
+                    "gaussian_signal_sigma": 0.16
+                }
+            },
+            "dataset__mean_number_of_signal_events": 249
+        },
+        {
+            "name": "B",
+            "type": "generated",
+            "category": "b_sr",
+            "dataset_generated__number_of_dimensions": 2,
+            "dataset_generated__background_generator": {
+                "function": "exponential_background"
+            },
+            "dataset__mean_number_of_background_events": 24938
+        },
+        {
+            "name": "A",
+            "type": "generated",
+            "category": "a_cr",
+            "dataset_generated__number_of_dimensions": 2,
+            "dataset_generated__background_generator": {
+                "function": "exponential_background"
+            },
+            "dataset__mean_number_of_background_events": 24938
+        },
+        {
+            "name": "B",
+            "type": "generated",
+            "category": "b_cr",
+            "dataset_generated__number_of_dimensions": 2,
+            "dataset_generated__background_generator": {
+                "function": "exponential_background"
+            },
+            "dataset__mean_number_of_background_events": 24938
+        }
+    ]
+}

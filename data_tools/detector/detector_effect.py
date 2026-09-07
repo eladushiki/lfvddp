@@ -34,11 +34,18 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         self.__dataset_parameters_for_detection = None
 
         # Detector binning is needed only by the scalar nuisance estimator.
-        self._observable_names = self._config.detector__detect_observable_names
+        # Snapshot names because later config composition may mutate its list.
+        # Binning maps must remain keyed by the names used at construction.
+        self._observable_names = list(
+            self._config.detector__detect_observable_names
+        )
         self._numbers_of_bins = self._config.train__nuisance_binning_number_of_bins
         self._dimensional_bin_centers = {}
         self._dimensional_bin_edges = {}
-        if not self._config.train__nuisance_is_neural_network:
+        if (
+            not self._config.train__nuisance_is_neural_network
+            and self._numbers_of_bins is not None
+        ):
             for obs in self._observable_names:
                 self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
                     self._config.observable_bins(obs)
@@ -104,6 +111,16 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         return self._efficiency_uncertainty(self._true_efficiency)
 
     # Exported functions - uses DataSet
+    @property
+    def observable_names(self) -> tuple[str, ...]:
+        """Names of the observables detected by this effect."""
+        return tuple(self._observable_names)
+
+    @property
+    def binned_observable_names(self) -> tuple[str, ...]:
+        """Names for which detector nuisance bins were configured."""
+        return tuple(self._dimensional_bin_edges)
+
     def get_observable_bins(
         self,
         observable_name: str,
