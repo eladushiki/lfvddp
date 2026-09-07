@@ -1,0 +1,48 @@
+{
+    "requested": {
+        "CPUs": 8,
+        "GPUs": 0,
+        "memory GiB": 2
+    },
+    "observed": {
+        "cpu_count": 8,
+        "cpu_affinity": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+        ],
+        "assigned_gpu_ids": [],
+        "visible_gpu_count": 0,
+        "gpu_names": [],
+        "gpu_total_memory_bytes": [],
+        "requested_cpus": 8,
+        "requested_gpus": 0,
+        "usable_gpu_count": 0
+    },
+    "assignments": {},
+    "unused resources": [],
+    "timing seconds": {
+        "data generation": 0.005617222283035517,
+        "detector simulation": 0.00014044204726815224,
+        "total": 0.005863799247890711
+    },
+    "peaks": {
+        "maximum resident set size": 392596,
+        "maximum resident set size units": "KiB",
+        "CUDA": {}
+    },
+    "environment": {
+        "LFVDDP_ALLOCATED_CPUS": "8",
+        "LFVDDP_ALLOCATED_GPU_IDS": "",
+        "CUDA_VISIBLE_DEVICES": "unset",
+        "PBS_JOBID": "4931655.pbs",
+        "PBS_ARRAY_INDEX": "",
+        "PBS_NCPUS": "",
+        "PBS_GPUFILE": ""
+    }
+}

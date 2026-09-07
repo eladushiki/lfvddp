@@ -1,0 +1,72 @@
+{
+    "requested": {
+        "CPUs": 8,
+        "GPUs": 0,
+        "memory GiB": 2
+    },
+    "observed": {
+        "cpu_count": 8,
+        "cpu_affinity": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+        ],
+        "assigned_gpu_ids": [],
+        "visible_gpu_count": 0,
+        "gpu_names": [],
+        "gpu_total_memory_bytes": [],
+        "requested_cpus": 8,
+        "requested_gpus": 0,
+        "usable_gpu_count": 0
+    },
+    "assignments": {
+        "A_numerator": {
+            "device": "cpu",
+            "CPU threads": 7,
+            "elapsed seconds": 249.23401769902557,
+            "epochs": 2000,
+            "epochs per second": 8.024586765740764,
+            "static": false,
+            "peak resident set size": 494200,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        },
+        "A_denominator": {
+            "device": "cpu",
+            "CPU threads": 1,
+            "elapsed seconds": 9.195318378973752,
+            "epochs": 2000,
+            "epochs per second": 217.50198498545203,
+            "static": false,
+            "peak resident set size": 490920,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        }
+    },
+    "unused resources": [],
+    "timing seconds": {
+        "data generation": 0.0057519301772117615,
+        "detector simulation": 0.007808777038007975,
+        "training": 258.38047574972734,
+        "total": 258.3953123460524
+    },
+    "peaks": {
+        "maximum resident set size": 937380,
+        "maximum resident set size units": "KiB",
+        "CUDA": {}
+    },
+    "environment": {
+        "LFVDDP_ALLOCATED_CPUS": "8",
+        "LFVDDP_ALLOCATED_GPU_IDS": "",
+        "CUDA_VISIBLE_DEVICES": "unset",
+        "PBS_JOBID": "4933685.pbs",
+        "PBS_ARRAY_INDEX": "",
+        "PBS_NCPUS": "",
+        "PBS_GPUFILE": ""
+    }
+}

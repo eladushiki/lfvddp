@@ -1,0 +1,72 @@
+{
+    "requested": {
+        "CPUs": 8,
+        "GPUs": 0,
+        "memory GiB": 2
+    },
+    "observed": {
+        "cpu_count": 8,
+        "cpu_affinity": [
+            107,
+            109,
+            110,
+            111,
+            118,
+            119,
+            121,
+            122
+        ],
+        "assigned_gpu_ids": [],
+        "visible_gpu_count": 0,
+        "gpu_names": [],
+        "gpu_total_memory_bytes": [],
+        "requested_cpus": 8,
+        "requested_gpus": 0,
+        "usable_gpu_count": 0
+    },
+    "assignments": {
+        "A_numerator": {
+            "device": "cpu",
+            "CPU threads": 7,
+            "elapsed seconds": 292.54033625498414,
+            "epochs": 2000,
+            "epochs per second": 6.836664049831265,
+            "static": false,
+            "peak resident set size": 482200,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        },
+        "A_denominator": {
+            "device": "cpu",
+            "CPU threads": 1,
+            "elapsed seconds": 5.2940153339877725,
+            "epochs": 2000,
+            "epochs per second": 377.78507877752577,
+            "static": false,
+            "peak resident set size": 479708,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        }
+    },
+    "unused resources": [],
+    "timing seconds": {
+        "data generation": 0.003993624355643988,
+        "detector simulation": 0.005290226079523563,
+        "training": 300.5986537579447,
+        "total": 300.60969551233575
+    },
+    "peaks": {
+        "maximum resident set size": 923396,
+        "maximum resident set size units": "KiB",
+        "CUDA": {}
+    },
+    "environment": {
+        "LFVDDP_ALLOCATED_CPUS": "8",
+        "LFVDDP_ALLOCATED_GPU_IDS": "",
+        "CUDA_VISIBLE_DEVICES": "unset",
+        "PBS_JOBID": "4932270.pbs",
+        "PBS_ARRAY_INDEX": "",
+        "PBS_NCPUS": "",
+        "PBS_GPUFILE": ""
+    }
+}

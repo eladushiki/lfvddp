@@ -1,0 +1,72 @@
+{
+    "requested": {
+        "CPUs": 8,
+        "GPUs": 0,
+        "memory GiB": 2
+    },
+    "observed": {
+        "cpu_count": 8,
+        "cpu_affinity": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+        ],
+        "assigned_gpu_ids": [],
+        "visible_gpu_count": 0,
+        "gpu_names": [],
+        "gpu_total_memory_bytes": [],
+        "requested_cpus": 8,
+        "requested_gpus": 0,
+        "usable_gpu_count": 0
+    },
+    "assignments": {
+        "A_numerator": {
+            "device": "cpu",
+            "CPU threads": 7,
+            "elapsed seconds": 258.6067243916914,
+            "epochs": 2000,
+            "epochs per second": 7.733750948296133,
+            "static": false,
+            "peak resident set size": 495764,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        },
+        "A_denominator": {
+            "device": "cpu",
+            "CPU threads": 1,
+            "elapsed seconds": 7.645853619091213,
+            "epochs": 2000,
+            "epochs per second": 261.5796874538804,
+            "static": false,
+            "peak resident set size": 489232,
+            "peak CUDA allocated bytes": null,
+            "peak CUDA reserved bytes": null
+        }
+    },
+    "unused resources": [],
+    "timing seconds": {
+        "data generation": 0.005743646062910557,
+        "detector simulation": 0.00915003102272749,
+        "training": 275.95748788909987,
+        "total": 275.9742074692622
+    },
+    "peaks": {
+        "maximum resident set size": 937108,
+        "maximum resident set size units": "KiB",
+        "CUDA": {}
+    },
+    "environment": {
+        "LFVDDP_ALLOCATED_CPUS": "8",
+        "LFVDDP_ALLOCATED_GPU_IDS": "",
+        "CUDA_VISIBLE_DEVICES": "unset",
+        "PBS_JOBID": "4931808.pbs",
+        "PBS_ARRAY_INDEX": "",
+        "PBS_NCPUS": "",
+        "PBS_GPUFILE": ""
+    }
+}

@@ -1,0 +1,206 @@
+{
+    "commit_hash": "fbb85f2af7f96c4264538f9b254ea68a6fde9038",
+    "config": {
+        "cluster__repo_url": "https://github.com/eladushiki/lfvddp.git",
+        "cluster__environment_activation_command": "export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH\"; export SINGULARITY_BINDPATH=\"/storage/agrp/eladklig/SymmetrizedDDP/.venv:/app/.venv${SINGULARITY_BINDPATH:+:$SINGULARITY_BINDPATH}\"",
+        "cluster__singularity_executable": "singularity",
+        "cluster__qsub_queue": "N",
+        "cluster__qsub_n_jobs": 1,
+        "cluster__qsub_walltime": "12:00:00",
+        "cluster__qsub_io": 0.1,
+        "cluster__qsub_mem": 2,
+        "cluster__qsub_ngpus_for_train": 0,
+        "cluster__qsub_ncpus": 8,
+        "cluster__uv_cache_dir": null,
+        "cluster__qsub_walltime_limit": "72:00:00",
+        "dataset__definitions": [
+            {
+                "name": "A",
+                "type": "generated",
+                "category": "a_sr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 10000,
+                "dataset__signal_generator": {
+                    "function": "gaussian_signal",
+                    "arguments": {
+                        "location": 6.4,
+                        "gaussian_signal_sigma": 0.16
+                    }
+                },
+                "dataset__mean_number_of_signal_events": 100
+            },
+            {
+                "name": "B",
+                "type": "generated",
+                "category": "b_sr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 10000
+            },
+            {
+                "name": "A",
+                "type": "generated",
+                "category": "a_cr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 10000
+            },
+            {
+                "name": "B",
+                "type": "generated",
+                "category": "b_cr",
+                "dataset_generated__number_of_dimensions": 2,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 10000
+            }
+        ],
+        "detector__detect_observable_names": [
+            "param_0",
+            "param_1"
+        ],
+        "detector__effect_a_efficiency": "detector_efficiency_tanh",
+        "detector__effect_a_efficiency_uncertainty": "detector_uncertainty_no_uncertainty",
+        "detector__effect_a_error": "",
+        "detector__effect_b_efficiency": "",
+        "detector__effect_b_efficiency_uncertainty": "",
+        "detector__effect_b_error": "",
+        "train__epochs": 2000,
+        "train__number_of_epochs_for_checkpoint": 2000,
+        "train__nn_inner_layer_nodes": 4,
+        "train__nn_input_dimension": 2,
+        "train__nn_xavier_gain": 1,
+        "train__learning_rate": 0.03,
+        "train__final_learning_rate": 0.001,
+        "train__enable_progress_bar": true,
+        "train__profiling_enabled": false,
+        "train__profiling_warmup_epochs": 5,
+        "train__profiling_active_epochs": 10,
+        "train__data_is_train_for_nuisances": true,
+        "train__nuisance_is_neural_network": false,
+        "train__nuisance_nn_inner_layer_nodes": null,
+        "train__nuisance_binning_minima": [
+            0,
+            0
+        ],
+        "train__nuisance_binning_maxima": [
+            5,
+            2.45
+        ],
+        "train__nuisance_binning_number_of_bins": [
+            10,
+            10
+        ],
+        "train__like_NPLM": false,
+        "train__nn_weight_clipping": false,
+        "train__nuisance_correction_types": "",
+        "train__shape_nuisance_std": 0,
+        "train__shape_nuisance_mean": 0,
+        "train__shape_nuisance_reference": 0,
+        "train__norm_nuisance_std": 0,
+        "train__norm_nuisance_mean": 0,
+        "train__norm_nuisance_reference": 0,
+        "config__user": "basic",
+        "config__runtag": "round-01-checkpoint-sparse",
+        "config__out_dir": "results/experiments/training-speedups/round-01-checkpoint-sparse",
+        "config__bind_directories": {
+            ".": "/app",
+            "/cvmfs/": "/cvmfs/"
+        },
+        "config__log_level": "INFO",
+        "plot__plot_specifications": [
+            {
+                "name": "t_distribution_plot",
+                "instructions": {}
+            },
+            {
+                "name": "t_train_percentile_progression_plot",
+                "instructions": {}
+            },
+            {
+                "name": "performance_plot",
+                "instructions": {}
+            }
+        ],
+        "plot__pyplot_styling": {
+            "rcParams": {
+                "font.family": "serif",
+                "font.size": 24
+            },
+            "style.use": "classic"
+        },
+        "plot__figure_styling": {
+            "patch_set_facecolor": "white",
+            "plot": {
+                "histogram_color": "plum",
+                "edge_color": "darkorchid",
+                "chi2_color": "grey",
+                "linewidth": 5,
+                "alpha": 0.8
+            }
+        },
+        "plot__figure_size": [
+            10,
+            9
+        ],
+        "plot__prediction_process_number_of_bins": 30,
+        "plot__prediction_process_normalize_each_prediction": true,
+        "plot__run_stamp_row_height": 0.12,
+        "plot__run_stamp_y": 0.02,
+        "plot__run_stamp_font_size": 10,
+        "plot__standard_left_border": 0.125,
+        "plot__standard_right_border": 0.9,
+        "plot__standard_top_border": 0.88
+    },
+    "config_paths": [
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse/cluster_config.json",
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse/detector_config.json",
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse/generated_dataset_config.json",
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse/plot_config.json",
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse/train_config.json",
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse/user_config.json"
+    ],
+    "command_line_args": [
+        "train/submit_train.py",
+        "--configs",
+        "configs/experiments/training-speedups/round-01-checkpoint-sparse",
+        "--only-train"
+    ],
+    "run_hash": -365401025837869178,
+    "run_descriptor": "run_20260831_231005_1788207005.813779_round-01-checkpoint-sparse_run_of_submit_train.py_pid_774762",
+    "time": "run_20260831_231005_1788207005.813779",
+    "random_seed": 1810862813,
+    "is_debug_mode": false,
+    "is_build_container": false,
+    "is_only_train": true,
+    "is_continue": false,
+    "continue_from": null,
+    "array_index": null,
+    "qsub_submissions": [
+        {
+            "chunk_index": 1,
+            "walltime": "12:00:00",
+            "job_id": "4932271",
+            "submitted_at": "20260831_231005",
+            "submit_run_dir": "results/experiments/training-speedups/round-01-checkpoint-sparse/run_20260831_231005_1788207005.813779_round-01-checkpoint-sparse_run_of_submit_train.py_pid_774762"
+        }
+    ],
+    "qsub_walltime_chunk": null,
+    "run_successful": true,
+    "products": {
+        "products": [
+            {
+                "store_path": "results/experiments/training-speedups/round-01-checkpoint-sparse/run_20260831_231005_1788207005.813779_round-01-checkpoint-sparse_run_of_submit_train.py_pid_774762/round-01-checkpoint-sparse_exec_train_-365401025837869178.sh"
+            }
+        ]
+    },
+    "is_reloaded": false
+}
