@@ -13,6 +13,7 @@ Implementations should be shared between nuisance and signal (f), and either
 should be able to choose from the implemented options.
 Implementation should be by the open-closed principal, expecting future
 implementations of more adaptive functions while their infrastructure remains.
+An adequate variant of each mode should be derived from the current run dimension.
 
 Support these top-level modes:
 
@@ -23,7 +24,7 @@ Support these top-level modes:
 3. `bin_indicators`: one trainable coefficient per configured detector bin,
   sharing bin setup and lookup machinery with the existing binwise nuisance
   implementation where appropriate.
-7. `fixed_sigmoid`: Existing nn sigmoid features with configured, non-trainable
+4. `fixed_sigmoid`: Existing nn sigmoid features with configured, non-trainable
    centers and widths; centers spread evenly across the range, configurable
    widths with some reasonable range dependent default. Such that only their
    linear output coefficients are fitted. Configurable number of neurons.
