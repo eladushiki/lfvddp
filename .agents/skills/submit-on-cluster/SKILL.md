@@ -53,11 +53,16 @@ For the first `requested` entry:
    the timestamped directory, and the observed remote commit.
 7. Continue until no `requested` entries remain.
 
-If submission or verification fails, keep the entry in place, set it `blocked`
-with `blocked_reason` and `last_error`, and stop FIFO processing so later
-requests cannot overtake it. If a quota rejection created a pre-`qsub`
-directory, apply the narrowly authorized cleanup rule in
-`generate-plots-on-cluster`; do not treat the directory as an attempt.
+If PBS rejects a whole array because of its current queue-state quota, keep the
+entry `requested`, record `last_error`, and defer it only for this routine run.
+Do not infer or store a capacity limit. Apply the narrowly authorized pre-`qsub`
+cleanup rule in `generate-plots-on-cluster`, then continue scanning later saved
+requests for arrays PBS will accept. Do not retry the same deferred entry again
+during that run.
+
+For other submission or verification failures, keep the entry in place, set it
+`blocked` with `blocked_reason` and `last_error`, and stop processing so later
+requests cannot overtake it.
 
 ## Summary
 
