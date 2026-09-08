@@ -1,21 +1,4 @@
- %   This file uses a template that is part of the APS files in the
-%   REVTeX 4.2 distribution.
-%   Version 4.2a of REVTeX, December 2014
-%
-%   Copyright (c) 2014 The American Physical Society.
-%
-%   See the REVTeX 4 README file for restrictions and more information.
-%
-% TeX'ing this file requires that you have AMS-LaTeX 2.0 installed
-% as well as the rest of the prerequisites for REVTeX 4.2
-%
-% See the REVTeX 4 README file
-% It also requires running BibTeX. The commands are as follows:
-%
-%  1)  latex apssamp.tex
-%  2)  bibtex apssamp
-%  3)  latex apssamp.tex
-%  4)  latex apssamp.tex
+% Instructions are taken from WIS website @ https://www.weizmann.ac.il/wsos/academics/msc-thesis
 
 \documentclass[%
 preprint, linenumbers,
@@ -24,9 +7,11 @@ amsmath,amssymb,
 aps, physrev,
 ]{revtex4-2}
 
+\def\thesis{}
 \input{../common/preamble}
 
 \newcommand{\SB}[1]{\textbf{\textcolor{blue}{[SB: #1]}}}
+\newcommand{\EK}[1]{\textbf{\textcolor{red}{[EK: #1]}}}
 
 \begin{document}
 \preprint{WIS/EKTHESIS-01}
@@ -52,7 +37,6 @@ aps, physrev,
 \affiliation{%
   Department of Particle Physics and Astrophysics, Weizmann Institute of Science, Rehovot, Israel
 }
-\TODO{front page}
 
 \date{\today}
 
@@ -60,19 +44,38 @@ aps, physrev,
 % Article headers
 % =============================================================================
 
+\includefullpage[1]{common/elad-thesis-title-page.pdf}
+
+% Abstract
+% The abstract will briefly summarize the background, results and conclusions of the thesis (up to one page).
+% Theses that are written in Hebrew (in Science Teaching), must include an abstract in English as well.
 \begin{abstract}
 \TODO{Abstract}
 \end{abstract}
 
-\maketitle
 \tableofcontents
 \newpage
+
+% Introduction
+% The Introduction chapter should review and summarize the current state of knowledge in your field in terms of scientific literature, raise questions, and note mistakes or possible gaps in this knowledge.
+    
+    % \subfile{sections/introduction.tex}
+\TODO{introduction}
+
+% Goals
+% You must present a clear outline of the hypothesis behind your study, as well as a clear and concise statement as to the goals of this project. The scientific importance of the study should also be explained in brief.
+
+    % \subfile{sections/goals.tex}
+\TODO{GOALS}
 
 % =============================================================================
 % Article body
 % =============================================================================
 
-\subfile{sections/introduction.tex}
+% Methods
+% This chapter must include a description of the materials and methods used in your study. The information should be written so that a competent researcher can replicate your results based on your protocols. You may describe protocols in detail, or refer to a detailed reference in the literature (while nonetheless providing a brief overview of the protocol).
+
+\subfile{formalism/introduction.tex}
 
 \section{Formalism}
 \SB{start from a short reminder of the formalism in the original work. With citations.
@@ -85,41 +88,65 @@ than say that here we demonstrate it with CRs} \\
 \SB{Only then write the full null and signal hypotheses. And show what the likelihood function looks like
 after the algebra} \\
 
-\subfile{thesis/formalism/lepton_flavor_universality_and_violation}
-\subfile{paper/sections/formalism/learnable_distributions}
-\subfile{paper/sections/formalism/distribution_likelihood}
-\subfile{paper/sections/formalism/event_counting}
-\subfile{paper/sections/formalism/adding_nuisances}
-\subfile{paper/sections/formalism/hypothesis_testing}
-\subfile{paper/sections/formalism/loss_mechanics}
-\subfile{paper/sections/formalism/test_statistics}
-\subfile{paper/sections/formalism/significance_estimation}
+\subfile{formalism/lepton_flavor_universality_and_violation}
+
+\subsection{Adding Dimensions}
+\subfile{../paper/sections/formalism/multiple_dimension_distributions}
+\subsection{Adding Nuisance Parameters}
+\subfile{../paper/sections/formalism/detector_affected_distributions}
+\subfile{../paper/sections/formalism/measuring_our_system}
+\subfile{../paper/sections/formalism/full_hypotheses}
+\subsection{Estimating Hypotheses}
+\subfile{../paper/sections/formalism/distribution_likelihood}
+\subfile{../paper/sections/formalism/hypothesis_log_likelihood_ratio}
+\subfile{../paper/sections/formalism/loss_mechanics}
+\subsection{Test Statistic Behavior}
+\subfile{../paper/sections/formalism/test_statistic_distribution}
+\subfile{../paper/sections/formalism/significance_estimation}
 
 \section{Methodology}
-\subfile{paper/sections/methodology/implementation_details}
-\subfile{paper/sections/methodology/reproduction}
-\subfile{paper/sections/methodology/detector_nuisance}
-\subfile{paper/sections/methodology/multiple_dimensions}
-\subfile{paper/sections/methodology/simulated_data}
+\subsection{Implementation Choices}
+\subfile{../paper/sections/methodology/neural_network_compute}
+\subsection{Performance}
+\subfile{../paper/sections/methodology/datasets_and_signals}
+\subfile{../paper/sections/methodology/detector_nuisance}
+\subfile{../paper/sections/methodology/reproduction}
+\subfile{../paper/sections/methodology/multiple_dimensions}
+\subfile{../paper/sections/methodology/simulated_data}
+
+% Results
+% This chapter must include a full description of the results obtained in your thesis work including results that you have already published in scientific papers. (The papers themselves, however, must not be included.) Whenever possible, the results should be presented in the form of figures, graphs or tables with appropriate statistical analysis, where relevant
+
+    % \subfile{sections/results.tex}
+\TODO{results}
+
+% Discussion
+% The Discussion section should provide a wide view of the subject matter of your thesis, its conclusions, implications, and potential future developments. The results obtained will be compared with the original hypothesis, and with results and conclusions of other investigators that appear in the scientific literature.
+
+    % \subfile{sections/discussion.tex}
+\TODO{discussion}
 
 \section{Conclusion}
-\subfile{paper/sections/conclusion}
+\subfile{../paper/sections/conclusion}
 
 % =============================================================================
 % Acknowledgments, appendices, bibliography
 % =============================================================================
 
-\begin{acknowledgments}
-\TODO{acknowledge}
-\end{acknowledgments}
-
 \appendix
-\subfile{paper/sections/appendices/t_value_computation}
+\subfile{../paper/sections/appendices/t_value_computation}
+
+% Literature
+% The literature cited in your thesis must be presented as is customary in scientific publications. Titles of articles must be presented in full.
 
 % Print out all entries in the bibliography, even if they are not cited in the text.
 % Produce the bibliography via BibTeX.
 \nocite{*}
 \bibliographystyle{apsrev4-2}
 \bibliography{common/bibliography/bibliography}
+
+\begin{acknowledgments}
+\TODO{acknowledge}
+\end{acknowledgments}
 
 \end{document}

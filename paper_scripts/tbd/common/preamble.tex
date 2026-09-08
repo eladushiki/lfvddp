@@ -14,8 +14,15 @@
     ]{biblatex}
     \addbibresource{../common/bibliography/bibliography.bib}
 }{
-    % Apply this only when compiling the main paper
-    \geometry{letterpaper}
+    \ifdefined\paper
+        % Apply this only when compiling the main paper
+        \geometry{letterpaper}
+    \fi
+
+    \ifdefined\thesis
+        % Apply this only when compiling the thesis
+        \geometry{a4paper}
+    \fi
 }
 \makeatother
 
