@@ -7,7 +7,7 @@ entries, but it must never add a new request unless the user explicitly asks.
 ## Top-level structure
 
 ```yaml
-version: 3
+version: 4
 last_checked_at: null
 
 remote_checkout:
@@ -64,6 +64,11 @@ Submission statuses and their additional fields are:
   `finished_at`. Failed or partial arrays remain blocked with evidence.
 - `analyzed`: the single-submission plot completed; requires
   `single_run_plot.completed_at`.
+- `retired`: preserved audit history that is no longer eligible for submission,
+  reconciliation, or plotting. Requires `original_id`, `retired_at`, and
+  `retired_reason`; `plot_groups` must be empty. If it has saved results, its
+  `remote_submission_directory` must be outside every active group's
+  `remote_multi_run_directory`.
 
 `last_error` may be retained on any non-successful stage for reporting, but it
 must be cleared when that same stage later succeeds.
@@ -108,6 +113,11 @@ A group has exactly one `background_submission` and an ordered list of
 `signal_submissions`. These IDs, rather than directory-name inference, define
 membership. Plot 02 explicitly points to its Plot 01 background.
 
+Active significance series contain exactly five points, numbered `01` through
+`05`. The legacy ten-point migration retains old points `02, 04, 06, 08, 10`
+and renames them `01, 02, 03, 04, 05`; old odd points remain as `retired`
+audit entries and must not appear in `signal_submissions`.
+
 Group statuses are:
 
 - `pending`: at least one member has not completed single-submission plotting.
@@ -130,3 +140,4 @@ background.
   created by the submission command.
 - Skip completed stages on retries. State transitions make the daily routine
   idempotent.
+- Skip `retired` submissions entirely.

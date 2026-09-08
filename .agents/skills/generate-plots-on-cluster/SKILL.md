@@ -9,6 +9,10 @@ Process only submissions recorded in `.agents/submission-state.yaml`. Ignore
 untracked jobs when deciding what to plot; include them only in scheduler-count
 reporting.
 
+Skip submissions with status `retired`. Their saved result directories must be
+outside active `remote_multi_run_directory` trees so recursive plot discovery
+cannot reintroduce retired signal points.
+
 Read [the submission-state schema](../../submission-state.schema.md) before
 changing state. This skill assumes `ssh-to-cluster` has already opened one
 shared shell at the remote project root. Do not run `ssh`, `scp`, or open a

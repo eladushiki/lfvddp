@@ -6,7 +6,7 @@ description: "Submit explicitly requested ATLAS array jobs in saved priority ord
 # Submit on Cluster
 
 Submit only explicit `requested` entries in `.agents/submission-state.yaml`, in
-file order. Never invent requests. Read
+file order. Never submit `retired` entries or invent requests. Read
 [the submission-state schema](../../submission-state.schema.md) before changing
 state.
 
