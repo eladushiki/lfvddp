@@ -6,8 +6,8 @@ description: "Detect completed tracked ATLAS submissions and generate their sing
 # Generate Plots on Cluster
 
 Process only submissions recorded in `.agents/submission-state.yaml`. Ignore
-untracked jobs when deciding what to plot, even though all jobs still count
-toward scheduler limits.
+untracked jobs when deciding what to plot; include them only in scheduler-count
+reporting.
 
 Read [the submission-state schema](../../submission-state.schema.md) before
 changing state. This skill assumes `ssh-to-cluster` has already opened one
@@ -36,10 +36,8 @@ walltime:
 1. Choose an additional walltime from the scheduler evidence. If it supplies no
    better estimate, use the killed attempt's configured total walltime so the
    recovered total doubles.
-2. Before submitting, apply the same whole-array quota check as
-   `submit-on-cluster`. A continuation has priority over new FIFO requests; if
-   it does not fit, set the submission to `continuation_requested` and stop new
-   submissions for this run.
+2. Submit the continuation as a whole array before new requests. There is no
+   internal queued-element cap or capacity deferral.
 3. Continue the saved run without debug mode:
 
    ```sh

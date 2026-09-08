@@ -10,13 +10,6 @@ entries, but it must never add a new request unless the user explicitly asks.
 version: 3
 last_checked_at: null
 
-limits:
-  max_queued_elements: 1000
-  limit_source: configured
-  observed_admin_max_queued_elements: null
-  inferred_max_queued_elements: null
-  updated_at: null
-
 remote_checkout:
   branch: null
   commit: null
@@ -29,14 +22,8 @@ submissions: []
 
 - `last_checked_at` is the completion time of the most recent successful
   scheduler reconciliation. A failed SSH attempt does not advance it.
-- `limits.max_queued_elements` is the enforced limit. It starts at 1000 with no
-  reserve. `limit_source` is `configured`, `scheduler_message`, or
-  `rejection_inference`.
-- Save an explicit numeric scheduler limit in
-  `observed_admin_max_queued_elements`. When a quota rejection provides no
-  number, set `inferred_max_queued_elements` to
-  `queued_before_submission + array_size - 1`. Enforce the smallest known bound
-  and timestamp every change.
+- Queue counts are observations for reporting, not submission limits. The
+  routine has no internal queued-element cap.
 - `remote_checkout` records what the routine actually observed. Never replace
   or update the checkout while jobs are active. The targeted source-pack
   walltime correction is safe because active jobs use staged config copies. An
@@ -60,7 +47,7 @@ submissions:
 Required initial fields are `id`, `status`, `config_pack`, `output_root`,
 `purpose`, `requested_at`, and `plot_groups`. `plot_groups` may be empty.
 Array size is deliberately absent: read `cluster__qsub_n_jobs` from the pack
-immediately before the quota check.
+immediately before submission.
 
 Submission statuses and their additional fields are:
 
@@ -70,7 +57,7 @@ Submission statuses and their additional fields are:
 - `submitted`: requires `attempts`, `remote_commit`, and the runtime-discovered
   `remote_submission_directory`.
 - `continuation_requested`: a saved attempt was killed specifically for
-  walltime and its whole continuation array is waiting for quota. Requires
+  walltime and its whole continuation array is waiting for submission. Requires
   `pending_continuation.extra_time`, scheduler evidence, and source-pack update
   status.
 - `finished`: every saved array job completed successfully; requires
