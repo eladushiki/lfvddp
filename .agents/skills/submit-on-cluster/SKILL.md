@@ -43,6 +43,9 @@ For the first `requested` entry:
 
 1. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
    definition in the pack and is not copied into state.
+   When `submission_type` is `background`, require this value to equal
+   `limits.background_array_elements`. Do not submit a mismatched background;
+   leave it requested and report the configuration error.
 2. Recount queued elements immediately before submission.
 3. Submit only if `queued + cluster__qsub_n_jobs <= limit`. Do not split an
    array. If it does not fit, leave it requested and stop FIFO processing for

@@ -48,6 +48,7 @@ submissions: []
 ```yaml
 submissions:
   - id: plot-02-reproduction-signals--nonlocal--significance-01
+    submission_type: signal
     status: requested
     config_pack: configs/plot-02-reproduction-signals/nonlocal/significance-01
     output_root: results/highlights/2026-09/plot-02
@@ -56,6 +57,9 @@ submissions:
     plot_groups:
       - plot-02-reproduction-signals
 ```
+
+`submission_type` is `background` or `signal`. Every background must declare it
+explicitly; legacy signal entries may omit the field.
 
 Required initial fields are `id`, `status`, `config_pack`, `output_root`,
 `purpose`, `requested_at`, and `plot_groups`. `plot_groups` may be empty.
