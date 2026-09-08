@@ -135,6 +135,19 @@
 }
 \newcommand{\addpic}[1]{\addsizedpic{0.8}{#1}}
 
+% Macro to insert a full-page PDF without altering document orientation
+\newcommand{\includefullpage}[2][1]{%
+  \clearpage
+  \thispagestyle{empty}% Suppress header/footer for the inserted page
+  \noindent
+  \begin{picture}(0,0)
+    \put(-72,-750){% Adjust offset if needed for your margins
+      \includegraphics[page=#1,width=\paperwidth,height=\paperheight,keepaspectratio=false]{#2}%
+    }
+  \end{picture}%
+  \clearpage
+}
+
 % =============================================================================
 % DRAFT MARKERS (TODO/FIXME/TBD)
 % =============================================================================
