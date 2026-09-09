@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -12,10 +12,13 @@ import torch.nn as nn
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_effect import DetectorEffect
-from neural_networks.likelihood_parameterization import (
-    LIKELIHOOD_SHIFT_BOUND,
-    smoothly_bounded_likelihood_shift,
+from neural_networks.function_spaces import (
+    AdaptiveNeuralFunction,
+    BinIndicatorFunction,
+    create_function_space,
 )
+from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
+from train.function_space_config import FunctionSpaceFamily, RoleState
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,82 @@ class NuisanceCalculation(nn.Module, ABC):
         """Clamp trainable nuisance parameters, when needed."""
 
 
+def build_nuisance_calculation(
+    config: Any,
+    detector_effect: DetectorEffect,
+    dtype: torch.dtype,
+    device: torch.device,
+    resolved_config: Any = None,
+) -> NuisanceCalculation:
+    """Build the nuisance role from the shared resolved function-space config."""
+
+    if resolved_config is None:
+        resolver = getattr(config, "resolve_function_space_config", None)
+        if not callable(resolver):
+            raise TypeError("Nuisance construction requires a TrainConfig resolver.")
+        resolved_config = resolver()
+    resolved = resolved_config
+    spec = resolved.nuisance
+    if spec.state is RoleState.DISABLED:
+        return BlankNuisanceEstimator(dtype=dtype, device=device)
+
+    if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
+        options = spec.options
+        construction = {}
+        if "input_dimension" not in options:
+            input_dimension = getattr(config, "train__nn_input_dimension", None)
+            if input_dimension is not None:
+                construction["input_dimension"] = input_dimension
+        if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
+            hidden_size = getattr(config, "train__nuisance_nn_inner_layer_nodes", None)
+            if hidden_size is None:
+                hidden_size = getattr(config, "train__nn_inner_layer_nodes", None)
+            if hidden_size is not None:
+                construction["hidden_size"] = hidden_size
+        if "output_dimension" not in options:
+            construction["output_dimension"] = getattr(
+                config, "train__nn_output_dimension", 1
+            )
+        network = create_function_space(
+            "nuisance",
+            spec,
+            dtype=dtype,
+            device=device,
+            **construction,
+        )
+        return NeuralPerEventNuisanceEstimator(
+            input_dimension=network.hidden.in_features,
+            hidden_size=network.hidden.out_features,
+            output_dimension=network.output.out_features,
+            dtype=dtype,
+            device=device,
+            network=network,
+        )
+
+    if spec.family is FunctionSpaceFamily.BIN_INDICATORS:
+        # Legacy detector lookup uses the detector's already configured bin
+        # centers. Canonical specs own their geometry and therefore use the
+        # factory's option-based construction.
+        lookup = create_function_space(
+            "nuisance",
+            spec,
+            detector_effect=detector_effect
+            if resolved.compatibility_source == "legacy"
+            else None,
+        )
+        return ScalarBinnedNuisanceEstimator(
+            detector_effect=detector_effect,
+            dtype=dtype,
+            device=device,
+            bin_lookup=lookup,
+        )
+
+    raise ValueError(
+        f"Unsupported nuisance function-space family {spec.family.value!r}; "
+        "only adaptive_neural and bin_indicators are implemented."
+    )
+
+
 class BlankNuisanceEstimator(NuisanceCalculation):
     """A zero-nuisance representation for runs without nuisance training."""
 
@@ -128,23 +207,31 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
         detector_effect: DetectorEffect,
         dtype: torch.dtype,
         device: torch.device,
+        bin_lookup: Optional[BinIndicatorFunction] = None,
     ) -> None:
         super().__init__(dtype=dtype, device=device)
         self._detector_effect = detector_effect
-        self._observable_names = detector_effect._observable_names
+        self._bin_lookup = bin_lookup or create_function_space(
+            "nuisance",
+            "bin_indicators",
+            detector_effect=detector_effect,
+        )
+        self._observable_names = detector_effect.observable_names
+        number_of_bins = self._bin_lookup.geometry.number_of_bins
+        if len(self._observable_names) != len(number_of_bins):
+            raise ValueError(
+                "Nuisance bin geometry dimension does not match detector observables."
+            )
         self._detector_deltas = nn.ParameterDict(
             {
                 name: nn.Parameter(torch.empty(nbins, dtype=dtype, device=device))
-                for name, nbins in zip(
-                    self._observable_names,
-                    detector_effect._numbers_of_bins,
-                )
+                for name, nbins in zip(self._observable_names, number_of_bins)
             }
         )
 
     def _bin_indices(self, data: DataSet) -> torch.Tensor:
         return torch.tensor(
-            self._detector_effect.get_event_bin_centers(data, indexed=True),
+            self._bin_lookup.evaluate(data),
             dtype=torch.long,
             device=self._device,
         )
@@ -226,25 +313,11 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
                 )
 
 
-class _ThetaEstimator(nn.Module):
-    """Neural implementation of the nuisance function theta(x)."""
-
-    def __init__(
-        self,
-        input_dimension: int,
-        hidden_size: int,
-        output_dimension: int,
-        dtype: torch.dtype,
-    ) -> None:
-        super().__init__()
-        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype)
-        self.activation = nn.Sigmoid()
-        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
+class _ThetaEstimator(AdaptiveNeuralFunction):
+    """Compatibility wrapper retaining nuisance's historical output shape."""
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return smoothly_bounded_likelihood_shift(
-            self.output(self.activation(self.hidden(events)))
-        ).squeeze(-1)
+        return super().forward(events).squeeze(-1)
 
 
 class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
@@ -262,13 +335,19 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         output_dimension: int,
         dtype: torch.dtype,
         device: torch.device,
+        network: Optional[AdaptiveNeuralFunction] = None,
     ) -> None:
         super().__init__(dtype=dtype, device=device)
-        self.network = _ThetaEstimator(
-            input_dimension=input_dimension,
-            hidden_size=hidden_size,
-            output_dimension=output_dimension,
+        self.network = network or create_function_space(
+            "nuisance",
+            "adaptive_neural",
+            {
+                "input_dimension": input_dimension,
+                "hidden_layer_nodes": hidden_size,
+                "output_dimension": output_dimension,
+            },
             dtype=dtype,
+            device=device,
         )
 
     def prepare(
@@ -299,9 +378,13 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         if not isinstance(data, self._PreparedData):
             raise TypeError("Neural nuisance data was not prepared by this calculation.")
 
-        nuisance_cr_values = self.network(data.cr_inputs)
+        def values(inputs: torch.Tensor) -> torch.Tensor:
+            result = self.network(inputs)
+            return result.squeeze(-1) if result.ndim == 2 else result
+
+        nuisance_cr_values = values(data.cr_inputs)
         return NuisanceEvaluation(
-            nuisance_sr_values=self.network(data.sr_inputs),
+            nuisance_sr_values=values(data.sr_inputs),
             nuisance_cr_a=WeightedNuisanceValues(
                 nuisance_cr_values[: data.number_of_a_cr_events]
             ),

@@ -1,6 +1,13 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import warning
-from typing import List, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Tuple
+
+from train.function_space_config import (
+    FunctionSpaceSpec,
+    ResolvedFunctionSpaceConfig,
+    TrainingBackend,
+    resolve_dual_role_config,
+)
 
 import numpy as np
 import numpy.typing as npt
@@ -42,7 +49,167 @@ class TrainConfig:
     train__nuisance_binning_number_of_bins: Optional[List[int]] = None
     train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
 
+    # Canonical Issue 018 configuration.  The role mappings use the same
+    # {family, options, state} schema for f and nuisance.
+    train__backend: Optional[str] = None
+    train__function_space_backend: Optional[str] = None
+    train__function_space: Optional[Mapping[str, Any]] = None
+    train__f_function_space: Optional[Mapping[str, Any]] = None
+    train__nuisance_function_space: Optional[Mapping[str, Any]] = None
+    # Short aliases are accepted at the composition boundary, then resolved
+    # into the role mappings above.  Runtime code must use the resolved object.
+    train__f: Optional[Mapping[str, Any]] = None
+    train__nuisance: Optional[Mapping[str, Any]] = None
+    train__resolved_function_space_config: Optional[ResolvedFunctionSpaceConfig] = field(
+        default=None, init=False, repr=False, compare=False
+    )
+
+    def resolve_function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        """Resolve canonical role objects and legacy fields exactly once."""
+        backend_values = {
+            name: value
+            for name, value in (
+                ("train__backend", self.train__backend),
+                ("train__function_space_backend", self.train__function_space_backend),
+            )
+            if value is not None
+        }
+        if len({TrainingBackend.from_value(value) for value in backend_values.values()}) > 1:
+            raise ValueError(
+                "Conflicting training backend fields: "
+                + ", ".join(f"{name}={value!r}" for name, value in backend_values.items())
+                + "."
+            )
+        backend = next(iter(backend_values.values()), None)
+        nested = self.train__function_space
+        if nested is not None:
+            if not isinstance(nested, Mapping):
+                raise ValueError("train__function_space must be a mapping.")
+            unknown = set(nested) - {"backend", "f", "nuisance"}
+            if unknown:
+                raise ValueError(
+                    "train__function_space has unknown field(s): "
+                    + ", ".join(sorted(str(item) for item in unknown))
+                    + "."
+                )
+            nested_backend = nested.get("backend")
+            if backend is not None and nested_backend is not None and TrainingBackend.from_value(backend) is not TrainingBackend.from_value(nested_backend):
+                raise ValueError("Conflicting training backend fields: train__function_space.backend and train__backend.")
+            backend = backend if backend is not None else nested_backend
+
+        if self.train__f_function_space is not None and self.train__f is not None:
+            raise ValueError("Conflicting f function-space fields: train__f_function_space and train__f.")
+        if self.train__nuisance_function_space is not None and self.train__nuisance is not None:
+            raise ValueError(
+                "Conflicting nuisance function-space fields: "
+                "train__nuisance_function_space and train__nuisance."
+            )
+        f_config = (
+            self.train__f_function_space
+            if self.train__f_function_space is not None
+            else self.train__f
+        )
+        nuisance_config = (
+            self.train__nuisance_function_space
+            if self.train__nuisance_function_space is not None
+            else self.train__nuisance
+        )
+        explicit_canonical_roles = f_config is not None or nuisance_config is not None
+        if nested is not None:
+            if f_config is not None and nested.get("f") is not None:
+                raise ValueError("Conflicting f function-space fields: train__function_space.f and role field.")
+            if nuisance_config is not None and nested.get("nuisance") is not None:
+                raise ValueError("Conflicting nuisance function-space fields: train__function_space.nuisance and role field.")
+            f_config = f_config if f_config is not None else nested.get("f")
+            nuisance_config = nuisance_config if nuisance_config is not None else nested.get("nuisance")
+            explicit_canonical_roles = f_config is not None or nuisance_config is not None
+
+        if nuisance_config is not None and (
+            not self.train__data_is_train_for_nuisances
+            or self.train__nuisance_is_neural_network
+            or self.train__nuisance_nn_inner_layer_nodes is not None
+            or any(
+                value is not None
+                for value in (
+                    self.train__nuisance_binning_minima,
+                    self.train__nuisance_binning_maxima,
+                    self.train__nuisance_binning_number_of_bins,
+                )
+            )
+        ):
+            raise ValueError(
+                "Canonical nuisance configuration conflicts with legacy nuisance fields; "
+                "use either train__nuisance_function_space or the train__nuisance_* fields."
+            )
+
+        if nuisance_config is None and self.train__nuisance_is_neural_network:
+            nuisance_config = {
+                "family": "adaptive_neural",
+                "options": {
+                    "input_dimension": self.train__nn_input_dimension,
+                    "hidden_layer_nodes": self.train__nuisance_nn_inner_layer_nodes,
+                    "xavier_gain": self.train__nn_xavier_gain,
+                },
+            }
+
+        legacy_f_options = {
+            "input_dimension": self.train__nn_input_dimension,
+            "hidden_layer_nodes": self.train__nn_inner_layer_nodes,
+            "xavier_gain": self.train__nn_xavier_gain,
+        }
+        legacy_f_options = {key: value for key, value in legacy_f_options.items() if value is not None}
+        legacy_nuisance_options = {
+            "minima": self.train__nuisance_binning_minima,
+            "maxima": self.train__nuisance_binning_maxima,
+            "number_of_bins": self.train__nuisance_binning_number_of_bins,
+        }
+        legacy_nuisance_options = {
+            key: value for key, value in legacy_nuisance_options.items() if value is not None
+        }
+        self.train__resolved_function_space_config = resolve_dual_role_config(
+            backend=backend,
+            f=f_config,
+            nuisance=nuisance_config,
+            legacy_f_options=legacy_f_options,
+            legacy_nuisance_options=legacy_nuisance_options,
+            legacy_nuisance_enabled=self.train__data_is_train_for_nuisances,
+            legacy_like_nplm=self.train__like_NPLM,
+            compatibility_source="canonical" if explicit_canonical_roles else "legacy",
+            validate_legacy=False,
+        )
+        return self.train__resolved_function_space_config
+
+    @property
+    def train__function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        """Resolved dual-role configuration used by later model adapters."""
+        if self.train__resolved_function_space_config is None:
+            return self.resolve_function_space_config()
+        return self.train__resolved_function_space_config
+
+    @property
+    def resolved_function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        return self.train__function_space_config
+
+    @property
+    def train__resolved_function_spaces(self) -> ResolvedFunctionSpaceConfig:
+        return self.train__function_space_config
+
+    @property
+    def train__f_function_space_spec(self) -> FunctionSpaceSpec:
+        return self.train__function_space_config.f
+
+    @property
+    def train__nuisance_function_space_spec(self) -> FunctionSpaceSpec:
+        return self.train__function_space_config.nuisance
+
     def _validate_nuisance_configuration(self) -> None:
+        if (
+            self.train__nuisance_function_space is not None
+            or self.train__nuisance is not None
+            or isinstance(self.train__function_space, Mapping)
+            and "nuisance" in self.train__function_space
+        ):
+            return
         binning_parameters = (
             self.train__nuisance_binning_minima,
             self.train__nuisance_binning_maxima,
@@ -159,6 +326,7 @@ class TrainConfig:
         self.validate()
 
     def validate(self):
+        self.resolve_function_space_config()
         self._validate_nuisance_configuration()
 
         if self.train__profiling_warmup_epochs < 0:

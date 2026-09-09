@@ -23,6 +23,9 @@ def cross_configure(config: Union[
         config.train__nn_input_dimension = detector_dimension
 
     config.configure_nuisance_binning(detector_dimension)
+    # Resolve after detector-dependent dimensions and nuisance bin geometry are known.
+    # Runtime consumers use this immutable compatibility spine rather than legacy fields.
+    config.resolve_function_space_config()
 
     generated_type = GeneratedDatasetParameters.DATASET_PARAMETER_TYPE_NAME()
     for dataset_definition in config.dataset__definitions:
@@ -41,6 +44,7 @@ def cross_validate(config: Union[
     TrainConfig,
     UserConfig,
 ]):
+    config.resolve_function_space_config()
     if config.cluster__qsub_needs_continuation and config.train__like_NPLM:
         raise NotImplementedError("Long-walltime continuation is only implemented for LFVNN/PyTorch training.")
 
