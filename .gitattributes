@@ -2,6 +2,9 @@
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs
 
+# PDFs
+*.pdf filter=lfs diff=lfs merge=lfs -text
+
 # Training documentation products
 *.history.h5 filter=lfs diff=lfs merge=lfs
 *.weights.h5 filter=lfs diff=lfs merge=lfs

@@ -444,12 +444,18 @@
         \item To estimate $t$ we need to deal with two maximization operation
         \item For that, we define two loss functions
     \end{itemize}
+    {\scriptsize
     \begin{equation}
     \begin{aligned}
-        L^\text{numerator}[f, g, \nparam] &= -\likelihood(\hypothesis{1}(\paramf, \paramg, \nparam)|\dataset{A}, \dataset{B}) \\
-        L^\text{denominator}[\nparam] &= -\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}),
+        L^\text{numerator}[f, g, \nparam]
+            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \paramg, \nparam) \\
+            &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr) \\
+        L^\text{denominator}[\nparam]
+            &= -\likelihood\Bigl(\nullhypothesis(\nparam) \\
+            &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr),
     \end{aligned}
     \end{equation}
+    }
     \begin{itemize}
         \item and optimize for each using a simple machine learning model
     \end{itemize}
@@ -852,6 +858,7 @@
     \begin{itemize}
         \item we get
     \end{itemize}
+    {\scriptsize
     \begin{equation}
     \label{eq:discrete_loss_functions}
     \begin{aligned}
@@ -882,10 +889,11 @@
             \right)
             \\&
             - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
-            - \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+            \\&- \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
         \Bigg)
     \end{aligned}
     \end{equation}
+    }
 \end{frame}
 
 \end{document}
