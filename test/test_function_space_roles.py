@@ -4,7 +4,12 @@ import pytest
 import torch
 
 from neural_networks.differentiating_model import DifferentiatingModel
-from neural_networks.function_spaces import AdaptiveNeuralFunction, BinIndicatorFunction
+from neural_networks.function_spaces import (
+    AdaptiveNeuralFunction,
+    BinIndicatorFunction,
+    CubicBSplineFunction,
+    FixedSigmoidFunction,
+)
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
     NeuralPerEventNuisanceEstimator,
@@ -19,14 +24,14 @@ class _Detector:
     observable_names = ("x", "y")
 
 
-def _context(*, f_options, nuisance):
+def _context(*, f_options, nuisance, f_family="adaptive_neural"):
     config = TrainConfig(
         train__epochs=1,
         train__number_of_epochs_for_checkpoint=1,
         train__nn_inner_layer_nodes=2,
         train__nn_input_dimension=2,
         train__function_space={
-            "f": {"family": "adaptive_neural", "options": f_options},
+            "f": {"family": f_family, "options": f_options},
             "nuisance": nuisance,
         },
     )
@@ -66,6 +71,34 @@ def test_model_builds_independent_same_family_role_adapters():
         "signal_region_shift_network.output.weight",
         "signal_region_shift_network.output.bias",
     )
+
+
+def test_model_builds_fixed_family_for_both_roles():
+    context = _context(
+        f_options={"centers": [[0.0, 0.0], [1.0, 1.0]], "widths": [[0.5, 0.5], [0.5, 0.5]]},
+        f_family="fixed_sigmoid",
+        nuisance={
+            "family": "fixed_sigmoid",
+            "options": {
+                "centers": [[-1.0, -1.0], [1.0, 1.0]],
+                "widths": [[0.25, 0.25], [0.25, 0.25]],
+            },
+        },
+    )
+
+    model = DifferentiatingModel(
+        context=context,
+        detector_effect=_Detector(),
+        is_numerator=True,
+        name="fixed_roles",
+        dtype=torch.float64,
+    )
+
+    assert isinstance(model.signal_region_shift_network, FixedSigmoidFunction)
+    assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceEstimator)
+    events = torch.tensor([[0.0, 0.5], [1.0, -0.5]], dtype=torch.float64)
+    assert model.signal_region_shift_network(events).shape == (2, 1)
+    assert model.nuisance_calculation.network(events).shape == (2, 1)
 
 
 def test_f_remains_enabled_when_nuisance_is_disabled():
@@ -125,22 +158,24 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
     assert isinstance(model.nuisance_calculation, ScalarBinnedNuisanceEstimator)
 
 
-def test_unsupported_role_family_fails_at_adapter_boundary():
+def test_deterministic_family_uses_the_shared_nuisance_adapter():
     context = _context(
         f_options={"input_dimension": 2, "hidden_layer_nodes": 4},
         nuisance={
             "family": "cubic_bspline",
-            "options": {"knots": [0.0, 1.0]},
+            "options": {"knots": [[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]]},
         },
     )
 
-    with pytest.raises(ValueError, match="only adaptive_neural and bin_indicators"):
-        build_nuisance_calculation(
-            config=context.config,
-            detector_effect=_Detector(),
-            dtype=torch.float64,
-            device=torch.device("cpu"),
-        )
+    nuisance = build_nuisance_calculation(
+        config=context.config,
+        detector_effect=_Detector(),
+        dtype=torch.float64,
+        device=torch.device("cpu"),
+    )
+
+    assert isinstance(nuisance, NeuralPerEventNuisanceEstimator)
+    assert isinstance(nuisance.network, CubicBSplineFunction)
 
 
 def test_backend_is_separate_from_role_family_support():

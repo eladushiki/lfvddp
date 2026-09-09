@@ -21,6 +21,12 @@ from torch import nn
 from data_tools.data_utils import DataSet
 from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
 from neural_networks.function_spaces.base import FunctionSpaceMetadata
+from neural_networks.function_spaces.deterministic import (
+    CubicBSplineFunction,
+    FixedSigmoidFunction,
+    GaussianRadialBasisFunction,
+    OrthogonalPolynomialFunction,
+)
 from train.function_space_config import FunctionSpaceFamily, FunctionSpaceSpec, RoleState
 
 
@@ -235,6 +241,23 @@ def _copy_family_options(options: Mapping[str, Any]) -> dict[str, Any]:
     return deepcopy(dict(options))
 
 
+def initialize_function_space_parameters(function_space: nn.Module, gain: float) -> None:
+    """Initialize any trainable coefficients using the common project policy."""
+    if hasattr(function_space, "hidden") and hasattr(function_space, "output"):
+        nn.init.xavier_uniform_(function_space.hidden.weight, gain=gain)
+        nn.init.uniform_(function_space.hidden.bias, a=-0.3, b=0.3)
+        nn.init.xavier_uniform_(function_space.output.weight, gain=gain)
+        nn.init.uniform_(function_space.output.bias, a=-0.3, b=0.3)
+        return
+    coefficients = getattr(function_space, "coefficients", None)
+    if isinstance(coefficients, nn.Parameter):
+        nn.init.xavier_uniform_(coefficients, gain=gain)
+        return
+    raise TypeError(
+        f"Function-space {type(function_space).__name__} has no supported trainable parameters."
+    )
+
+
 @dataclass(frozen=True)
 class FunctionSpaceRegistration:
     family: FunctionSpaceFamily
@@ -255,6 +278,30 @@ FUNCTION_SPACE_REGISTRY: Mapping[FunctionSpaceFamily, FunctionSpaceRegistration]
         BinIndicatorFunction,
         option_parser=_copy_family_options,
         metadata=BinIndicatorFunction.metadata,
+    ),
+    FunctionSpaceFamily.CUBIC_BSPLINE: FunctionSpaceRegistration(
+        FunctionSpaceFamily.CUBIC_BSPLINE,
+        CubicBSplineFunction,
+        option_parser=_copy_family_options,
+        metadata=CubicBSplineFunction.metadata,
+    ),
+    FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL: FunctionSpaceRegistration(
+        FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL,
+        OrthogonalPolynomialFunction,
+        option_parser=_copy_family_options,
+        metadata=OrthogonalPolynomialFunction.metadata,
+    ),
+    FunctionSpaceFamily.FIXED_SIGMOID: FunctionSpaceRegistration(
+        FunctionSpaceFamily.FIXED_SIGMOID,
+        FixedSigmoidFunction,
+        option_parser=_copy_family_options,
+        metadata=FixedSigmoidFunction.metadata,
+    ),
+    FunctionSpaceFamily.GAUSSIAN_RADIAL_BASIS: FunctionSpaceRegistration(
+        FunctionSpaceFamily.GAUSSIAN_RADIAL_BASIS,
+        GaussianRadialBasisFunction,
+        option_parser=_copy_family_options,
+        metadata=GaussianRadialBasisFunction.metadata,
     ),
 }
 
@@ -323,21 +370,34 @@ def create_function_space(
             options=family_options,
         )
     else:
-        # dtype/device are relevant to trainable families only; accepting them
-        # keeps a role-neutral adapter call shape without changing indicators.
-        construction.pop("dtype", None)
-        construction.pop("device", None)
+        dtype = construction.pop("dtype", torch.get_default_dtype())
+        device = construction.pop("device", None)
+        output_dimension = construction.pop(
+            "output_dimension", copied_options.pop("output_dimension", 1)
+        )
         detector_effect = construction.pop("detector_effect", None)
         geometry = construction.pop("geometry", None)
-        if geometry is None:
-            result = (
-                registration.factory.from_detector_effect(detector_effect)
-                if detector_effect is not None
-                else registration.factory.from_options(family_options)
-            )
+        if family_value is FunctionSpaceFamily.BIN_INDICATORS:
+            if geometry is None:
+                result = (
+                    registration.factory.from_detector_effect(detector_effect)
+                    if detector_effect is not None
+                    else registration.factory.from_options(family_options)
+                )
+            else:
+                result = registration.factory(
+                    geometry=geometry, options=family_options, detector_effect=detector_effect
+                )
         else:
-            result = registration.factory(
-                geometry=geometry, options=family_options, detector_effect=detector_effect
+            if detector_effect is not None or geometry is not None:
+                raise TypeError(
+                    f"{family_value.value} does not accept detector_effect or geometry overrides."
+                )
+            result = registration.factory.from_options(
+                family_options,
+                dtype=dtype,
+                device=device,
+                output_dimension=output_dimension,
             )
     if construction:
         names = ", ".join(sorted(construction))

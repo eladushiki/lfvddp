@@ -16,6 +16,7 @@ from neural_networks.function_spaces import (
     AdaptiveNeuralFunction,
     BinIndicatorFunction,
     create_function_space,
+    initialize_function_space_parameters,
 )
 from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
 from train.function_space_config import FunctionSpaceFamily, RoleState
@@ -152,9 +153,25 @@ def build_nuisance_calculation(
             bin_lookup=lookup,
         )
 
-    raise ValueError(
-        f"Unsupported nuisance function-space family {spec.family.value!r}; "
-        "only adaptive_neural and bin_indicators are implemented."
+    network = create_function_space(
+        "nuisance",
+        spec,
+        dtype=dtype,
+        device=device,
+    )
+    if not isinstance(network, nn.Module):
+        raise TypeError(
+            f"Nuisance family {spec.family.value!r} did not produce a trainable module."
+        )
+    return NeuralPerEventNuisanceEstimator(
+        input_dimension=getattr(network, "input_dimension", config.train__nn_input_dimension),
+        hidden_size=getattr(network, "hidden", None).out_features
+        if hasattr(network, "hidden")
+        else 0,
+        output_dimension=getattr(network, "output_dimension", config.train__nn_output_dimension),
+        dtype=dtype,
+        device=device,
+        network=network,
     )
 
 
@@ -335,7 +352,7 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         output_dimension: int,
         dtype: torch.dtype,
         device: torch.device,
-        network: Optional[AdaptiveNeuralFunction] = None,
+        network: Optional[nn.Module] = None,
     ) -> None:
         super().__init__(dtype=dtype, device=device)
         self.network = network or create_function_space(
@@ -394,7 +411,4 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         )
 
     def initialize_parameters(self, gain: float) -> None:
-        nn.init.xavier_uniform_(self.network.hidden.weight, gain=gain)
-        nn.init.uniform_(self.network.hidden.bias, a=-0.3, b=0.3)
-        nn.init.xavier_uniform_(self.network.output.weight, gain=gain)
-        nn.init.uniform_(self.network.output.bias, a=-0.3, b=0.3)
+        initialize_function_space_parameters(self.network, gain)

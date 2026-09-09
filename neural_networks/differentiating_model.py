@@ -19,7 +19,11 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.function_spaces import AdaptiveNeuralFunction, create_function_space
+from neural_networks.function_spaces import (
+    AdaptiveNeuralFunction,
+    create_function_space,
+    initialize_function_space_parameters,
+)
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
     NeuralPerEventNuisanceEstimator,
@@ -29,7 +33,7 @@ from neural_networks.nuisance_calculation import (
     WeightedNuisanceValues,
     build_nuisance_calculation,
 )
-from train.function_space_config import RoleState
+from train.function_space_config import FunctionSpaceFamily, RoleState
 from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
@@ -128,14 +132,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             raise ValueError("The f function-space role cannot be disabled.")
         construction = {}
         options = spec.options
-        if "input_dimension" not in options:
-            input_dimension = getattr(self._config, "train__nn_input_dimension", None)
-            if input_dimension is not None:
-                construction["input_dimension"] = input_dimension
-        if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
-            hidden_size = getattr(self._config, "train__nn_inner_layer_nodes", None)
-            if hidden_size is not None:
-                construction["hidden_size"] = hidden_size
+        if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
+            if "input_dimension" not in options:
+                input_dimension = getattr(self._config, "train__nn_input_dimension", None)
+                if input_dimension is not None:
+                    construction["input_dimension"] = input_dimension
+            if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
+                hidden_size = getattr(self._config, "train__nn_inner_layer_nodes", None)
+                if hidden_size is not None:
+                    construction["hidden_size"] = hidden_size
         if "output_dimension" not in options:
             construction["output_dimension"] = getattr(
                 self._config, "train__nn_output_dimension", 1
@@ -164,16 +169,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         gain = self._config.train__nn_xavier_gain
 
         if self.signal_region_shift_network is not None:
-            nn.init.xavier_uniform_(
-                self.signal_region_shift_network.hidden.weight,
-                gain=gain,
+            initialize_function_space_parameters(
+                self.signal_region_shift_network,
+                gain,
             )
-            nn.init.uniform_(self.signal_region_shift_network.hidden.bias, a=-0.3, b=0.3)
-            nn.init.xavier_uniform_(
-                self.signal_region_shift_network.output.weight,
-                gain=gain,
-            )
-            nn.init.uniform_(self.signal_region_shift_network.output.bias, a=-0.3, b=0.3)
 
         self.nuisance_calculation.initialize_parameters(gain)
 
