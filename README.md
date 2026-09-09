@@ -61,6 +61,8 @@ matches the data source:
 - [`configs/basic-generated`](configs/basic-generated) generates all datasets.
 - [`configs/basic-loaded`](configs/basic-loaded) loads ROOT data and can inject
   a generated signal.
+- [`configs/background-only`](configs/background-only) provides composable
+  background-only studies for the supported function-space families.
 
 Copy a pack before editing it:
 
@@ -97,6 +99,17 @@ Important configuration choices include:
   minima, maxima, and counts. For a neural nuisance model, set
   `train__nuisance_is_neural_network` to `true`, remove the bin settings, and
   provide `train__nuisance_nn_inner_layer_nodes`.
+- New configurations may select the shared function-space registry with
+  `train__f` and `train__nuisance` mappings using `family`, `options`, and (for
+  nuisance only) `state: "disabled"`. Supported families are
+  `adaptive_neural`, `bin_indicators`, `cubic_bspline`,
+  `orthogonal_polynomial` (Legendre or Chebyshev), `fixed_sigmoid`, and
+  `gaussian_radial_basis`. The roles resolve independently; equal family names
+  do not share mutable geometry.
+- `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
+  function-space family. Adaptive neural and NPLM studies require empirical-null
+  calibration rather than assigning Wilks degrees of freedom from parameter
+  counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs).
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
