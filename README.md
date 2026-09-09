@@ -252,10 +252,11 @@ python -m pytest
   endpoint. The environment already includes the XRootD backend for `fsspec`.
 - If cluster submission cannot reach PBS or CVMFS, reconnect through the WIS
   network or VPN and confirm access on the cluster login node.
-- Parallel LFVNN training reserves one requested CPU for the parent Python
-  coordinator. The remaining CPU capacity is divided between the spawned Torch
-  training processes, except at the two-thread minimum where each branch must
-  receive one Torch thread. A one-CPU allocation uses no child processes or
-  coordinator and runs the epoch loops sequentially in the parent process.
+- Parallel LFVNN training reserves three requested CPUs for the runnable Python
+  overhead observed alongside the Torch worker teams on PBS. The remaining CPU
+  capacity is divided between the spawned Torch training processes, except when
+  each branch's required single thread leaves less capacity to reserve. A
+  one-CPU allocation uses no child processes or coordinator and runs the epoch
+  loops sequentially in the parent process.
 - If a non-debug run reports a dirty working tree, commit the intended code and
   configuration changes or use `--debug` only for exploratory work.

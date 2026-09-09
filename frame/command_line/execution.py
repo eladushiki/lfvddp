@@ -158,9 +158,11 @@ configure_container_environment() {{
         export_container_variable "$passthrough_name" "$passthrough_value"
     done
 
-    export_container_variable OMP_NUM_THREADS "$THREADS_PER_PROCESS"
+    # Keep native numerical-library pools single-threaded. Torch worker
+    # assignments provide the intentional application parallelism.
+    export_container_variable OMP_NUM_THREADS 1
     export_container_variable MKL_NUM_THREADS "$THREADS_PER_PROCESS"
-    export_container_variable OPENBLAS_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable OPENBLAS_NUM_THREADS 1
     export_container_variable OMP_DYNAMIC FALSE
     export_container_variable MKL_DYNAMIC FALSE
     export_container_variable PYTHONUNBUFFERED 1

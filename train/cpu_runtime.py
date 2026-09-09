@@ -41,6 +41,21 @@ def _cpu_model() -> str:
     return "unknown"
 
 
+def _preserve_startup_thread_limit(environment_name: str, requested: int) -> int:
+    """Keep a smaller startup limit from being widened after imports."""
+
+    configured = os.environ.get(environment_name)
+    if configured is None:
+        return requested
+    try:
+        configured_count = int(configured)
+    except ValueError:
+        return requested
+    if configured_count < 1:
+        return requested
+    return min(requested, configured_count)
+
+
 def cpu_runtime_metadata(effective_cpus: Optional[int] = None) -> dict[str, str]:
     """Return stable CPU allocation and PyTorch runtime diagnostics."""
     try:
@@ -97,9 +112,13 @@ def configure_cpu_runtime(number_of_cpus: int, log_metadata: bool = True) -> Non
         raise ValueError("The CPU thread count must be positive.")
 
     thread_count = str(number_of_cpus)
-    os.environ["OMP_NUM_THREADS"] = thread_count
+    os.environ["OMP_NUM_THREADS"] = str(
+        _preserve_startup_thread_limit("OMP_NUM_THREADS", number_of_cpus)
+    )
     os.environ["MKL_NUM_THREADS"] = thread_count
-    os.environ["OPENBLAS_NUM_THREADS"] = thread_count
+    os.environ["OPENBLAS_NUM_THREADS"] = str(
+        _preserve_startup_thread_limit("OPENBLAS_NUM_THREADS", number_of_cpus)
+    )
     os.environ["OMP_DYNAMIC"] = "FALSE"
     os.environ["MKL_DYNAMIC"] = "FALSE"
     torch.set_num_threads(number_of_cpus)

@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import subprocess
 
 import numpy as np
@@ -97,6 +98,19 @@ def test_cpu_runtime_configures_interop_threads_only_once(monkeypatch):
     assert intraop_calls == [8, 3]
 
 
+def test_cpu_runtime_does_not_widen_startup_native_thread_limits(monkeypatch):
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")
+    monkeypatch.setattr(cpu_runtime, "_INTEROP_THREADS_CONFIGURED", False)
+    monkeypatch.setattr(torch, "set_num_interop_threads", lambda _threads: None)
+    monkeypatch.setattr(torch, "set_num_threads", lambda _threads: None)
+
+    cpu_runtime.configure_cpu_runtime(8, log_metadata=False)
+
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
+
+
 def test_runtime_cpu_count_uses_export_and_affinity(monkeypatch):
     monkeypatch.setattr(
         "train.runtime_resources._affinity_cpu_ids", lambda: (2, 3, 4, 5)
@@ -166,6 +180,8 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert "#PBS -l ncpus=8" in script
     assert "#PBS -l ngpus=1" in script
     assert "THREADS_PER_PROCESS=$(detect_thread_count)" in script
+    assert "export_container_variable OMP_NUM_THREADS 1" in script
+    assert "export_container_variable OPENBLAS_NUM_THREADS 1" in script
     assert (
         'export_container_variable LFVDDP_ALLOCATED_CPUS "$THREADS_PER_PROCESS"'
         in script
@@ -302,10 +318,10 @@ def test_single_cpu_runs_epoch_loops_without_parallel_coordinator(
     "cpus,gpus,expected",
     [
         (2, 0, [("cpu", 1), ("cpu", 1)]),
-        (8, 0, [("cpu", 6), ("cpu", 1)]),
-        (8, 1, [("cuda:0", 6), ("cpu", 1)]),
-        (8, 2, [("cuda:0", 6), ("cuda:1", 1)]),
-        (8, 4, [("cuda:0", 6), ("cuda:1", 1)]),
+        (8, 0, [("cpu", 4), ("cpu", 1)]),
+        (8, 1, [("cuda:0", 4), ("cpu", 1)]),
+        (8, 2, [("cuda:0", 4), ("cuda:1", 1)]),
+        (8, 4, [("cuda:0", 4), ("cuda:1", 1)]),
     ],
 )
 def test_parallel_branch_placement(
@@ -346,9 +362,9 @@ def test_parallel_branch_placement(
     [
         (1, 1, 1),
         (2, 1, 1),
-        (8, 1, 7),
+        (8, 1, 5),
         (2, 2, 2),
-        (8, 2, 7),
+        (8, 2, 5),
     ],
 )
 def test_parallel_torch_thread_capacity_reserves_coordinator_cpu(
@@ -472,6 +488,37 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
     # The static denominator runs first with one thread.  The sole trainable
     # numerator then receives the complete observed CPU allocation.
     assert configured_threads == [1, 4]
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_parallel_launcher_limits_parent_coordinator_threads(
+    function_execution_context,
+    detector_effect,
+    monkeypatch,
+):
+    launcher = ParallelTrainLauncher(
+        function_execution_context,
+        detector_effect,
+        allocation=_allocation(8),
+    )
+    configured_threads = []
+    monkeypatch.setattr(launcher, "_pending_lfvnn_work", lambda: ([], [0, 1]))
+    monkeypatch.setattr(launcher, "_parallel_assignments", lambda _indices: [object()])
+    monkeypatch.setattr(launcher, "_execute_concurrently", lambda _assignments: None)
+    monkeypatch.setattr(
+        "train.model_trainer.configure_cpu_runtime",
+        lambda cpu_threads, log_metadata: configured_threads.append(
+            (cpu_threads, log_metadata)
+        ),
+    )
+
+    launcher.execute_trainings()
+
+    assert configured_threads == [(1, False)]
 
 
 @pytest.mark.parametrize(
