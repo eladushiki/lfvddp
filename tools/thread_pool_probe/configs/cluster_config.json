@@ -1,0 +1,8 @@
+{
+    "cluster__qsub_queue": "N",
+    "cluster__qsub_n_jobs": 6,
+    "cluster__qsub_walltime": "00:30:00",
+    "cluster__qsub_ncpus": 8,
+    "cluster__qsub_mem": 2,
+    "cluster__qsub_ngpus_for_train": 0
+}

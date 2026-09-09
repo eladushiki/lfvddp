@@ -30,6 +30,11 @@ Never commit connection values or credentials.
 3. Reuse that terminal session for every cluster command in the workflow.
 4. Verify the connection with `pwd` and `git status --short --branch` before
    doing work.
+4. In a newly created cluster checkout, initialize its own locked environment
+   once with `source scripts/setup_python_environment.sh`. In later shells,
+   activate it with `source scripts/activate_python_environment.sh`. Do not
+   borrow or bind another checkout's `.venv`; follow the repository setup
+   documented in `README.md`.
 5. Exit the connection only after plotting, submission, and verification are
    complete.
 

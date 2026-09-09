@@ -238,6 +238,8 @@ python -m pytest
   statistical calculations.
 - [`neural_networks`](neural_networks) contains LFVDDP and NPLM model code.
 - [`train`](train) contains the local and cluster training entry points.
+- [`tools/thread_pool_probe`](tools/thread_pool_probe) contains the opt-in
+  thread-pool probe entry point, case definitions, and sampler.
 - [`plot`](plot) contains plot generation and the user-visible plot contracts.
 - [`frame`](frame) contains execution, configuration, cluster, and file-handling
   infrastructure.
@@ -252,10 +254,30 @@ python -m pytest
   endpoint. The environment already includes the XRootD backend for `fsspec`.
 - If cluster submission cannot reach PBS or CVMFS, reconnect through the WIS
   network or VPN and confirm access on the cluster login node.
-- Parallel LFVNN training reserves one requested CPU for the parent Python
-  coordinator. The remaining CPU capacity is divided between the spawned Torch
-  training processes, except at the two-thread minimum where each branch must
-  receive one Torch thread. A one-CPU allocation uses no child processes or
+- Cluster jobs keep OpenMP and OpenBLAS single-threaded and reduce the parent
+  coordinator to one Torch thread before spawning workers. The remaining
+  requested CPU capacity is assigned to the Torch workers.
+- Parallel LFVNN training reserves three requested CPUs for runnable Python
+  overhead observed beside the Torch worker teams. The remaining capacity is
+  divided between the spawned training processes, with at least one Torch
+  thread per trainable branch. A one-CPU allocation uses no child processes or
   coordinator and runs the epoch loops sequentially in the parent process.
 - If a non-debug run reports a dirty working tree, commit the intended code and
   configuration changes or use `--debug` only for exploratory work.
+
+### Optional thread-pool probe
+
+The controlled six-case PBS probe is isolated under
+[`tools/thread_pool_probe`](tools/thread_pool_probe) and is not enabled by
+ordinary training. From an activated checkout, run:
+
+```bash
+python -m tools.thread_pool_probe.submit \
+  --configs tools/thread_pool_probe/configs \
+  --only-train
+```
+
+The entry point opts into the six array cases and starts the one-thread
+`/proc` sampler. Each PBS log contains a `THREAD_PROBE_RESULT` JSON record.
+Use this only for a new runtime investigation; do not add probe environment
+variables to normal submissions.
