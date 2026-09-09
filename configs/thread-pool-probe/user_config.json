@@ -5,8 +5,7 @@
     "config__log_level": "INFO",
     "config__bind_directories": {
         ".": "/app",
-        "/cvmfs/": "/cvmfs/",
-        "/storage/agrp/eladklig/SymmetrizedDDP/.venv": "/app/.venv"
+        "/cvmfs/": "/cvmfs/"
     },
     "cluster__repo_url": "https://github.com/eladushiki/lfvddp.git",
     "cluster__uv_cache_dir": null,
