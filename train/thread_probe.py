@@ -79,9 +79,9 @@ def probe_thread_limit(
         "OPENBLAS_NUM_THREADS": PROBE_OPENBLAS_THREADS_ENV,
     }
     probe_name = probe_name_by_runtime_name.get(environment_name)
-    if probe_name is None:
-        return default
-    return _positive_integer(environment, probe_name) or default
+    probe_value = _positive_integer(environment, probe_name) if probe_name else None
+    configured_value = _positive_integer(environment, environment_name)
+    return min(default, probe_value or configured_value or default)
 
 
 def probe_torch_capacity(

@@ -44,6 +44,8 @@ def test_thread_probe_is_embedded_in_six_element_qsub_script(
     assert 'export_container_variable LFVDDP_PROBE_OMP_THREADS "1"' in script
     assert 'export_container_variable LFVDDP_PROBE_TORCH_CAPACITY "2"' in script
     assert 'export_container_variable LFVDDP_PROBE_TORCH_THREADS "1"' in script
+    assert 'export_container_variable OMP_NUM_THREADS "${PROBE_OMP_NUM_THREADS:-1}"' in script
+    assert 'export_container_variable OPENBLAS_NUM_THREADS "${PROBE_OPENBLAS_NUM_THREADS:-1}"' in script
     assert 'export_container_variable LFVDDP_PROBE_FORCE_SEQUENTIAL "1"' in script
     assert "start_thread_probe_monitor" in script
     assert '"$PBS_O_WORKDIR/train/thread_probe_monitor.py"' in script

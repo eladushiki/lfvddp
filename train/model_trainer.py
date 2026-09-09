@@ -190,6 +190,7 @@ class _TrainingAssignment:
 
 
 PARALLEL_COORDINATOR_CPU_RESERVE = 1
+PARALLEL_COORDINATOR_CPU_THREADS = 1
 
 
 def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
@@ -801,4 +802,8 @@ class ParallelTrainLauncher(_ResourceAwareTrainLauncher):
             else []
         )
         if assignments:
+            configure_cpu_runtime(
+                PARALLEL_COORDINATOR_CPU_THREADS,
+                log_metadata=False,
+            )
             self._execute_concurrently(assignments)

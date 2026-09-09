@@ -122,6 +122,21 @@ def test_cpu_runtime_preserves_probe_startup_pool_limits(monkeypatch):
     assert intraop_calls == [1]
 
 
+def test_cpu_runtime_preserves_existing_native_thread_limits(monkeypatch):
+    monkeypatch.delenv(PROBE_OMP_THREADS_ENV, raising=False)
+    monkeypatch.delenv(PROBE_OPENBLAS_THREADS_ENV, raising=False)
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")
+    monkeypatch.setattr(cpu_runtime, "_INTEROP_THREADS_CONFIGURED", False)
+    monkeypatch.setattr(torch, "set_num_interop_threads", lambda _threads: None)
+    monkeypatch.setattr(torch, "set_num_threads", lambda _threads: None)
+
+    cpu_runtime.configure_cpu_runtime(8, log_metadata=False)
+
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
+
+
 def test_runtime_cpu_count_uses_export_and_affinity(monkeypatch):
     monkeypatch.setattr(
         "train.runtime_resources._affinity_cpu_ids", lambda: (2, 3, 4, 5)
@@ -544,6 +559,37 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
     # The static denominator runs first with one thread.  The sole trainable
     # numerator then receives the complete observed CPU allocation.
     assert configured_threads == [1, 4]
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_parallel_launcher_limits_parent_coordinator_threads(
+    function_execution_context,
+    detector_effect,
+    monkeypatch,
+):
+    launcher = ParallelTrainLauncher(
+        function_execution_context,
+        detector_effect,
+        allocation=_allocation(8),
+    )
+    configured_threads = []
+    monkeypatch.setattr(launcher, "_pending_lfvnn_work", lambda: ([], [0, 1]))
+    monkeypatch.setattr(launcher, "_parallel_assignments", lambda _indices: [object()])
+    monkeypatch.setattr(launcher, "_execute_concurrently", lambda _assignments: None)
+    monkeypatch.setattr(
+        "train.model_trainer.configure_cpu_runtime",
+        lambda cpu_threads, log_metadata: configured_threads.append(
+            (cpu_threads, log_metadata)
+        ),
+    )
+
+    launcher.execute_trainings()
+
+    assert configured_threads == [(1, False)]
 
 
 @pytest.mark.parametrize(
