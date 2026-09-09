@@ -26,7 +26,7 @@ from train.runtime_resources import (
 )
 from train.single_train import select_train_launcher_class
 from train.training_profiler import TrainingResourceProfiler
-from train.thread_probe import (
+from tools.thread_pool_probe.cases import (
     PROBE_FORCE_SEQUENTIAL_ENV,
     PROBE_OMP_THREADS_ENV,
     PROBE_OPENBLAS_THREADS_ENV,

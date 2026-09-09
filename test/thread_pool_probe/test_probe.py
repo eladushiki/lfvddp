@@ -4,13 +4,13 @@ import subprocess
 import pytest
 
 from frame.command_line.execution import format_qsub_execution_script
-from train.thread_probe import (
+from tools.thread_pool_probe.cases import (
     THREAD_PROBE_CASES,
     THREAD_PROBE_ENABLED_ENV,
     format_thread_probe_case_setup,
     format_thread_probe_monitor_functions,
 )
-from train.thread_probe_monitor import sample_session
+from tools.thread_pool_probe.monitor import sample_session
 
 
 def test_thread_probe_requires_its_six_element_array(monkeypatch):
@@ -48,7 +48,7 @@ def test_thread_probe_is_embedded_in_six_element_qsub_script(
     assert 'export_container_variable OPENBLAS_NUM_THREADS "${PROBE_OPENBLAS_NUM_THREADS:-1}"' in script
     assert 'export_container_variable LFVDDP_PROBE_FORCE_SEQUENTIAL "1"' in script
     assert "start_thread_probe_monitor" in script
-    assert '"$PBS_O_WORKDIR/train/thread_probe_monitor.py"' in script
+    assert '"$PBS_O_WORKDIR/tools/thread_pool_probe/monitor.py"' in script
     subprocess.run(
         ["bash", "-n"],
         input=(
@@ -74,7 +74,7 @@ def test_thread_probe_is_absent_by_default(function_execution_context, monkeypat
 
     assert "THREAD_PROBE_ENABLED=1" not in script
     assert "start_thread_probe_monitor" not in script
-    assert "train/thread_probe_monitor.py" not in script
+    assert "tools/thread_pool_probe/monitor.py" not in script
 
 
 def _write_stat(path: Path, pid: int, comm: str, state: str, session: int) -> None:

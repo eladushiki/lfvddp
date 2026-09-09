@@ -183,7 +183,7 @@ def format_thread_probe_monitor_functions() -> str:
         return ""
     return r'''
 start_thread_probe_monitor() {
-    python "$PBS_O_WORKDIR/train/thread_probe_monitor.py" \
+    python "$PBS_O_WORKDIR/tools/thread_pool_probe/monitor.py" \
         --case "$PBS_ARRAY_INDEX:$THREAD_PROBE_CASE_NAME" \
         --interval 0.1 &
     THREAD_PROBE_MONITOR_PID=$!

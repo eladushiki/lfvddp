@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Optional, Union
 
@@ -17,16 +19,42 @@ from frame.python_environment import (
     singularity_uv_cache_directory_export_command,
     uv_cache_directory_export_command,
 )
-from train.thread_probe import (
-    format_thread_probe_case_setup,
-    format_thread_probe_cleanup,
-    format_thread_probe_monitor_functions,
-    format_thread_probe_monitor_start,
-)
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
 CACHE_LOCK_TIMEOUT_SEC = 300
+
+
+@dataclass(frozen=True)
+class ExecutionScriptExtension:
+    """Optional shell fragments supplied by a specialized execution entry point."""
+
+    case_setup: str = ""
+    monitor_functions: str = ""
+    monitor_start: str = ""
+    cleanup: str = ""
+
+
+def _environment_execution_extension(
+    array_jobs: Optional[int],
+) -> ExecutionScriptExtension:
+    """Load an extension only when a specialized entry point opts in."""
+
+    if os.environ.get("LFVDDP_THREAD_PROBE") != "1":
+        return ExecutionScriptExtension()
+    from tools.thread_pool_probe.cases import (
+        format_thread_probe_case_setup,
+        format_thread_probe_cleanup,
+        format_thread_probe_monitor_functions,
+        format_thread_probe_monitor_start,
+    )
+
+    return ExecutionScriptExtension(
+        case_setup=format_thread_probe_case_setup(array_jobs),
+        monitor_functions=format_thread_probe_monitor_functions(),
+        monitor_start=format_thread_probe_monitor_start(),
+        cleanup=format_thread_probe_cleanup(),
+    )
 
 
 QSUB_SCRIPT_HEADER = """#!/bin/bash
@@ -59,7 +87,7 @@ log_job_completion() {{
     job_exit_status=$?
     trap - EXIT
     set +e
-{thread_probe_cleanup}
+{execution_extension_cleanup}
 
     if declare -F release_sandbox >/dev/null; then
         release_sandbox
@@ -149,7 +177,7 @@ export_container_variable() {{
     export "APPTAINERENV_${{variable_name}}=$variable_value"
 }}
 
-{thread_probe_case_setup}
+{execution_extension_case_setup}
 
 configure_container_environment() {{
     local passthrough_name
@@ -222,7 +250,7 @@ log_runtime_diagnostics() {{
 configure_container_environment
 log_runtime_diagnostics
 
-{thread_probe_monitor_functions}
+{execution_extension_monitor_functions}
 
 # -----------------------------------------------------------------------------
 # Prepare the immutable, node-local Singularity sandbox cache.
@@ -416,7 +444,7 @@ if [ ! -f "$READY_FILE" ] || [ ! -f "$LEASE_FILE" ]; then
     exit 1
 fi
 
-{thread_probe_monitor_start}
+{execution_extension_monitor_start}
 run_singularity exec {gpu_passthrough_flag} \
     --no-mount tmp \
     --cleanenv \
@@ -445,6 +473,7 @@ def format_qsub_execution_script(
     command: str,
     array_jobs: Optional[int] = None,
     use_gpu_if_needed: bool = True,
+    extension: Optional[ExecutionScriptExtension] = None,
 ) -> str:
     config: ClusterConfig = context.config
 
@@ -454,7 +483,7 @@ def format_qsub_execution_script(
         gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
         gpu_passthrough_flag = "--nv"
 
-    thread_probe_case_setup = format_thread_probe_case_setup(array_jobs)
+    extension = extension or _environment_execution_extension(array_jobs)
 
     return format_qsub_script(
         config=config,
@@ -471,10 +500,10 @@ def format_qsub_execution_script(
         commit_hash=context.commit_hash,
         cache_contention_exit_status=CACHE_CONTENTION_EXIT_STATUS,
         cache_lock_timeout_sec=CACHE_LOCK_TIMEOUT_SEC,
-        thread_probe_case_setup=thread_probe_case_setup,
-        thread_probe_cleanup=format_thread_probe_cleanup(),
-        thread_probe_monitor_functions=format_thread_probe_monitor_functions(),
-        thread_probe_monitor_start=format_thread_probe_monitor_start(),
+        execution_extension_case_setup=extension.case_setup,
+        execution_extension_cleanup=extension.cleanup,
+        execution_extension_monitor_functions=extension.monitor_functions,
+        execution_extension_monitor_start=extension.monitor_start,
     )
 
 
@@ -561,7 +590,10 @@ def format_qsub_script(
     **additional_template_kwargs,
 ) -> str:
     script = wrap_lines_with_qsub_script(core_script_lines)
-    additional_template_kwargs.setdefault("thread_probe_cleanup", "")
+    additional_template_kwargs.setdefault("execution_extension_cleanup", "")
+    additional_template_kwargs.setdefault("execution_extension_case_setup", "")
+    additional_template_kwargs.setdefault("execution_extension_monitor_functions", "")
+    additional_template_kwargs.setdefault("execution_extension_monitor_start", "")
     
     # Handle array jobs
     array_job_line = ""

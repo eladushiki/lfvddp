@@ -50,7 +50,7 @@ from train.runtime_resources import RuntimeAllocation
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingResourceProfiler
 from train.training_names import training_name
-from train.thread_probe import probe_torch_capacity
+from tools.thread_pool_probe.cases import probe_torch_capacity
 
 
 class TrainLauncher(ABC):

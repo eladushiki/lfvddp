@@ -6,7 +6,7 @@ from typing import Optional
 
 import torch
 
-from train.thread_probe import probe_thread_limit, probe_torch_threads
+from tools.thread_pool_probe.cases import probe_thread_limit, probe_torch_threads
 
 
 THREAD_ENVIRONMENT_VARIABLES = (

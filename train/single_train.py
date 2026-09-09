@@ -32,7 +32,7 @@ from train.training_names import (
     SAMPLE_A_NAME,
     training_names_for_sample,
 )
-from train.thread_probe import probe_forces_sequential
+from tools.thread_pool_probe.cases import probe_forces_sequential
 
 
 @context_controlled_execution
