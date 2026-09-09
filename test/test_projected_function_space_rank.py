@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from neural_networks.function_spaces.rank import (
+from neural_networks.function_spaces.projected_rank import (
     compute_projected_function_space_rank,
     compute_rank_for_backend,
 )

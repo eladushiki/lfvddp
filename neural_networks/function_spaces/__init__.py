@@ -11,7 +11,7 @@ from neural_networks.function_spaces.bin_indicators import (
     BinIndicatorGeometry,
     BinIndicatorLookup,
 )
-from neural_networks.function_spaces.rank import (
+from neural_networks.function_spaces.projected_rank import (
     ProjectedFunctionSpaceRank,
     compute_projected_function_space_rank,
     compute_projected_rank,
