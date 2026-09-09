@@ -26,6 +26,13 @@ from train.runtime_resources import (
 )
 from train.single_train import select_train_launcher_class
 from train.training_profiler import TrainingResourceProfiler
+from tools.thread_pool_probe.cases import (
+    PROBE_FORCE_SEQUENTIAL_ENV,
+    PROBE_OMP_THREADS_ENV,
+    PROBE_OPENBLAS_THREADS_ENV,
+    PROBE_TORCH_CAPACITY_ENV,
+    PROBE_TORCH_THREADS_ENV,
+)
 
 
 RESOURCE_CLUSTER_CONFIG = {
@@ -98,7 +105,26 @@ def test_cpu_runtime_configures_interop_threads_only_once(monkeypatch):
     assert intraop_calls == [8, 3]
 
 
-def test_cpu_runtime_does_not_widen_startup_native_thread_limits(monkeypatch):
+def test_cpu_runtime_preserves_probe_startup_pool_limits(monkeypatch):
+    monkeypatch.setenv(PROBE_OMP_THREADS_ENV, "1")
+    monkeypatch.setenv(PROBE_OPENBLAS_THREADS_ENV, "1")
+    monkeypatch.setenv(PROBE_TORCH_THREADS_ENV, "1")
+    monkeypatch.setattr(cpu_runtime, "_INTEROP_THREADS_CONFIGURED", False)
+    monkeypatch.setattr(torch, "set_num_interop_threads", lambda _threads: None)
+    intraop_calls = []
+    monkeypatch.setattr(torch, "set_num_threads", intraop_calls.append)
+
+    cpu_runtime.configure_cpu_runtime(6, log_metadata=False)
+
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
+    assert os.environ["MKL_NUM_THREADS"] == "6"
+    assert intraop_calls == [1]
+
+
+def test_cpu_runtime_preserves_existing_native_thread_limits(monkeypatch):
+    monkeypatch.delenv(PROBE_OMP_THREADS_ENV, raising=False)
+    monkeypatch.delenv(PROBE_OPENBLAS_THREADS_ENV, raising=False)
     monkeypatch.setenv("OMP_NUM_THREADS", "1")
     monkeypatch.setenv("OPENBLAS_NUM_THREADS", "1")
     monkeypatch.setattr(cpu_runtime, "_INTEROP_THREADS_CONFIGURED", False)
@@ -180,8 +206,6 @@ def test_qsub_script_passes_observed_resources(function_execution_context):
     assert "#PBS -l ncpus=8" in script
     assert "#PBS -l ngpus=1" in script
     assert "THREADS_PER_PROCESS=$(detect_thread_count)" in script
-    assert "export_container_variable OMP_NUM_THREADS 1" in script
-    assert "export_container_variable OPENBLAS_NUM_THREADS 1" in script
     assert (
         'export_container_variable LFVDDP_ALLOCATED_CPUS "$THREADS_PER_PROCESS"'
         in script
@@ -314,6 +338,47 @@ def test_single_cpu_runs_epoch_loops_without_parallel_coordinator(
     [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
     indirect=True,
 )
+def test_probe_can_force_direct_sequential_epoch_loops(
+    function_execution_context,
+    monkeypatch,
+):
+    monkeypatch.setenv(PROBE_FORCE_SEQUENTIAL_ENV, "1")
+
+    assert (
+        select_train_launcher_class(
+            function_execution_context.config, _allocation(8)
+        )
+        is SequentialTrainLauncher
+    )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
+    indirect=True,
+)
+def test_probe_can_limit_direct_epoch_loops_to_one_torch_thread(
+    function_execution_context,
+    detector_effect,
+    monkeypatch,
+):
+    monkeypatch.setenv(PROBE_TORCH_CAPACITY_ENV, "1")
+    launcher = SequentialTrainLauncher(
+        function_execution_context,
+        detector_effect,
+        allocation=_allocation(8),
+    )
+
+    assignments = launcher._sequential_assignments([0, 1])
+
+    assert [assignment.cpu_threads for assignment in assignments] == [1, 1]
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
+    indirect=True,
+)
 @pytest.mark.parametrize(
     "cpus,gpus,expected",
     [
@@ -374,6 +439,12 @@ def test_parallel_torch_thread_capacity_reserves_coordinator_cpu(
         model_trainer._parallel_torch_thread_capacity(cpu_count, branch_count)
         == expected
     )
+
+
+def test_probe_can_reduce_parallel_torch_capacity(monkeypatch):
+    monkeypatch.setenv(PROBE_TORCH_CAPACITY_ENV, "2")
+
+    assert model_trainer._parallel_torch_thread_capacity(8, 2) == 2
 
 
 @pytest.mark.parametrize(

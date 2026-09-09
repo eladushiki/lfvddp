@@ -1,13 +1,14 @@
 # Cluster submission state
 
 `.agents/submission-state.yaml` is the ignored, local source of truth for the
-daily cluster routine. List order is FIFO order. A routine may update existing
-entries, but it must never add a new request unless the user explicitly asks.
+daily cluster routine. List order is the saved priority order. A routine may
+update existing entries, but it must never add a new request unless the user
+explicitly asks.
 
 ## Top-level structure
 
 ```yaml
-version: 3
+version: 4
 last_checked_at: null
 
 limits:
@@ -60,7 +61,7 @@ submissions:
 Required initial fields are `id`, `status`, `config_pack`, `output_root`,
 `purpose`, `requested_at`, and `plot_groups`. `plot_groups` may be empty.
 Array size is deliberately absent: read `cluster__qsub_n_jobs` from the pack
-immediately before the quota check.
+immediately before submission.
 
 Submission statuses and their additional fields are:
 
@@ -70,13 +71,18 @@ Submission statuses and their additional fields are:
 - `submitted`: requires `attempts`, `remote_commit`, and the runtime-discovered
   `remote_submission_directory`.
 - `continuation_requested`: a saved attempt was killed specifically for
-  walltime and its whole continuation array is waiting for quota. Requires
+  walltime and its whole continuation array is waiting for submission. Requires
   `pending_continuation.extra_time`, scheduler evidence, and source-pack update
   status.
 - `finished`: every saved array job completed successfully; requires
   `finished_at`. Failed or partial arrays remain blocked with evidence.
 - `analyzed`: the single-submission plot completed; requires
   `single_run_plot.completed_at`.
+- `retired`: preserved audit history that is no longer eligible for submission,
+  reconciliation, or plotting. Requires `original_id`, `retired_at`, and
+  `retired_reason`; `plot_groups` must be empty. If it has saved results, its
+  `remote_submission_directory` must be outside every active group's
+  `remote_multi_run_directory`.
 
 `last_error` may be retained on any non-successful stage for reporting, but it
 must be cleared when that same stage later succeeds.
@@ -121,6 +127,11 @@ A group has exactly one `background_submission` and an ordered list of
 `signal_submissions`. These IDs, rather than directory-name inference, define
 membership. Plot 02 explicitly points to its Plot 01 background.
 
+Active significance series contain exactly five points, numbered `01` through
+`05`. The legacy ten-point migration retains old points `02, 04, 06, 08, 10`
+and renames them `01, 02, 03, 04, 05`; old odd points remain as `retired`
+audit entries and must not appear in `signal_submissions`.
+
 Group statuses are:
 
 - `pending`: at least one member has not completed single-submission plotting.
@@ -143,3 +154,4 @@ background.
   created by the submission command.
 - Skip completed stages on retries. State transitions make the daily routine
   idempotent.
+- Skip `retired` submissions entirely.

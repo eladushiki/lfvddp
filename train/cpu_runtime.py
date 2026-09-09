@@ -6,6 +6,8 @@ from typing import Optional
 
 import torch
 
+from tools.thread_pool_probe.cases import probe_thread_limit, probe_torch_threads
+
 
 THREAD_ENVIRONMENT_VARIABLES = (
     "OMP_NUM_THREADS",
@@ -39,21 +41,6 @@ def _cpu_model() -> str:
     except (FileNotFoundError, PermissionError, OSError, IndexError):
         pass
     return "unknown"
-
-
-def _preserve_startup_thread_limit(environment_name: str, requested: int) -> int:
-    """Keep a smaller startup limit from being widened after imports."""
-
-    configured = os.environ.get(environment_name)
-    if configured is None:
-        return requested
-    try:
-        configured_count = int(configured)
-    except ValueError:
-        return requested
-    if configured_count < 1:
-        return requested
-    return min(requested, configured_count)
 
 
 def cpu_runtime_metadata(effective_cpus: Optional[int] = None) -> dict[str, str]:
@@ -113,15 +100,15 @@ def configure_cpu_runtime(number_of_cpus: int, log_metadata: bool = True) -> Non
 
     thread_count = str(number_of_cpus)
     os.environ["OMP_NUM_THREADS"] = str(
-        _preserve_startup_thread_limit("OMP_NUM_THREADS", number_of_cpus)
+        probe_thread_limit("OMP_NUM_THREADS", number_of_cpus)
     )
     os.environ["MKL_NUM_THREADS"] = thread_count
     os.environ["OPENBLAS_NUM_THREADS"] = str(
-        _preserve_startup_thread_limit("OPENBLAS_NUM_THREADS", number_of_cpus)
+        probe_thread_limit("OPENBLAS_NUM_THREADS", number_of_cpus)
     )
     os.environ["OMP_DYNAMIC"] = "FALSE"
     os.environ["MKL_DYNAMIC"] = "FALSE"
-    torch.set_num_threads(number_of_cpus)
+    torch.set_num_threads(probe_torch_threads(number_of_cpus))
     if not _INTEROP_THREADS_CONFIGURED:
         # Mark before calling: if this PyTorch build reports that parallel work
         # already started, retrying later can never succeed and may abort.

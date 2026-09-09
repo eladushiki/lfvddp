@@ -1,0 +1,43 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Hypothesis Log Likelihood Ratio}
+
+Given our estimation for the appearing probability densities of the datasets we can get a likelihood value for each of them from Equation~\ref{eq:log_likelihood_of_a_learnable_distribution}. To estimate the likelihood of a hypothesis, we should multiply all its distributions' likelihoods in both regions:
+
+\begin{equation}
+\begin{aligned}
+\likelihood(\hypothesis{i} | \dataset{A}, \dataset{B})
+    &= \likelihood(\hypothesis{i}|\srdataset{A}, \srdataset{B})
+       \cdot \likelihood(\hypothesis{i}|\crdataset{A}, \crdataset{B}) \\
+    &= \likelihood(\srdist{\dataset{A}}^i|\srdataset{A})
+       \cdot \likelihood(\srdist{\dataset{B}}^i|\srdataset{B}) \\
+    &\quad \cdot \likelihood(\crdist{\dataset{A}}^i|\crdataset{A})
+       \cdot \likelihood(\crdist{\dataset{B}}^i|\crdataset{B})
+\end{aligned}
+\end{equation}
+
+\noindent for $i=0,1$. Then, to compare between the likelihood of both hypotheses, we use the inverse log likelihood ratio, as in Eq.~\ref{eq:inverse_log_likelihood_ratio}, to get:
+
+\begin{equation*}
+\invllratio = 2 \log \left(
+    \frac{
+        \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}|\dataset{A}, \dataset{B})
+    }{
+        \max\limits_{\nparam} (\likelihood(\nullhypothesis|\dataset{A}, \dataset{B})
+}\right).
+\end{equation*}
+
+\noindent Since $\log$ is a monotonically increasing function, we have that
+
+\begin{equation}
+\label{eq:high_level_overall_test_statistic}
+    \invllratio = 2 \left( {\max\limits_{f, g, \nparam}(\log \likelihood(\hypothesis{1}|\dataset{A}, \dataset{B})} - {\max\limits_{\nparam}(\log \likelihood(\nullhypothesis|\dataset{A}, \dataset{B})} \right),
+\end{equation}
+
+\noindent the calculation of which is fully carried out in Appendix~\ref{Appendix_Tvalue}).
+
+\end{document}

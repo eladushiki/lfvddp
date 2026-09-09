@@ -14,7 +14,7 @@ from frame.python_environment import (
     singularity_uv_cache_directory_export_command,
     uv_cache_directory_export_command,
 )
-from test.test_runtime_resources import RESOURCE_CLUSTER_CONFIG
+from test.thread_pool_probe.test_runtime_resources import RESOURCE_CLUSTER_CONFIG
 
 
 @pytest.mark.parametrize(

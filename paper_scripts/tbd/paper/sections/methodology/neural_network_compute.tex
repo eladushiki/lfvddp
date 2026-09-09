@@ -1,0 +1,280 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\SB{Here I suggest the following subsections which should include plots that demonstrate the procedure:
+\begin{itemize}
+    \item Data sets including multi variate and the various signals. 
+    \begin{itemize}
+        \item How signals are injected and their LR significance calculated
+    \end{itemize}
+\end{itemize}}
+
+\EK{
+    What do you mean by LR significance calculation? the algorithm or the theory of $Z$?
+}
+
+\subsubsection{Compute Framework}
+
+We chose to implement our project using Python, as a go-to programming language nowadays with several standard libraries for ML, data and plotting, including pytorch, numpy and matplotlib. Our project runs on Singularity containerization platform and using CERN's VM FS environment. Parallel runs are handled from within python and is fitted to use the current configuration of our department's computing cluster running OpenPBS engine.
+
+Some of the design principles were to encapsulate any new functionality while maintaining past capabilities, document and hash run details for traceability and separation of run parameter configuration from the code files in the codebase.
+
+\subsubsection{Neural Network Specs}
+
+As stated above, each network is a fully connected 3 layer NN with Sigmoid activation function for the inner layer neurons. The full structure of our model can be observed in Figure~\ref{fig:model_implementation}. We chose $N=4$ for the number of neurons. Weights initialization is taken from a Xavier uniform, and biases are from a uniform distribution from the segment $[-0.3, 0.3]$.
+
+Before any given process, data is normalized such that all datasets would fit $[-1, 1]$ to allow for stable numerics of the Sigmoid functions.
+
+Detector segments are initialized from a normal distribution with std of $1e-3$, and are clamped in each step if reaching either $\pm 1$ within a distance of $1e-6$.
+
+Training batching is done with a single batch per train step, having all datasets as column vectors to allow for single pytorch operation for every arithmetic calculation.
+\begin{figure}
+\label{fig:model_implementation}
+\begin{adjustbox}{width=\textwidth}
+\begin{tikzpicture}[
+  font=\small,
+  >=Latex,
+  vector/.style={
+    draw,
+    rounded corners,
+    minimum width=18mm,
+    minimum height=11mm,
+    align=center,
+    fill=blue!8
+  },
+  splitpart/.style={
+    draw,
+    rounded corners,
+    minimum width=22mm,
+    minimum height=12mm,
+    align=center,
+    fill=orange!12
+  },
+  layer/.style={
+    draw,
+    rounded corners,
+    minimum width=16mm,
+    minimum height=10mm,
+    align=center,
+    fill=green!10
+  },
+  output/.style={
+    draw,
+    rounded corners,
+    minimum width=20mm,
+    minimum height=12mm,
+    align=center,
+    fill=purple!10
+  },
+  combine/.style={
+    draw,
+    circle,
+    minimum size=15mm,
+    align=center,
+    fill=yellow!18
+  },
+  group/.style={
+    draw,
+    dashed,
+    rounded corners,
+    inner sep=1mm
+  },
+  arrow/.style={
+    ->,
+    thick
+  }
+]
+\tikzset{
+  stacked/.style={
+    draw,
+    fill=green!10,
+    minimum width=16mm,
+    minimum height=10mm,
+    rounded corners,
+    align=center,
+    preaction={
+      draw,
+      fill=green!10,
+      transform canvas={xshift=-3mm,yshift=3mm}
+    },
+    preaction={
+      draw,
+      fill=green!10,
+      transform canvas={xshift=-2mm,yshift=2mm}
+    },
+    preaction={
+      draw,
+      fill=green!10,
+      transform canvas={xshift=-1mm,yshift=1mm}
+    }
+  }
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% grid constants
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\def\fNNy{2.0}
+\def\gNNy{0.0}
+\def\etay{-2.0}
+\def\spx{1.1}
+\def\nninx{\spx + 3.7}
+\def\nnmidx{\nninx + 4}
+\def\nnoutx{\nnmidx + 3.5}
+\def\arithmeticx{\nnoutx + 4}
+\def\combx{\arithmeticx + 2.7}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Coordinates (edit these!)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% input
+\node[vector] (x) at (0,\gNNy) {
+  split
+};
+% split
+\coordinate (split-point) at (\spx,\gNNy);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% NN 1 (upper)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[layer] (fin) at (\nninx,\fNNy) {$F_{in}$};
+\node[stacked] (fmid) at (\nnmidx,\fNNy) {$F_{mid}$};
+\node[layer] (fout) at (\nnoutx,\fNNy) {$F_{out}$};
+\node[output] (expf) at (\arithmeticx,\fNNy) {
+$e^{\{\}}$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% NN 2 (middle)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[layer] (gin) at (\nninx,\gNNy) {$g_{in}$};
+\node[stacked] (gmid) at (\nnmidx,\gNNy) {$g_{mid}$};
+\node[layer] (gout) at (\nnoutx,\gNNy) {$g_{out}$};
+\node[output] (expg) at (\arithmeticx,\gNNy) {
+$e^{\{\}}$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% One-layer NN
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[layer] (eta) at (\nnmidx,\etay) {
+$\eta$
+};
+\node[output] (pmeta) at (\arithmeticx,\etay) {
+$(1 \pm \{\})$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Combiner
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[combine] (comb) at (\combx,\gNNy) {
+$\odot$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Connections
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% incoming arrow
+\draw[->] (-2.2,0) -- node[above] {
+  $N_{tot} \times k$
+} (x.west);
+% split
+\draw (x.east) -- (split-point);
+\draw[->] (split-point) |- node[above, pos=0.7]{
+  $\text{SR}, N^{SR} \times k$
+}(fin.west);
+\draw[->] (split-point) |- node[above, pos=0.7]{
+  $\text{SR}, N^{SR} \times k$
+}(gin.west);
+\draw[->] (split-point) |- node[above, pos=0.7]{
+  $\text{tot}, N_{tot} \times k$
+}(eta.west);
+% f NN
+\draw[->] (fin.east) -- node[above]{
+  $N^{SR} \times 1$
+}(fmid.west);
+\draw[->] (fmid.east) -- node[above]{
+  $N^{SR} \times 1$
+}(fout.west);
+\draw[->] (fout.east) -- node[above]{
+  $f(x), N^{SR} \times 1$
+}(expf.west);
+% g NN
+\draw[->] (gin.east) -- node[above]{
+  $N^{SR} \times 1$
+}(gmid.west);
+\draw[->] (gmid.east) -- node[above]{
+  $N^{SR} \times 1$
+}(gout.west);
+\draw[->] (gout.east) -- node[above]{
+  $g(x), N^{SR} \times 1$
+}(expg.west);
+% eta
+\draw[->] (eta.east) -- node[above]{
+  $\eta(x), N_{tot} \times 1$
+}(pmeta.west);
+% combine
+\draw[->] (expf.east) -| node[above, pos=0.3]{
+  $e^{f(x)}$
+}(comb.north);
+\draw[->] (expg.east) -| node[above, pos=0.3]{
+  $e^{g(x)}$
+}(comb.west);
+\draw[->] (pmeta.east) -| node[above, pos=0.3]{
+  $1 \pm \eta(x)$
+}(comb.south);
+% outgoing arrow
+\draw[->] (comb.east) -- node[above] {
+  $L[f, g, \eta]$
+} (\combx + 2,\gNNy);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% groups
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
+\node[group, fit=(gin)(gmid)(expg)(expg)] (g) {};
+\node[group, fit=(eta)(pmeta)] (eta) {};
+\node at ($(f.north)+(0,0.25)$) {\scriptsize f NN};
+\node at ($(g.north)+(0,0.25)$) {\scriptsize g NN};
+\node at ($(eta.north)+(0,0.25)$) {\scriptsize $\eta$ prediction};
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Implementation of the model optimizing either loss function. In each step, the data propagates through the model, loss is calculated and adjustable parameters in the model are changed accordingly.}
+\end{figure}
+
+\TODO{describe hyperparameter selection}
+
+\subsubsection{Description of the Algorithm}
+A single run of our procedure goes as follows:
+
+\begin{figure}
+\caption{Single $t$ value stochastic calculation}
+\label{alg:single_train_algorithm}
+\begin{algorithmic}[1]
+
+\Statex \textit{Variables in italics are user configurable}
+\Statex % Purely for a clean visual separation
+
+\Require Configuration of model internal parameters, $\nparam$ usage, dataset source and criteria, number of epochs
+
+\State Load or generate a sample and randomly divide to $A^{SR}, B^{SR}$ of dimension $\mathit{k}$
+\State Load or generate a sample and randomly divide to $A^{CR}, B^{CR}$ of dimension $\mathit{k}$
+\State $\text{reference}^{SR} \gets A^{SR} + B^{SR}$ and same for $CR$
+
+\If{\textit{should inject signal}}
+    \State Inject the signal to $A^{SR}$
+\EndIf
+
+\State Numerator model $\gets \text{Model}(f, g, \nparam, \text{loss} = L^{\text{numerator}})$
+\State Denominator model $\gets \text{Model}(f = 0, g = 0, \nparam, \text{loss} = L^{\text{denominator}})$
+
+\For{\textit{epoch} times}
+    \State Train a step for each model
+\EndFor
+
+\State $t \gets -2 \cdot (\text{numerator model final loss}) + 2 \cdot (\text{denominator model final loss})$
+
+\State Plot, document and save
+\State \Return $t$
+
+\end{algorithmic}
+\end{figure}
+
+Unless stated specifically otherwise, the trainings were run with $N=4$ neurons, generated datasets from an exponentially decaying probability distribution.
+Repeating this procedure many times gives us a set of $t$ values, of which we can examine the statistics.
+
+\end{document}

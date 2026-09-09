@@ -6,8 +6,12 @@ description: "Detect completed tracked ATLAS submissions and generate their sing
 # Generate Plots on Cluster
 
 Process only submissions recorded in `.agents/submission-state.yaml`. Ignore
-untracked jobs when deciding what to plot, even though all jobs still count
-toward scheduler limits.
+untracked jobs when deciding what to plot; include them only in scheduler-count
+reporting.
+
+Skip submissions with status `retired`. Their saved result directories must be
+outside active `remote_multi_run_directory` trees so recursive plot discovery
+cannot reintroduce retired signal points.
 
 Read [the submission-state schema](../../submission-state.schema.md) before
 changing state. This skill assumes `ssh-to-cluster` has already opened one
@@ -36,10 +40,8 @@ walltime:
 1. Choose an additional walltime from the scheduler evidence. If it supplies no
    better estimate, use the killed attempt's configured total walltime so the
    recovered total doubles.
-2. Before submitting, apply the same whole-array quota check as
-   `submit-on-cluster`. A continuation has priority over new FIFO requests; if
-   it does not fit, set the submission to `continuation_requested` and stop new
-   submissions for this run.
+2. Submit the continuation as a whole array before new requests. There is no
+   internal queued-element cap or capacity deferral.
 3. Continue the saved run without debug mode:
 
    ```sh
@@ -109,12 +111,19 @@ the same configuration and make an otherwise ready aggregate plot fail. Prefer
 the completed submission only after the residue has been reviewed; do not hide
 or silently ignore the residue.
 
-Never delete a residue automatically. Report its exact remote path, the
-evidence for its classification, and whether a completed replacement exists,
-then obtain the user's explicit permission before deletion. Until permission is
-given, leave the directory unchanged, keep the group failed, and save the
-candidate and reason in `last_error`. A pre-`qsub` residue is not adopted as a
-tracked attempt because no scheduler job was submitted.
+The user has granted standing permission to delete one narrow class of residue:
+a newly created pre-`qsub` directory when the submission error clearly says the
+whole array could not fit the queued-element quota. Before deleting it, verify
+from its saved context that `run_successful` is false and `qsub_submissions` is
+empty; delete only that exact timestamped directory and verify that it is gone.
+A pre-`qsub` residue is not adopted as a tracked attempt because no scheduler
+job was submitted.
+
+For every other residue, report its exact remote path, the evidence for its
+classification, and whether a completed replacement exists, then obtain the
+user's explicit permission before deletion. Until permission is given, leave
+the directory unchanged, keep the group failed, and save the candidate and
+reason in `last_error`.
 
 After the underlying failure has been fixed, a failed-job residue becomes
 eligible for the same permission-gated cleanup. After an approved deletion,

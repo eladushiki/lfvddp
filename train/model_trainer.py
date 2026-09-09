@@ -50,6 +50,7 @@ from train.runtime_resources import RuntimeAllocation
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingResourceProfiler
 from train.training_names import training_name
+from tools.thread_pool_probe.cases import probe_torch_capacity
 
 
 class TrainLauncher(ABC):
@@ -193,10 +194,15 @@ PARALLEL_COORDINATOR_CPU_THREADS = 1
 
 
 def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
-    """Reserve the runnable Python overhead observed beside Torch worker teams."""
+    """Reserve runnable Python overhead beside spawned Torch workers."""
 
     minimum_capacity = branch_count
-    return max(minimum_capacity, cpu_count - PARALLEL_RUNTIME_CPU_RESERVE)
+    normal_capacity = max(
+        minimum_capacity,
+        cpu_count - PARALLEL_RUNTIME_CPU_RESERVE,
+    )
+    requested_capacity = probe_torch_capacity(normal_capacity)
+    return max(minimum_capacity, min(cpu_count, requested_capacity))
 
 
 def lfvnn_denominator_is_trainable(config: TrainConfig) -> bool:
@@ -484,8 +490,12 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
         used_gpu_count = min(1, gpu_count) if indices else 0
         self._note_unused_gpus(used_gpu_count=used_gpu_count)
         device = "cuda:0" if gpu_count else "cpu"
+        torch_capacity = min(
+            self._allocation.cpu_count,
+            probe_torch_capacity(self._allocation.cpu_count),
+        )
         return [
-            _TrainingAssignment(index, device, self._allocation.cpu_count)
+            _TrainingAssignment(index, device, torch_capacity)
             for index in indices
         ]
 

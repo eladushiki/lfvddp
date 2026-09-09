@@ -1,0 +1,42 @@
+\documentclass[../../ddppaper2.tex]{subfiles}
+
+\input{../../../common/preamble}
+
+\begin{document}
+
+\subsubsection{Testing Hypotheses}
+
+We now define the full null and alternative hypotheses in Eq~\ref{eq:sr_hypothesis_statement} 
+
+\begin{equation}
+\label{eq:sr_hypothesis_statement}
+\begin{aligned}
+    \nullhypothesis |_{SR} &: \quad
+    \begin{cases}
+        {\srdist{\dataset{A}}^0} = N_\srdataset{A} (1 + {\nparam(\anyevent)}) \srrefdist \\
+        {\srdist{\dataset{B}}^0} = N_\srdataset{B} (1 - {\nparam(\anyevent)}) \srrefdist
+    \end{cases} \\
+    \hypothesis{1} |_{SR} &: \quad
+    \begin{cases}
+        {\srdist{\dataset{A}}^1} = N_\srdataset{A} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
+        {\srdist{\dataset{B}}^1} = N_\srdataset{B} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+To which we add, for the control region as in Eq.~\ref{eq:cr_hypothesis_statement}
+
+\begin{equation}
+\label{eq:cr_hypothesis_statement}
+\begin{aligned}
+    \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
+    \begin{cases}
+        \crdist{\dataset{A}}^i = N_\crdataset{A} (1 + {\nparam(\anyevent)}) \crrefdist \\
+        \crdist{\dataset{B}}^i = N_\crdataset{B} (1 - {\nparam(\anyevent)}) \crrefdist
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+Note that we now have two separate reference distributions, that are built in the same manner - the combined sample in either region.
+
+\end{document}

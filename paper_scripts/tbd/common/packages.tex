@@ -1,15 +1,52 @@
+\makeatletter
+
 \usepackage[utf8]{inputenc}
+
+\usepackage{adjustbox}
+\usepackage{algpseudocode}
+\usepackage{amsfonts}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{array}
+% \usepackage[noaffiliation]{authblk}
+\usepackage[english]{babel}
 \usepackage{bm}
-\usepackage{amsfonts}
-\usepackage{hyperref}
+\usepackage{color}
+\usepackage{csquotes}
+\usepackage{dsfont}
+\usepackage{faktor}
+\usepackage[T1]{fontenc}
 \usepackage{graphicx}
 \usepackage{geometry}
-\usepackage[english]{babel} % enables hyphenation
+\usepackage{mathtools}
 \usepackage{microtype} % improves spacing overall
 \usepackage{physics}
 \usepackage{soul}
+\usepackage{tikz}
+\usepackage{tikz-cd}
+
+\@ifclassloaded{beamer}{  % Context dependent inclusions
+    \usepackage{algorithm}
+    % Computer Modern Sans names these available shapes differently.
+    \DeclareFontShape{T1}{cmss}{b}{n}{<->ssub*cmss/bx/n}{}
+    \DeclareFontShape{T1}{cmss}{m}{sc}{<->ssub*cmr/m/sc}{}
+}{
+    \ifdefined\thesis
+        \geometry{margin=1in}
+    \fi
+}
+
+\usetikzlibrary{arrows}
+\tikzcdset{arrow style=tikz,
+diagrams={>={Stealth[round,length=4pt,width=6pt,inset=3pt]}}}
+
+\setlength{\marginparwidth}{2cm}
+\usepackage{todonotes}
+
 \usepackage{xcolor}
+\usepackage{xfrac}
 
 \usepackage{subfiles} % Best loaded last
+
+\makeatother

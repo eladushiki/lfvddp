@@ -1,0 +1,6 @@
+INFO:root:Training worker started: A_numerator on cpu with 15 CPU thread(s).
+INFO:root:Starting training
+INFO:root:Training time (seconds): 1487.9723479747772
+INFO:root:Minimum loss achieved: 79810.981200
+INFO:root:Documented product: results/run_20260811_131801_1786443481.819155_detector_effect_background_run_of_single_train.py_pid_3925641/training_outcomes/A_numerator_training_result_3749356563362969805.weights.h5
+INFO:root:Training worker finished: A_numerator in 1487.977 seconds.

@@ -1,0 +1,28 @@
+# TeX Processing artifacts
+*.aux
+*.bbl
+*.bib
+*.blg
+*(busy)
+*.fdb_latexmk
+*.fls
+*.gz
+*.lof
+*.log
+*.lot
+*.lov
+*.pdf
+*.out
+*.synctex
+*.synctex.gz
+*.toc
+
+## Beamer
+*.nav
+*.snm
+*.bcf
+*.run.xml
+
+# IDE
+.vscode/
+**.code-workspace
