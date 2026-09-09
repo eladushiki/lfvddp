@@ -32,6 +32,7 @@ from train.training_names import (
     SAMPLE_A_NAME,
     training_names_for_sample,
 )
+from train.thread_probe import probe_forces_sequential
 
 
 @context_controlled_execution
@@ -93,7 +94,8 @@ def select_train_launcher_class(
     """
 
     if (
-        not config.train__like_NPLM
+        not probe_forces_sequential()
+        and not config.train__like_NPLM
         and lfvnn_denominator_is_trainable(config)
         and allocation_supports_parallel_training(allocation)
     ):

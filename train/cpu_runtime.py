@@ -6,6 +6,8 @@ from typing import Optional
 
 import torch
 
+from train.thread_probe import probe_thread_limit
+
 
 THREAD_ENVIRONMENT_VARIABLES = (
     "OMP_NUM_THREADS",
@@ -97,9 +99,13 @@ def configure_cpu_runtime(number_of_cpus: int, log_metadata: bool = True) -> Non
         raise ValueError("The CPU thread count must be positive.")
 
     thread_count = str(number_of_cpus)
-    os.environ["OMP_NUM_THREADS"] = thread_count
+    os.environ["OMP_NUM_THREADS"] = str(
+        probe_thread_limit("OMP_NUM_THREADS", number_of_cpus)
+    )
     os.environ["MKL_NUM_THREADS"] = thread_count
-    os.environ["OPENBLAS_NUM_THREADS"] = thread_count
+    os.environ["OPENBLAS_NUM_THREADS"] = str(
+        probe_thread_limit("OPENBLAS_NUM_THREADS", number_of_cpus)
+    )
     os.environ["OMP_DYNAMIC"] = "FALSE"
     os.environ["MKL_DYNAMIC"] = "FALSE"
     torch.set_num_threads(number_of_cpus)

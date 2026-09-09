@@ -17,6 +17,12 @@ from frame.python_environment import (
     singularity_uv_cache_directory_export_command,
     uv_cache_directory_export_command,
 )
+from train.thread_probe import (
+    format_thread_probe_case_setup,
+    format_thread_probe_cleanup,
+    format_thread_probe_monitor_functions,
+    format_thread_probe_monitor_start,
+)
 
 
 CACHE_CONTENTION_EXIT_STATUS = 75
@@ -53,6 +59,7 @@ log_job_completion() {{
     job_exit_status=$?
     trap - EXIT
     set +e
+{thread_probe_cleanup}
 
     if declare -F release_sandbox >/dev/null; then
         release_sandbox
@@ -142,6 +149,8 @@ export_container_variable() {{
     export "APPTAINERENV_${{variable_name}}=$variable_value"
 }}
 
+{thread_probe_case_setup}
+
 configure_container_environment() {{
     local passthrough_name
     local passthrough_value
@@ -158,9 +167,9 @@ configure_container_environment() {{
         export_container_variable "$passthrough_name" "$passthrough_value"
     done
 
-    export_container_variable OMP_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable OMP_NUM_THREADS "${{PROBE_OMP_NUM_THREADS:-$THREADS_PER_PROCESS}}"
     export_container_variable MKL_NUM_THREADS "$THREADS_PER_PROCESS"
-    export_container_variable OPENBLAS_NUM_THREADS "$THREADS_PER_PROCESS"
+    export_container_variable OPENBLAS_NUM_THREADS "${{PROBE_OPENBLAS_NUM_THREADS:-$THREADS_PER_PROCESS}}"
     export_container_variable OMP_DYNAMIC FALSE
     export_container_variable MKL_DYNAMIC FALSE
     export_container_variable PYTHONUNBUFFERED 1
@@ -210,6 +219,8 @@ log_runtime_diagnostics() {{
 
 configure_container_environment
 log_runtime_diagnostics
+
+{thread_probe_monitor_functions}
 
 # -----------------------------------------------------------------------------
 # Prepare the immutable, node-local Singularity sandbox cache.
@@ -403,6 +414,7 @@ if [ ! -f "$READY_FILE" ] || [ ! -f "$LEASE_FILE" ]; then
     exit 1
 fi
 
+{thread_probe_monitor_start}
 run_singularity exec {gpu_passthrough_flag} \
     --no-mount tmp \
     --cleanenv \
@@ -440,6 +452,8 @@ def format_qsub_execution_script(
         gpu_line = f"#PBS -l ngpus={config.cluster__qsub_ngpus_for_train}\n"
         gpu_passthrough_flag = "--nv"
 
+    thread_probe_case_setup = format_thread_probe_case_setup(array_jobs)
+
     return format_qsub_script(
         config=config,
         core_script_lines=SINGULARITY_EXECUTION_LINES,
@@ -455,6 +469,10 @@ def format_qsub_execution_script(
         commit_hash=context.commit_hash,
         cache_contention_exit_status=CACHE_CONTENTION_EXIT_STATUS,
         cache_lock_timeout_sec=CACHE_LOCK_TIMEOUT_SEC,
+        thread_probe_case_setup=thread_probe_case_setup,
+        thread_probe_cleanup=format_thread_probe_cleanup(),
+        thread_probe_monitor_functions=format_thread_probe_monitor_functions(),
+        thread_probe_monitor_start=format_thread_probe_monitor_start(),
     )
 
 
@@ -541,6 +559,7 @@ def format_qsub_script(
     **additional_template_kwargs,
 ) -> str:
     script = wrap_lines_with_qsub_script(core_script_lines)
+    additional_template_kwargs.setdefault("thread_probe_cleanup", "")
     
     # Handle array jobs
     array_job_line = ""
