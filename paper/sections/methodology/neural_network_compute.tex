@@ -236,12 +236,12 @@ $\odot$
 \caption{Implementation of the model optimizing either loss function. In each step, the data propagates through the model, loss is calculated and adjustable parameters in the model are changed accordingly.}
 \end{figure}
 
-\TODO{elaborate on hyperparameter selection after all plots are intact}
+\TODO{describe hyperparameter selection}
 
 \subsubsection{Description of the Algorithm}
 A single run of our procedure goes as follows:
 
-\begin{algorithm}
+\begin{figure}
 \caption{Single $t$ value stochastic calculation}
 \label{alg:single_train_algorithm}
 \begin{algorithmic}[1]
@@ -272,7 +272,7 @@ A single run of our procedure goes as follows:
 \State \Return $t$
 
 \end{algorithmic}
-\end{algorithm}
+\end{figure}
 
 Unless stated specifically otherwise, the trainings were run with $N=4$ neurons, generated datasets from an exponentially decaying probability distribution.
 Repeating this procedure many times gives us a set of $t$ values, of which we can examine the statistics.

@@ -9,6 +9,7 @@
 
 Treating separately the numerator and denominator here, for they will soon require handling on their own
 
+{\scriptsize
 \begin{equation}
 \label{eq:overall_test_statistic_numerator}
 \begin{aligned}
@@ -42,13 +43,14 @@ Treating separately the numerator and denominator here, for they will soon requi
         + N_{\crdataset{A}}\log({N_\crdataset{A}})
         + N_{\crdataset{B}}\log({N_\crdataset{B}})
         \\&
-        + \sum\limits_{\event \in \srdataset{A}} [\log(1 + {\nparam(\anyevent)}) + f(\anyevent)]
+        + \sum\limits_{\event \in \srdataset{A}} [\log(1 + {\nparam(\anyevent)}) + f(\anyevent)] \\&
         + \sum\limits_{\event \in \srdataset{B}} [\log(1 - {\nparam(\anyevent)}) + g(\anyevent)] \\&
-        + \sum\limits_{\event \in \crdataset{A}} \log(1 + {\nparam(\anyevent)})
+        + \sum\limits_{\event \in \crdataset{A}} \log(1 + {\nparam(\anyevent)}) \\&
         + \sum\limits_{\event \in \crdataset{B}} \log(1 - {\nparam(\anyevent)})
     \Bigg) + C
 \end{aligned}
 \end{equation}
+}
 
 \noindent leaving out the $C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist$ for it cancels in the division.
 

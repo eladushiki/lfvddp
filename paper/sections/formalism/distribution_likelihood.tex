@@ -40,13 +40,15 @@ For our test statistic, we consider the log-likelihood measure
 
 \begin{equation}
 \label{eq:log_likelihood_of_a_learnable_distribution}
-    \llikelihood( \lambda_\param | \dataset{A}) = 
+\begin{aligned}
+    \llikelihood( \lambda_\param | \dataset{A}) ={}&
     -N_{\dataset{A}}
     + \sum_{\event \in \dataset{A}} f(\event)
-    + N_{\dataset{A}}\log{N_{\dataset{A}}}
+    + N_{\dataset{A}}\log{N_{\dataset{A}}} \\&
     + \sum_{\event \in \dataset{A}} \log(1 + \nparam(\event))
     + \sum_{\event \in \dataset{A}} \log \refdist[\event]
-    + C'_\dataset{A},
+    + C'_\dataset{A}.
+\end{aligned}
 \end{equation}
 
 \noindent while a similar expression holds for $g$ and $\dataset{B}$.

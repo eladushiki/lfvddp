@@ -42,12 +42,12 @@ We further investigate the correlation between the significance of an injected s
 
 \begin{figure}
     \centering
-    \includegraphics[width=\linewidth, trim=0 12bp 0 0, clip]{paper/sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/performance_plot_-4588680099968231982.png}
+    \addgraph{sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/performance_plot_-4588680099968231982.png}
     \caption{Observed significances of the detection process by the injected significance. The process is run several times, with several configuration. The background only detection process is run 1000 times to generate a sample of the $\plratio$. Three signal shapes are picked, each is run for 100 times with varying intensities. The injected significance is calculated directly from the signal and background NDF, as in Eq.~\ref{eq:analytic_significance_from_pdfs}. The observed significance is calculated twice; once by the percentile of the mean of the signal $\plratio$s within the background only distribution (solid line), and the number of STDs it is above the mean of the background distribution (dashed line). All $\plratio$s are calculated from datasets with 1e5 events, learning rate of 0.03 and 5e5 epochs of learning.}
     \label{fig:observed_vs_injected_significances}
 \end{figure}
 
-\subsubsection{$\chi^2$ Degrees of Freedom (DOF)}
+\subsubsection{\texorpdfstring{$\chi^2$}{Chi-squared} Degrees of Freedom (DOF)}
 When considering the free parameters of either hypothesis space the following calculation follows:
 \begin{itemize}
     \item In $\hypothesis{1}$, the degrees of freedom are in $f$, $g$, $\nparam$ and $\refdist$.
