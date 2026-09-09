@@ -10,6 +10,8 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
+import math
+from numbers import Real
 from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
@@ -172,6 +174,28 @@ def _role_spec_from_mapping(mapping: Mapping[str, Any], role: str) -> "FunctionS
     return spec
 
 
+def _geometry_rows(value: Any, name: str) -> tuple[tuple[float, ...], ...]:
+    """Normalize scalar/flat/nested numeric config values for validation."""
+    if isinstance(value, (str, bytes, Mapping)):
+        raise ValueError(f"{name} must be numeric geometry.")
+    if isinstance(value, Real):
+        rows = ((float(value),),)
+    else:
+        try:
+            values = tuple(value)
+        except TypeError as error:
+            raise ValueError(f"{name} must be numeric geometry.") from error
+        if not values:
+            raise ValueError(f"{name} must not be empty.")
+        if all(isinstance(item, Real) and not isinstance(item, bool) for item in values):
+            rows = (tuple(float(item) for item in values),)
+        else:
+            rows = tuple(_geometry_rows(item, f"{name}[{index}]")[0] for index, item in enumerate(values))
+    if any(not row or any(not math.isfinite(item) for item in row) for row in rows):
+        raise ValueError(f"{name} must contain finite numeric values.")
+    return rows
+
+
 def _validate_family_options(spec: "FunctionSpaceSpec", role: str) -> None:
     if spec.state is RoleState.DISABLED:
         return
@@ -189,12 +213,32 @@ def _validate_family_options(spec: "FunctionSpaceSpec", role: str) -> None:
         raise ValueError(
             f"{role} family {spec.family.value!r} requires option(s): {', '.join(missing)}."
         )
-    if spec.family is FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL:
-        basis = str(options["basis"]).lower()
+    if spec.family is FunctionSpaceFamily.CUBIC_BSPLINE:
+        knot_rows = _geometry_rows(options["knots"], f"{role}.options.knots")
+        for knots in knot_rows:
+            if len(knots) < 2 or any(left >= right for left, right in zip(knots, knots[1:])):
+                # Full clamped vectors are allowed, but still need a valid span.
+                if len(knots) < 8 or knots[0] >= knots[-1] or any(left > right for left, right in zip(knots, knots[1:])):
+                    raise ValueError(f"{role}.options.knots must be increasing spline knots.")
+    elif spec.family is FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL:
+        basis = str(options["basis"]).strip().lower()
         if basis not in {"legendre", "chebyshev"}:
             raise ValueError(
                 f"{role}.options.basis must be 'legendre' or 'chebyshev', got {basis!r}."
             )
+        degree = options["maximum_degree"]
+        if isinstance(degree, bool) or not isinstance(degree, int) or degree < 0:
+            raise ValueError(f"{role}.options.maximum_degree must be a nonnegative integer.")
+        domains = _geometry_rows(options["domain"], f"{role}.options.domain")
+        if any(len(domain) != 2 or domain[0] >= domain[1] for domain in domains):
+            raise ValueError(f"{role}.options.domain must contain increasing (minimum, maximum) pairs.")
+    elif spec.family in {FunctionSpaceFamily.FIXED_SIGMOID, FunctionSpaceFamily.GAUSSIAN_RADIAL_BASIS}:
+        centers = _geometry_rows(options["centers"], f"{role}.options.centers")
+        widths = _geometry_rows(options["widths"], f"{role}.options.widths")
+        if any(width <= 0 for row in widths for width in row):
+            raise ValueError(f"{role}.options.widths must be strictly positive.")
+        if len(widths) > 1 and len(widths) not in {len(centers), len(centers[0])}:
+            raise ValueError(f"{role}.options.widths has incompatible geometry.")
 
 
 @dataclass(frozen=True)

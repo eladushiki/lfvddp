@@ -16,6 +16,10 @@ def test_registry_constructs_supported_families_for_both_roles():
     assert {family.value for family in FUNCTION_SPACE_REGISTRY} == {
         "adaptive_neural",
         "bin_indicators",
+        "cubic_bspline",
+        "orthogonal_polynomial",
+        "fixed_sigmoid",
+        "gaussian_radial_basis",
     }
 
     for role in ("f", "nuisance"):

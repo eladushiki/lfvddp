@@ -27,6 +27,10 @@ class FunctionSpace(Protocol):
     family: FunctionSpaceFamily
     options: Mapping[str, Any]
     metadata: FunctionSpaceMetadata
+    feature_count: int
+
+    def features(self, events: Any) -> Any:
+        ...
 
     def evaluate(self, events: Any) -> Any:
         ...
