@@ -1,11 +1,17 @@
 {
   "schema": 2,
   "lastWriter": "gsd-pi",
-  "lastProjectedAt": "2026-08-26T09:20:44.016Z",
+  "lastProjectedAt": "2026-09-08T11:19:45.810Z",
   "projections": {
     "DECISIONS.md": {
       "sha": "f94c40a934d6dbc5",
       "entities": []
+    },
+    "phases/01-training-speedup-validation/01-ROADMAP.md": {
+      "sha": "c458f007106d9ca1",
+      "entities": [
+        "M001"
+      ]
     }
   },
   "planning": {
