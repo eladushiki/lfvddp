@@ -1,6 +1,6 @@
 ---
 name: submit-on-cluster
-description: "Submit explicitly requested ATLAS array jobs in saved priority order."
+description: "Submit explicitly requested ATLAS array jobs in saved priority order without exceeding the queued-element quota."
 ---
 
 # Submit on Cluster
@@ -16,13 +16,15 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 ## Queue and repository state
 
 - Count queued elements with `qstat -tu $USER | grep Q | wc -l` and running
-  elements with `qstat -tu $USER | grep R | wc -l` for reporting only.
-- There is no internal queued-element limit. Existing untracked jobs are not
-  added to state.
+  elements with `qstat -tu $USER | grep R | wc -l`.
+- The enforced queued-element limit is read from state and starts at exactly
+  1000, with no reserved capacity.
+- Existing untracked jobs are not added to state, but their scheduler rows
+  count toward quota calculations.
 - Never pull, checkout, reset, merge, rebase, or replace the checkout while any
   jobs are queued or running. This is not a submission gate: record the current
-  branch and commit, then submit more jobs from the same checkout. The targeted
-  walltime correction defined by
+  branch and commit, then submit more jobs from the same checkout when quota
+  permits. The targeted walltime correction defined by
   `generate-plots-on-cluster` is allowed because active jobs use staged config
   copies.
 - When queued and running counts are both zero, a clean `main` checkout may be
@@ -34,31 +36,37 @@ For the first `requested` entry:
 
 1. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
    definition in the pack and is not copied into state.
-2. Submit the whole array. Do not split it or reserve scheduler capacity.
-3. Use the entry's `output_root`. Explicit pack values take precedence; seeded
+2. Recount queued elements immediately before submission.
+3. Submit the whole array only when `queued + cluster__qsub_n_jobs` is at most
+   `limits.max_queued_elements`. Do not split it or reserve scheduler capacity.
+   If it does not fit, leave it `requested` and continue scanning saved requests
+   for an array that fits.
+4. Use the entry's `output_root`. Explicit pack values take precedence; seeded
    Plot 01-05 requests derive missing roots as
    `results/highlights/2026-09/plot-XX`.
-4. Run the current submission entry point from the observed remote checkout:
+5. Run the current submission entry point from the observed remote checkout:
 
    ```sh
    python train/submit_train.py --configs <config-pack> \
      --only-train --out-dir <output-root>
    ```
 
-5. Capture every returned parent job ID. Discover the newly created timestamped
+6. Capture every returned parent job ID. Discover the newly created timestamped
    `*_run_of_submit_train.py_*` directory under `output_root`; do not predict its
    name. Save it as `remote_submission_directory`.
-6. Verify the job with `qstat -wu $USER`, then update the same entry to
+7. Verify the job with `qstat -wu $USER`, then update the same entry to
    `submitted` with an initial `attempt` containing its job IDs and timestamp,
    the timestamped directory, and the observed remote commit.
-7. Continue until no `requested` entries remain.
+8. Continue until no `requested` entries remain.
 
 If PBS rejects a whole array because of its current queue-state quota, keep the
 entry `requested`, record `last_error`, and defer it only for this routine run.
-Do not infer or store a capacity limit. Apply the narrowly authorized pre-`qsub`
-cleanup rule in `generate-plots-on-cluster`, then continue scanning later saved
-requests for arrays PBS will accept. Do not retry the same deferred entry again
-during that run.
+Do not retry the same deferred entry again during that run. If PBS reports an
+explicit numeric limit, save it as the observed limit; otherwise infer the
+upper bound from the rejected array and tighten the enforced limit as described
+in the state schema. Apply the narrowly authorized pre-`qsub` cleanup rule in
+`generate-plots-on-cluster`, then continue scanning later saved requests for
+arrays PBS will accept.
 
 For other submission or verification failures, keep the entry in place, set it
 `blocked` with `blocked_reason` and `last_error`, and stop processing so later
@@ -67,7 +75,8 @@ requests cannot overtake it.
 ## Summary
 
 Report scheduler counts, observed checkout, every submitted or blocked request,
-job IDs, timestamped output directories, and remaining FIFO work.
+configured or inferred quota changes, job IDs, timestamped output directories,
+and remaining priority-ordered work.
 
 ## Safety
 

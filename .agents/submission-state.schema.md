@@ -1,14 +1,22 @@
 # Cluster submission state
 
 `.agents/submission-state.yaml` is the ignored, local source of truth for the
-daily cluster routine. List order is FIFO order. A routine may update existing
-entries, but it must never add a new request unless the user explicitly asks.
+daily cluster routine. List order is the saved priority order. A routine may
+update existing entries, but it must never add a new request unless the user
+explicitly asks.
 
 ## Top-level structure
 
 ```yaml
 version: 4
 last_checked_at: null
+
+limits:
+  max_queued_elements: 1000
+  limit_source: configured
+  observed_admin_max_queued_elements: null
+  inferred_max_queued_elements: null
+  updated_at: null
 
 remote_checkout:
   branch: null
@@ -22,8 +30,14 @@ submissions: []
 
 - `last_checked_at` is the completion time of the most recent successful
   scheduler reconciliation. A failed SSH attempt does not advance it.
-- Queue counts are observations for reporting, not submission limits. The
-  routine has no internal queued-element cap.
+- `limits.max_queued_elements` is the enforced limit. It starts at 1000 with no
+  reserve. `limit_source` is `configured`, `scheduler_message`, or
+  `rejection_inference`.
+- Save an explicit numeric scheduler limit in
+  `observed_admin_max_queued_elements`. When a quota rejection provides no
+  number, set `inferred_max_queued_elements` to
+  `queued_before_submission + array_size - 1`. Enforce the smallest known bound
+  and timestamp every change.
 - `remote_checkout` records what the routine actually observed. Never replace
   or update the checkout while jobs are active. The targeted source-pack
   walltime correction is safe because active jobs use staged config copies. An
