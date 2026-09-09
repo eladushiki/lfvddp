@@ -15,6 +15,7 @@ THREAD_PROBE_CASE_ENV = "LFVDDP_THREAD_PROBE_CASE"
 PROBE_OMP_THREADS_ENV = "LFVDDP_PROBE_OMP_THREADS"
 PROBE_OPENBLAS_THREADS_ENV = "LFVDDP_PROBE_OPENBLAS_THREADS"
 PROBE_TORCH_CAPACITY_ENV = "LFVDDP_PROBE_TORCH_CAPACITY"
+PROBE_TORCH_THREADS_ENV = "LFVDDP_PROBE_TORCH_THREADS"
 PROBE_FORCE_SEQUENTIAL_ENV = "LFVDDP_PROBE_FORCE_SEQUENTIAL"
 
 
@@ -27,6 +28,7 @@ class ThreadProbeCase:
     omp_threads: Optional[int] = None
     openblas_threads: Optional[int] = None
     torch_capacity: Optional[int] = None
+    torch_threads: Optional[int] = None
     force_sequential: bool = False
 
 
@@ -41,6 +43,7 @@ THREAD_PROBE_CASES = (
         omp_threads=1,
         openblas_threads=1,
         torch_capacity=2,
+        torch_threads=1,
     ),
     ThreadProbeCase(
         6,
@@ -48,6 +51,7 @@ THREAD_PROBE_CASES = (
         omp_threads=1,
         openblas_threads=1,
         torch_capacity=1,
+        torch_threads=1,
         force_sequential=True,
     ),
 )
@@ -87,6 +91,15 @@ def probe_torch_capacity(
     """Return the temporary total Torch capacity when the probe requests one."""
 
     return _positive_integer(environment, PROBE_TORCH_CAPACITY_ENV) or default
+
+
+def probe_torch_threads(
+    default: int,
+    environment: Mapping[str, str] = os.environ,
+) -> int:
+    """Return an opt-in per-process Torch intra-op thread limit."""
+
+    return _positive_integer(environment, PROBE_TORCH_THREADS_ENV) or default
 
 
 def probe_forces_sequential(
@@ -138,6 +151,10 @@ def format_thread_probe_case_setup(array_jobs: Optional[int]) -> str:
         if case.torch_capacity is not None:
             assignments.append(
                 _shell_assignment(PROBE_TORCH_CAPACITY_ENV, case.torch_capacity)
+            )
+        if case.torch_threads is not None:
+            assignments.append(
+                _shell_assignment(PROBE_TORCH_THREADS_ENV, case.torch_threads)
             )
         if case.force_sequential:
             assignments.append(_shell_assignment(PROBE_FORCE_SEQUENTIAL_ENV, 1))

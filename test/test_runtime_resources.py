@@ -31,6 +31,7 @@ from train.thread_probe import (
     PROBE_OMP_THREADS_ENV,
     PROBE_OPENBLAS_THREADS_ENV,
     PROBE_TORCH_CAPACITY_ENV,
+    PROBE_TORCH_THREADS_ENV,
 )
 
 
@@ -107,15 +108,18 @@ def test_cpu_runtime_configures_interop_threads_only_once(monkeypatch):
 def test_cpu_runtime_preserves_probe_startup_pool_limits(monkeypatch):
     monkeypatch.setenv(PROBE_OMP_THREADS_ENV, "1")
     monkeypatch.setenv(PROBE_OPENBLAS_THREADS_ENV, "1")
+    monkeypatch.setenv(PROBE_TORCH_THREADS_ENV, "1")
     monkeypatch.setattr(cpu_runtime, "_INTEROP_THREADS_CONFIGURED", False)
     monkeypatch.setattr(torch, "set_num_interop_threads", lambda _threads: None)
-    monkeypatch.setattr(torch, "set_num_threads", lambda _threads: None)
+    intraop_calls = []
+    monkeypatch.setattr(torch, "set_num_threads", intraop_calls.append)
 
     cpu_runtime.configure_cpu_runtime(6, log_metadata=False)
 
     assert os.environ["OMP_NUM_THREADS"] == "1"
     assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
     assert os.environ["MKL_NUM_THREADS"] == "6"
+    assert intraop_calls == [1]
 
 
 def test_runtime_cpu_count_uses_export_and_affinity(monkeypatch):

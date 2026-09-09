@@ -6,7 +6,7 @@ from typing import Optional
 
 import torch
 
-from train.thread_probe import probe_thread_limit
+from train.thread_probe import probe_thread_limit, probe_torch_threads
 
 
 THREAD_ENVIRONMENT_VARIABLES = (
@@ -108,7 +108,7 @@ def configure_cpu_runtime(number_of_cpus: int, log_metadata: bool = True) -> Non
     )
     os.environ["OMP_DYNAMIC"] = "FALSE"
     os.environ["MKL_DYNAMIC"] = "FALSE"
-    torch.set_num_threads(number_of_cpus)
+    torch.set_num_threads(probe_torch_threads(number_of_cpus))
     if not _INTEROP_THREADS_CONFIGURED:
         # Mark before calling: if this PyTorch build reports that parallel work
         # already started, retrying later can never succeed and may abort.
