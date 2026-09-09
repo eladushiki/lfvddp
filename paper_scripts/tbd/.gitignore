@@ -26,7 +26,3 @@
 # IDE
 .vscode/
 **.code-workspace
-
-## Elad's sync local files
-thesis/
-research_proposal/

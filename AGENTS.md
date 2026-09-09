@@ -17,7 +17,7 @@ Implementing ML machinery to differentiate between similar and different pairs o
 ## Development Workflow
 - Do not add unrelated work to an existing feature branch or pull request.
 - Use one branch per issue, created directly from the latest `main` branch.
-- For independent issues, use separate isolated worktrees and parallel workers when doing so reduces elapsed time without coupling their changes.
+- For independent issues, use separate isolated worktrees uner `.agents/worktrees/` and parallel workers when doing so reduces elapsed time without coupling their changes.
 - When issues that appear in `.gsd/issues/open` are done, use `git mv` to move to `.gsd/issues/done` directory, in the same pr that solves them, for traceability. Add brief explanation on what was done.
 - Open exactly one pull request per issue, from that dedicated branch to `main`.
   - If asked, answer questions inside Github threads.

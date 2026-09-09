@@ -1,6 +1,8 @@
+\makeatletter
+
 \usepackage[utf8]{inputenc}
+
 \usepackage{adjustbox}
-\usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{amsfonts}
 \usepackage{amsmath}
@@ -9,17 +11,14 @@
 \usepackage{array}
 % \usepackage[noaffiliation]{authblk}
 \usepackage[english]{babel}
-\usepackage{bbold}
 \usepackage{bm}
 \usepackage{color}
+\usepackage{csquotes}
 \usepackage{dsfont}
 \usepackage{faktor}
 \usepackage[T1]{fontenc}
-\usepackage{hyperref} % load as late as possible to prevent warning
-\usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{geometry}
-\usepackage[english]{babel} % enables hyphenation
 \usepackage{mathtools}
 \usepackage{microtype} % improves spacing overall
 \usepackage{physics}
@@ -28,10 +27,14 @@
 \usepackage{tikz-cd}
 
 \@ifclassloaded{beamer}{  % Context dependent inclusions
-    % Do nothing if compiling the presentation
+    \usepackage{algorithm}
+    % Computer Modern Sans names these available shapes differently.
+    \DeclareFontShape{T1}{cmss}{b}{n}{<->ssub*cmss/bx/n}{}
+    \DeclareFontShape{T1}{cmss}{m}{sc}{<->ssub*cmr/m/sc}{}
 }{
-    % Apply this only when compiling the main paper
-    \usepackage{enumitem}
+    \ifdefined\thesis
+        \geometry{margin=1in}
+    \fi
 }
 
 \usetikzlibrary{arrows}
@@ -45,3 +48,5 @@ diagrams={>={Stealth[round,length=4pt,width=6pt,inset=3pt]}}}
 \usepackage{xfrac}
 
 \usepackage{subfiles} % Best loaded last
+
+\makeatother
