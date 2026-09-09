@@ -19,6 +19,7 @@ import torch
 from torch import nn
 
 from neural_networks.function_spaces.base import FunctionSpaceMetadata
+from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
 from train.function_space_config import FunctionSpaceFamily
 
 
@@ -127,7 +128,10 @@ class DeterministicFeatureFunction(nn.Module):
         return features @ self.coefficients
 
     def forward(self, events: Any) -> torch.Tensor:
-        return self.evaluate(events)
+        # ``evaluate`` remains the linear design-space value used by rank and
+        # coefficient-linearity calculations. Role adapters use this bounded
+        # path so likelihood log terms never receive a value outside (-1, 1).
+        return smoothly_bounded_likelihood_shift(self.evaluate(events))
 
     def evaluate(self, events: Any) -> torch.Tensor:
         return self._linear_evaluation(self.features(events))
