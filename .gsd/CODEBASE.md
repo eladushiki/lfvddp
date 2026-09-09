@@ -1,7 +1,8 @@
 # Codebase Map
 
-Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
-<!-- gsd:codebase-meta {"generatedAt":"2026-09-01T22:07:07Z","fingerprint":"4fb04bfd44f74847ce98590e27b0b8edae9748bd","fileCount":324,"truncated":false} -->
+Generated: 2026-09-08T09:18:54Z | Files: 500 | Described: 0/500
+<!-- gsd:codebase-meta {"generatedAt":"2026-09-08T09:18:54Z","fingerprint":"45cdfc242d05516b3e9e36d05973b48e162ecc32","fileCount":500,"truncated":true} -->
+Note: Truncated to first 500 files. Run with higher --max-files to include all.
 
 ### (root)/
 - `.gitattributes`
@@ -9,12 +10,9 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 - `.gitmodules`
 - `AGENTS.md`
 - `lfvddp.def`
-- `prediction-plot-spec.md`
+- `pyproject.toml`
 - `pytest.ini`
 - `README.md`
-- `requirements.txt`
-- `setup.py`
-- `submit-on-cluster.md`
 
 ### .github/
 - `.github/CODEOWNERS`
@@ -23,24 +21,112 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 - `configs/__init__.py`
 - `configs/x_validate.py`
 
-### configs/cluster/
-- `configs/cluster/basic_cluster_config.json`
+### configs/basic-generated/
+- `configs/basic-generated/cluster_config.json`
+- `configs/basic-generated/detector_config.json`
+- `configs/basic-generated/generated_dataset_config.json`
+- `configs/basic-generated/plot_config.json`
+- `configs/basic-generated/train_config.json`
+- `configs/basic-generated/user_config.json`
 
-### configs/dataset/
-- `configs/dataset/basic_generated_dataset_config.json`
-- `configs/dataset/basic_loaded_dataset_config.json`
+### configs/basic-loaded/
+- `configs/basic-loaded/cluster_config.json`
+- `configs/basic-loaded/detector_config.json`
+- `configs/basic-loaded/loaded_dataset_config.json`
+- `configs/basic-loaded/plot_config.json`
+- `configs/basic-loaded/train_config.json`
+- `configs/basic-loaded/user_config.json`
 
-### configs/detector/
-- `configs/detector/basic_detector_config.json`
+### configs/experiments/training-speedups/
+- `configs/experiments/training-speedups/README.md`
 
-### configs/plot/
-- `configs/plot/basic_plot_config.json`
+### configs/experiments/training-speedups/round-01-baseline/
+- `configs/experiments/training-speedups/round-01-baseline/cluster_config.json`
+- `configs/experiments/training-speedups/round-01-baseline/detector_config.json`
+- `configs/experiments/training-speedups/round-01-baseline/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-01-baseline/plot_config.json`
+- `configs/experiments/training-speedups/round-01-baseline/train_config.json`
+- `configs/experiments/training-speedups/round-01-baseline/user_config.json`
 
-### configs/train/
-- `configs/train/basic_train_config.json`
+### configs/experiments/training-speedups/round-01-checkpoint-sparse/
+- `configs/experiments/training-speedups/round-01-checkpoint-sparse/cluster_config.json`
+- `configs/experiments/training-speedups/round-01-checkpoint-sparse/detector_config.json`
+- `configs/experiments/training-speedups/round-01-checkpoint-sparse/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-01-checkpoint-sparse/plot_config.json`
+- `configs/experiments/training-speedups/round-01-checkpoint-sparse/train_config.json`
+- `configs/experiments/training-speedups/round-01-checkpoint-sparse/user_config.json`
 
-### configs/user/
-- `configs/user/basic_user_config.json`
+### configs/experiments/training-speedups/round-01-profile-baseline/
+- `configs/experiments/training-speedups/round-01-profile-baseline/cluster_config.json`
+- `configs/experiments/training-speedups/round-01-profile-baseline/detector_config.json`
+- `configs/experiments/training-speedups/round-01-profile-baseline/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-01-profile-baseline/plot_config.json`
+- `configs/experiments/training-speedups/round-01-profile-baseline/train_config.json`
+- `configs/experiments/training-speedups/round-01-profile-baseline/user_config.json`
+
+### configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/
+- `configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-no-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-baseline-100k-nuisance/
+- `configs/experiments/training-speedups/round-02-baseline-100k-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-100k-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/
+- `configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-no-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-baseline-1m-nuisance/
+- `configs/experiments/training-speedups/round-02-baseline-1m-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-baseline-1m-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/
+- `configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-no-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-profile-100k-nuisance/
+- `configs/experiments/training-speedups/round-02-profile-100k-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-profile-100k-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/
+- `configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-no-nuisance/user_config.json`
+
+### configs/experiments/training-speedups/round-02-profile-1m-nuisance/
+- `configs/experiments/training-speedups/round-02-profile-1m-nuisance/cluster_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-nuisance/detector_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-nuisance/generated_dataset_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-nuisance/plot_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-nuisance/train_config.json`
+- `configs/experiments/training-speedups/round-02-profile-1m-nuisance/user_config.json`
 
 ### data_tools/
 - `data_tools/__init__.py`
@@ -73,6 +159,7 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 - `frame/file_structure.py`
 - `frame/git_tools.py`
 - `frame/module_retriever.py`
+- `frame/python_environment.py`
 - `frame/submit.py`
 - `frame/time_tools.py`
 
@@ -130,8 +217,10 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 ### neural_networks/
 - `neural_networks/__init__.py`
 - `neural_networks/differentiating_model.py`
+- `neural_networks/likelihood_parameterization.py`
 - `neural_networks/NPLM`
 - `neural_networks/NPLM_adapters.py`
+- `neural_networks/nuisance_calculation.py`
 - `neural_networks/utils.py`
 
 ### neural_networks/weights/taylor_expansion_net/
@@ -183,7 +272,6 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 - `paper_scripts/Learning New Physics from Data -- a Symmetrized Approach/train/save.py`
 
 ### paper_scripts/tbd/
-- `paper_scripts/tbd/.gitignore`
 - `paper_scripts/tbd/investigate_loss_landscape.ipynb`
 - `paper_scripts/tbd/investigate_root_data.ipynb`
 - `paper_scripts/tbd/train_and_plot.ipynb`
@@ -194,76 +282,6 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 - `paper_scripts/tbd/common/detector_efficiency.tex`
 - `paper_scripts/tbd/common/packages.tex`
 - `paper_scripts/tbd/common/preamble.tex`
-
-### paper_scripts/tbd/common/bibliography/
-- `paper_scripts/tbd/common/bibliography/bibliography.bib`
-
-### paper_scripts/tbd/paper/
-- `paper_scripts/tbd/paper/ddppaper2.tex`
-
-### paper_scripts/tbd/paper/sections/
-- `paper_scripts/tbd/paper/sections/conclusion.tex`
-- `paper_scripts/tbd/paper/sections/introduction.tex`
-
-### paper_scripts/tbd/paper/sections/appendices/
-- `paper_scripts/tbd/paper/sections/appendices/t_value_computation.tex`
-
-### paper_scripts/tbd/paper/sections/formalism/
-- `paper_scripts/tbd/paper/sections/formalism/adding_nuisances.tex`
-- `paper_scripts/tbd/paper/sections/formalism/distribution_likelihood.tex`
-- `paper_scripts/tbd/paper/sections/formalism/event_counting.tex`
-- `paper_scripts/tbd/paper/sections/formalism/hypothesis_testing.tex`
-- `paper_scripts/tbd/paper/sections/formalism/learnable_distributions.tex`
-- `paper_scripts/tbd/paper/sections/formalism/loss_mechanics.tex`
-- `paper_scripts/tbd/paper/sections/formalism/pooled_likelihood.tex`
-- `paper_scripts/tbd/paper/sections/formalism/significance_estimation.tex`
-- `paper_scripts/tbd/paper/sections/formalism/test_statistics.tex`
-
-### paper_scripts/tbd/paper/sections/methodology/
-- `paper_scripts/tbd/paper/sections/methodology/detector_nuisance.tex`
-- `paper_scripts/tbd/paper/sections/methodology/implementation_details.tex`
-- `paper_scripts/tbd/paper/sections/methodology/multiple_dimensions.tex`
-- `paper_scripts/tbd/paper/sections/methodology/reproduction.tex`
-- `paper_scripts/tbd/paper/sections/methodology/simulated_data.tex`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/clean_example/
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/clean_example/context.json`
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/clean_example/final_t_3749356563362969805.txt`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/clean_example/training_outcomes/
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/clean_example/training_outcomes/A_denominator.worker_output.txt`
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/clean_example/training_outcomes/A_numerator.worker_output.txt`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/context.json`
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/final_t_-6176753673060647931.txt`
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/runtime_resources_-6176753673060647931.json`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/t-values/
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/detector-blank-with-nuisance/t-values/context.json`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/significance-plot/
-- `paper_scripts/tbd/paper/sections/methodology/plots/detector_effect/significance-plot/context.json`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/context.json`
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/final_t_2163321021161639752.txt`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/A_2163321021161639752.history.h5`
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/A_denominator_training_result_2163321021161639752.weights.h5`
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/A_denominator.checkpoint.pt`
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/A_numerator_training_result_2163321021161639752.weights.h5`
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/A_numerator.checkpoint.pt`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/tensorboard_logs/
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/training_outcomes/tensorboard_logs/events.out.tfevents.1784114764.8628f5b0c68c.24966.0`
-
-### paper_scripts/tbd/paper/sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/
-- `paper_scripts/tbd/paper/sections/methodology/plots/run_20260731_185731_1785513451.326495_detector_effect_background_run_of_create_plots.py_pid_1961985/context.json`
-
-### paper_scripts/tbd/presentations/
-- `paper_scripts/tbd/presentations/main_presentation.tex`
 
 ### paper_scripts/tbd/research_proposal/
 - `paper_scripts/tbd/research_proposal/research_proposal.tex`
@@ -289,100 +307,315 @@ Generated: 2026-09-01T22:07:07Z | Files: 324 | Described: 0/324
 - `plot/plots.py`
 - `plot/plotting_config.py`
 
-### test/
-- `test/__init__.py`
-- `test/conftest.py`
-- `test/environment.py`
-- `test/test_aggregate.py`
-- `test/test_basic.py`
-- `test/test_datasets.py`
-- `test/test_file_input.py`
-- `test/test_profile_likelihood.py`
-- `test/test_runtime_resources.py`
-- `test/test_singularity_cache.py`
-- `test/test_train_utils.py`
-- `test/test_train.py`
+### plot/specs/
+- `plot/specs/percentile-progression-plot-spec.md`
+- `plot/specs/prediction-plot-spec.md`
+- `plot/specs/significance-plot-spec.md`
+- `plot/specs/t-distribution-plot-spec.md`
 
-### test/configs/cluster/
-- `test/configs/cluster/resource_aware_cluster_config.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/4931611.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/round-01-baseline_exec_train_1665609208913643880.sh`
 
-### test/configs/dataset/
-- `test/configs/dataset/cms_open_dataset_json.json`
-- `test/configs/dataset/cms_open_dataset_root.json`
-- `test/configs/dataset/cms_open_dataset_txt.json`
-- `test/configs/dataset/disjoint_1D_generated_dataset_config.json`
-- `test/configs/dataset/disjoint_2D_generated_dataset_config.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_151000_1788178200.522788_round-01-baseline_run_of_submit_train.py_pid_551472/configs/0005_user_config.json`
 
-### test/configs/dataset/dataset_specs/
-- `test/configs/dataset/dataset_specs/CMS_mc_RunIISummer20UL16NanoAODv9_VVTo2L2Nu_MLL-1toInf_TuneCP5_13TeV-amcatnloFXFX-pythia8_NANOAODSIM_106X_mcRun2_asymptotic_v17-v1_30000_file_index.json`
-- `test/configs/dataset/dataset_specs/CMS_mc_RunIISummer20UL16NanoAODv9_VVTo2L2Nu_MLL-1toInf_TuneCP5_13TeV-amcatnloFXFX-pythia8_NANOAODSIM_106X_mcRun2_asymptotic_v17-v1_30000_file_index.txt`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/4931638.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/round-01-baseline_exec_train_-1526071501156799264.sh`
 
-### test/configs/detector/
-- `test/configs/detector/basic_1D_detector_config.json`
-- `test/configs/detector/basic_2D_detector_config.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_152604_1788179164.938427_round-01-baseline_run_of_submit_train.py_pid_558279/configs/0005_user_config.json`
 
-### test/configs/train/
-- `test/configs/train/long_1D_train_config_with_nuisance.json`
-- `test/configs/train/long_1D_train_config_without_nuisance.json`
-- `test/configs/train/profile_1D_train_config_with_nuisance.json`
-- `test/configs/train/short_1D_train_config_with_adaptive_learning_rate.json`
-- `test/configs/train/short_1D_train_config_with_increasing_learning_rate.json`
-- `test/configs/train/short_1D_train_config_with_nuisance.json`
-- `test/configs/train/short_1D_train_config_without_nuisance_like_nplm.json`
-- `test/configs/train/short_1D_train_config_without_nuisance.json`
-- `test/configs/train/short_2D_train_config_with_nuisance.json`
-- `test/configs/train/short_2D_train_config_without_nuisance.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/4931649.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/round-01-baseline_exec_train_648295555223590918.sh`
 
-### test/context/
-- `test/context/test_execution_context.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153247_1788179567.634259_round-01-baseline_run_of_submit_train.py_pid_566124/configs/0005_user_config.json`
 
-### test/context/configs/
-- `test/context/configs/mixed_generated_and_resampled_datasets.json`
-- `test/context/configs/walltime_1_minute.json`
-- `test/context/configs/walltime_3_minutes_1_minute_limit.json`
-- `test/context/configs/walltime_73_hours.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/4931655.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/round-01-baseline_exec_train_-728413162138107257.sh`
 
-### test/data_generation/
-- `test/data_generation/test_data_generation.py`
-- `test/data_generation/test_generator_modes.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153517_1788179717.235185_round-01-baseline_run_of_submit_train.py_pid_566944/configs/0005_user_config.json`
 
-### test/data_generation/configs/dataset/
-- `test/data_generation/configs/dataset/generator_modes_dataset_config.json`
-- `test/data_generation/configs/dataset/small_exact_sized_loaded_dataset_config.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_153531_1788179731.111056_round-01-baseline_run_of_single_train.py_pid_1954013/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153531_1788179731.111056_round-01-baseline_run_of_single_train.py_pid_1954013/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_153531_1788179731.111056_round-01-baseline_run_of_single_train.py_pid_1954013/runtime_resources_-3807719908943579707.json`
 
-### test/detector/
-- `test/detector/test_detection.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/4931801.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/round-01-baseline_exec_train_5040667750280702390.sh`
 
-### test/detector/configs/
-- `test/detector/configs/detector_affected_basic_ds_2.json`
-- `test/detector/configs/detector_affected_basic_ds.json`
-- `test/detector/configs/detector_perfect_basic_ds.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174534_1788187534.306055_round-01-baseline_run_of_submit_train.py_pid_698469/configs/0005_user_config.json`
 
-### test/plot/
-- `test/plot/test_create_plots.py`
-- `test/plot/test_plot_factory.py`
-- `test/plot/test_plot_utils.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/final_t_7145561723304646220.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/runtime_resources_7145561723304646220.json`
 
-### test/submission/
-- `test/submission/submit_test_utils.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_7145561723304646220.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_denominator_training_result_7145561723304646220.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_denominator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_denominator.worker_output.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_numerator_training_result_7145561723304646220.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_numerator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/A_numerator.worker_output.txt`
 
-### test/submission/continuation/
-- `test/submission/continuation/test_continuation.py`
-- `test/submission/continuation/test_submit_continuation_server.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_174550_1788187550.042077_round-01-baseline_run_of_single_train.py_pid_1841650/training_outcomes/tensorboard_logs/events.out.tfevents.1788187830.wn029.1841650.0`
 
-### test/submission/continuation/configs/
-- `test/submission/continuation/configs/continuation_cluster_config.json`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/4932270.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/round-01-baseline_exec_train_-824946186270599676.sh`
 
-### train/
-- `train/__init__.py`
-- `train/checkpoints.py`
-- `train/cpu_runtime.py`
-- `train/model_trainer.py`
-- `train/runtime_resources.py`
-- `train/single_train.py`
-- `train/submit_train.py`
-- `train/tensorboard_clutch.py`
-- `train/train_config.py`
-- `train/train_utils.py`
-- `train/training_names.py`
-- `train/training_profiler.py`
+### results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231000_1788207000.572594_round-01-baseline_run_of_submit_train.py_pid_774653/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/final_t_5481378323532072993.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/runtime_resources_5481378323532072993.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_5481378323532072993.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_denominator_training_result_5481378323532072993.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_denominator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_denominator.worker_output.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_numerator_training_result_5481378323532072993.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_numerator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/A_numerator.worker_output.txt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260831_231028_1788207028.376323_round-01-baseline_run_of_single_train.py_pid_12561/training_outcomes/tensorboard_logs/events.out.tfevents.1788207329.wn045.12561.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/4933685.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/round-01-baseline_exec_train_8276131149474821670.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111908_1788250748.807049_round-01-baseline_run_of_submit_train.py_pid_928242/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/4933689.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/round-01-baseline_exec_train_-4772285106899840075.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_111914_1788250754.176233_round-01-baseline_run_of_submit_train.py_pid_928386/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/final_t_-2821380607853070140.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/runtime_resources_-2821380607853070140.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_-2821380607853070140.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_denominator_training_result_-2821380607853070140.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_denominator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_denominator.worker_output.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_numerator_training_result_-2821380607853070140.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_numerator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/A_numerator.worker_output.txt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125310_1788256390.174639_round-01-baseline_run_of_single_train.py_pid_3483108/training_outcomes/tensorboard_logs/events.out.tfevents.1788256648.wn175.3483108.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/final_t_4427282090159909699.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/runtime_resources_4427282090159909699.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_4427282090159909699.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_denominator_training_result_4427282090159909699.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_denominator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_denominator.worker_output.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_numerator_training_result_4427282090159909699.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_numerator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/A_numerator.worker_output.txt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260901_125313_1788256393.010329_round-01-baseline_run_of_single_train.py_pid_148388/training_outcomes/tensorboard_logs/events.out.tfevents.1788256650.wn178.148388.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/4976261.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/round-02-baseline-100k-no-nuisance_exec_train_-7690352850086025176.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105709_1788681429.544454_round-02-baseline-100k-no-nuisance_run_of_submit_train.py_pid_1608789/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/4976262.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/round-02-baseline-100k-nuisance_exec_train_4520989758897294678.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105714_1788681434.999139_round-02-baseline-100k-nuisance_run_of_submit_train.py_pid_1608945/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/4976263.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/round-02-baseline-1m-no-nuisance_exec_train_7880894994218129855.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105720_1788681440.367935_round-02-baseline-1m-no-nuisance_run_of_submit_train.py_pid_1609083/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/4976264.pbs.OU`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/round-02-baseline-1m-nuisance_exec_train_-5857921384284830524.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_105725_1788681445.557433_round-02-baseline-1m-nuisance_run_of_submit_train.py_pid_1609226/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/final_t_3464320826270863740.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/runtime_resources_3464320826270863740.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/A_3464320826270863740.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/A_denominator_training_result_3464320826270863740.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/A_numerator_training_result_3464320826270863740.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/A_numerator.checkpoint.pt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383228_round-02-baseline-100k-no-nuisance_run_of_single_train.py_pid_1060271/training_outcomes/tensorboard_logs/events.out.tfevents.1788682871.wn047.1060271.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/final_t_8320743645510677228.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/runtime_resources_8320743645510677228.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/A_8320743645510677228.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/A_denominator_training_result_8320743645510677228.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/A_numerator_training_result_8320743645510677228.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/A_numerator.checkpoint.pt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.383600_round-02-baseline-1m-no-nuisance_run_of_single_train.py_pid_1060326/training_outcomes/tensorboard_logs/events.out.tfevents.1788683356.wn047.1060326.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/final_t_-3597107535828180798.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/runtime_resources_-3597107535828180798.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_-3597107535828180798.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_denominator_training_result_-3597107535828180798.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_denominator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_denominator.worker_output.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_numerator_training_result_-3597107535828180798.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_numerator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/A_numerator.worker_output.txt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384132_round-02-baseline-1m-nuisance_run_of_single_train.py_pid_1060393/training_outcomes/tensorboard_logs/events.out.tfevents.1788683597.wn047.1060393.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/final_t_624551521933309814.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/runtime_resources_624551521933309814.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_624551521933309814.history.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_denominator_training_result_624551521933309814.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_denominator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_denominator.worker_output.txt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_numerator_training_result_624551521933309814.weights.h5`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_numerator.checkpoint.pt`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/A_numerator.worker_output.txt`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/tensorboard_logs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_112100_1788682860.384600_round-02-baseline-100k-nuisance_run_of_single_train.py_pid_1060327/training_outcomes/tensorboard_logs/events.out.tfevents.1788683115.wn047.1060327.0`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/context.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/round-02-profile-100k-no-nuisance_exec_train_-3879094859841698156.sh`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/0002_generated_dataset_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/0003_plot_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/0004_train_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151557_1788696957.842618_round-02-profile-100k-no-nuisance_run_of_submit_train.py_pid_1682417/configs/0005_user_config.json`
+
+### results/experiments/training-speedups/round-01-baseline/run_20260906_151603_1788696963.959663_round-02-profile-100k-nuisance_run_of_submit_train.py_pid_1682658/configs/
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151603_1788696963.959663_round-02-profile-100k-nuisance_run_of_submit_train.py_pid_1682658/configs/0000_cluster_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151603_1788696963.959663_round-02-profile-100k-nuisance_run_of_submit_train.py_pid_1682658/configs/0001_detector_config.json`
+- `results/experiments/training-speedups/round-01-baseline/run_20260906_151603_1788696963.959663_round-02-profile-100k-nuisance_run_of_submit_train.py_pid_1682658/configs/0002_generated_dataset_config.json`
