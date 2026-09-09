@@ -252,6 +252,9 @@ python -m pytest
   endpoint. The environment already includes the XRootD backend for `fsspec`.
 - If cluster submission cannot reach PBS or CVMFS, reconnect through the WIS
   network or VPN and confirm access on the cluster login node.
+- Cluster jobs keep OpenMP and OpenBLAS single-threaded and reduce the parent
+  coordinator to one Torch thread before spawning workers. The remaining
+  requested CPU capacity is assigned to the Torch workers.
 - Parallel LFVNN training reserves one requested CPU for the parent Python
   coordinator. The remaining CPU capacity is divided between the spawned Torch
   training processes, except at the two-thread minimum where each branch must
