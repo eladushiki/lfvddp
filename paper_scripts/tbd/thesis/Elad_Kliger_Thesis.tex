@@ -10,6 +10,10 @@ aps, physrev,
 \def\thesis{}
 \input{../common/preamble}
 
+% Paper sections use paths relative to the paper's top-level directory.
+% Search there when those shared sections are compiled as part of the thesis.
+\graphicspath{{../paper/}}
+
 \newcommand{\SB}[1]{\textbf{\textcolor{blue}{[SB: #1]}}}
 \newcommand{\EK}[1]{\textbf{\textcolor{red}{[EK: #1]}}}
 
@@ -80,13 +84,15 @@ aps, physrev,
 \section{Formalism}
 \SB{start from a short reminder of the formalism in the original work. With citations.
 define the pdf as the sum of all events and explain the null and signal hypotheses used
-and also the fitting mechanism using NN. You cal also add a sketch if it helps.} \\
+and also the fitting mechanism using NN. You cal also add a sketch if it helps.}
+
 \SB{Once you remind what was done I would just describe the modifications to the signal and null hypotheses
 separately fro the addition of more variables (so no mention of CR) and separately for the addition
 of nuisance parameters with a generic explanation how they can be constrained in a model.
-than say that here we demonstrate it with CRs} \\
+than say that here we demonstrate it with CRs}
+
 \SB{Only then write the full null and signal hypotheses. And show what the likelihood function looks like
-after the algebra} \\
+after the algebra}
 
 \subfile{formalism/lepton_flavor_universality_and_violation}
 
@@ -143,7 +149,7 @@ after the algebra} \\
 % Produce the bibliography via BibTeX.
 \nocite{*}
 \bibliographystyle{apsrev4-2}
-\bibliography{common/bibliography/bibliography}
+\bibliography{../common/bibliography/bibliography}
 
 \begin{acknowledgments}
 \TODO{acknowledge}

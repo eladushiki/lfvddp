@@ -135,6 +135,15 @@
 }
 \newcommand{\addpic}[1]{\addsizedpic{0.8}{#1}}
 
+% Visible draft replacement for figures whose assets are not available yet.
+% Unlike \includegraphics{}, this keeps incomplete manuscripts compilable.
+\newcommand{\placeholdergraphic}[1][Figure pending]{%
+    \centering
+    \fbox{\parbox[c][0.18\textheight][c]{0.85\linewidth}{%
+        \centering\textit{#1}%
+    }}%
+}
+
 % Macro to insert a full-page PDF without altering document orientation
 \newcommand{\includefullpage}[2][1]{%
   \clearpage
@@ -166,10 +175,7 @@
 
 \ifdraft
   \newcommand{\draftmarker}[2]{%
-    \begingroup
-    \setlength{\fboxsep}{1pt}%
-    \textcolor{#1}{\fbox{\textbf{#2}}}%
-    \endgroup
+    \textcolor{#1}{\textbf{[#2]}}%
   }
   \newcommand{\TODO}[1]{\draftmarker{red}{TODO: #1}}
   \newcommand{\FIXME}[1]{\draftmarker{orange}{FIXME: #1}}
