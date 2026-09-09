@@ -189,17 +189,17 @@ class _TrainingAssignment:
     cpu_threads: int
 
 
-PARALLEL_COORDINATOR_CPU_RESERVE = 1
+PARALLEL_RUNTIME_CPU_RESERVE = 3
 PARALLEL_COORDINATOR_CPU_THREADS = 1
 
 
 def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
-    """Reserve CPU capacity for the parent coordinating spawned Torch workers."""
+    """Reserve runnable Python overhead beside spawned Torch workers."""
 
     minimum_capacity = branch_count
     normal_capacity = max(
         minimum_capacity,
-        cpu_count - PARALLEL_COORDINATOR_CPU_RESERVE,
+        cpu_count - PARALLEL_RUNTIME_CPU_RESERVE,
     )
     requested_capacity = probe_torch_capacity(normal_capacity)
     return max(minimum_capacity, min(cpu_count, requested_capacity))
