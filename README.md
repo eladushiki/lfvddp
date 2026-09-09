@@ -273,7 +273,7 @@ ordinary training. From an activated checkout, run:
 
 ```bash
 python -m tools.thread_pool_probe.submit \
-  --configs configs/thread-pool-probe \
+  --configs tools/thread_pool_probe/configs \
   --only-train
 ```
 

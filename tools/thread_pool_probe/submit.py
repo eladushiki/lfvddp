@@ -3,7 +3,7 @@
 Usage::
 
     python -m tools.thread_pool_probe.submit \
-        --configs configs/thread-pool-probe --only-train
+        --configs tools/thread_pool_probe/configs --only-train
 
 The normal ``train.submit_train`` entry point does not enable probe behavior.
 This wrapper opts in before delegating to the ordinary submission workflow.

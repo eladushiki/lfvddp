@@ -8,7 +8,7 @@ from frame.command_line.execution import (
     format_qsub_build_script,
     format_qsub_execution_script,
 )
-from test.test_runtime_resources import RESOURCE_CLUSTER_CONFIG
+from test.thread_pool_probe.test_runtime_resources import RESOURCE_CLUSTER_CONFIG
 
 
 @pytest.mark.parametrize(
