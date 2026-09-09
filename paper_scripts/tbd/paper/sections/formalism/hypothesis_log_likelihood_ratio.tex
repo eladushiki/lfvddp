@@ -11,8 +11,12 @@ Given our estimation for the appearing probability densities of the datasets we 
 \begin{equation}
 \begin{aligned}
 \likelihood(\hypothesis{i} | \dataset{A}, \dataset{B})
-    &= \likelihood(\hypothesis{i}|\srdataset{A}, \srdataset{B}) \cdot \likelihood(\hypothesis{i}|\crdataset{A}, \crdataset{B}) \\&
-    = \likelihood(\srdist{\dataset{A}}^i|\srdataset{A}) \cdot \likelihood(\srdist{\dataset{B}}^i|\srdataset{B}) \cdot \likelihood(\crdist{\dataset{A}}^i|\crdataset{A}) \cdot \likelihood(\crdist{\dataset{B}}^i|\crdataset{B})
+    &= \likelihood(\hypothesis{i}|\srdataset{A}, \srdataset{B})
+       \cdot \likelihood(\hypothesis{i}|\crdataset{A}, \crdataset{B}) \\
+    &= \likelihood(\srdist{\dataset{A}}^i|\srdataset{A})
+       \cdot \likelihood(\srdist{\dataset{B}}^i|\srdataset{B}) \\
+    &\quad \cdot \likelihood(\crdist{\dataset{A}}^i|\crdataset{A})
+       \cdot \likelihood(\crdist{\dataset{B}}^i|\crdataset{B})
 \end{aligned}
 \end{equation}
 

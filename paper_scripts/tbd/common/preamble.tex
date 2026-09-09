@@ -14,16 +14,31 @@
     ]{biblatex}
     \addbibresource{../common/bibliography/bibliography.bib}
 }{
-    % Apply this only when compiling the main paper
-    \geometry{letterpaper}
+    \ifdefined\paper
+        % Apply this only when compiling the main paper
+        \geometry{letterpaper}
+    \fi
+
+    \ifdefined\thesis
+        % Apply this only when compiling the thesis
+        \geometry{a4paper}
+    \fi
+
 }
 \makeatother
 
 % Package additions from REVTeX templates
 \usepackage{dcolumn}% Align table columns on decimal point
-\usepackage{hyperref}% add hypertext capabilities
-\usepackage[mathlines]{lineno}% Enable numbering of text and display math
-\linenumbers\relax % Commence numbering lines
+\usepackage{hyperref}% Load after packages that redefine cross-reference commands
+
+\ifdefined\paper
+    \usepackage[mathlines]{lineno}
+    \linenumbers\relax % Commence numbering lines in the paper
+\fi
+\ifdefined\thesis
+    \usepackage[mathlines]{lineno}
+    \linenumbers\relax % Commence numbering lines in the thesis
+\fi
 
 % Initialization of tikz lib
 \usetikzlibrary{fit,calc,shadows}
