@@ -1,0 +1,86 @@
+Job started at: Mon Aug 31 03:26:07 PM IDT 2026
+Running on host: wn039
+Job ID: 4931638.pbs
+Current directory: /srv01/agrp/eladklig
+Requested CPUs: 8
+Effective CPUs passed to training: 8
+Scheduler-assigned GPU IDs: none
+PBS job ID: 4931638.pbs
+PBS array ID: unavailable
+Host-visible CPUs: 8
+Process affinity: pid 3697104's current affinity list: 8-15
+PBS node file: /var/spool/pbs/aux/4931638.pbs
+PBS allocated slots: 1
+PBS node file contents:
+wn039.hep.weizmann.ac.il
+PBS slots grouped by host:
+      1 wn039.hep.weizmann.ac.il
+CPU topology:
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           46 bits physical, 57 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  104
+On-line CPU(s) list:                     0-103
+Vendor ID:                               GenuineIntel
+Model name:                              Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
+CPU family:                              6
+Model:                                   106
+Thread(s) per core:                      2
+Core(s) per socket:                      26
+Socket(s):                               2
+Stepping:                                6
+CPU(s) scaling MHz:                      51%
+CPU max MHz:                             3400.0000
+CPU min MHz:                             800.0000
+BogoMIPS:                                4400.00
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb cat_l3 ssbd mba ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb intel_pt avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local split_lock_detect wbnoinvd dtherm ida arat pln pts hwp hwp_act_window hwp_pkg_req vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid fsrm md_clear pconfig flush_l1d arch_capabilities
+Virtualization:                          VT-x
+L1d cache:                               2.4 MiB (52 instances)
+L1i cache:                               1.6 MiB (52 instances)
+L2 cache:                                65 MiB (52 instances)
+L3 cache:                                78 MiB (2 instances)
+NUMA node(s):                            2
+NUMA node0 CPU(s):                       0-25,52-77
+NUMA node1 CPU(s):                       26-51,78-103
+Vulnerability Gather data sampling:      Mitigation; Microcode
+Vulnerability Indirect target selection: Mitigation; Aligned branch/return thunks
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable
+Vulnerability Old microcode:             Vulnerable
+Vulnerability Reg file data sampling:    Not affected
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Not affected
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Not affected
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Not affected
+Host GPU diagnostics (not used for allocation):
+No host CUDA devices reported
+/sys/fs/cgroup/cpuset/cpuset.cpus: 0-103 
+/sys/fs/cgroup/cpu/cpu.cfs_quota_us: -1 
+/sys/fs/cgroup/cpu/cpu.cfs_period_us: 100000 
+INFO:    Starting build...
+INFO:    Verifying bootstrap image /storage/agrp/eladklig/SymmetrizedDDP/lfvddp.sif
+WARNING: integrity: signature not found for object group 1
+WARNING: Bootstrap image could not be verified, but build will continue.
+INFO:    Creating sandbox directory...
+INFO:    Build complete: /tmp/eladklig/singularity-node-cache/.lfvddp.sif.144115379571023627.835944448.1787224373.build.CCZczx/sandbox
+Singularity executable: singularity
+singularity version 3.8.5-2.el7
+Container SIF path: /storage/agrp/eladklig/SymmetrizedDDP/lfvddp.sif
+Sandbox cache root: /tmp/eladklig/singularity-node-cache
+Traceback (most recent call last):
+  File "/app/train/single_train.py", line 3, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+Removed unused sandbox cache: /tmp/eladklig/singularity-node-cache/lfvddp.sif.144115379571023627.835944448.1787224373.sandbox
+Job finished at: Mon Aug 31 03:26:14 PM IDT 2026
+Job elapsed seconds: 7
+Job exit status: 1

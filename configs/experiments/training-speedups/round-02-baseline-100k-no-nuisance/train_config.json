@@ -1,0 +1,16 @@
+{
+    "train__epochs": 2000,
+    "train__number_of_epochs_for_checkpoint": 1000,
+    "train__nn_input_dimension": 2,
+    "train__nn_inner_layer_nodes": 4,
+    "train__learning_rate": 0.03,
+    "train__final_learning_rate": 0.001,
+    "train__nuisance_binning_minima": 0,
+    "train__nuisance_binning_maxima": [
+        5,
+        2.45
+    ],
+    "train__nuisance_binning_number_of_bins": 10,
+    "train__profiling_enabled": false,
+    "train__data_is_train_for_nuisances": false
+}
