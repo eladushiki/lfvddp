@@ -257,13 +257,13 @@ python -m pytest
 - Cluster jobs keep OpenMP and OpenBLAS single-threaded and reduce the parent
   coordinator to one Torch thread before spawning workers. The remaining
   requested CPU capacity is assigned to the Torch workers.
-- Parallel LFVNN training reserves three requested CPUs for runnable Python
-  overhead observed beside the Torch worker teams, then uses two of the
-  measured spare CPUs for additional Torch workers (never exceeding the
-  requested CPU count). The resulting capacity is divided between the spawned
-  training processes, with at least one Torch thread per trainable branch. A
-  one-CPU allocation uses no child processes or coordinator and runs the epoch
-  loops sequentially in the parent process.
+- Parallel LFVNN training reserves one requested CPU for runnable Python
+  overhead observed beside the Torch worker teams. This uses two CPUs that
+  were previously held in reserve for additional Torch workers, without
+  exceeding the requested CPU count. The resulting capacity is divided
+  between the spawned training processes, with at least one Torch thread per
+  trainable branch. A one-CPU allocation uses no child processes or
+  coordinator and runs the epoch loops sequentially in the parent process.
 - If a non-debug run reports a dirty working tree, commit the intended code and
   configuration changes or use `--debug` only for exploratory work.
 
