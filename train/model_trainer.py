@@ -189,7 +189,10 @@ class _TrainingAssignment:
     cpu_threads: int
 
 
-PARALLEL_RUNTIME_CPU_RESERVE = 3
+# The measured run stayed at five materially busy threads on an eight-CPU
+# allocation.  Reduce the prior three-CPU reserve to one CPU, allowing two
+# additional Torch worker threads while retaining coordinator headroom.
+PARALLEL_RUNTIME_CPU_RESERVE = 1
 PARALLEL_COORDINATOR_CPU_THREADS = 1
 
 
