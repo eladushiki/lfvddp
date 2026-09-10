@@ -191,6 +191,11 @@ class _TrainingAssignment:
 
 PARALLEL_RUNTIME_CPU_RESERVE = 3
 PARALLEL_COORDINATOR_CPU_THREADS = 1
+# The measured run stayed at five materially busy threads on an eight-CPU
+# allocation.  Use two of the observed spare CPUs for additional Torch worker
+# threads while keeping one CPU available for the parent coordinator whenever
+# the allocation is large enough to provide one.
+PARALLEL_EXTRA_TORCH_WORKER_THREADS = 2
 
 
 def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
@@ -201,7 +206,11 @@ def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
         minimum_capacity,
         cpu_count - PARALLEL_RUNTIME_CPU_RESERVE,
     )
-    requested_capacity = probe_torch_capacity(normal_capacity)
+    expanded_capacity = min(
+        max(1, cpu_count - PARALLEL_COORDINATOR_CPU_THREADS),
+        normal_capacity + PARALLEL_EXTRA_TORCH_WORKER_THREADS,
+    )
+    requested_capacity = probe_torch_capacity(expanded_capacity)
     return max(minimum_capacity, min(cpu_count, requested_capacity))
 
 
