@@ -31,7 +31,7 @@ KNOWN_CONFIG_KEYS = {
     for field in fields(config_class)
 }
 
-CONFIG_ROOT = Path(__file__).parents[1] / "configs" / "background-only"
+CONFIG_ROOT = Path(__file__).parent / "configs" / "background-only"
 COMMON_ROOT = CONFIG_ROOT / "common"
 MODES = (
     "adaptive_neural",

@@ -61,8 +61,6 @@ matches the data source:
 - [`configs/basic-generated`](configs/basic-generated) generates all datasets.
 - [`configs/basic-loaded`](configs/basic-loaded) loads ROOT data and can inject
   a generated signal.
-- [`configs/background-only`](configs/background-only) provides composable
-  background-only studies for the supported function-space families.
 
 Copy a pack before editing it:
 
