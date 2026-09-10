@@ -40,13 +40,6 @@ def _value(value: Any) -> Any:
     return getattr(value, "value", value)
 
 
-def _rank_value(projected_rank: ProjectedFunctionSpaceRank | Mapping[str, Any], name: str) -> Any:
-    """Read one rank field from the canonical diagnostic or its serialized form."""
-    if isinstance(projected_rank, Mapping):
-        return projected_rank[name]
-    return getattr(projected_rank, name)
-
-
 def _regularity(spec: FunctionSpaceSpec) -> str | None:
     """Return the structural regularity of one enabled role."""
     if not spec.enabled:
@@ -56,40 +49,19 @@ def _regularity(spec: FunctionSpaceSpec) -> str | None:
     return _FAMILY_REGULARITY.get(spec.family, "unknown")
 
 
-def _rank_deficient(projected_rank: ProjectedFunctionSpaceRank | Mapping[str, Any]) -> bool:
-    """Identify requested dimensions that are not identifiable in the diagnostic."""
-    raw_f_dimension = _rank_value(projected_rank, "raw_f_dimension")
-    nuisance_dimension = _rank_value(projected_rank, "nuisance_dimension")
-    raw_f_rank = _rank_value(projected_rank, "raw_f_rank")
-    nuisance_rank = _rank_value(projected_rank, "nuisance_rank")
-    effective_f_rank = _rank_value(projected_rank, "effective_f_rank")
-    return (
-        raw_f_rank < raw_f_dimension
-        or nuisance_rank < nuisance_dimension
-        or effective_f_rank <= 0
-    )
-
-
-def _calibration_policy(
-    config: ResolvedFunctionSpaceConfig,
-    projected_rank: ProjectedFunctionSpaceRank | Mapping[str, Any],
-) -> str:
-    """Choose the calibration policy without inferring degrees of freedom from weights."""
+def _calibration_policy(config: ResolvedFunctionSpaceConfig) -> str:
+    """Choose the calibration policy from the selected model families."""
     f_regularity = _regularity(config.f)
     nuisance_regularity = _regularity(config.nuisance)
     has_adaptive_role = "adaptive" in {f_regularity, nuisance_regularity}
-    if (
-        config.backend is TrainingBackend.NPLM
-        or has_adaptive_role
-        or _rank_deficient(projected_rank)
-    ):
+    if config.backend is TrainingBackend.NPLM or has_adaptive_role:
         return EMPIRICAL_NULL_CALIBRATION
     return WILKS_CALIBRATION
 
 
 def build_statistical_metadata(
     resolved_config: ResolvedFunctionSpaceConfig,
-    projected_rank: ProjectedFunctionSpaceRank | Mapping[str, Any],
+    projected_rank: ProjectedFunctionSpaceRank,
 ) -> dict[str, Any]:
     """Build JSON-serializable statistical metadata for a resolved model.
 
@@ -103,22 +75,10 @@ def build_statistical_metadata(
 
     f_regularity = _regularity(resolved_config.f)
     nuisance_regularity = _regularity(resolved_config.nuisance)
-    calibration_policy = _calibration_policy(resolved_config, projected_rank)
+    calibration_policy = _calibration_policy(resolved_config)
     is_regular = calibration_policy == WILKS_CALIBRATION
 
-    rank_fields = (
-        "raw_f_dimension",
-        "nuisance_dimension",
-        "raw_f_rank",
-        "nuisance_rank",
-        "overlap_rank",
-        "effective_f_rank",
-        "projected_singular_values",
-        "tolerance",
-    )
-    rank_metadata = {
-        name: _json_value(_rank_value(projected_rank, name)) for name in rank_fields
-    }
+    rank_metadata = _json_value(asdict(projected_rank))
 
     # Keep role and rank provenance flat so this can be consumed by existing
     # aggregation/reporting code without knowing evaluator implementation types.

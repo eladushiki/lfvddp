@@ -101,3 +101,20 @@ def test_nplm_backend_is_empirical_null():
     assert metadata["mode"] == metadata["backend"] == "nplm"
     assert metadata["f_family"] == "adaptive_neural"
     assert metadata["calibration_policy"] == EMPIRICAL_NULL_CALIBRATION
+
+
+def test_rank_diagnostic_does_not_select_calibration_policy():
+    config = resolve_dual_role_config(
+        backend="lfvddp",
+        f=_deterministic_f(),
+        nuisance={"state": "disabled"},
+    )
+    rank = compute_projected_function_space_rank(
+        np.array([[1.0, 1.0], [2.0, 2.0]]),
+        None,
+    )
+
+    metadata = build_statistical_metadata(config, rank)
+
+    assert metadata["effective_f_rank"] == 1
+    assert metadata["calibration_policy"] == WILKS_CALIBRATION
