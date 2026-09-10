@@ -42,7 +42,7 @@ def _immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
 class AdaptiveNeuralFunction(nn.Module):
     """The existing one-hidden-layer bounded sigmoid network.
 
-    Its module layout and forward calculation intentionally match both legacy
+    Its module layout and forward calculation intentionally match the
     role-specific network classes so checkpoints and parameter initialization
     remain compatible.
     """
@@ -173,7 +173,7 @@ class BinIndicatorGeometry:
 
 
 class BinIndicatorFunction:
-    """Detector-bin indicator family with a stable evaluation interface."""
+    """Piecewise-constant indicator family with a stable evaluation interface."""
 
     family = FunctionSpaceFamily.BIN_INDICATORS
     metadata = FunctionSpaceMetadata(
@@ -185,7 +185,6 @@ class BinIndicatorFunction:
         self,
         geometry: BinIndicatorGeometry,
         options: Optional[Mapping[str, Any]] = None,
-        detector_effect: Any = None,
     ) -> None:
         self.geometry = geometry
         self.options = _immutable_options(
@@ -197,35 +196,12 @@ class BinIndicatorFunction:
                 "number_of_bins": list(geometry.number_of_bins),
             }
         )
-        self._detector_effect = detector_effect
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any]) -> "BinIndicatorFunction":
         return cls(BinIndicatorGeometry.from_options(options), options=options)
 
-    @classmethod
-    def from_detector_effect(cls, detector_effect: Any) -> "BinIndicatorFunction":
-        """Create a lookup from detector geometry without changing detector behavior."""
-
-        names = tuple(detector_effect.observable_names)
-        bin_values = [detector_effect.get_observable_bins(name) for name in names]
-        geometry = BinIndicatorGeometry(
-            minima=tuple(float(edges[0]) for edges, _ in bin_values),
-            maxima=tuple(float(edges[-1]) for edges, _ in bin_values),
-            number_of_bins=tuple(len(edges) - 1 for edges, _ in bin_values),
-        )
-        return cls(geometry, detector_effect=detector_effect)
-
     def bin_indices(self, events: DataSet | npt.ArrayLike) -> npt.NDArray[np.int64]:
-        """Evaluate zero-based bin indices for events."""
-
-        if self._detector_effect is not None and isinstance(events, DataSet):
-            # This is the legacy nuisance path.  Delegating preserves the exact
-            # DetectorEffect edge, clipping, and observable-order semantics.
-            return np.asarray(
-                self._detector_effect.get_event_bin_centers(events, indexed=True),
-                dtype=np.int64,
-            )
         return self.geometry.indices(events)
 
     def evaluate(self, events: DataSet | npt.ArrayLike) -> npt.NDArray[np.int64]:
@@ -375,24 +351,16 @@ def create_function_space(
         output_dimension = construction.pop(
             "output_dimension", copied_options.pop("output_dimension", 1)
         )
-        detector_effect = construction.pop("detector_effect", None)
         geometry = construction.pop("geometry", None)
         if family_value is FunctionSpaceFamily.BIN_INDICATORS:
-            if geometry is None:
-                result = (
-                    registration.factory.from_detector_effect(detector_effect)
-                    if detector_effect is not None
-                    else registration.factory.from_options(family_options)
-                )
-            else:
-                result = registration.factory(
-                    geometry=geometry, options=family_options, detector_effect=detector_effect
-                )
+            result = (
+                registration.factory.from_options(family_options)
+                if geometry is None
+                else registration.factory(geometry=geometry, options=family_options)
+            )
         else:
-            if detector_effect is not None or geometry is not None:
-                raise TypeError(
-                    f"{family_value.value} does not accept detector_effect or geometry overrides."
-                )
+            if geometry is not None:
+                raise TypeError(f"{family_value.value} does not accept geometry overrides.")
             result = registration.factory.from_options(
                 family_options,
                 dtype=dtype,

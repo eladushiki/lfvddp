@@ -51,86 +51,30 @@ def test_disabled_is_nuisance_only_state():
         resolve_dual_role_config(f={"state": "disabled"}, nuisance=_binned_role())
 
 
-def test_legacy_omitted_fields_resolve_current_defaults():
-    config = TrainConfig(
-        train__epochs=100,
-        train__number_of_epochs_for_checkpoint=10,
-        train__nn_inner_layer_nodes=4,
-        train__nuisance_binning_minima=0,
-        train__nuisance_binning_maxima=10,
-        train__nuisance_binning_number_of_bins=10,
-    )
-    resolved = config.train__function_space_config
-    assert resolved.compatibility_source == "legacy"
-    assert resolved.f.family is FunctionSpaceFamily.ADAPTIVE_NEURAL
-    assert resolved.nuisance.family is FunctionSpaceFamily.BIN_INDICATORS
-    assert resolved.nuisance.state is RoleState.ENABLED
-
-    disabled = TrainConfig(
-        train__epochs=100,
-        train__number_of_epochs_for_checkpoint=10,
-        train__nn_inner_layer_nodes=4,
-        train__data_is_train_for_nuisances=False,
-        train__nuisance_binning_minima=0,
-        train__nuisance_binning_maxima=10,
-        train__nuisance_binning_number_of_bins=10,
-    )
-    assert disabled.train__function_space_config.nuisance.state is RoleState.DISABLED
-
-    neural = TrainConfig(
-        train__epochs=100,
-        train__number_of_epochs_for_checkpoint=10,
-        train__nn_inner_layer_nodes=4,
-        train__nuisance_is_neural_network=True,
-        train__nuisance_nn_inner_layer_nodes=2,
-    )
-    assert neural.train__function_space_config.nuisance.family is FunctionSpaceFamily.ADAPTIVE_NEURAL
-    assert neural.train__function_space_config.nuisance.options["hidden_layer_nodes"] == 2
-
-    canonical = TrainConfig(
-        train__epochs=100,
-        train__number_of_epochs_for_checkpoint=10,
-        train__nn_inner_layer_nodes=4,
-        train__function_space={
-            "backend": "lfvddp",
-            "f": {"family": "adaptive_neural", "options": {"hidden_layer_nodes": 8}},
-            "nuisance": _binned_role(),
-        },
-    )
-    assert canonical.resolved_function_space_config.compatibility_source == "canonical"
-    assert canonical.train__f_function_space_spec.options["hidden_layer_nodes"] == 8
-
-    split_roles = TrainConfig(
-        train__epochs=100,
-        train__number_of_epochs_for_checkpoint=10,
-        train__nn_inner_layer_nodes=4,
-        train__backend="lfvddp",
-        train__f_function_space={"family": "adaptive_neural", "options": {}},
-        train__nuisance_function_space=_binned_role(),
-    )
-    assert split_roles.train__function_space_config.compatibility_source == "canonical"
-
-
-def test_backend_axis_remains_orthogonal_to_function_families():
-    resolved = resolve_dual_role_config(
-        backend="nplm",
-        legacy_f_options={"hidden_layer_nodes": 4},
-        legacy_nuisance_options={"minima": [0], "maxima": [1], "number_of_bins": [2]},
-    )
-    assert resolved.backend is TrainingBackend.NPLM
-    assert resolved.f.family is FunctionSpaceFamily.ADAPTIVE_NEURAL
-    with pytest.raises(ValueError, match="conflicts with legacy train__like_NPLM"):
+def test_train_config_requires_canonical_role_mappings():
+    assert "train__nuisance" in TrainConfig.__dataclass_fields__
+    with pytest.raises(ValueError, match="train__nuisance must define"):
         TrainConfig(
             train__epochs=100,
             train__number_of_epochs_for_checkpoint=10,
             train__nn_inner_layer_nodes=4,
-            train__like_NPLM=True,
-            train__backend="lfvddp",
-            train__nuisance_binning_minima=0,
-            train__nuisance_binning_maxima=1,
-            train__nuisance_binning_number_of_bins=2,
+            train__f={"family": "adaptive_neural", "options": {}},
         )
 
+def test_backend_axis_remains_orthogonal_to_function_families():
+    resolved = resolve_dual_role_config(
+        backend="nplm",
+        f={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 4}},
+        nuisance=_binned_role(),
+    )
+    assert resolved.backend is TrainingBackend.NPLM
+    assert resolved.f.family is FunctionSpaceFamily.ADAPTIVE_NEURAL
+    with pytest.raises(ValueError, match="supports adaptive f and binned nuisance"):
+        resolve_dual_role_config(
+            backend="nplm",
+            f={"family": "cubic_bspline", "options": {"knots": [0, 0, 0, 0, 1, 1, 1, 1]}},
+            nuisance=_binned_role(),
+        )
 
 def test_invalid_configs_are_contextual_and_future_families_are_declared():
     assert FunctionSpaceFamily.CUBIC_BSPLINE.value == "cubic_bspline"

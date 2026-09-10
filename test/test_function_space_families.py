@@ -54,48 +54,15 @@ def test_role_construction_does_not_alias_geometry_or_options():
     assert f_space.options is not nuisance_space.options
 
 
-@pytest.mark.parametrize(
-    "function_execution_context",
-    [{}],
-    indirect=True,
-)
-def test_bin_indices_match_detector_effect(detector_effect):
-    if not detector_effect.binned_observable_names:
-        # The default test detector is allowed to have no nuisance binning.
-        return
-
-    names = detector_effect.observable_names
+def test_bin_indices_follow_canonical_function_space_geometry():
+    lookup = BinIndicatorFunction.from_options(
+        {"minima": [0.0, -1.0], "maxima": [2.0, 1.0], "number_of_bins": [2, 2]}
+    )
     events = DataSet(
-        np.vstack(
-            [
-                np.linspace(
-                    detector_effect.get_observable_bins(name)[0][0],
-                    detector_effect.get_observable_bins(name)[0][-1],
-                    5,
-                )
-                for name in names
-            ]
-        ).T,
-        observable_names=list(names),
+        np.array([[0.1, -0.8], [1.9, 0.8]]),
+        observable_names=["x", "y"],
     )
-    lookup = BinIndicatorFunction.from_detector_effect(detector_effect)
-    expected = detector_effect.get_event_bin_centers(events, indexed=True)
-    np.testing.assert_array_equal(lookup.bin_indices(events), expected)
-
-    explicit = create_function_space(
-        "f",
-        "bin_indicators",
-        {
-            "minima": [detector_effect.get_observable_bins(name)[0][0] for name in names],
-            "maxima": [detector_effect.get_observable_bins(name)[0][-1] for name in names],
-            "number_of_bins": [
-                len(detector_effect.get_observable_bins(name)[0]) - 1 for name in names
-            ],
-        },
-    )
-    np.testing.assert_array_equal(explicit.bin_indices(events), expected)
-
-
+    np.testing.assert_array_equal(lookup.evaluate(events), [[0, 0], [1, 1]])
 def test_role_specific_network_names_preserve_shared_structure():
     assert _SignalRegionShiftEstimator is AdaptiveNeuralFunction
 

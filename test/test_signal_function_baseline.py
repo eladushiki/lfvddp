@@ -27,7 +27,7 @@ _SIGNAL_PARAMETERS = (
     ("signal_region_shift_network.output.bias", (1,)),
 )
 _NUISANCE_PARAMETERS = {
-    "binned": (("nuisance_calculation._detector_deltas.param_0", (10,)),),
+    "binned": (("nuisance_calculation._nuisance_deltas.dimension_0", (10,)),),
     "disabled": (),
     "neural": (
         ("nuisance_calculation.network.hidden.weight", (2, 1)),
@@ -39,14 +39,14 @@ _NUISANCE_PARAMETERS = {
 _BASELINES = {
     "binned": {
         "initial_state": (
-            "382c691a9abcd52709461ac67ad7e6e0484d4c6a4a793aa0a5fe3de0dd0196b7"
+            "90a0115ea0c391df10acf92149ff69f64cbaf2ce635780af9d7083fee60e73e4"
         ),
         "initial_loss": "0x1.2c7c35a786bc3p+5",
         "one_step_prediction": (
             "0f9d32f0e0a6106946d012301882d777007754f1f6f1ef165befd652031744a1"
         ),
         "continued_state": (
-            "6ce604e49426064e99057d82e3ca99ef993594c332f68724d4b5c33dccaf64a8"
+            "3f9f232efed4524be1a2e632641db49a5492ee9dd64dd409cb1dfcdafd18c518"
         ),
         "continued_prediction": (
             "a429ff3b0c41d5ad6c5c22053902b16259ac7f10d95a1b219c916f048f4a9c0c"
@@ -198,7 +198,7 @@ def preserve_deterministic_global_state():
     ],
     indirect=["function_execution_context"],
 )
-def test_omitted_f_preserves_legacy_adaptive_model_contract(
+def test_canonical_adaptive_model_contract(
     function_execution_context,
     nuisance_mode,
     isolated_data_generation,

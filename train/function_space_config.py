@@ -27,8 +27,6 @@ class TrainingBackend(_ValueEnum):
     """Training implementation, orthogonal to mathematical function family."""
 
     LFVDDP = "lfvddp"
-    # LFVNN was the historical name used in a few explanatory documents.
-    LFVNN = "lfvddp"
     NPLM = "nplm"
 
     @classmethod
@@ -37,11 +35,10 @@ class TrainingBackend(_ValueEnum):
             return cls.LFVDDP
         if isinstance(value, cls):
             return value
-        normalized = str(value).strip().lower().replace("-", "_")
-        aliases = {"lfvnn": cls.LFVDDP, "lfvddp": cls.LFVDDP, "nplm": cls.NPLM}
+        normalized = str(value).strip().lower()
         try:
-            return aliases[normalized]
-        except KeyError as error:
+            return cls(normalized)
+        except ValueError as error:
             raise ValueError(
                 f"Unknown training backend {value!r}; expected one of: lfvddp, nplm."
             ) from error
@@ -66,18 +63,8 @@ class FunctionSpaceFamily(_ValueEnum):
     def from_value(cls, value: FunctionSpaceFamily | str) -> FunctionSpaceFamily:
         if isinstance(value, cls):
             return value
-        normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
-        aliases = {
-            "adaptive": cls.ADAPTIVE_NEURAL,
-            "adaptive_neural_network": cls.ADAPTIVE_NEURAL,
-            "bin_indicator": cls.BIN_INDICATORS,
-            "bins": cls.BIN_INDICATORS,
-            "gaussian_rbf": cls.GAUSSIAN_RADIAL_BASIS,
-            "rbf": cls.GAUSSIAN_RADIAL_BASIS,
-        }
+        normalized = str(value).strip().lower()
         try:
-            if normalized in aliases:
-                return aliases[normalized]
             return cls(normalized)
         except ValueError as error:
             choices = ", ".join(item.value for item in cls)
@@ -102,8 +89,6 @@ class RoleState(_ValueEnum):
             return cls.ENABLED
         if isinstance(value, cls):
             return value
-        if isinstance(value, bool):
-            return cls.ENABLED if value else cls.DISABLED
         normalized = str(value).strip().lower()
         try:
             return cls(normalized)
@@ -286,27 +271,14 @@ class ResolvedFunctionSpaceConfig:
     backend: TrainingBackend
     f: FunctionSpaceSpec
     nuisance: FunctionSpaceSpec
-    compatibility_source: str = "canonical"
-
-    @property
-    def f_spec(self) -> FunctionSpaceSpec:
-        return self.f
-
-    @property
-    def nuisance_spec(self) -> FunctionSpaceSpec:
-        return self.nuisance
 
     def __repr__(self) -> str:
         return (
             "ResolvedFunctionSpaceConfig("
-            f"backend={self.backend.value!r}, compatibility_source={self.compatibility_source!r}, "
+            f"backend={self.backend.value!r}, "
             f"f={self.f!r}, nuisance={self.nuisance!r})"
         )
 
-
-# Descriptive aliases for callers that prefer the domain term over "resolved".
-DualRoleFunctionSpaceConfig = ResolvedFunctionSpaceConfig
-ResolvedDualRoleConfig = ResolvedFunctionSpaceConfig
 
 
 def _coerce_role(value: FunctionSpaceSpec | Mapping[str, Any] | None, role: str) -> Optional[FunctionSpaceSpec]:
@@ -327,87 +299,44 @@ def resolve_dual_role_config(
     backend: TrainingBackend | str | None = None,
     f: FunctionSpaceSpec | Mapping[str, Any] | None = None,
     nuisance: FunctionSpaceSpec | Mapping[str, Any] | None = None,
-    legacy_f_options: Optional[Mapping[str, Any]] = None,
-    legacy_nuisance_options: Optional[Mapping[str, Any]] = None,
-    legacy_nuisance_enabled: bool = True,
-    legacy_like_nplm: bool = False,
-    compatibility_source: Optional[str] = None,
-    validate_legacy: bool = True,
 ) -> ResolvedFunctionSpaceConfig:
-    """Resolve canonical role objects, or translate the legacy flat fields once."""
+    """Resolve the canonical function-space specifications for both roles."""
     resolved_backend = TrainingBackend.from_value(backend)
-    if legacy_like_nplm and resolved_backend is TrainingBackend.LFVDDP:
-        if backend is not None:
-            raise ValueError(
-                "train__backend='lfvddp' conflicts with legacy train__like_NPLM=True."
-            )
-        resolved_backend = TrainingBackend.NPLM
-
-    legacy_f_options = dict(legacy_f_options or {})
-    legacy_nuisance_options = dict(legacy_nuisance_options or {})
     resolved_f = _coerce_role(f, "f")
     resolved_nuisance = _coerce_role(nuisance, "nuisance")
-    used_legacy = False
-
     if resolved_f is None:
-        used_legacy = True
-        resolved_f = FunctionSpaceSpec(
-            family=FunctionSpaceFamily.ADAPTIVE_NEURAL,
-            options=legacy_f_options,
-        )
-        _validate_family_options(resolved_f, "f")
-    if resolved_f is not None and resolved_f.state is RoleState.DISABLED:
+        raise ValueError("f function-space config is required.")
+    if resolved_nuisance is None:
+        raise ValueError("nuisance function-space config is required.")
+    if resolved_f.state is RoleState.DISABLED:
         raise ValueError(
             "f role is disabled, but f may not be disabled; denominator omission remains model semantics."
         )
-
-    if resolved_nuisance is None:
-        used_legacy = True
-        if not legacy_nuisance_enabled:
-            resolved_nuisance = FunctionSpaceSpec(
-                family=None, options={}, state=RoleState.DISABLED
-            )
-        else:
-            # Legacy nuisance defaults to the existing scalar binned estimator.
-            resolved_nuisance = FunctionSpaceSpec(
-                family=FunctionSpaceFamily.BIN_INDICATORS,
-                options=legacy_nuisance_options,
-            )
-            if validate_legacy:
-                _validate_family_options(resolved_nuisance, "nuisance")
-
-    if resolved_backend is TrainingBackend.NPLM and (
-        resolved_f.family is not FunctionSpaceFamily.ADAPTIVE_NEURAL
-        or resolved_nuisance.enabled
-        and resolved_nuisance.family is not FunctionSpaceFamily.BIN_INDICATORS
+    if (
+        resolved_backend is TrainingBackend.NPLM
+        and (
+            resolved_f.family is not FunctionSpaceFamily.ADAPTIVE_NEURAL
+            or resolved_nuisance.enabled
+            and resolved_nuisance.family is not FunctionSpaceFamily.BIN_INDICATORS
+        )
     ):
         raise ValueError(
-            "NPLM backend currently supports only legacy adaptive f and binned nuisance; "
+            "NPLM backend supports adaptive f and binned nuisance; "
             "select LFVDDP for the requested function-space families."
         )
-
-    source = compatibility_source or ("legacy" if used_legacy else "canonical")
     return ResolvedFunctionSpaceConfig(
         backend=resolved_backend,
         f=resolved_f,
         nuisance=resolved_nuisance,
-        compatibility_source=source,
     )
 
 
-# Public spelling used by configuration callers and future adapters.
-def resolve_function_space_config(**kwargs: Any) -> ResolvedFunctionSpaceConfig:
-    return resolve_dual_role_config(**kwargs)
-
 
 __all__ = [
-    "DualRoleFunctionSpaceConfig",
     "FunctionSpaceFamily",
     "FunctionSpaceSpec",
-    "ResolvedDualRoleConfig",
     "ResolvedFunctionSpaceConfig",
     "RoleState",
     "TrainingBackend",
     "resolve_dual_role_config",
-    "resolve_function_space_config",
 ]

@@ -27,11 +27,7 @@ def model_degrees_of_freedom(
             output_size=config.train__nn_output_dimension,
         )
 
-    nuisance_degrees_of_freedom = (
-        config.train__number_of_nuisance_parameters
-        if config.train__data_is_train_for_nuisances
-        else 0
-    )
+    nuisance_degrees_of_freedom = config.train__number_of_nuisance_parameters
     if not is_numerator:
         return nuisance_degrees_of_freedom
 

@@ -30,10 +30,8 @@ def _context(*, f_options, nuisance, f_family="adaptive_neural"):
         train__number_of_epochs_for_checkpoint=1,
         train__nn_inner_layer_nodes=2,
         train__nn_input_dimension=2,
-        train__function_space={
-            "f": {"family": f_family, "options": f_options},
-            "nuisance": nuisance,
-        },
+        train__f={"family": f_family, "options": f_options},
+        train__nuisance=nuisance,
     )
     return SimpleNamespace(config=config)
 
@@ -134,7 +132,6 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
 
     nuisance = build_nuisance_calculation(
         config=context.config,
-        detector_effect=_Detector(),
         dtype=torch.float64,
         device=torch.device("cpu"),
     )
@@ -142,7 +139,7 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
     assert isinstance(nuisance, ScalarBinnedNuisanceEstimator)
     assert isinstance(nuisance._bin_lookup, BinIndicatorFunction)
     assert nuisance._bin_lookup.geometry.number_of_bins == (3, 4)
-    assert tuple(parameter.shape for parameter in nuisance._detector_deltas.values()) == (
+    assert tuple(parameter.shape for parameter in nuisance._nuisance_deltas.values()) == (
         (3,),
         (4,),
     )
@@ -169,7 +166,6 @@ def test_deterministic_family_uses_the_shared_nuisance_adapter():
 
     nuisance = build_nuisance_calculation(
         config=context.config,
-        detector_effect=_Detector(),
         dtype=torch.float64,
         device=torch.device("cpu"),
     )

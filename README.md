@@ -92,14 +92,9 @@ Important configuration choices include:
   samples. See the two basic packs for generated and loaded examples.
 - `train__epochs`, checkpoint frequency, network width, and learning-rate
   settings control optimization.
-- When `train__data_is_train_for_nuisances` is `false`, nuisance parameters may
-  be omitted. Otherwise, the default nuisance model is binned and requires bin
-  minima, maxima, and counts. For a neural nuisance model, set
-  `train__nuisance_is_neural_network` to `true`, remove the bin settings, and
-  provide `train__nuisance_nn_inner_layer_nodes`.
-- New configurations may select the shared function-space registry with
-  `train__f` and `train__nuisance` mappings using `family`, `options`, and (for
-  nuisance only) `state: "disabled"`. Supported families are
+- `train__f` and `train__nuisance` both use function-space mappings with
+  `family` and `options`; nuisance may instead use `state: "disabled"`.
+  Binned nuisance geometry belongs in its `options`. Supported families are
   `adaptive_neural`, `bin_indicators`, `cubic_bspline`,
   `orthogonal_polynomial` (Legendre or Chebyshev), `fixed_sigmoid`, and
   `gaussian_radial_basis`. The roles resolve independently; equal family names

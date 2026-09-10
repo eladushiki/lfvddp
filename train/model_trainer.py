@@ -208,7 +208,7 @@ def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
 def lfvnn_denominator_is_trainable(config: TrainConfig) -> bool:
     """Return whether LFVNN must optimize, rather than calculate, its denominator."""
 
-    return config.train__data_is_train_for_nuisances
+    return config.train__function_space_config.nuisance.enabled
 
 
 def allocation_supports_parallel_training(allocation: RuntimeAllocation) -> bool:

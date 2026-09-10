@@ -22,9 +22,6 @@ def cross_configure(config: Union[
     if config.train__nn_input_dimension is None:
         config.train__nn_input_dimension = detector_dimension
 
-    config.configure_nuisance_binning(detector_dimension)
-    # Resolve after detector-dependent dimensions and nuisance bin geometry are known.
-    # Runtime consumers use this immutable compatibility spine rather than legacy fields.
     config.resolve_function_space_config()
 
     generated_type = GeneratedDatasetParameters.DATASET_PARAMETER_TYPE_NAME()

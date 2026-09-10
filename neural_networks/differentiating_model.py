@@ -123,7 +123,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _build_nuisance_estimators(self):
         return build_nuisance_calculation(
             config=self._config,
-            detector_effect=self._detector_effect,
             dtype=self._dtype,
             device=self._device,
             resolved_config=self._function_space_config,

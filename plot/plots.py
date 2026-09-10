@@ -12,6 +12,8 @@ from scipy.stats import chi2
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
+from neural_networks.function_spaces import BinIndicatorFunction, create_function_space
+from train.function_space_config import FunctionSpaceFamily, FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
@@ -771,19 +773,25 @@ def _prediction_spanning_dataset(
     display_edges_by_observable: dict[str, np.ndarray],
     selected_observables: List[str],
     configured_observables: List[str],
-    detector_effect: DetectorEffect,
-    nuisance_is_neural_network: bool,
+    nuisance_spec: FunctionSpaceSpec,
 ) -> DataSet:
-    """Build the prediction grid for either binned or neural nuisances."""
-    detector_bins_by_observable = (
-        {}
-        if nuisance_is_neural_network
-        else {
-            observable_name: detector_effect.get_observable_bins(observable_name)
-            for observable_name in configured_observables
-            if observable_name in detector_effect.binned_observable_names
+    """Build the prediction grid from display axes and nuisance geometry."""
+    nuisance_bins_by_observable: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    if nuisance_spec.family is FunctionSpaceFamily.BIN_INDICATORS:
+        nuisance_lookup = create_function_space("nuisance", nuisance_spec)
+        if not isinstance(nuisance_lookup, BinIndicatorFunction):
+            raise TypeError("Binned nuisance specification did not create a bin lookup.")
+        if len(configured_observables) != len(nuisance_lookup.geometry.number_of_bins):
+            raise ValueError("Nuisance bin geometry dimension does not match configured observables.")
+        nuisance_bins_by_observable = {
+            observable_name: (
+                edges,
+                0.5 * (edges[:-1] + edges[1:]),
+            )
+            for observable_name, edges in zip(
+                configured_observables, nuisance_lookup.geometry.edges
+            )
         }
-    )
 
     def selected_axis_values(observable_name: str) -> np.ndarray:
         display_edges = display_edges_by_observable[observable_name]
@@ -794,8 +802,8 @@ def _prediction_spanning_dataset(
         )
 
     def projection_axis_values(observable_name: str) -> np.ndarray:
-        if observable_name in detector_bins_by_observable:
-            return detector_bins_by_observable[observable_name][1]
+        if observable_name in nuisance_bins_by_observable:
+            return nuisance_bins_by_observable[observable_name][1]
         display_edges = display_edges_by_observable[observable_name]
         return 0.5 * (display_edges[:-1] + display_edges[1:])
 
@@ -1026,8 +1034,7 @@ def plot_prediction_process_1d(
         display_edges_by_observable=display_edges_by_observable,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
-        detector_effect=denominator_training.detector_effect,
-        nuisance_is_neural_network=config.train__nuisance_is_neural_network,
+        nuisance_spec=config.train__function_space_config.nuisance,
     )
     spanning_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset
@@ -1401,8 +1408,7 @@ def plot_prediction_process_2d(
         display_edges_by_observable=display_edges_by_observable,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
-        detector_effect=denominator_training.detector_effect,
-        nuisance_is_neural_network=config.train__nuisance_is_neural_network,
+        nuisance_spec=config.train__function_space_config.nuisance,
     )
     spanning_signal_plus_prediction = utils__model_prediction_values(
         numerator_model.predict, prediction_spanning_dataset

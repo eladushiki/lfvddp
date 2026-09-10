@@ -11,7 +11,6 @@ import torch
 import torch.nn as nn
 
 from data_tools.data_utils import DataSet
-from data_tools.detector.detector_effect import DetectorEffect
 from neural_networks.function_spaces import (
     AdaptiveNeuralFunction,
     BinIndicatorFunction,
@@ -85,93 +84,45 @@ class NuisanceCalculation(nn.Module, ABC):
 
 def build_nuisance_calculation(
     config: Any,
-    detector_effect: DetectorEffect,
     dtype: torch.dtype,
     device: torch.device,
     resolved_config: Any = None,
 ) -> NuisanceCalculation:
     """Build the nuisance role from the shared resolved function-space config."""
-
     if resolved_config is None:
         resolver = getattr(config, "resolve_function_space_config", None)
         if not callable(resolver):
             raise TypeError("Nuisance construction requires a TrainConfig resolver.")
         resolved_config = resolver()
-    resolved = resolved_config
-    spec = resolved.nuisance
+    spec = resolved_config.nuisance
     if spec.state is RoleState.DISABLED:
         return BlankNuisanceEstimator(dtype=dtype, device=device)
 
-    if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
-        options = spec.options
-        construction = {}
-        if "input_dimension" not in options:
-            input_dimension = getattr(config, "train__nn_input_dimension", None)
-            if input_dimension is not None:
-                construction["input_dimension"] = input_dimension
-        if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
-            hidden_size = getattr(config, "train__nuisance_nn_inner_layer_nodes", None)
-            if hidden_size is None:
-                hidden_size = getattr(config, "train__nn_inner_layer_nodes", None)
-            if hidden_size is not None:
-                construction["hidden_size"] = hidden_size
-        if "output_dimension" not in options:
-            construction["output_dimension"] = getattr(
-                config, "train__nn_output_dimension", 1
-            )
-        network = create_function_space(
-            "nuisance",
-            spec,
-            dtype=dtype,
-            device=device,
-            **construction,
-        )
-        return NeuralPerEventNuisanceEstimator(
-            input_dimension=network.hidden.in_features,
-            hidden_size=network.hidden.out_features,
-            output_dimension=network.output.out_features,
-            dtype=dtype,
-            device=device,
-            network=network,
-        )
-
-    if spec.family is FunctionSpaceFamily.BIN_INDICATORS:
-        # Legacy detector lookup uses the detector's already configured bin
-        # centers. Canonical specs own their geometry and therefore use the
-        # factory's option-based construction.
-        lookup = create_function_space(
-            "nuisance",
-            spec,
-            detector_effect=detector_effect
-            if resolved.compatibility_source == "legacy"
-            else None,
-        )
-        return ScalarBinnedNuisanceEstimator(
-            detector_effect=detector_effect,
-            dtype=dtype,
-            device=device,
-            bin_lookup=lookup,
-        )
-
-    network = create_function_space(
+    function_space = create_function_space(
         "nuisance",
         spec,
         dtype=dtype,
         device=device,
     )
-    if not isinstance(network, nn.Module):
+    if spec.family is FunctionSpaceFamily.BIN_INDICATORS:
+        return ScalarBinnedNuisanceEstimator(
+            dtype=dtype,
+            device=device,
+            bin_lookup=function_space,
+        )
+    if not isinstance(function_space, nn.Module):
         raise TypeError(
             f"Nuisance family {spec.family.value!r} did not produce a trainable module."
         )
     return NeuralPerEventNuisanceEstimator(
-        input_dimension=getattr(network, "input_dimension", config.train__nn_input_dimension),
-        hidden_size=getattr(network, "hidden", None).out_features
-        if hasattr(network, "hidden")
+        input_dimension=getattr(function_space, "input_dimension", config.train__nn_input_dimension),
+        hidden_size=getattr(function_space, "hidden", None).out_features
+        if hasattr(function_space, "hidden")
         else 0,
-        output_dimension=getattr(network, "output_dimension", config.train__nn_output_dimension),
+        output_dimension=getattr(function_space, "output_dimension", config.train__nn_output_dimension),
         dtype=dtype,
         device=device,
-        network=network,
+        network=function_space,
     )
 
 
@@ -221,28 +172,19 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
 
     def __init__(
         self,
-        detector_effect: DetectorEffect,
         dtype: torch.dtype,
         device: torch.device,
-        bin_lookup: Optional[BinIndicatorFunction] = None,
+        bin_lookup: BinIndicatorFunction,
     ) -> None:
         super().__init__(dtype=dtype, device=device)
-        self._detector_effect = detector_effect
-        self._bin_lookup = bin_lookup or create_function_space(
-            "nuisance",
-            "bin_indicators",
-            detector_effect=detector_effect,
-        )
-        self._observable_names = detector_effect.observable_names
+        self._bin_lookup = bin_lookup
         number_of_bins = self._bin_lookup.geometry.number_of_bins
-        if len(self._observable_names) != len(number_of_bins):
-            raise ValueError(
-                "Nuisance bin geometry dimension does not match detector observables."
-            )
-        self._detector_deltas = nn.ParameterDict(
+        self._nuisance_deltas = nn.ParameterDict(
             {
-                name: nn.Parameter(torch.empty(nbins, dtype=dtype, device=device))
-                for name, nbins in zip(self._observable_names, number_of_bins)
+                f"dimension_{index}": nn.Parameter(
+                    torch.empty(nbins, dtype=dtype, device=device)
+                )
+                for index, nbins in enumerate(number_of_bins)
             }
         )
 
@@ -255,15 +197,15 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
 
     def _values(self, bin_indices: torch.Tensor) -> torch.Tensor:
         values: Optional[torch.Tensor] = None
-        for dimension, name in enumerate(self._observable_names):
+        for dimension in range(len(self._bin_lookup.geometry.number_of_bins)):
             value = torch.index_select(
-                self._detector_deltas[name],
+                self._nuisance_deltas[f"dimension_{dimension}"],
                 0,
                 bin_indices[:, dimension],
             )
             values = value if values is None else values * value
         if values is None:
-            raise RuntimeError("Detector nuisance configuration has no observables.")
+            raise RuntimeError("Nuisance bin geometry has no dimensions.")
         return values.clamp(
             min=-LIKELIHOOD_SHIFT_BOUND,
             max=LIKELIHOOD_SHIFT_BOUND,
@@ -318,12 +260,12 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
         )
 
     def initialize_parameters(self, gain: float) -> None:
-        for parameter in self._detector_deltas.values():
+        for parameter in self._nuisance_deltas.values():
             nn.init.normal_(parameter, mean=0.0, std=1e-3)
 
     def clamp_parameters(self) -> None:
         with torch.no_grad():
-            for parameter in self._detector_deltas.values():
+            for parameter in self._nuisance_deltas.values():
                 parameter.clamp_(
                     min=-LIKELIHOOD_SHIFT_BOUND,
                     max=LIKELIHOOD_SHIFT_BOUND,
@@ -331,7 +273,7 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
 
 
 class _ThetaEstimator(AdaptiveNeuralFunction):
-    """Compatibility wrapper retaining nuisance's historical output shape."""
+    """Wrapper retaining the nuisance output shape."""
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
         return super().forward(events).squeeze(-1)
