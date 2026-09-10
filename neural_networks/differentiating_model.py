@@ -94,16 +94,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ):
         super().__init__()
         self._context = context
-        self._config: Union[TrainConfig, DetectorConfig] = context.config
+        if not isinstance(context.config, TrainConfig):
+            raise TypeError("DifferentiatingModel requires a TrainConfig.")
+        self._config: TrainConfig = context.config
         self._detector_effect = detector_effect
         self._is_numerator = is_numerator
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
-        resolver = getattr(self._config, "resolve_function_space_config", None)
-        if not callable(resolver):
-            raise TypeError("DifferentiatingModel requires a TrainConfig resolver.")
-        self._function_space_config = resolver()
+        self._function_space_config = self._config.resolve_function_space_config()
         self.nuisance_calculation = self._build_nuisance_estimators()
 
         self._build_signal_hypothesis_estimator()
@@ -140,17 +139,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         options = spec.options
         if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
             if "input_dimension" not in options:
-                input_dimension = getattr(self._config, "train__nn_input_dimension", None)
+                input_dimension = self._config.train__nn_input_dimension
                 if input_dimension is not None:
                     construction["input_dimension"] = input_dimension
             if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
-                hidden_size = getattr(self._config, "train__nn_inner_layer_nodes", None)
+                hidden_size = self._config.train__nn_inner_layer_nodes
                 if hidden_size is not None:
                     construction["hidden_size"] = hidden_size
         if "output_dimension" not in options:
-            construction["output_dimension"] = getattr(
-                self._config, "train__nn_output_dimension", 1
-            )
+            construction["output_dimension"] = self._config.train__nn_output_dimension
         estimator = create_function_space(
             "f",
             spec,
