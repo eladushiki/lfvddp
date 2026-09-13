@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import defaultdict
+from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass
 from logging import info
@@ -14,13 +17,15 @@ from torch import nn, optim
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.likelihood_parameterization import (
-    smoothly_bounded_likelihood_shift,
+from neural_networks.function_spaces import (
+    AdaptiveNeuralFunction,
+    create_function_space,
+    initialize_function_space_parameters,
 )
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
@@ -29,12 +34,18 @@ from neural_networks.nuisance_calculation import (
     PreparedNuisanceData,
     ScalarBinnedNuisanceEstimator,
     WeightedNuisanceValues,
+    build_nuisance_calculation,
 )
+from train.function_space_config import FunctionSpaceFamily, RoleState
 from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
 )
-from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
+from train.checkpoints import (
+    find_latest_training_checkpoint,
+    load_checkpoint_metadata,
+    save_training_checkpoint,
+)
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
@@ -61,25 +72,9 @@ class _PreparedTrainingData:
         return self.N_a_cr + self.N_b_cr
 
 
-class _SignalRegionShiftEstimator(nn.Module):
-    """Estimate the single bounded signal-region shift f for both categories."""
-
-    def __init__(
-        self,
-        input_dimension: int,
-        hidden_size: int,
-        output_dimension: int,
-        dtype: torch.dtype,
-    ) -> None:
-        super().__init__()
-        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype)
-        self.activation = nn.Sigmoid()
-        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
-
-    def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return smoothly_bounded_likelihood_shift(
-            self.output(self.activation(self.hidden(events)))
-        )
+# Keep the historical private name for checkpoint and adapter compatibility.
+# The implementation is shared with the nuisance neural family.
+_SignalRegionShiftEstimator = AdaptiveNeuralFunction
 
 
 class DifferentiatingModel(nn.Module, ContextedModel):
@@ -99,12 +94,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ):
         super().__init__()
         self._context = context
-        self._config: Union[TrainConfig, DetectorConfig] = context.config
+        if not isinstance(context.config, TrainConfig):
+            raise TypeError("DifferentiatingModel requires a TrainConfig.")
+        self._config: TrainConfig = context.config
         self._detector_effect = detector_effect
         self._is_numerator = is_numerator
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
+        self._function_space_config = self._config.resolve_function_space_config()
         self.nuisance_calculation = self._build_nuisance_estimators()
 
         self._build_signal_hypothesis_estimator()
@@ -122,36 +120,47 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return self._assigned_device
 
     def _build_nuisance_estimators(self):
-        if not self._config.train__data_is_train_for_nuisances:
-            return BlankNuisanceEstimator(
-                dtype=self._dtype,
-                device=self._device,
-            )
-        if self._config.train__nuisance_is_neural_network:
-            return NeuralPerEventNuisanceEstimator(
-                input_dimension=self._config.train__nn_input_dimension,
-                hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
-                output_dimension=self._config.train__nn_output_dimension,
-                dtype=self._dtype,
-                device=self._device,
-            )
-        return ScalarBinnedNuisanceEstimator(
-            detector_effect=self._detector_effect,
+        return build_nuisance_calculation(
+            config=self._config,
             dtype=self._dtype,
             device=self._device,
+            resolved_config=self._function_space_config,
         )
 
     def _build_signal_hypothesis_estimator(self) -> None:
-        self.signal_region_shift_network = (
-            _SignalRegionShiftEstimator(
-                input_dimension=self._config.train__nn_input_dimension,
-                hidden_size=self._config.train__nn_inner_layer_nodes,
-                output_dimension=self._config.train__nn_output_dimension,
-                dtype=self._dtype,
-            )
-            if self._is_numerator
-            else None
+        if not self._is_numerator:
+            self.signal_region_shift_network = None
+            return
+
+        spec = self._function_space_config.f
+        if spec.state is RoleState.DISABLED:
+            raise ValueError("The f function-space role cannot be disabled.")
+        construction = {}
+        options = spec.options
+        if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
+            if "input_dimension" not in options:
+                input_dimension = self._config.train__nn_input_dimension
+                if input_dimension is not None:
+                    construction["input_dimension"] = input_dimension
+            if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
+                hidden_size = self._config.train__nn_inner_layer_nodes
+                if hidden_size is not None:
+                    construction["hidden_size"] = hidden_size
+        if "output_dimension" not in options:
+            construction["output_dimension"] = self._config.train__nn_output_dimension
+        estimator = create_function_space(
+            "f",
+            spec,
+            dtype=self._dtype,
+            device=self._assigned_device,
+            **construction,
         )
+        if not isinstance(estimator, nn.Module):
+            raise ValueError(
+                f"f function-space family {spec.family.value!r} is not trainable; "
+                "only adaptive_neural is supported by the LFVDDP model in this slice."
+            )
+        self.signal_region_shift_network = estimator
 
     def _initialize_parameters(self) -> None:
         """
@@ -163,16 +172,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         gain = self._config.train__nn_xavier_gain
 
         if self.signal_region_shift_network is not None:
-            nn.init.xavier_uniform_(
-                self.signal_region_shift_network.hidden.weight,
-                gain=gain,
+            initialize_function_space_parameters(
+                self.signal_region_shift_network,
+                gain,
             )
-            nn.init.uniform_(self.signal_region_shift_network.hidden.bias, a=-0.3, b=0.3)
-            nn.init.xavier_uniform_(
-                self.signal_region_shift_network.output.weight,
-                gain=gain,
-            )
-            nn.init.uniform_(self.signal_region_shift_network.output.bias, a=-0.3, b=0.3)
 
         self.nuisance_calculation.initialize_parameters(gain)
 
@@ -399,7 +402,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return signal_hypothesis_sr_loss + cr_loss
 
     def _prepare_training_data(self, data: DataBatch) -> _PreparedTrainingData:
-        normalized_data, self._norm_factor = data.get_normalized()
+        if self._norm_factor is None:
+            normalized_data, self._norm_factor = data.get_normalized()
+        else:
+            normalized_data = DataBatch(
+                (dataset / self._norm_factor, parameters)
+                for dataset, parameters in data
+            )
         categories = DataSet.DataSetCategory
         normalized_a_sr = normalized_data.datasets[categories.A_SR]
         normalized_b_sr = normalized_data.datasets[categories.B_SR]
@@ -470,6 +479,105 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def has_trainable_parameters(self) -> bool:
         return any(parameter.requires_grad for parameter in self.parameters())
 
+    @staticmethod
+    def _checkpoint_value(value):
+        """Convert frozen config values into deterministic JSON-compatible values."""
+
+        if isinstance(value, Mapping):
+            return {
+                str(key): DifferentiatingModel._checkpoint_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, (list, tuple)):
+            return [DifferentiatingModel._checkpoint_value(item) for item in value]
+        if hasattr(value, "value"):
+            return DifferentiatingModel._checkpoint_value(value.value)
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        raise TypeError(
+            f"Unsupported checkpoint metadata value {type(value).__name__}."
+        )
+
+    def checkpoint_metadata(self) -> dict:
+        """Describe the model shape/configuration without changing state_dict keys."""
+
+        resolved = self._function_space_config
+        compatibility = {
+            "model_name": self._name,
+            "is_numerator": self._is_numerator,
+            "backend": self._checkpoint_value(resolved.backend),
+            "f": {
+                "family": self._checkpoint_value(resolved.f.family),
+                "state": self._checkpoint_value(resolved.f.state),
+                "options": self._checkpoint_value(resolved.f.options),
+            },
+            "nuisance": {
+                "family": self._checkpoint_value(resolved.nuisance.family),
+                "state": self._checkpoint_value(resolved.nuisance.state),
+                "options": self._checkpoint_value(resolved.nuisance.options),
+            },
+        }
+        fingerprint = hashlib.sha256(
+            json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        return {
+            "format_version": 1,
+            **compatibility,
+            "config_fingerprint": fingerprint,
+            "normalization_factor": (
+                None
+                if self._norm_factor is None
+                else {
+                    "factors": self._checkpoint_value(self._norm_factor._factors),
+                    "offsets": self._checkpoint_value(self._norm_factor._offsets),
+                }
+            ),
+        }
+
+    def _validate_checkpoint_metadata(self, checkpoint_path, metadata: dict) -> None:
+        expected = self.checkpoint_metadata()
+        # Normalization is runtime data, not model compatibility.  It is restored
+        # below after the structural configuration has been checked.  Unknown
+        # metadata is ignored so sidecars can gain optional fields safely.
+        expected.pop("normalization_factor")
+        actual = {key: metadata.get(key) for key in expected}
+        if actual != expected:
+            differences = []
+            for key in sorted(set(expected) | set(actual)):
+                if expected.get(key) != actual.get(key):
+                    differences.append(key)
+            changed = ", ".join(differences) or "unknown metadata"
+            raise RuntimeError(
+                f"Checkpoint {checkpoint_path} is incompatible with {self._name}: "
+                f"{changed} differs. Refusing to load before state_dict validation."
+            )
+
+    def _restore_checkpoint_normalization(self, checkpoint_path, metadata: dict) -> None:
+        normalization = metadata.get("normalization_factor")
+        if normalization is None:
+            return
+        if not isinstance(normalization, dict) or not {
+            "factors", "offsets"
+        } <= set(normalization):
+            raise RuntimeError(
+                f"Checkpoint metadata {checkpoint_path} has an invalid normalization_factor."
+            )
+        factors = normalization["factors"]
+        offsets = normalization["offsets"]
+        if not isinstance(factors, dict) or not isinstance(offsets, dict):
+            raise RuntimeError(
+                f"Checkpoint metadata {checkpoint_path} has invalid normalization mappings."
+            )
+        try:
+            self._norm_factor = ShiftAndNormalizationFactor(
+                {str(key): float(value) for key, value in factors.items()},
+                {str(key): float(value) for key, value in offsets.items()},
+            )
+        except (TypeError, ValueError, AssertionError) as error:
+            raise RuntimeError(
+                f"Checkpoint metadata {checkpoint_path} has an invalid normalization_factor."
+            ) from error
+
     def _load_training_checkpoint_if_requested(
         self, optimizer: Optional[optim.Optimizer]
     ) -> int:
@@ -480,7 +588,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             return 0
 
         checkpoint_path, checkpoint = checkpoint_result
-        self.load_state_dict(checkpoint["model_state_dict"])
+        metadata = load_checkpoint_metadata(checkpoint_path)
+        if metadata is not None:
+            self._validate_checkpoint_metadata(checkpoint_path, metadata)
+            self._restore_checkpoint_normalization(checkpoint_path, metadata)
+        self.load_state_dict(checkpoint["model_state_dict"], strict=True)
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
             optimizer.load_state_dict(optimizer_state_dict)
@@ -549,13 +661,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         data: DataBatch,
     ) -> Dict[str, List[float]]:
-        training_data = self._prepare_training_data(data)
-
         self.train()
         optimizer = self.configure_optimizers()
 
         target_epochs = self._config.train__epochs
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
+        # A new checkpoint carries the original normalization factor.  Prepare
+        # data only after loading so continuation uses that exact transform.
+        training_data = self._prepare_training_data(data)
         if start_epoch >= target_epochs:
             return self._training_history
         self._epochs_executed = target_epochs - start_epoch
@@ -593,6 +706,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                                 optimizer=optimizer,
                                 epoch=epoch,
                                 training_history=self._training_history,
+                                metadata=self.checkpoint_metadata(),
                             )
                 profiler.step()
 
@@ -626,7 +740,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 dtype=self._dtype,
                 device=self._device,
             )
-            return self.nuisance_calculation.network(normalized_events)
+            nuisance_values = self.nuisance_calculation.network(normalized_events)
+            return nuisance_values.squeeze(-1) if nuisance_values.ndim == 2 else nuisance_values
         if isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
             return self.nuisance_calculation._values(
                 self.nuisance_calculation._bin_indices(data)

@@ -32,23 +32,7 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
             raise TypeError(f"Expected DetectorConfig, got {self._context.config.__class__.__name__}")
         self._config = self._context.config
         self.__dataset_parameters_for_detection = None
-
-        # Detector binning is needed only by the scalar nuisance estimator.
-        # Snapshot names because later config composition may mutate its list.
-        # Binning maps must remain keyed by the names used at construction.
-        self._observable_names = list(
-            self._config.detector__detect_observable_names
-        )
-        self._numbers_of_bins = self._config.train__nuisance_binning_number_of_bins
-        self._dimensional_bin_centers = {}
-        self._dimensional_bin_edges = {}
-        if (
-            not self._config.train__nuisance_is_neural_network
-            and self._numbers_of_bins is not None
-        ):
-            for obs in self._observable_names:
-                self._dimensional_bin_edges[obs], self._dimensional_bin_centers[obs] = \
-                    self._config.observable_bins(obs)
+        self._observable_names = list(self._config.detector__detect_observable_names)
 
     @retrieve_from_module(shapes, shapes.detector_efficiency_perfect_efficiency)
     def __retrieve_detector_efficiency_filter(self, effect_name: Optional[str]) -> Union[DETECTOR_EFFICIENCY_TYPE, str, None]:
@@ -110,31 +94,10 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
     def _uncertain_efficiency(self) -> DETECTOR_EFFICIENCY_TYPE:
         return self._efficiency_uncertainty(self._true_efficiency)
 
-    # Exported functions - uses DataSet
     @property
     def observable_names(self) -> tuple[str, ...]:
-        """Names of the observables detected by this effect."""
+        """Names of the observables selected for detection."""
         return tuple(self._observable_names)
-
-    @property
-    def binned_observable_names(self) -> tuple[str, ...]:
-        """Names for which detector nuisance bins were configured."""
-        return tuple(self._dimensional_bin_edges)
-
-    def get_observable_bins(
-        self,
-        observable_name: str,
-    ) -> tuple[npt.NDArray, npt.NDArray]:
-        """Return the detector bin edges and centers for one observable."""
-        try:
-            return (
-                self._dimensional_bin_edges[observable_name].copy(),
-                self._dimensional_bin_centers[observable_name].copy(),
-            )
-        except KeyError as error:
-            raise ValueError(
-                f"Observable {observable_name} is not detected by this detector effect."
-            ) from error
 
     def efficiency_values(self, dataset: DataSet) -> np.ndarray:
         """Return the detector efficiency at each dataset point without sampling."""

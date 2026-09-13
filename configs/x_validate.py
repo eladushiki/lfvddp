@@ -22,7 +22,7 @@ def cross_configure(config: Union[
     if config.train__nn_input_dimension is None:
         config.train__nn_input_dimension = detector_dimension
 
-    config.configure_nuisance_binning(detector_dimension)
+    config.resolve_function_space_config()
 
     generated_type = GeneratedDatasetParameters.DATASET_PARAMETER_TYPE_NAME()
     for dataset_definition in config.dataset__definitions:
@@ -41,6 +41,7 @@ def cross_validate(config: Union[
     TrainConfig,
     UserConfig,
 ]):
+    config.resolve_function_space_config()
     if config.cluster__qsub_needs_continuation and config.train__like_NPLM:
         raise NotImplementedError("Long-walltime continuation is only implemented for LFVNN/PyTorch training.")
 

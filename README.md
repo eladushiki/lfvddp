@@ -92,11 +92,17 @@ Important configuration choices include:
   samples. See the two basic packs for generated and loaded examples.
 - `train__epochs`, checkpoint frequency, network width, and learning-rate
   settings control optimization.
-- When `train__data_is_train_for_nuisances` is `false`, nuisance parameters may
-  be omitted. Otherwise, the default nuisance model is binned and requires bin
-  minima, maxima, and counts. For a neural nuisance model, set
-  `train__nuisance_is_neural_network` to `true`, remove the bin settings, and
-  provide `train__nuisance_nn_inner_layer_nodes`.
+- `train__f` and `train__nuisance` both use function-space mappings with
+  `family` and `options`; nuisance may instead use `state: "disabled"`.
+  Binned nuisance geometry belongs in its `options`. Supported families are
+  `adaptive_neural`, `bin_indicators`, `cubic_bspline`,
+  `orthogonal_polynomial` (Legendre or Chebyshev), `fixed_sigmoid`, and
+  `gaussian_radial_basis`. The roles resolve independently; equal family names
+  do not share mutable geometry.
+- `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
+  function-space family. Adaptive neural and NPLM studies require empirical-null
+  calibration rather than assigning Wilks degrees of freedom from parameter
+  counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs).
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.

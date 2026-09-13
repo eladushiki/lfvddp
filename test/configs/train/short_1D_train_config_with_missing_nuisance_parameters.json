@@ -2,5 +2,15 @@
     "train__epochs": 100,
     "train__number_of_epochs_for_checkpoint": 10,
     "train__nn_input_dimension": 1,
-    "train__nn_inner_layer_nodes": 4
+    "train__nn_inner_layer_nodes": 4,
+    "train__nuisance": {
+        "state": "disabled"
+    },
+    "train__f": {
+        "family": "adaptive_neural",
+        "options": {
+            "input_dimension": 1,
+            "hidden_layer_nodes": 4
+        }
+    }
 }

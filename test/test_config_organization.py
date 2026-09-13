@@ -28,12 +28,15 @@ def test_nuisance_configuration_remains_on_train_config():
         train__epochs=1,
         train__number_of_epochs_for_checkpoint=1,
         train__nn_inner_layer_nodes=2,
-        train__nuisance_is_neural_network=True,
-        train__nuisance_nn_inner_layer_nodes=3,
+        train__f={"family": "adaptive_neural", "options": {}},
+        train__nuisance={
+            "family": "adaptive_neural",
+            "options": {"input_dimension": 1, "hidden_layer_nodes": 3},
+        },
     )
-    assert config.train__nuisance_is_neural_network
-    assert config.train__nuisance_nn_inner_layer_nodes == 3
-
+    nuisance = config.train__function_space_config.nuisance
+    assert nuisance.family.value == "adaptive_neural"
+    assert nuisance.options["hidden_layer_nodes"] == 3
 
 def test_detector_effects_have_explicit_a_and_b_attributes():
     config = DetectorConfig(

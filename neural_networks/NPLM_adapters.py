@@ -57,7 +57,7 @@ class AdaptedImperfectModel(imperfect_model, ContextedModel):
             BSMarchitecture = config.train__nn_architecture,
             BSMweight_clipping = config.train__nn_weight_clipping,
             train_f = is_tau,
-            train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
+            train_nu = config.train__function_space_config.nuisance.enabled,
         )
 
         self._name = name
