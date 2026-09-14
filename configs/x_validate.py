@@ -41,7 +41,6 @@ def cross_validate(config: Union[
     TrainConfig,
     UserConfig,
 ]):
-    config.resolve_function_space_config()
     if config.cluster__qsub_needs_continuation and config.train__like_NPLM:
         raise NotImplementedError("Long-walltime continuation is only implemented for LFVNN/PyTorch training.")
 

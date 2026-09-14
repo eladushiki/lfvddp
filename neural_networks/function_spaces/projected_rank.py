@@ -22,6 +22,7 @@ class ProjectedFunctionSpaceRank:
     nuisance_rank: int
     overlap_rank: int
     effective_f_rank: int
+    degrees_of_freedom: int
     projected_singular_values: tuple[float, ...]
     tolerance: float
 
@@ -98,6 +99,7 @@ def compute_projected_function_space_rank(
         nuisance_rank=nuisance_rank,
         overlap_rank=overlap_rank,
         effective_f_rank=effective_rank,
+        degrees_of_freedom=effective_rank + nuisance_rank,
         projected_singular_values=tuple(float(value) for value in projected_singular_values),
         tolerance=float(threshold),
     )

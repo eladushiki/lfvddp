@@ -260,7 +260,7 @@ def test_canonical_adaptive_model_contract(
         dtype=torch.float64,
         device="cpu",
     )
-    assert denominator.signal_region_shift_network is None
+    assert denominator.signal_region_shift_network is not None
     assert tuple(
         (name, tuple(parameter.shape))
         for name, parameter in denominator.named_parameters()

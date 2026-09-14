@@ -15,10 +15,15 @@ from neural_networks.function_spaces import (
     AdaptiveNeuralFunction,
     BinIndicatorFunction,
     create_function_space,
-    initialize_function_space_parameters,
 )
 from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
-from train.function_space_config import FunctionSpaceFamily, RoleState
+from train.function_space_config import (
+    FunctionSpaceFamily,
+    FunctionSpaceRole,
+    ResolvedFunctionSpaceConfig,
+    RoleState,
+)
+from train.train_config import TrainConfig
 
 
 @dataclass(frozen=True)
@@ -83,23 +88,20 @@ class NuisanceCalculation(nn.Module, ABC):
 
 
 def build_nuisance_calculation(
-    config: Any,
+    config: TrainConfig,
     dtype: torch.dtype,
     device: torch.device,
-    resolved_config: Any = None,
+    resolved_config: Optional[ResolvedFunctionSpaceConfig] = None,
 ) -> NuisanceCalculation:
-    """Build the nuisance role from the shared resolved function-space config."""
+    """Build the nuisance role from the same resolved shape used for ``f``."""
     if resolved_config is None:
-        resolver = getattr(config, "resolve_function_space_config", None)
-        if not callable(resolver):
-            raise TypeError("Nuisance construction requires a TrainConfig resolver.")
-        resolved_config = resolver()
+        resolved_config = config.resolve_function_space_config()
     spec = resolved_config.nuisance
     if spec.state is RoleState.DISABLED:
         return BlankNuisanceEstimator(dtype=dtype, device=device)
 
     function_space = create_function_space(
-        "nuisance",
+        FunctionSpaceRole.NUISANCE,
         spec,
         dtype=dtype,
         device=device,
@@ -115,11 +117,6 @@ def build_nuisance_calculation(
             f"Nuisance family {spec.family.value!r} did not produce a trainable module."
         )
     return NeuralPerEventNuisanceEstimator(
-        input_dimension=getattr(function_space, "input_dimension", config.train__nn_input_dimension),
-        hidden_size=getattr(function_space, "hidden", None).out_features
-        if hasattr(function_space, "hidden")
-        else 0,
-        output_dimension=getattr(function_space, "output_dimension", config.train__nn_output_dimension),
         dtype=dtype,
         device=device,
         network=function_space,
@@ -190,7 +187,7 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
 
     def _bin_indices(self, data: DataSet) -> torch.Tensor:
         return torch.tensor(
-            self._bin_lookup.evaluate(data),
+            self._bin_lookup.evaluate(data.events),
             dtype=torch.long,
             device=self._device,
         )
@@ -289,25 +286,13 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
 
     def __init__(
         self,
-        input_dimension: int,
-        hidden_size: int,
-        output_dimension: int,
+        *,
         dtype: torch.dtype,
         device: torch.device,
-        network: Optional[nn.Module] = None,
+        network: nn.Module,
     ) -> None:
         super().__init__(dtype=dtype, device=device)
-        self.network = network or create_function_space(
-            "nuisance",
-            "adaptive_neural",
-            {
-                "input_dimension": input_dimension,
-                "hidden_layer_nodes": hidden_size,
-                "output_dimension": output_dimension,
-            },
-            dtype=dtype,
-            device=device,
-        )
+        self.network = network
 
     def prepare(
         self,
@@ -353,4 +338,4 @@ class NeuralPerEventNuisanceEstimator(NuisanceCalculation):
         )
 
     def initialize_parameters(self, gain: float) -> None:
-        initialize_function_space_parameters(self.network, gain)
+        self.network.initialize_parameters(gain)

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections import defaultdict
-from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass
 from logging import info
@@ -17,16 +14,12 @@ from torch import nn, optim
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
-from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
+from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.function_spaces import (
-    AdaptiveNeuralFunction,
-    create_function_space,
-    initialize_function_space_parameters,
-)
+from neural_networks.function_spaces import create_function_space
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
     NeuralPerEventNuisanceEstimator,
@@ -36,10 +29,15 @@ from neural_networks.nuisance_calculation import (
     WeightedNuisanceValues,
     build_nuisance_calculation,
 )
-from train.function_space_config import FunctionSpaceFamily, RoleState
+from train.function_space_config import FunctionSpaceFamily, FunctionSpaceRole
 from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
+)
+from train.checkpoint_metadata import (
+    build_checkpoint_metadata,
+    normalization_from_checkpoint_metadata,
+    validate_checkpoint_metadata,
 )
 from train.checkpoints import (
     find_latest_training_checkpoint,
@@ -72,9 +70,11 @@ class _PreparedTrainingData:
         return self.N_a_cr + self.N_b_cr
 
 
-# Keep the historical private name for checkpoint and adapter compatibility.
-# The implementation is shared with the nuisance neural family.
-_SignalRegionShiftEstimator = AdaptiveNeuralFunction
+class _NullSignalRegionShift(nn.Module):
+    """Denominator-only signal estimator with the neutral likelihood shift."""
+
+    def forward(self, events: torch.Tensor) -> torch.Tensor:
+        return events.new_zeros((events.shape[0], 1))
 
 
 class DifferentiatingModel(nn.Module, ContextedModel):
@@ -129,12 +129,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _build_signal_hypothesis_estimator(self) -> None:
         if not self._is_numerator:
-            self.signal_region_shift_network = None
+            self.signal_region_shift_network = _NullSignalRegionShift()
             return
 
         spec = self._function_space_config.f
-        if spec.state is RoleState.DISABLED:
-            raise ValueError("The f function-space role cannot be disabled.")
         construction = {}
         options = spec.options
         if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
@@ -149,7 +147,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if "output_dimension" not in options:
             construction["output_dimension"] = self._config.train__nn_output_dimension
         estimator = create_function_space(
-            "f",
+            FunctionSpaceRole.F,
             spec,
             dtype=self._dtype,
             device=self._assigned_device,
@@ -157,8 +155,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         if not isinstance(estimator, nn.Module):
             raise ValueError(
-                f"f function-space family {spec.family.value!r} is not trainable; "
-                "only adaptive_neural is supported by the LFVDDP model in this slice."
+                f"f function-space family {spec.family.value!r} is not trainable."
             )
         self.signal_region_shift_network = estimator
 
@@ -171,11 +168,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__nn_xavier_gain
 
-        if self.signal_region_shift_network is not None:
-            initialize_function_space_parameters(
-                self.signal_region_shift_network,
-                gain,
-            )
+        if self._is_numerator:
+            self.signal_region_shift_network.initialize_parameters(gain)
 
         self.nuisance_calculation.initialize_parameters(gain)
 
@@ -192,7 +186,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return optimizer
 
     def _signal_region_shift(self, sr_events: torch.Tensor) -> torch.Tensor:
-        if self.signal_region_shift_network is None:
+        if not self._is_numerator:
             raise RuntimeError("The denominator has no signal-region shift estimator.")
         return self.signal_region_shift_network(sr_events).squeeze(-1)
 
@@ -204,9 +198,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/signal_region_shift"):
             signal_hypothesis_sr_shift = (
-                None
-                if self.signal_region_shift_network is None
-                else self._signal_region_shift(data.sr_events)
+                self._signal_region_shift(data.sr_events) if self._is_numerator else None
             )
         with profile_region("training/nuisance_theta"):
             nuisance_estimates = (
@@ -479,105 +471,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def has_trainable_parameters(self) -> bool:
         return any(parameter.requires_grad for parameter in self.parameters())
 
-    @staticmethod
-    def _checkpoint_value(value):
-        """Convert frozen config values into deterministic JSON-compatible values."""
-
-        if isinstance(value, Mapping):
-            return {
-                str(key): DifferentiatingModel._checkpoint_value(item)
-                for key, item in value.items()
-            }
-        if isinstance(value, (list, tuple)):
-            return [DifferentiatingModel._checkpoint_value(item) for item in value]
-        if hasattr(value, "value"):
-            return DifferentiatingModel._checkpoint_value(value.value)
-        if isinstance(value, (str, int, float, bool)) or value is None:
-            return value
-        raise TypeError(
-            f"Unsupported checkpoint metadata value {type(value).__name__}."
-        )
-
-    def checkpoint_metadata(self) -> dict:
-        """Describe the model shape/configuration without changing state_dict keys."""
-
-        resolved = self._function_space_config
-        compatibility = {
-            "model_name": self._name,
-            "is_numerator": self._is_numerator,
-            "backend": self._checkpoint_value(resolved.backend),
-            "f": {
-                "family": self._checkpoint_value(resolved.f.family),
-                "state": self._checkpoint_value(resolved.f.state),
-                "options": self._checkpoint_value(resolved.f.options),
-            },
-            "nuisance": {
-                "family": self._checkpoint_value(resolved.nuisance.family),
-                "state": self._checkpoint_value(resolved.nuisance.state),
-                "options": self._checkpoint_value(resolved.nuisance.options),
-            },
-        }
-        fingerprint = hashlib.sha256(
-            json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
-        return {
-            "format_version": 1,
-            **compatibility,
-            "config_fingerprint": fingerprint,
-            "normalization_factor": (
-                None
-                if self._norm_factor is None
-                else {
-                    "factors": self._checkpoint_value(self._norm_factor._factors),
-                    "offsets": self._checkpoint_value(self._norm_factor._offsets),
-                }
-            ),
-        }
-
-    def _validate_checkpoint_metadata(self, checkpoint_path, metadata: dict) -> None:
-        expected = self.checkpoint_metadata()
-        # Normalization is runtime data, not model compatibility.  It is restored
-        # below after the structural configuration has been checked.  Unknown
-        # metadata is ignored so sidecars can gain optional fields safely.
-        expected.pop("normalization_factor")
-        actual = {key: metadata.get(key) for key in expected}
-        if actual != expected:
-            differences = []
-            for key in sorted(set(expected) | set(actual)):
-                if expected.get(key) != actual.get(key):
-                    differences.append(key)
-            changed = ", ".join(differences) or "unknown metadata"
-            raise RuntimeError(
-                f"Checkpoint {checkpoint_path} is incompatible with {self._name}: "
-                f"{changed} differs. Refusing to load before state_dict validation."
-            )
-
-    def _restore_checkpoint_normalization(self, checkpoint_path, metadata: dict) -> None:
-        normalization = metadata.get("normalization_factor")
-        if normalization is None:
-            return
-        if not isinstance(normalization, dict) or not {
-            "factors", "offsets"
-        } <= set(normalization):
-            raise RuntimeError(
-                f"Checkpoint metadata {checkpoint_path} has an invalid normalization_factor."
-            )
-        factors = normalization["factors"]
-        offsets = normalization["offsets"]
-        if not isinstance(factors, dict) or not isinstance(offsets, dict):
-            raise RuntimeError(
-                f"Checkpoint metadata {checkpoint_path} has invalid normalization mappings."
-            )
-        try:
-            self._norm_factor = ShiftAndNormalizationFactor(
-                {str(key): float(value) for key, value in factors.items()},
-                {str(key): float(value) for key, value in offsets.items()},
-            )
-        except (TypeError, ValueError, AssertionError) as error:
-            raise RuntimeError(
-                f"Checkpoint metadata {checkpoint_path} has an invalid normalization_factor."
-            ) from error
-
     def _load_training_checkpoint_if_requested(
         self, optimizer: Optional[optim.Optimizer]
     ) -> int:
@@ -590,8 +483,23 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         checkpoint_path, checkpoint = checkpoint_result
         metadata = load_checkpoint_metadata(checkpoint_path)
         if metadata is not None:
-            self._validate_checkpoint_metadata(checkpoint_path, metadata)
-            self._restore_checkpoint_normalization(checkpoint_path, metadata)
+            validate_checkpoint_metadata(
+                checkpoint_path=checkpoint_path,
+                model_name=self._name,
+                expected=build_checkpoint_metadata(
+                    model_name=self._name,
+                    is_numerator=self._is_numerator,
+                    resolved_config=self._function_space_config,
+                    normalization_factor=self._norm_factor,
+                ),
+                actual=metadata,
+            )
+            restored_normalization = normalization_from_checkpoint_metadata(
+                checkpoint_path,
+                metadata,
+            )
+            if restored_normalization is not None:
+                self._norm_factor = restored_normalization
         self.load_state_dict(checkpoint["model_state_dict"], strict=True)
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
@@ -706,7 +614,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                                 optimizer=optimizer,
                                 epoch=epoch,
                                 training_history=self._training_history,
-                                metadata=self.checkpoint_metadata(),
+                                metadata=build_checkpoint_metadata(
+                                    model_name=self._name,
+                                    is_numerator=self._is_numerator,
+                                    resolved_config=self._function_space_config,
+                                    normalization_factor=self._norm_factor,
+                                ),
                             )
                 profiler.step()
 
@@ -764,13 +677,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         self.eval()
         with torch.no_grad():
-            if self.signal_region_shift_network is None:
-                signal_weight = x_tensor.new_ones((x_tensor.shape[0], 1))
-            else:
-                signal_region_shift = self.signal_region_shift_network(x_tensor)
-                signal_weight = 1 + (
-                    -signal_region_shift if secondary else signal_region_shift
-                )
+            signal_region_shift = self.signal_region_shift_network(x_tensor)
+            signal_weight = 1 + (
+                -signal_region_shift if secondary else signal_region_shift
+            )
             theta_estimate = self._nuisance_prediction(data).unsqueeze(1)
             theta_term = torch.clamp(1 + theta_sign * theta_estimate, min=1e-12)
             predictions = signal_weight * theta_term
