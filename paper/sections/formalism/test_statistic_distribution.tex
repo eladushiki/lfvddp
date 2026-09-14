@@ -4,9 +4,9 @@
 
 \begin{document}
 
-\subsubsection{Test Statistic Distribution}
+\subsubsection{Background Only Distribution}
 
-Wilks and Wald'd theorems gives us an expected behavior of the test statistic we constructed. According to Wilks~\cite{Wilks_Original} and Wald~\cite{Wald_Original}, we have that the distribution of $\invllratio$ itself should converge to a $\chi^2_d$
+Wilks and Wald's theorems gives us an expected behavior of the test statistic we constructed. According to Wilks~\cite{Wilks_Original} and Wald~\cite{Wald_Original}, we have that the distribution of $\invllratio$ itself should converge to a $\chi^2_d$
 
 \begin{equation}
     \invllratio \sim \chi^2_{d}
@@ -15,5 +15,17 @@ Wilks and Wald'd theorems gives us an expected behavior of the test statistic we
 \noindent with $d$ of the number of degrees of freedom on our signal hypothesis minus those of the null hypothesis.
 
 and so, given no new signal in SR, we should count the number of free parameters in our signal hypothesis and be able to approximate the behavior of $\invllratio$.
+
+\subsubsection{In the Lack of Pure Background}
+
+When examining a real experimental sample, we would not be able to extract properties from a background-only toy, since all we have is the sample itself that may or may not contain a signal.
+As in the previous work~\cite{LastDDPPaper}, we observe this background-only behavior by performing permutation tests - shuffling the $\dataset{A}$ and $\dataset{B}$ samples, then estimating the test statistic. Repeating this process generates a distribution that is indistinguishable from background only behavior, as demonstrated in Figure~\ref{fig:permutation_test}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]{}
+    \caption{[PLACEHOLDER] Permutation tests performed on a sample from CMS Open data \cite{CMS_OpenData_VVTo2L2Nu_2016}.}
+    \label{fig:permutation_test}
+\end{figure}
 
 \end{document}
