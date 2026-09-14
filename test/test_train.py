@@ -9,9 +9,9 @@ from frame.command_line.handle_args import create_config_from_paths
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
-    _SignalRegionShiftEstimator,
     _PreparedTrainingData,
 )
+from neural_networks.function_spaces import AdaptiveNeuralFunction
 from neural_networks.likelihood_parameterization import (
     LIKELIHOOD_SHIFT_BOUND,
     smoothly_bounded_likelihood_shift,
@@ -567,7 +567,7 @@ def test_cpu_thread_count_preserves_loss_and_gradient_bits():
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
 def test_signal_region_shift_estimator_smoothly_bounds_result(input_dimension):
-    estimator = _SignalRegionShiftEstimator(
+    estimator = AdaptiveNeuralFunction(
         input_dimension=input_dimension,
         hidden_size=4,
         output_dimension=1,

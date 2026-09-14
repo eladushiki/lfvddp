@@ -11,7 +11,8 @@ import torch
 from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
-from test.environment import ConfigType
+from test.environment import ConfigType, TrainConfigFixture
+from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import (
     _torch_load,
     checkpoint_metadata_path,
@@ -23,56 +24,43 @@ from train.checkpoints import (
 _DATASET = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR = Path("test/configs/detector/basic_1D_detector_config.json")
 
-# One file-backed fixture per supported trainable f family.  Nuisance remains
-# enabled in every case so the checkpoint covers the complete model state.
+def _train_config(*, f, nuisance, epochs=1):
+    return TrainConfigFixture(
+        {
+            "random_seed": 18018,
+            "train__epochs": epochs,
+            "train__number_of_epochs_for_checkpoint": 1,
+            "train__enable_progress_bar": False,
+            "train__nn_input_dimension": 1,
+            "train__nn_inner_layer_nodes": 4,
+            "train__learning_rate": 0.01,
+            "train__final_learning_rate": 0.01,
+            "train__f": f,
+            "train__nuisance": nuisance,
+        }
+    )
+
+
+_BINNED = {"family": "bin_indicators", "options": {"minima": [-1.0], "maxima": [1.0], "number_of_bins": [4]}}
+_CUBIC = {"family": "cubic_bspline", "options": {"knots": [-1.0, -0.5, 0.0, 0.5, 1.0]}}
+_ADAPTIVE = {"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 4}}
+
+# Each case is materialized by the fixture, so test-run settings are not tracked.
 _CASES = [
-    pytest.param(
-        {
-            ConfigType.DATASET: _DATASET,
-            ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: Path("test/configs/train/issue018_s04_1D_adaptive_neural.json"),
-        },
-        id="adaptive-neural",
-    ),
-    pytest.param(
-        {
-            ConfigType.DATASET: _DATASET,
-            ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: Path("test/configs/train/issue018_s04_1D_cubic_binned.json"),
-        },
-        id="cubic-bspline",
-    ),
-    pytest.param(
-        {
-            ConfigType.DATASET: _DATASET,
-            ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: Path("test/configs/train/issue018_s04_1D_legendre_binned.json"),
-        },
-        id="legendre-polynomial",
-    ),
-    pytest.param(
-        {
-            ConfigType.DATASET: _DATASET,
-            ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: Path("test/configs/train/issue018_s04_1D_gaussian_binned.json"),
-        },
-        id="gaussian-rbf",
-    ),
-    pytest.param(
-        {
-            ConfigType.DATASET: _DATASET,
-            ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: Path("test/configs/train/issue018_s04_1D_sigmoid_binned.json"),
-        },
-        id="fixed-sigmoid",
-    ),
+    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f=_ADAPTIVE, nuisance={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 2}})}, id="adaptive-neural"),
+    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f=_CUBIC, nuisance=_BINNED)}, id="cubic-bspline"),
+    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "orthogonal_polynomial", "options": {"basis": "legendre", "maximum_degree": 3, "domain": [-1.0, 1.0]}}, nuisance=_BINNED)}, id="legendre-polynomial"),
+    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "gaussian_radial_basis", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}, nuisance=_BINNED)}, id="gaussian-rbf"),
+    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "fixed_sigmoid", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}, nuisance=_BINNED)}, id="fixed-sigmoid"),
 ]
 
 _CONTINUATION_CONFIG = {
     ConfigType.DATASET: _DATASET,
     ConfigType.DETECTOR: _DETECTOR,
-    ConfigType.TRAIN: Path(
-        "test/configs/train/issue018_s04_1D_adaptive_neural_continuation.json"
+    ConfigType.TRAIN: _train_config(
+        f=_ADAPTIVE,
+        nuisance={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 2}},
+        epochs=3,
     ),
 }
 
@@ -93,6 +81,15 @@ def _make_model(context, detector_effect, name):
         name=name,
         dtype=torch.float64,
         device="cpu",
+    )
+
+
+def _metadata(model):
+    return build_checkpoint_metadata(
+        model_name=model._name,
+        is_numerator=model._is_numerator,
+        resolved_config=model._function_space_config,
+        normalization_factor=model._norm_factor,
     )
 
 
@@ -128,6 +125,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         optimizer=optimizer,
         epoch=0,
         training_history=model._training_history,
+        metadata=_metadata(model),
     )
     checkpoint = _torch_load(checkpoint_path)
 
@@ -149,7 +147,12 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
 
     metadata = load_checkpoint_metadata(checkpoint_path)
     assert metadata is not None
-    assert metadata["config_fingerprint"] == model.checkpoint_metadata()["config_fingerprint"]
+    assert metadata["config_fingerprint"] == build_checkpoint_metadata(
+        model_name=model._name,
+        is_numerator=model._is_numerator,
+        resolved_config=model._function_space_config,
+        normalization_factor=model._norm_factor,
+    )["config_fingerprint"]
     assert metadata["normalization_factor"]["factors"] == {
         name: model._norm_factor.get_factor(name)
         for name in model._norm_factor._factors
@@ -211,6 +214,7 @@ def test_continuation_restores_normalization_and_resumes_history(
         optimizer=optimizer,
         epoch=0,
         training_history=model._training_history,
+        metadata=_metadata(model),
     )
     checkpoint = _torch_load(checkpoint_path)
 
@@ -240,9 +244,7 @@ def test_continuation_restores_normalization_and_resumes_history(
             {
                 ConfigType.DATASET: _DATASET,
                 ConfigType.DETECTOR: _DETECTOR,
-                ConfigType.TRAIN: Path(
-                    "test/configs/train/issue018_s04_1D_cubic_binned.json"
-                ),
+                ConfigType.TRAIN: _train_config(f=_CUBIC, nuisance=_BINNED),
             },
             id="cubic-bspline",
         )
@@ -270,6 +272,7 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
         optimizer=optimizer,
         epoch=0,
         training_history=model._training_history,
+        metadata=_metadata(model),
     )
     metadata_path = checkpoint_metadata_path(checkpoint_path)
     metadata = json.loads(metadata_path.read_text())
@@ -310,6 +313,7 @@ def test_legacy_checkpoint_without_sidecar_still_loads(
         optimizer=optimizer,
         epoch=0,
         training_history=model._training_history,
+        metadata=_metadata(model),
     )
     checkpoint_metadata_path(checkpoint_path).unlink()
     checkpoint = _torch_load(checkpoint_path)

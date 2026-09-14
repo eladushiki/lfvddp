@@ -73,6 +73,25 @@ class FunctionSpaceFamily(_ValueEnum):
             ) from error
 
 
+class FunctionSpaceRole(_ValueEnum):
+    """The two typed likelihood roles that share a function-space configuration shape."""
+
+    F = "f"
+    NUISANCE = "nuisance"
+
+    @classmethod
+    def from_value(cls, value: FunctionSpaceRole | str) -> FunctionSpaceRole:
+        if isinstance(value, cls):
+            return value
+        try:
+            return cls(str(value).strip().lower())
+        except ValueError as error:
+            choices = ", ".join(item.value for item in cls)
+            raise ValueError(
+                f"Unknown function-space role {value!r}; expected one of: {choices}."
+            ) from error
+
+
 class RoleState(_ValueEnum):
     """Whether a role participates in the model.
 
@@ -334,6 +353,7 @@ def resolve_dual_role_config(
 
 __all__ = [
     "FunctionSpaceFamily",
+    "FunctionSpaceRole",
     "FunctionSpaceSpec",
     "ResolvedFunctionSpaceConfig",
     "RoleState",

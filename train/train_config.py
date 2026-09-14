@@ -4,6 +4,7 @@ from typing import Any, List, Mapping, Optional, Tuple
 
 from train.function_space_config import (
     FunctionSpaceFamily,
+    FunctionSpaceSpec,
     ResolvedFunctionSpaceConfig,
     TrainingBackend,
     resolve_dual_role_config,
@@ -42,35 +43,20 @@ class TrainConfig:
     
     train__like_NPLM: bool = False
 
-    train__backend: Optional[str] = None
-    train__function_space_backend: Optional[str] = None
-    train__f: Optional[Mapping[str, Any]] = None
-    train__nuisance: Optional[Mapping[str, Any]] = None
+    train__backend: TrainingBackend | str | None = None
+    train__f: FunctionSpaceSpec | Mapping[str, Any] | None = None
+    train__nuisance: FunctionSpaceSpec | Mapping[str, Any] | None = None
     train__resolved_function_space_config: Optional[ResolvedFunctionSpaceConfig] = field(
         default=None, init=False, repr=False
     )
 
     def resolve_function_space_config(self) -> ResolvedFunctionSpaceConfig:
-        backend_values = {
-            name: value
-            for name, value in (
-                ("train__backend", self.train__backend),
-                ("train__function_space_backend", self.train__function_space_backend),
-            )
-            if value is not None
-        }
-        if len({TrainingBackend.from_value(value) for value in backend_values.values()}) > 1:
-            raise ValueError(
-                "Conflicting training backend fields: "
-                + ", ".join(f"{name}={value!r}" for name, value in backend_values.items())
-                + "."
-            )
         if self.train__f is None:
             raise ValueError("train__f must define a canonical function-space mapping.")
         if self.train__nuisance is None:
             raise ValueError("train__nuisance must define a canonical function-space mapping.")
         self.train__resolved_function_space_config = resolve_dual_role_config(
-            backend=next(iter(backend_values.values()), None),
+            backend=self.train__backend,
             f=self.train__f,
             nuisance=self.train__nuisance,
         )
@@ -78,19 +64,10 @@ class TrainConfig:
 
     @property
     def train__function_space_config(self) -> ResolvedFunctionSpaceConfig:
-        """Resolved dual-role configuration used by later model adapters."""
+        """Return the cached canonical configuration used by training code."""
         if self.train__resolved_function_space_config is None:
             return self.resolve_function_space_config()
         return self.train__resolved_function_space_config
-
-    @property
-    def resolved_function_space_config(self) -> ResolvedFunctionSpaceConfig:
-        return self.train__function_space_config
-
-    @property
-    def train__resolved_function_spaces(self) -> ResolvedFunctionSpaceConfig:
-        return self.train__function_space_config
-
 
     @property
     def train__number_of_nuisance_parameters(self) -> int:

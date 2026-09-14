@@ -16,6 +16,7 @@ def test_disabled_nuisance_preserves_signal_rank():
     assert result.nuisance_rank == 0
     assert result.overlap_rank == 0
     assert result.effective_f_rank == 3
+    assert result.degrees_of_freedom == 3
 
 
 def test_disjoint_nuisance_space_does_not_reduce_signal_rank():
@@ -28,6 +29,7 @@ def test_disjoint_nuisance_space_does_not_reduce_signal_rank():
     assert result.nuisance_rank == 1
     assert result.overlap_rank == 0
     assert result.effective_f_rank == 2
+    assert result.degrees_of_freedom == 3
 
 
 def test_partial_overlap_has_thirteen_to_twelve_effective_rank():
@@ -41,6 +43,7 @@ def test_partial_overlap_has_thirteen_to_twelve_effective_rank():
     assert result.nuisance_rank == 1
     assert result.overlap_rank == 1
     assert result.effective_f_rank == 12
+    assert result.degrees_of_freedom == 13
 
 
 def test_fully_overlapping_nuisance_space_removes_signal_rank():
@@ -53,6 +56,7 @@ def test_fully_overlapping_nuisance_space_removes_signal_rank():
     assert result.nuisance_rank == 2
     assert result.overlap_rank == 2
     assert result.effective_f_rank == 0
+    assert result.degrees_of_freedom == 2
 
 
 def test_tolerance_controls_near_singular_rank_deterministically():

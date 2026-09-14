@@ -97,6 +97,7 @@ def build_statistical_metadata(
         "nuisance_rank": rank_metadata["nuisance_rank"],
         "overlap_rank": rank_metadata["overlap_rank"],
         "effective_f_rank": rank_metadata["effective_f_rank"],
+        "degrees_of_freedom": rank_metadata["degrees_of_freedom"],
         "tolerance": rank_metadata["tolerance"],
         "f_regularity": f_regularity,
         "nuisance_regularity": nuisance_regularity,

@@ -77,7 +77,7 @@ def _single_train_checkpoint_paths(
         return
 
     continue_from = Path(context.continue_from)
-    dirsafe_runtag = getattr(getattr(context, "config", None), "config__dirsafe_runtag", None)
+    dirsafe_runtag = context.config.config__dirsafe_runtag
     for child_context_path in continue_from.glob(f"*/{CONTEXT_FILE_NAME}"):
         child_context = ExecutionContext.load_from_run_dir(child_context_path.parent)
         if child_context.array_index != context.array_index:
@@ -133,12 +133,6 @@ def save_training_checkpoint(
     }, temporary_path)
     temporary_path.replace(checkpoint_path)
 
-    # Keep the historical torch payload unchanged.  New callers may persist
-    # runtime/configuration metadata beside it, while old copied checkpoints
-    # remain valid when the sidecar is absent.
-    if metadata is None:
-        metadata_provider = getattr(model, "checkpoint_metadata", None)
-        metadata = metadata_provider() if callable(metadata_provider) else None
     if metadata is not None:
         metadata_path = checkpoint_metadata_path(checkpoint_path)
         temporary_metadata_path = metadata_path.with_suffix(metadata_path.suffix + ".tmp")
