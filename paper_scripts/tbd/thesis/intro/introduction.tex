@@ -1,0 +1,148 @@
+\documentclass[../Elad_Kliger_Thesis.tex]{subfiles}
+
+\input{../common/preamble}
+
+\begin{document}
+
+\section{Introduction}
+
+\SB{the subsections are not needed in the introduction for the paper. You can keep it. add more details and examples}
+
+\subsection{Beyond the Standard Model Searches}
+
+The \gls{sm} of the elementary particles \cite{Grossman_StandardModel_2023} is known for describing the fundamental particles and their interactions, yet it does not provide a complete description of nature. e.g., it doesn't explain the nature of dark matter, the origin of neutrino masses, and the matter-antimatter asymmetry of the universe. Many \gls{bsm} theories and models have been developed in an attempt to account for these phenomena as well. Some prominent candidates include:
+
+\begin{itemize}
+    \item Supersymmetry model, that adds a superpartner for every \gls{sm} state, as a possible explanation of dark matter.
+    \item The seesaw model, adding right handed neutrino fields to have a mass term emerge for them.
+    \item Leptogenesis models that, additional to neutrino masses, suggest CP violation to explain matter-antimatter asymmetry.
+\end{itemize}
+
+Particle accelerator are the most common tool used in search for \gls{bsm} physics, due to their ability not only to reach high energies but also huge luminosities. Example are the Large hadron Collider (LHC) \cite{CERN_Courier_LHC_Run3} with its state of the art collision energy of 13.6 TeV and expected total integrated luminosity of $550fb^{-1}$ since it's first collisions, and the foreseen future FCC-ee \cite{Benedikt_2026_FCC} with energy of 90 to 365 GeV and luminosity of $0.67ab^{-1}$ to $68ab^{-1}$ (depending on the interaction point) per year of operation. The hundreds of searches for \gls{bsm} physics conducted so far at the LHC data have not found any profound evidence for new processes. See, for example \cite{PDG_2024} and references therein. Yet, only a small fraction of possible scenarios have been probed. For example, in ATLAS pMSSM searches, about 40\% points excluded by ATLAS escape the currently available simplified model constraints \cite{Ambrogi_2018_pMSSM_misses}. In the search for BSM physics, powerful particle colliders such as the Large Hadron Collider (LHC) at CERN have been in use, due to their ability to poke into the high energy regime where new physics may manifest itself. Although current searches based upon the LHC data have failed to show any evidence for BSM physics (but have been used to rule out most theoretically motivated BSM models), much rich and complex data has been generated that can be used for future analysis. 
+
+A classic search for a \gls{bsm} physics model \cite{ATLAS_Higgs_2012} consists of several time-consuming and human-intensive steps, such as formulating selection criteria to enhance the signal of the \gls{sm} background, modeling the expected signal and background shapes, quantifying potential systematic uncertainties and constructing a solid statistical model. Yet, such steps take an extensive amount of time and labor to execute. 
+
+In our previous works \cite{Volkovich_2022_DDP, Birman_2022_Symmetries, LastDDPPaper} we suggested addressing these limitations with our \gls{ddp} for model agnostic searches. By efficiently scanning the detector generated data for deviations from \gls{sm}-predicted properties, our search could identify possible starting points for future studies. In particular, symmetries respected by the \gls{sm} set selection rules for, and relations between, different observable processes, and grant us an anchor from which to search for deviations. 
+
+Here we generalize the symmetry method first proposed in \cite{LastDDPPaper}. There, we presented the symmetric formalism, which is a statistical method to test differences between pairs of data samples.
+
+We add mechanisms to cope with simulated data complexities, and use it to test data sample pairs which are predicted to by symmetric by the \gls{sm}. We added the ability to examine multiple observable quantities and to model nuisance parameters in our system and cancel out their effect on the samples.
+
+We continue our work to look into the lepton sector in search of lepton flavor violations, as it is a well motivated area for \gls{bsm} searches that fit's our model's abilities. This is done with by using CMS Open Data sample pairs which are symmetric ny the lepton flavor of the cuts made to create them.
+
+\subsection{Scientific Background}
+
+The \gls{sm}~\cite{Grossman_StandardModel_2023} accounts for the strong, weak, electromagnetic and Yukawa interaction in nature. It postualtes the fields and the local symmetries imposed on the Lagrangian, and obtains the interactions, accidental symmetries and parameters that stem from its postulates.
+
+We first formulate the total symmetry group under which the \gls{sm} is invariant:
+
+\begin{equation}
+    \label{eq:SM_symmetry_group}
+    SU(3)_C \times SU(2)_L \times U(1)_Y
+\end{equation}
+
+\noindent along with tree fermion generations, each consisting of five representations:
+
+\begin{equation}
+    Q_{L_i}(3, 2)_{+1/6}, U_{R_i}(3, 1)_{+2/3}, D_{R_i}(3, 1)_{-1/3}, L_{L_i}(1, 2)_{-1/2}, E_{R_i}(1, 1)_{-1}
+\end{equation}
+
+\noindent for $i=1,2,3$. To this a scalar multiplet is added:
+
+\begin{equation}
+    \phi(1, 2)_{+1/2}
+\end{equation}
+
+\noindent while the notation used is interpreted such that both scalars in the parentheses followed by the one subscript to them are the field's representation under the according symmetry groups in Eq.~\ref{eq:SM_symmetry_group}.
+
+This leads to spontaneous symmetry breaking. It is defined that the \gls{sm} exhibits the breaking pattern:
+
+\begin{equation}
+    \label{eq:sm_symmtery_breaking_pattern}
+    SU(3)_C \times SU(2)_L \times U(1)_Y \to SU(3)_C \times U(1)_{EM}
+\end{equation}
+
+\noindent the new group being the electromagnetic group. The fermions that transform as singlets under the color group are called leptons.
+
+Leptons appear in 3 generations, and have their masses arise from the Yukawa part of nature's Lagrangian:
+
+\begin{equation}
+    \label{eq:yukawa_lagrangian}
+    -\mathcal{L}_{\text{Yuk}}
+    = Y^{u}_{ij}\overline{Q_{L_i}}U_{R_j}\tilde{\phi}
+    + Y^{d}_{ij}\overline{Q_{L_i}}D_{R_j}\phi
+    + Y^{e}_{ij}\overline{L_{L_i}}R_{R_j}\phi
+    + \text{h.c.}
+\end{equation}
+
+\noindent where $i, j = 1, 2, 3$ are the flavor indices, the $Y$ matrices are the complex $3 \times 3$ Yukawa couplings for the up, down and lepton sectors of the model, accordingly. Without loss of generality, we can choose a basis in which the $Y^{e}$ is diagonal, for which the eigenstates are the \glspl{sm} leptons. The PMNS matrix, the leptonic mixing matrix, stems from $Y^e$.
+
+The lepton left handed fields are denoted by:
+
+\begin{equation}
+    \label{eq:lepton_lh_fields}
+    L_{L_e} = \begin{pmatrix}
+        \nu_{eL} \\
+        e_{eL}
+    \end{pmatrix}, \quad
+    L_{L_\mu} = \begin{pmatrix}
+        \nu_{\mu L} \\
+        \mu_L
+    \end{pmatrix}, \quad
+    L_{L_\tau} = \begin{pmatrix}
+        \nu_{\tau L} \\
+        \tau_L
+    \end{pmatrix},
+\end{equation}
+
+\noindent and the right handed ones:
+
+\begin{equation}
+    \label{eq:lepton_rh_fields}
+    e_R, \quad \mu_R, \quad \tau_R
+\end{equation}
+
+Since the neutrino fields have no right handed partners, they remain massless. Eventually, the \gls{sm} predicts the existance of the particles:
+
+\begin{itemize}
+    \item electrons, $e^\pm$, and a corresponding massless electron neutrino, $\nu_e$.
+    \item muons, $\mu^\pm$, and a corresponding massless muon neutrino, $\nu_\mu$.
+    \item taus, $\tau^\pm$, and a corresponding massless tau neutrino, $\nu_\tau$.
+\end{itemize}
+
+\subsubsection{Neutrino Oscillations}
+
+An accidental symmetry of the \gls{sm} is the lepton flavor symmetrty:
+
+\begin{equation}
+    \label{eq:lepton_flavor_symmetry}
+    U(1)_e \times U(1)_\mu \times U(1)_\tau.
+\end{equation}
+
+\noindent it constrains that the number of particles of each flavor is conserved throughout a process. This being said, evidence from the Kamiokande experiment~\cite{SuperKamiokande_1998_Oscillations} showed evidence that this is not the full description of nature. Running the detector experiment for 535 days, the team exhibits discrapency between the expected and the measured number $\nu_\mu$ that pass through the detector, and that this amount varies depending on the distacnce the particles travel from the sun. A possible explanation for this are "neutrino oscillations", the term coined to express that the PMNS matrix is not diagonal in the mass basis of the leptons, causing traveling leptons to change their mass state via the development of the Hamiltonian.
+
+\subsection{Searches for Deviations from the Standard Model}
+\TODO{write section}
+
+\subsection{symmetrized}
+\TODO{write section}
+
+\subsubsection{Search for Lepton Flavor Violating Processes}
+\SB{Again, in a paper you can refer to \gls{lfv} very shortly citing previous works.
+In a thesis, you'll need a dedicated chaper for theoretical backgroun where \gls{lfv} should be explain in some lengh}
+
+One particular section of the \gls{sm} particles that draws attention to specific searches for new physics is the lepton sector. The \gls{sm} predicts that lepton sections of the three generations - the electron, the muon and the tau -  each contain a lepton and a neutrino. In addition, foundations of the \gls{sm} predict three identical generations that are broken only by Yukawa interactions, in which case we say that there is a \textbf{Lepton Flavor Universality} (LFU) in the \gls{sm}. However, behaviors such as neutrino oscillations suggest that there is physics we don't yet understand.
+
+\subsection{In this Paper}
+
+%Our goal is to use a previously suggested method, the \textbf{Data-Directed Paradigm} (DDP), to look for hints of lepton flavor violating (LFV) evidence in simulated LHC data. To this end, we extend the existing method in several ways:
+
+\SB{In this paper, we generalize the symmetry method first proposed in \TBD{citation}. Say what was done not in bullets. In continuation to the discussion in you presentation to the group, here is the place to give a descriptive intuitive description of the purpose. }
+
+\begin{enumerate}
+    \item We look at multi-dimensional data, in terms of physical observables of the events.
+    \item We model our knowledge of the effects of a detector (and the potential error term created) using nuisance parameters, which we use to measure its effect on the discovery probability and significance estimation.
+    \item We proceed to run on simulated CMS datasets, rather than purely hypothetical samples.
+\end{enumerate}
+
+\end{document}

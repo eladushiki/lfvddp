@@ -24,7 +24,7 @@ Some of the design principles were to encapsulate any new functionality while ma
 
 \subsubsection{Neural Network Specs}
 
-As stated above, each network is a fully connected 3 layer NN with Sigmoid activation function for the inner layer neurons. The full structure of our model can be observed in Figure~\ref{fig:model_implementation}. We chose $N=4$ for the number of neurons. Weights initialization is taken from a Xavier uniform, and biases are from a uniform distribution from the segment $[-0.3, 0.3]$.
+As stated above, each network is a fully connected 3 layer \gls{nn} with Sigmoid activation function for the inner layer neurons. The full structure of our model can be observed in Figure~\ref{fig:model_implementation}. We chose $N=4$ for the number of neurons. Weights initialization is taken from a Xavier uniform, and biases are from a uniform distribution from the segment $[-0.3, 0.3]$.
 
 Before any given process, data is normalized such that all datasets would fit $[-1, 1]$ to allow for stable numerics of the Sigmoid functions.
 

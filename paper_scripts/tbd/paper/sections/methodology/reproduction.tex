@@ -15,7 +15,7 @@ The following results are generated using the new, improved codebase, with a sub
 \includegraphics[width=\textwidth, trim=0 12bp 0 0, clip]
 {"plots/run_20260715_111737_1784114257.578073_test_run_run_of_single_train.py_pid_24966/A_numerator_data_process_plot_2163321021161639752.png"}
 \hfill
-\caption{Visualization of the outcome of a single run of our procedure. Top: overlaying distributions of $\dataset{A}$ and $\dataset{B}$ of both regions. Bottom: illustration of the learned (minimized) parts of the NN - for the signal hypothesis (first expression in Eq~\ref{eq:discrete_loss_functions}) train at the left, and for the null hypothesis (second expression) to the right. Detector is set to work at perfect efficiency on both datasets.}
+\caption{Visualization of the outcome of a single run of our procedure. Top: overlaying distributions of $\dataset{A}$ and $\dataset{B}$ of both regions. Bottom: illustration of the learned (minimized) parts of the \gls{nn} - for the signal hypothesis (first expression in Eq~\ref{eq:discrete_loss_functions}) train at the left, and for the null hypothesis (second expression) to the right. Detector is set to work at perfect efficiency on both datasets.}
 \end{figure}
 
 As can be seen in Figure~\ref{fig:t_distribution_plot_reproduction}, using the same parameters, we achieved a similar convergence of the $t$ values distribution to a $\chi^2_{13}$ distribution.
@@ -54,7 +54,7 @@ When considering the free parameters of either hypothesis space the following ca
     \item In $\nullhypothesis$, the degrees of freedom are in $\nparam$ and $\refdist$.
 \end{itemize}
 
-When counting the true DOF, rather than looking at $f$, $g$, we should examine $\Delta = f - g$ and $\Sigma = f + g$. $\hypothesis{1}$ can obviously be restated to use the latter instead of the former. Then, we can see that by choice of $\refdist$, $\Sigma$ is actually swallowed and should amount to 0. We can express $\Delta$ in a form that resembles Equation~\ref{eq:neural_net_explicit}, with the substitution $\omega_\Delta = \omega_f - \omega_g$, and get convinced that the actual DOF represented are those of a single NN.
+When counting the true DOF, rather than looking at $f$, $g$, we should examine $\Delta = f - g$ and $\Sigma = f + g$. $\hypothesis{1}$ can obviously be restated to use the latter instead of the former. Then, we can see that by choice of $\refdist$, $\Sigma$ is actually swallowed and should amount to 0. We can express $\Delta$ in a form that resembles Equation~\ref{eq:neural_net_explicit}, with the substitution $\omega_\Delta = \omega_f - \omega_g$, and get convinced that the actual DOF represented are those of a single \gls{nn}.
 All training graphs we show here support this by showing that the converged $f$, $g$ are the inverse of one another.
 Each bin of $\nparam$ add one DOF to both the signal and null hypotheses, and hence does not change the difference.
 
