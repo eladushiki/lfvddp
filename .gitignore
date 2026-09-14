@@ -16,6 +16,9 @@
 *.synctex
 *.synctex.gz
 *.toc
+*.acn
+*.glo
+*.ist
 
 ## Beamer
 *.nav

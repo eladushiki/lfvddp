@@ -45,32 +45,37 @@ aps, physrev,
 \date{\today}
 
 % =============================================================================
-% Article headers
+% Article intro
 % =============================================================================
 
-\includefullpage[1]{common/elad-thesis-title-page.pdf}
+\includefullpage[1]{intro/elad-thesis-title-page.pdf}
 
-% Abstract
-% The abstract will briefly summarize the background, results and conclusions of the thesis (up to one page).
-% Theses that are written in Hebrew (in Science Teaching), must include an abstract in English as well.
-\begin{abstract}
-\TODO{Abstract}
-\end{abstract}
+\glsaddall[types={\acronymtype}]
+\printnoidxglossary[type=\acronymtype,title={List of Abbreviations}]
+\newpage
+
+\subfile{intro/acknowledgements.tex}
+\newpage
 
 \tableofcontents
 \newpage
 
+% ABBREVIATIONS
+
+% Abstract
+% The abstract will briefly summarize the background, results and conclusions of the thesis (up to one page).
+% Theses that are written in Hebrew (in Science Teaching), must include an abstract in English as well.
+\subfile{intro/abstract.tex}
+
 % Introduction
 % The Introduction chapter should review and summarize the current state of knowledge in your field in terms of scientific literature, raise questions, and note mistakes or possible gaps in this knowledge.
     
-    % \subfile{sections/introduction.tex}
-\TODO{introduction}
+\subfile{intro/introduction.tex}
 
 % Goals
 % You must present a clear outline of the hypothesis behind your study, as well as a clear and concise statement as to the goals of this project. The scientific importance of the study should also be explained in brief.
 
-    % \subfile{sections/goals.tex}
-\TODO{GOALS}
+\subfile{intro/goals.tex}
 
 % =============================================================================
 % Article body
@@ -79,15 +84,14 @@ aps, physrev,
 % Methods
 % This chapter must include a description of the materials and methods used in your study. The information should be written so that a competent researcher can replicate your results based on your protocols. You may describe protocols in detail, or refer to a detailed reference in the literature (while nonetheless providing a brief overview of the protocol).
 
-\subfile{formalism/introduction.tex}
 
 \section{Formalism}
 \SB{start from a short reminder of the formalism in the original work. With citations.
 define the pdf as the sum of all events and explain the null and signal hypotheses used
-and also the fitting mechanism using NN. You cal also add a sketch if it helps.}
+and also the fitting mechanism using \gls{nn}. You cal also add a sketch if it helps.}
 
 \SB{Once you remind what was done I would just describe the modifications to the signal and null hypotheses
-separately fro the addition of more variables (so no mention of CR) and separately for the addition
+separately fro the addition of more variables (so no mention of \gls{cr}) and separately for the addition
 of nuisance parameters with a generic explanation how they can be constrained in a model.
 than say that here we demonstrate it with CRs}
 
@@ -150,9 +154,5 @@ after the algebra}
 \nocite{*}
 \bibliographystyle{apsrev4-2}
 \bibliography{../common/bibliography/bibliography}
-
-\begin{acknowledgments}
-\TODO{acknowledge}
-\end{acknowledgments}
 
 \end{document}
