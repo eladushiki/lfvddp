@@ -6,6 +6,7 @@
 *(busy)
 *.fdb_latexmk
 *.fls
+*.gz
 *.lof
 *.log
 *.lot
@@ -15,11 +16,16 @@
 *.synctex
 *.synctex.gz
 *.toc
+*.acn
+*.glo
+*.ist
+
+## Beamer
+*.nav
+*.snm
+*.bcf
+*.run.xml
 
 # IDE
 .vscode/
 **.code-workspace
-
-## Elad's sync local files
-thesis/
-research_proposal/
