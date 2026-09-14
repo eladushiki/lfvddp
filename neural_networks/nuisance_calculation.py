@@ -11,14 +11,9 @@ import torch
 import torch.nn as nn
 
 from data_tools.data_utils import DataSet
-from neural_networks.function_spaces import (
-    AdaptiveNeuralFunction,
-    BinIndicatorFunction,
-    create_function_space,
-)
+from neural_networks.function_spaces import create_function_space
 from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
 from train.function_space_config import (
-    FunctionSpaceFamily,
     FunctionSpaceRole,
     ResolvedFunctionSpaceConfig,
     RoleState,
@@ -106,21 +101,7 @@ def build_nuisance_calculation(
         dtype=dtype,
         device=device,
     )
-    if spec.family is FunctionSpaceFamily.BIN_INDICATORS:
-        return ScalarBinnedNuisanceEstimator(
-            dtype=dtype,
-            device=device,
-            bin_lookup=function_space,
-        )
-    if not isinstance(function_space, nn.Module):
-        raise TypeError(
-            f"Nuisance family {spec.family.value!r} did not produce a trainable module."
-        )
-    return NeuralPerEventNuisanceEstimator(
-        dtype=dtype,
-        device=device,
-        network=function_space,
-    )
+    return function_space.build_nuisance_calculation(dtype=dtype, device=device)
 
 
 class BlankNuisanceEstimator(NuisanceCalculation):
@@ -267,13 +248,6 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
                     min=-LIKELIHOOD_SHIFT_BOUND,
                     max=LIKELIHOOD_SHIFT_BOUND,
                 )
-
-
-class _ThetaEstimator(AdaptiveNeuralFunction):
-    """Wrapper retaining the nuisance output shape."""
-
-    def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return super().forward(events).squeeze(-1)
 
 
 class NeuralPerEventNuisanceEstimator(NuisanceCalculation):

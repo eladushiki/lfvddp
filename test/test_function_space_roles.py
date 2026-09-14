@@ -16,7 +16,11 @@ from neural_networks.nuisance_calculation import (
     ScalarBinnedNuisanceEstimator,
     build_nuisance_calculation,
 )
-from train.function_space_config import FunctionSpaceFamily, resolve_dual_role_config
+from train.function_space_config import (
+    FunctionSpaceFamily,
+    FunctionSpaceSpec,
+    resolve_dual_role_config,
+)
 from train.train_config import TrainConfig
 
 
@@ -34,6 +38,56 @@ def _context(*, f_options, nuisance, f_family="adaptive_neural"):
         train__nuisance=nuisance,
     )
     return SimpleNamespace(config=config)
+
+
+@pytest.mark.parametrize(
+    "f",
+    [
+        {"family": "adaptive_neural", "options": {}},
+        FunctionSpaceSpec(FunctionSpaceFamily.ADAPTIVE_NEURAL, {}),
+    ],
+    ids=["mapping", "typed-spec"],
+)
+def test_model_resolves_legacy_adaptive_f_defaults_in_canonical_config(f):
+    config = TrainConfig(
+        train__epochs=1,
+        train__number_of_epochs_for_checkpoint=1,
+        train__nn_inner_layer_nodes=3,
+        train__nn_input_dimension=2,
+        train__f=f,
+        train__nuisance={
+            "family": "adaptive_neural",
+            "options": {"input_dimension": 2, "hidden_layer_nodes": 2},
+        },
+    )
+
+    resolved = config.resolve_function_space_config()
+    model = DifferentiatingModel(
+        context=SimpleNamespace(config=config),
+        detector_effect=_Detector(),
+        is_numerator=True,
+        name="legacy_adaptive_f",
+        dtype=torch.float64,
+    )
+
+    assert dict(resolved.f.options) == {"input_dimension": 2, "hidden_size": 3}
+    assert isinstance(model.signal_region_shift_network, AdaptiveNeuralFunction)
+    assert model.signal_region_shift_network.input_dimension == 2
+    assert model.signal_region_shift_network.hidden_size == 3
+
+
+def test_adaptive_default_resolution_preserves_options_validation():
+    with pytest.raises(ValueError, match="f.options must be a mapping"):
+        TrainConfig(
+            train__epochs=1,
+            train__number_of_epochs_for_checkpoint=1,
+            train__nn_inner_layer_nodes=3,
+            train__f={"family": "adaptive_neural", "options": []},
+            train__nuisance={
+                "family": "adaptive_neural",
+                "options": {"input_dimension": 1, "hidden_layer_nodes": 2},
+            },
+        )
 
 
 def test_model_builds_independent_same_family_role_adapters():

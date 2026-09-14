@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
+import torch
 
-from neural_networks.function_spaces.base import FunctionSpaceMetadata, immutable_options
+from neural_networks.function_spaces.base import (
+    CoefficientTopology,
+    FunctionSpaceMetadata,
+    FunctionSpaceRegularity,
+    immutable_options,
+    unexpected_construction_options,
+)
 from train.function_space_config import FunctionSpaceFamily
+
+if TYPE_CHECKING:
+    from neural_networks.nuisance_calculation import NuisanceCalculation
 
 
 @dataclass(frozen=True)
@@ -83,8 +93,8 @@ class BinIndicatorFunction:
 
     family = FunctionSpaceFamily.BIN_INDICATORS
     metadata = FunctionSpaceMetadata(
-        regularity="piecewise_constant",
-        coefficient_topology="factorized_marginal_bins",
+        regularity=FunctionSpaceRegularity.PIECEWISE_CONSTANT,
+        coefficient_topology=CoefficientTopology.FACTORIZED_MARGINAL_BINS,
     )
     feature_count = 0
 
@@ -105,8 +115,37 @@ class BinIndicatorFunction:
         )
 
     @classmethod
-    def from_options(cls, options: Mapping[str, Any]) -> "BinIndicatorFunction":
-        return cls(BinIndicatorGeometry.from_options(options), options=options)
+    def from_options(
+        cls,
+        options: Mapping[str, Any],
+        **construction: Any,
+    ) -> "BinIndicatorFunction":
+        """Construct the binned lookup from its configuration envelope."""
+
+        construction.pop("dtype", None)
+        construction.pop("device", None)
+        construction.pop("output_dimension", None)
+        geometry = construction.pop("geometry", None)
+        unexpected_construction_options(cls.family, construction)
+        if geometry is None:
+            return cls(BinIndicatorGeometry.from_options(options), options=options)
+        return cls(geometry=geometry, options=options)
+
+    def build_nuisance_calculation(
+        self,
+        *,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "NuisanceCalculation":
+        """Adapt this binned lookup for compact scalar nuisance evaluation."""
+
+        from neural_networks.nuisance_calculation import ScalarBinnedNuisanceEstimator
+
+        return ScalarBinnedNuisanceEstimator(
+            dtype=dtype,
+            device=device,
+            bin_lookup=self,
+        )
 
     def bin_indices(self, events: npt.ArrayLike) -> npt.NDArray[np.int64]:
         return self.geometry.indices(events)

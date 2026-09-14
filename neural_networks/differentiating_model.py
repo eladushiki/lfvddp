@@ -29,7 +29,7 @@ from neural_networks.nuisance_calculation import (
     WeightedNuisanceValues,
     build_nuisance_calculation,
 )
-from train.function_space_config import FunctionSpaceFamily, FunctionSpaceRole
+from train.function_space_config import FunctionSpaceRole
 from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
@@ -134,17 +134,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         spec = self._function_space_config.f
         construction = {}
-        options = spec.options
-        if spec.family is FunctionSpaceFamily.ADAPTIVE_NEURAL:
-            if "input_dimension" not in options:
-                input_dimension = self._config.train__nn_input_dimension
-                if input_dimension is not None:
-                    construction["input_dimension"] = input_dimension
-            if not ({"hidden_size", "hidden_layer_nodes"} & set(options)):
-                hidden_size = self._config.train__nn_inner_layer_nodes
-                if hidden_size is not None:
-                    construction["hidden_size"] = hidden_size
-        if "output_dimension" not in options:
+        if "output_dimension" not in spec.options:
             construction["output_dimension"] = self._config.train__nn_output_dimension
         estimator = create_function_space(
             FunctionSpaceRole.F,
@@ -198,7 +188,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/signal_region_shift"):
             signal_hypothesis_sr_shift = (
-                self._signal_region_shift(data.sr_events) if self._is_numerator else None
+                self._signal_region_shift(data.sr_events)
+                if self._is_numerator
+                else data.sr_events.new_zeros(data.N_sr)
             )
         with profile_region("training/nuisance_theta"):
             nuisance_estimates = (
@@ -249,13 +241,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     @staticmethod
     def _assemble_loss_without_nuisance(
         *,
-        signal_hypothesis_sr_shift: Optional[torch.Tensor],
+        signal_hypothesis_sr_shift: torch.Tensor,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
         """Assemble the same loss without constructing zero nuisance arithmetic."""
-
-        if signal_hypothesis_sr_shift is None:
-            return data.sr_events.new_tensor(data.N_sr) + data.number_of_cr_events
 
         signal_region_shift = signal_hypothesis_sr_shift
         signal_hypothesis_sr_integral = data.N_sr + DifferentiatingModel._scaled_term(
@@ -279,7 +268,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     @staticmethod
     def _assemble_loss(
         *,
-        signal_hypothesis_sr_shift: Optional[torch.Tensor],
+        signal_hypothesis_sr_shift: torch.Tensor,
         nuisance_estimates: Optional[NuisanceEvaluation],
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
@@ -355,18 +344,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             + a_cr_log_term
             + b_cr_log_term
         )
-
-        if signal_hypothesis_sr_shift is None:
-            null_hypothesis_sr_loss = (
-                data.N_sr
-                + DifferentiatingModel._scaled_term(
-                    data.sr_category_imbalance,
-                    nuisance_sr_estimates.sum,
-                )
-                + common_a_sr_nuisance_log_term
-                + common_b_sr_nuisance_log_term
-            )
-            return null_hypothesis_sr_loss + cr_loss
 
         signal_region_shift = signal_hypothesis_sr_shift
         signal_hypothesis_sr_integral = (

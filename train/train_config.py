@@ -50,6 +50,42 @@ class TrainConfig:
         default=None, init=False, repr=False
     )
 
+    def _f_with_adaptive_defaults(
+        self,
+    ) -> FunctionSpaceSpec | Mapping[str, Any]:
+        """Add configured adaptive-network dimensions to the canonical f specification."""
+        assert self.train__f is not None
+        if isinstance(self.train__f, FunctionSpaceSpec):
+            family = self.train__f.family
+            options = self.train__f.options
+        else:
+            try:
+                family = FunctionSpaceFamily.from_value(self.train__f.get("family"))
+            except ValueError:
+                return self.train__f
+            options = self.train__f.get("options", {})
+            if options is None:
+                options = {}
+            if not isinstance(options, Mapping):
+                return self.train__f
+
+        if family is not FunctionSpaceFamily.ADAPTIVE_NEURAL:
+            return self.train__f
+
+        resolved_options = dict(options)
+        if "input_dimension" not in resolved_options and self.train__nn_input_dimension is not None:
+            resolved_options["input_dimension"] = self.train__nn_input_dimension
+        if not ({"hidden_size", "hidden_layer_nodes"} & set(resolved_options)):
+            resolved_options["hidden_size"] = self.train__nn_inner_layer_nodes
+
+        if isinstance(self.train__f, FunctionSpaceSpec):
+            return FunctionSpaceSpec(
+                family=family,
+                options=resolved_options,
+                state=self.train__f.state,
+            )
+        return {**self.train__f, "options": resolved_options}
+
     def resolve_function_space_config(self) -> ResolvedFunctionSpaceConfig:
         if self.train__f is None:
             raise ValueError("train__f must define a canonical function-space mapping.")
@@ -57,7 +93,7 @@ class TrainConfig:
             raise ValueError("train__nuisance must define a canonical function-space mapping.")
         self.train__resolved_function_space_config = resolve_dual_role_config(
             backend=self.train__backend,
-            f=self.train__f,
+            f=self._f_with_adaptive_defaults(),
             nuisance=self.train__nuisance,
         )
         return self.train__resolved_function_space_config

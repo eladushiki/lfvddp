@@ -7,18 +7,25 @@ from typing import Any, Mapping, Optional
 import torch
 from torch import nn
 
-from neural_networks.function_spaces.base import FunctionSpaceMetadata, immutable_options
+from neural_networks.function_spaces.base import (
+    CoefficientTopology,
+    FunctionSpaceMetadata,
+    FunctionSpaceRegularity,
+    PerEventFunctionSpace,
+    immutable_options,
+    unexpected_construction_options,
+)
 from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
 from train.function_space_config import FunctionSpaceFamily
 
 
-class AdaptiveNeuralFunction(nn.Module):
+class AdaptiveNeuralFunction(PerEventFunctionSpace):
     """One-hidden-layer bounded sigmoid network used by both learned roles."""
 
     family = FunctionSpaceFamily.ADAPTIVE_NEURAL
     metadata = FunctionSpaceMetadata(
-        regularity="adaptive",
-        coefficient_topology="dense_two_layer",
+        regularity=FunctionSpaceRegularity.ADAPTIVE,
+        coefficient_topology=CoefficientTopology.DENSE_TWO_LAYER,
     )
 
     def __init__(
@@ -38,6 +45,42 @@ class AdaptiveNeuralFunction(nn.Module):
         self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype, device=device)
         self.activation = nn.Sigmoid()
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype, device=device)
+
+    @classmethod
+    def from_options(
+        cls,
+        options: Mapping[str, Any],
+        **construction: Any,
+    ) -> "AdaptiveNeuralFunction":
+        """Construct the adaptive family from its configuration envelope."""
+
+        input_dimension = construction.pop(
+            "input_dimension",
+            options.get("input_dimension"),
+        )
+        hidden_size = construction.pop(
+            "hidden_size",
+            options.get("hidden_size", options.get("hidden_layer_nodes")),
+        )
+        output_dimension = construction.pop(
+            "output_dimension",
+            options.get("output_dimension", 1),
+        )
+        dtype = construction.pop("dtype", torch.get_default_dtype())
+        device = construction.pop("device", None)
+        if input_dimension is None or hidden_size is None:
+            raise ValueError(
+                "adaptive_neural requires input_dimension and hidden_size or hidden_layer_nodes."
+            )
+        unexpected_construction_options(cls.family, construction)
+        return cls(
+            input_dimension=input_dimension,
+            hidden_size=hidden_size,
+            output_dimension=output_dimension,
+            dtype=dtype,
+            device=device,
+            options=options,
+        )
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
         return smoothly_bounded_likelihood_shift(

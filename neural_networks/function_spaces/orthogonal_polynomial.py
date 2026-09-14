@@ -9,9 +9,11 @@ from typing import Any, Mapping, Optional
 import torch
 
 from neural_networks.function_spaces.base import (
+    CoefficientTopology,
     DeterministicFeatureFunction,
     EventInput,
     FunctionSpaceMetadata,
+    FunctionSpaceRegularity,
     dimensions,
     events_tensor,
     require_options,
@@ -66,7 +68,10 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
     """Legendre or Chebyshev additive polynomial feature map."""
 
     family = FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL
-    metadata = FunctionSpaceMetadata("orthogonal_polynomial", "linear_coefficients")
+    metadata = FunctionSpaceMetadata(
+        FunctionSpaceRegularity.ORTHOGONAL_POLYNOMIAL,
+        CoefficientTopology.LINEAR_COEFFICIENTS,
+    )
 
     def __init__(
         self,
@@ -89,8 +94,16 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
         self.register_buffer("_domain", torch.tensor(geometry.domain, dtype=dtype, device=device))
 
     @classmethod
-    def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "OrthogonalPolynomialFunction":
-        return cls(OrthogonalPolynomialGeometry.from_options(options), options=options, **construction)
+    def from_options(
+        cls,
+        options: Mapping[str, Any],
+        **construction: Any,
+    ) -> "OrthogonalPolynomialFunction":
+        return cls(
+            OrthogonalPolynomialGeometry.from_options(options),
+            options=options,
+            **cls.construction_kwargs(options, construction),
+        )
 
     def features(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(

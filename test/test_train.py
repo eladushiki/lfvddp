@@ -21,7 +21,6 @@ from neural_networks.nuisance_calculation import (
     NuisanceEvaluation,
     ScalarBinnedNuisanceEstimator,
     WeightedNuisanceValues,
-    _ThetaEstimator,
 )
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
 from train.checkpoints import (
@@ -51,8 +50,8 @@ def test_smooth_likelihood_bound_retains_gradient_past_old_clamp(
     assert unbounded_shift.grad > 0
 
 
-def test_theta_estimator_smoothly_bounds_output_without_zeroing_gradient():
-    estimator = _ThetaEstimator(
+def test_adaptive_nuisance_function_smoothly_bounds_output_without_zeroing_gradient():
+    estimator = AdaptiveNeuralFunction(
         input_dimension=2,
         hidden_size=2,
         output_dimension=1,
@@ -62,7 +61,7 @@ def test_theta_estimator_smoothly_bounds_output_without_zeroing_gradient():
         estimator.output.weight.zero_()
         estimator.output.bias.fill_(2.0)
 
-    theta = estimator(torch.zeros((3, 2), dtype=torch.float64))
+    theta = estimator(torch.zeros((3, 2), dtype=torch.float64)).squeeze(-1)
     theta.sum().backward()
 
     assert theta.shape == (3,)
@@ -414,7 +413,7 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(category_size
     )
     zeros = torch.zeros(number_of_sr, dtype=torch.float64)
     actual = _assemble_compact_loss_for_test(
-        None,
+        zeros,
         theta_sr,
         theta_cr_bins,
         a_cr_bin_counts,

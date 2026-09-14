@@ -8,9 +8,11 @@ from typing import Any, Mapping, Optional, Sequence
 import torch
 
 from neural_networks.function_spaces.base import (
+    CoefficientTopology,
     DeterministicFeatureFunction,
     EventInput,
     FunctionSpaceMetadata,
+    FunctionSpaceRegularity,
     dimensions,
     events_tensor,
     number_sequence,
@@ -68,7 +70,10 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
     """Additive cubic B-spline features with fixed, clamped knots."""
 
     family = FunctionSpaceFamily.CUBIC_BSPLINE
-    metadata = FunctionSpaceMetadata("cubic_spline", "linear_coefficients")
+    metadata = FunctionSpaceMetadata(
+        FunctionSpaceRegularity.CUBIC_SPLINE,
+        CoefficientTopology.LINEAR_COEFFICIENTS,
+    )
 
     def __init__(
         self,
@@ -94,7 +99,11 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
     @classmethod
     def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "CubicBSplineFunction":
         require_options(options, "cubic_bspline", ("knots",))
-        return cls(CubicBSplineGeometry.from_breakpoints(options["knots"]), options=options, **construction)
+        return cls(
+            CubicBSplineGeometry.from_breakpoints(options["knots"]),
+            options=options,
+            **cls.construction_kwargs(options, construction),
+        )
 
     def _knot_vector(self, dimension: int) -> torch.Tensor:
         knots = self._buffers[f"_knots_{dimension}"]

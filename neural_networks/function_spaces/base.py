@@ -4,8 +4,18 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from enum import Enum
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping, Optional, Protocol, TypeAlias, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Iterable,
+    Mapping,
+    Optional,
+    Protocol,
+    TypeAlias,
+    runtime_checkable,
+)
 
 import numpy as np
 import numpy.typing as npt
@@ -15,13 +25,35 @@ from torch import nn
 from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
 from train.function_space_config import FunctionSpaceFamily
 
+if TYPE_CHECKING:
+    from neural_networks.nuisance_calculation import NuisanceCalculation
+
+
+class FunctionSpaceRegularity(str, Enum):
+    """Regularity categories declared by concrete function-space families."""
+
+    ADAPTIVE = "adaptive"
+    PIECEWISE_CONSTANT = "piecewise_constant"
+    CUBIC_SPLINE = "cubic_spline"
+    ORTHOGONAL_POLYNOMIAL = "orthogonal_polynomial"
+    SMOOTH = "smooth"
+    DETERMINISTIC = "deterministic"
+
+
+class CoefficientTopology(str, Enum):
+    """Coefficient-layout categories declared by concrete function-space families."""
+
+    DENSE_TWO_LAYER = "dense_two_layer"
+    FACTORIZED_MARGINAL_BINS = "factorized_marginal_bins"
+    LINEAR_COEFFICIENTS = "linear_coefficients"
+
 
 @dataclass(frozen=True)
 class FunctionSpaceMetadata:
     """Structural metadata consumed by adapters and diagnostics."""
 
-    regularity: str
-    coefficient_topology: str
+    regularity: FunctionSpaceRegularity
+    coefficient_topology: CoefficientTopology
 
 
 EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
@@ -41,6 +73,33 @@ class FunctionSpace(Protocol):
 
     def initialize_parameters(self, gain: float) -> None:
         ...
+
+    @classmethod
+    def from_options(
+        cls,
+        options: Mapping[str, Any],
+        **construction: Any,
+    ) -> "FunctionSpace":
+        ...
+
+    def build_nuisance_calculation(
+        self,
+        *,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "NuisanceCalculation":
+        ...
+
+
+def unexpected_construction_options(
+    family: FunctionSpaceFamily,
+    construction: Mapping[str, Any],
+) -> None:
+    """Reject construction arguments that a family did not consume."""
+
+    if construction:
+        names = ", ".join(sorted(construction))
+        raise TypeError(f"Unexpected {family.value} construction option(s): {names}.")
 
 
 def immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -119,13 +178,54 @@ def events_tensor(
     return tensor.to(device=device, dtype=dtype)
 
 
-class DeterministicFeatureFunction(nn.Module):
+class PerEventFunctionSpace(nn.Module):
+    """A trainable function space evaluated independently for each event."""
+
+    def build_nuisance_calculation(
+        self,
+        *,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "NuisanceCalculation":
+        """Adapt this per-event function space for nuisance evaluation."""
+
+        from neural_networks.nuisance_calculation import NeuralPerEventNuisanceEstimator
+
+        return NeuralPerEventNuisanceEstimator(
+            dtype=dtype,
+            device=device,
+            network=self,
+        )
+
+
+class DeterministicFeatureFunction(PerEventFunctionSpace):
     """Common linear-coefficient topology for fixed feature geometries."""
 
     metadata = FunctionSpaceMetadata(
-        regularity="deterministic",
-        coefficient_topology="linear_coefficients",
+        regularity=FunctionSpaceRegularity.DETERMINISTIC,
+        coefficient_topology=CoefficientTopology.LINEAR_COEFFICIENTS,
     )
+
+    @classmethod
+    def construction_kwargs(
+        cls,
+        options: Mapping[str, Any],
+        construction: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Consume the construction envelope shared by fixed families."""
+
+        if construction.pop("geometry", None) is not None:
+            raise TypeError(f"{cls.family.value} does not accept geometry overrides.")
+        result = {
+            "dtype": construction.pop("dtype", torch.get_default_dtype()),
+            "device": construction.pop("device", None),
+            "output_dimension": construction.pop(
+                "output_dimension",
+                options.get("output_dimension", 1),
+            ),
+        }
+        unexpected_construction_options(cls.family, construction)
+        return result
 
     def __init__(
         self,

@@ -2,10 +2,13 @@
 
 from neural_networks.function_spaces.adaptive_neural import AdaptiveNeuralFunction
 from neural_networks.function_spaces.base import (
+    CoefficientTopology,
     DeterministicFeatureFunction,
     EventInput,
     FunctionSpace,
     FunctionSpaceMetadata,
+    FunctionSpaceRegularity,
+    PerEventFunctionSpace,
 )
 from neural_networks.function_spaces.bin_indicators import (
     BinIndicatorFunction,
