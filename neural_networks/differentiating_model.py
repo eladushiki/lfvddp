@@ -22,7 +22,7 @@ from frame.file_system.training_history import HistoryKeys
 from neural_networks.function_spaces import create_function_space
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
-    NeuralPerEventNuisanceEstimator,
+    PerEventNuisanceEstimator,
     NuisanceEvaluation,
     PreparedNuisanceData,
     ScalarBinnedNuisanceEstimator,
@@ -143,10 +143,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             device=self._assigned_device,
             **construction,
         )
-        if not isinstance(estimator, nn.Module):
-            raise ValueError(
-                f"f function-space family {spec.family.value!r} is not trainable."
-            )
         self.signal_region_shift_network = estimator
 
     def _initialize_parameters(self) -> None:
@@ -621,7 +617,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _nuisance_prediction(self, data: DataSet) -> torch.Tensor:
         """Evaluate the configured nuisance estimator for prediction data."""
-        if isinstance(self.nuisance_calculation, NeuralPerEventNuisanceEstimator):
+        if isinstance(self.nuisance_calculation, PerEventNuisanceEstimator):
             if self._norm_factor is None:
                 raise RuntimeError("Cannot predict before the model has been fitted.")
             normalized_data = data / self._norm_factor

@@ -1,18 +1,22 @@
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
+from data_tools.data_utils import DataSet
 from neural_networks.differentiating_model import DifferentiatingModel
 from neural_networks.function_spaces import (
     AdaptiveNeuralFunction,
     BinIndicatorFunction,
     CubicBSplineFunction,
     FixedSigmoidFunction,
+    FUNCTION_SPACE_REGISTRY,
 )
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
     NeuralPerEventNuisanceEstimator,
+    PerEventNuisanceEstimator,
     ScalarBinnedNuisanceEstimator,
     build_nuisance_calculation,
 )
@@ -193,7 +197,7 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
     assert isinstance(nuisance, ScalarBinnedNuisanceEstimator)
     assert isinstance(nuisance._bin_lookup, BinIndicatorFunction)
     assert nuisance._bin_lookup.geometry.number_of_bins == (3, 4)
-    assert tuple(parameter.shape for parameter in nuisance._nuisance_deltas.values()) == (
+    assert tuple(parameter.shape for parameter in nuisance._bin_lookup._factor_deltas.values()) == (
         (3,),
         (4,),
     )
@@ -240,3 +244,154 @@ def test_backend_is_separate_from_role_family_support():
     assert resolved.backend.value == "nplm"
     assert resolved.f.family is FunctionSpaceFamily.ADAPTIVE_NEURAL
     assert resolved.nuisance.state.value == "disabled"
+
+
+def test_binned_nuisance_loads_shared_interface_checkpoint_parameter_names():
+    context = _context(
+        f_options={"input_dimension": 2, "hidden_layer_nodes": 4},
+        nuisance={
+            "family": "bin_indicators",
+            "options": {
+                "minima": [0.0, -1.0],
+                "maxima": [2.0, 1.0],
+                "number_of_bins": [3, 4],
+            },
+        },
+    )
+    model = DifferentiatingModel(
+        context=context,
+        detector_effect=_Detector(),
+        is_numerator=True,
+        name="shared_interface_binned_nuisance",
+        dtype=torch.float64,
+    )
+    shared_interface_state = {
+        key.replace(
+            "nuisance_calculation._nuisance_deltas.",
+            "nuisance_calculation._bin_lookup._factor_deltas.",
+        ): value.clone()
+        for key, value in model.state_dict().items()
+    }
+
+    restored = DifferentiatingModel(
+        context=context,
+        detector_effect=_Detector(),
+        is_numerator=True,
+        name="restored_shared_interface_binned_nuisance",
+        dtype=torch.float64,
+    )
+    restored.load_state_dict(shared_interface_state, strict=True)
+
+    for key, value in model.state_dict().items():
+        torch.testing.assert_close(restored.state_dict()[key], value)
+
+
+_ONE_DIMENSIONAL_FAMILY_OPTIONS = {
+    FunctionSpaceFamily.ADAPTIVE_NEURAL: {
+        "input_dimension": 1,
+        "hidden_layer_nodes": 3,
+    },
+    FunctionSpaceFamily.BIN_INDICATORS: {
+        "minima": [-2.0],
+        "maxima": [2.0],
+        "number_of_bins": [3],
+    },
+    FunctionSpaceFamily.CUBIC_BSPLINE: {
+        "knots": [-2.0, -1.0, 0.0, 1.0, 2.0],
+    },
+    FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL: {
+        "basis": "legendre",
+        "maximum_degree": 2,
+        "domain": [-2.0, 2.0],
+    },
+    FunctionSpaceFamily.FIXED_SIGMOID: {
+        "centers": [-1.0, 1.0],
+        "widths": [0.5, 0.5],
+    },
+    FunctionSpaceFamily.GAUSSIAN_RADIAL_BASIS: {
+        "centers": [-1.0, 1.0],
+        "widths": [0.5, 0.5],
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("family", "options"),
+    tuple(_ONE_DIMENSIONAL_FAMILY_OPTIONS.items()),
+    ids=lambda case: case.value if isinstance(case, FunctionSpaceFamily) else None,
+)
+def test_every_registered_family_supports_independent_roles_nuisance_training_and_prediction(
+    family,
+    options,
+):
+    context = _context(
+        f_family=family,
+        f_options=options,
+        nuisance={"family": family, "options": options},
+    )
+    model = DifferentiatingModel(
+        context=context,
+        detector_effect=_Detector(),
+        is_numerator=True,
+        name=f"{family.value}_roles",
+        dtype=torch.float64,
+    )
+    nuisance = model.nuisance_calculation
+
+    assert set(_ONE_DIMENSIONAL_FAMILY_OPTIONS) == set(FUNCTION_SPACE_REGISTRY)
+    if family is FunctionSpaceFamily.BIN_INDICATORS:
+        assert isinstance(nuisance, ScalarBinnedNuisanceEstimator)
+        assert nuisance._bin_lookup is not model.signal_region_shift_network
+    else:
+        assert isinstance(nuisance, PerEventNuisanceEstimator)
+        assert nuisance.network is not model.signal_region_shift_network
+    assert {
+        id(parameter) for parameter in model.signal_region_shift_network.parameters()
+    }.isdisjoint({id(parameter) for parameter in nuisance.parameters()})
+
+    signal_region = DataSet(
+        np.array([[-1.0], [0.0], [1.0]]), observable_names=["x"]
+    )
+    a_control_region = DataSet(
+        np.array([[-0.75], [0.25]]), observable_names=["x"]
+    )
+    b_control_region = DataSet(
+        np.array([[-0.25], [0.75]]), observable_names=["x"]
+    )
+    normalized_signal_region, normalization_factor = signal_region.get_normalized()
+    prepared = nuisance.prepare(
+        signal_region,
+        a_control_region,
+        b_control_region,
+        normalized_signal_region,
+        a_control_region / normalization_factor,
+        b_control_region / normalization_factor,
+    )
+    evaluation = nuisance.evaluate(prepared)
+    nuisance_loss = (
+        evaluation.nuisance_sr_values.sum()
+        + evaluation.nuisance_cr_a.values.sum()
+        + evaluation.nuisance_cr_b.values.sum()
+    )
+    assert torch.isfinite(nuisance_loss)
+
+    nuisance_parameters = tuple(nuisance.parameters())
+    before_step = tuple(parameter.detach().clone() for parameter in nuisance_parameters)
+    optimizer = torch.optim.SGD(nuisance_parameters, lr=0.1)
+    optimizer.zero_grad(set_to_none=True)
+    nuisance_loss.backward()
+    assert any(parameter.grad is not None for parameter in nuisance_parameters)
+    optimizer.step()
+    assert any(
+        not torch.equal(before, after)
+        for before, after in zip(before_step, nuisance_parameters)
+    )
+
+    model._norm_factor = normalization_factor
+    primary = model.predict(signal_region)
+    secondary = model.predict_secondary(signal_region)
+    nuisance_prediction = model.predict_theta(signal_region)
+    assert primary.shape == secondary.shape == nuisance_prediction.shape == (3, 1)
+    assert np.isfinite(primary).all()
+    assert np.isfinite(secondary).all()
+    assert np.isfinite(nuisance_prediction).all()

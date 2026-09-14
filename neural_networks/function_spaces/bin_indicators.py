@@ -8,14 +8,19 @@ from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 import numpy as np
 import numpy.typing as npt
 import torch
+from torch import nn
 
 from neural_networks.function_spaces.base import (
     CoefficientTopology,
+    EventInput,
     FunctionSpaceMetadata,
     FunctionSpaceRegularity,
+    PerEventFunctionSpace,
+    events_tensor,
     immutable_options,
     unexpected_construction_options,
 )
+from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
 from train.function_space_config import FunctionSpaceFamily
 
 if TYPE_CHECKING:
@@ -88,8 +93,8 @@ class BinIndicatorGeometry:
         return np.column_stack(indices).astype(np.int64, copy=False)
 
 
-class BinIndicatorFunction:
-    """Piecewise-constant lookup with immutable family-specific geometry."""
+class BinIndicatorFunction(PerEventFunctionSpace):
+    """Piecewise-constant factorized-bin function with fixed geometry."""
 
     family = FunctionSpaceFamily.BIN_INDICATORS
     metadata = FunctionSpaceMetadata(
@@ -101,8 +106,12 @@ class BinIndicatorFunction:
     def __init__(
         self,
         geometry: BinIndicatorGeometry,
+        *,
+        dtype: torch.dtype = torch.get_default_dtype(),
+        device: Optional[torch.device | str] = None,
         options: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        super().__init__()
         self.geometry = geometry
         self.options = immutable_options(
             options
@@ -113,6 +122,35 @@ class BinIndicatorFunction:
                 "number_of_bins": list(geometry.number_of_bins),
             }
         )
+        self._factor_deltas = nn.ParameterDict(
+            {
+                f"dimension_{index}": nn.Parameter(
+                    torch.empty(number_of_bins, dtype=dtype, device=device)
+                )
+                for index, number_of_bins in enumerate(geometry.number_of_bins)
+            }
+        )
+        self.feature_count = sum(geometry.number_of_bins)
+        for index, edges in enumerate(geometry.edges):
+            self.register_buffer(
+                f"_edges_{index}",
+                torch.tensor(edges, dtype=dtype, device=device),
+                persistent=False,
+            )
+
+    def detach_factor_deltas(self) -> nn.ParameterDict:
+        """Retain coefficient lookup while transferring parameter ownership."""
+
+        factor_deltas = self._factor_deltas
+        if not isinstance(factor_deltas, nn.ParameterDict):
+            raise RuntimeError("Bin-indicator coefficients have already been detached.")
+        del self._factor_deltas
+        self._factor_deltas = dict(factor_deltas)
+        return factor_deltas
+
+    @property
+    def input_dimension(self) -> int:
+        return len(self.geometry.number_of_bins)
 
     @classmethod
     def from_options(
@@ -120,16 +158,19 @@ class BinIndicatorFunction:
         options: Mapping[str, Any],
         **construction: Any,
     ) -> "BinIndicatorFunction":
-        """Construct the binned lookup from its configuration envelope."""
+        """Construct the binned function from its configuration envelope."""
 
-        construction.pop("dtype", None)
-        construction.pop("device", None)
+        dtype = construction.pop("dtype", torch.get_default_dtype())
+        device = construction.pop("device", None)
         construction.pop("output_dimension", None)
         geometry = construction.pop("geometry", None)
         unexpected_construction_options(cls.family, construction)
-        if geometry is None:
-            return cls(BinIndicatorGeometry.from_options(options), options=options)
-        return cls(geometry=geometry, options=options)
+        return cls(
+            BinIndicatorGeometry.from_options(options) if geometry is None else geometry,
+            dtype=dtype,
+            device=device,
+            options=options,
+        )
 
     def build_nuisance_calculation(
         self,
@@ -137,7 +178,7 @@ class BinIndicatorFunction:
         dtype: torch.dtype,
         device: torch.device,
     ) -> "NuisanceCalculation":
-        """Adapt this binned lookup for compact scalar nuisance evaluation."""
+        """Adapt this family for its compact scalar control-region reduction."""
 
         from neural_networks.nuisance_calculation import ScalarBinnedNuisanceEstimator
 
@@ -151,7 +192,60 @@ class BinIndicatorFunction:
         return self.geometry.indices(events)
 
     def evaluate(self, events: npt.ArrayLike) -> npt.NDArray[np.int64]:
+        """Return fixed bin indices for geometry consumers."""
+
         return self.bin_indices(events)
+
+    def _tensor_bin_indices(self, events: EventInput) -> torch.Tensor:
+        values = events_tensor(
+            events,
+            self.input_dimension,
+            dtype=self._factor_deltas["dimension_0"].dtype,
+            device=self._factor_deltas["dimension_0"].device,
+        )
+        return torch.stack(
+            tuple(
+                torch.bucketize(
+                    values[:, dimension],
+                    getattr(self, f"_edges_{dimension}"),
+                    right=True,
+                ).sub(1).clamp_(min=0, max=number_of_bins - 1)
+                for dimension, number_of_bins in enumerate(self.geometry.number_of_bins)
+            ),
+            dim=1,
+        )
+
+    def values_from_indices(self, bin_indices: torch.Tensor) -> torch.Tensor:
+        """Return the bounded factorized value for one index tuple per event."""
+
+        values = torch.ones(
+            bin_indices.shape[0],
+            dtype=self._factor_deltas["dimension_0"].dtype,
+            device=self._factor_deltas["dimension_0"].device,
+        )
+        for dimension in range(self.input_dimension):
+            values = values * torch.index_select(
+                self._factor_deltas[f"dimension_{dimension}"],
+                0,
+                bin_indices[:, dimension],
+            )
+        return values.clamp(
+            min=-LIKELIHOOD_SHIFT_BOUND,
+            max=LIKELIHOOD_SHIFT_BOUND,
+        )
+
+    def forward(self, events: EventInput) -> torch.Tensor:
+        return self.values_from_indices(self._tensor_bin_indices(events)).unsqueeze(-1)
 
     def initialize_parameters(self, gain: float) -> None:
         del gain
+        for parameter in self._factor_deltas.values():
+            nn.init.normal_(parameter, mean=0.0, std=1e-3)
+
+    def clamp_parameters(self) -> None:
+        with torch.no_grad():
+            for parameter in self._factor_deltas.values():
+                parameter.clamp_(
+                    min=-LIKELIHOOD_SHIFT_BOUND,
+                    max=LIKELIHOOD_SHIFT_BOUND,
+                )

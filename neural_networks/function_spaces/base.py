@@ -189,9 +189,9 @@ class PerEventFunctionSpace(nn.Module):
     ) -> "NuisanceCalculation":
         """Adapt this per-event function space for nuisance evaluation."""
 
-        from neural_networks.nuisance_calculation import NeuralPerEventNuisanceEstimator
+        from neural_networks.nuisance_calculation import PerEventNuisanceEstimator
 
-        return NeuralPerEventNuisanceEstimator(
+        return PerEventNuisanceEstimator(
             dtype=dtype,
             device=device,
             network=self,

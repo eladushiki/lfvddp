@@ -52,6 +52,7 @@ _CASES = [
     pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "orthogonal_polynomial", "options": {"basis": "legendre", "maximum_degree": 3, "domain": [-1.0, 1.0]}}, nuisance=_BINNED)}, id="legendre-polynomial"),
     pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "gaussian_radial_basis", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}, nuisance=_BINNED)}, id="gaussian-rbf"),
     pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "fixed_sigmoid", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}, nuisance=_BINNED)}, id="fixed-sigmoid"),
+    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f=_BINNED, nuisance=_BINNED)}, id="bin-indicators"),
 ]
 
 _CONTINUATION_CONFIG = {
