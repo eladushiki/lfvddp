@@ -21,12 +21,24 @@ Never commit connection values or credentials.
 
 ## Procedure
 
-1. Run `scripts/ssh-to-cluster.sh` from the local repository root in a
+1. Run `.agents/skills/ssh-to-cluster/scripts/ssh-to-cluster.sh` from the local repository root in a
    persistent terminal session. The helper opens SSH and starts a login shell
    in `WIS_CLUSTER_REMOTE_PROJECT_ROOT`.
-2. Activate the checkout's environment with `source .venv/bin/activate` and
-   verify that `python -c 'import torch'` succeeds. Treat failure as a connection
-   setup error; do not let downstream skills fall back to `/usr/bin/python`.
+   When launched by Codex, request the elevated network permission: the
+   restricted shell cannot resolve the cluster host.
+2. The remote login shell is zsh, but the project's activation wrapper is bash
+   specific and currently fails because it enables `nounset` before sourcing the
+   CERN setup script. In the shared shell, activate the same intended runtime
+   directly instead:
+
+   ```sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh
+   source .venv/bin/activate
+   python -c 'import torch'
+   ```
+
+   Treat failure as a connection setup error; do not let downstream skills fall
+   back to `/usr/bin/python`.
 3. Reuse that terminal session for every cluster command in the workflow.
 4. Verify the connection with `pwd` and `git status --short --branch` before
    doing work.
@@ -42,7 +54,7 @@ For a bounded non-interactive check, pass one shell command string to the
 helper. It runs from the same remote project root and login environment:
 
 ```sh
-scripts/ssh-to-cluster.sh 'pwd && git status --short --branch'
+.agents/skills/ssh-to-cluster/scripts/ssh-to-cluster.sh 'pwd && git status --short --branch'
 ```
 
 ## Failure handling
