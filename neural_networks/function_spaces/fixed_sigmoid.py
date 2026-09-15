@@ -26,11 +26,16 @@ class FixedSigmoidFunction(CenteredFeatureFunction):
     )
 
     @classmethod
+    def validate_options(cls, options: Mapping[str, Any]) -> None:
+        CenterGeometry.from_options(options, cls.family.value)
+
+    @classmethod
     def from_options(
         cls,
         options: Mapping[str, Any],
         **construction: Any,
     ) -> "FixedSigmoidFunction":
+        cls.validate_options(options)
         return cls(
             CenterGeometry.from_options(options, "fixed_sigmoid"),
             options=options,

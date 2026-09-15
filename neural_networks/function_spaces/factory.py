@@ -48,3 +48,12 @@ def create_function_space(
         ) from error
 
     return registration.factory.from_options(family_options, **construction)
+
+
+def validate_function_space_options(spec: FunctionSpaceSpec) -> None:
+    """Delegate option validation to the selected concrete family."""
+
+    if spec.state is RoleState.DISABLED:
+        return
+    assert spec.family is not None
+    FUNCTION_SPACE_REGISTRY[spec.family].factory.validate_options(spec.options)

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import Any, Mapping
 
+from frame.value_enum import ValueEnum
 from neural_networks.function_spaces.projected_rank import ProjectedFunctionSpaceRank
 from train.function_space_config import (
     FunctionSpaceFamily,
@@ -19,8 +20,11 @@ from train.function_space_config import (
 )
 
 
-WILKS_CALIBRATION = "wilks"
-EMPIRICAL_NULL_CALIBRATION = "empirical-null"
+class CalibrationPolicy(ValueEnum):
+    """Null-calibration choices for the fitted function space."""
+
+    WILKS = "wilks"
+    EMPIRICAL_NULL = "empirical-null"
 
 # These values are the role-neutral FunctionSpaceMetadata regularity labels.  A
 # family is mapped here rather than by importing an evaluator, keeping metadata
@@ -49,14 +53,14 @@ def _regularity(spec: FunctionSpaceSpec) -> str | None:
     return _FAMILY_REGULARITY.get(spec.family, "unknown")
 
 
-def _calibration_policy(config: ResolvedFunctionSpaceConfig) -> str:
+def _calibration_policy(config: ResolvedFunctionSpaceConfig) -> CalibrationPolicy:
     """Choose the calibration policy from the selected model families."""
     f_regularity = _regularity(config.f)
     nuisance_regularity = _regularity(config.nuisance)
     has_adaptive_role = "adaptive" in {f_regularity, nuisance_regularity}
     if config.backend is TrainingBackend.NPLM or has_adaptive_role:
-        return EMPIRICAL_NULL_CALIBRATION
-    return WILKS_CALIBRATION
+        return CalibrationPolicy.EMPIRICAL_NULL
+    return CalibrationPolicy.WILKS
 
 
 def build_statistical_metadata(
@@ -76,7 +80,7 @@ def build_statistical_metadata(
     f_regularity = _regularity(resolved_config.f)
     nuisance_regularity = _regularity(resolved_config.nuisance)
     calibration_policy = _calibration_policy(resolved_config)
-    is_regular = calibration_policy == WILKS_CALIBRATION
+    is_regular = calibration_policy is CalibrationPolicy.WILKS
 
     rank_metadata = _json_value(asdict(projected_rank))
 
@@ -102,7 +106,7 @@ def build_statistical_metadata(
         "f_regularity": f_regularity,
         "nuisance_regularity": nuisance_regularity,
         "regularity": "regular" if is_regular else "nonregular",
-        "calibration_policy": calibration_policy,
+        "calibration_policy": calibration_policy.value,
     }
 
 
@@ -120,7 +124,6 @@ def _json_value(value: Any) -> Any:
 
 
 __all__ = [
-    "EMPIRICAL_NULL_CALIBRATION",
-    "WILKS_CALIBRATION",
+    "CalibrationPolicy",
     "build_statistical_metadata",
 ]

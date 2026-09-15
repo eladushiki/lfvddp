@@ -146,6 +146,10 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         return len(self.geometry.number_of_bins)
 
     @classmethod
+    def validate_options(cls, options: Mapping[str, Any]) -> None:
+        BinIndicatorGeometry.from_options(options)
+
+    @classmethod
     def from_options(
         cls,
         options: Mapping[str, Any],
@@ -173,12 +177,12 @@ class BinIndicatorFunction(PerEventFunctionSpace):
     ) -> "NuisanceCalculation":
         """Adapt this family for its compact scalar control-region reduction."""
 
-        from neural_networks.nuisance_calculation import ScalarBinnedNuisanceEstimator
+        from neural_networks.nuisance_calculation import BinnedNuisanceCalculation
 
-        return ScalarBinnedNuisanceEstimator(
+        return BinnedNuisanceCalculation(
             dtype=dtype,
             device=device,
-            bin_lookup=self,
+            function_space=self,
         )
 
     def bin_indices(self, events: npt.ArrayLike) -> npt.NDArray[np.int64]:

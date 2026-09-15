@@ -47,6 +47,12 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
         self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype, device=device)
 
     @classmethod
+    def validate_options(cls, options: Mapping[str, Any]) -> None:
+        # Input width and hidden width may be derived from the current run by
+        # TrainConfig, unlike fixed-family geometry.
+        return None
+
+    @classmethod
     def from_options(
         cls,
         options: Mapping[str, Any],

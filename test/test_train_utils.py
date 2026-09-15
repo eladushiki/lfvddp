@@ -43,5 +43,5 @@ def test_test_statistic_degrees_are_the_model_degree_difference(
         numerator_degrees - denominator_degrees
     )
     assert statistic_degrees_of_freedom(config) == (
-        config.train__nn_significant_degrees_of_freedom + 1
+        config.train__nn_significant_degrees_of_freedom
     )

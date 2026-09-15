@@ -13,7 +13,7 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
 from neural_networks.function_spaces import create_function_space
-from train.function_space_config import FunctionSpaceSpec
+from train.function_space_config import FunctionSpaceRole, FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
@@ -777,7 +777,7 @@ def _prediction_spanning_dataset(
 ) -> DataSet:
     """Build the prediction grid from display axes and nuisance geometry."""
     nuisance_bins_by_observable: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-    nuisance_lookup = create_function_space("nuisance", nuisance_spec)
+    nuisance_lookup = create_function_space(FunctionSpaceRole.NUISANCE, nuisance_spec)
     nuisance_edges = nuisance_lookup.prediction_grid_edges()
     if nuisance_edges is not None:
         if len(configured_observables) != len(nuisance_edges):

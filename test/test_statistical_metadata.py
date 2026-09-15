@@ -4,11 +4,7 @@ import numpy as np
 
 from neural_networks.function_spaces.projected_rank import compute_projected_function_space_rank
 from train.function_space_config import resolve_dual_role_config
-from train.statistical_metadata import (
-    EMPIRICAL_NULL_CALIBRATION,
-    WILKS_CALIBRATION,
-    build_statistical_metadata,
-)
+from train.statistical_metadata import CalibrationPolicy, build_statistical_metadata
 
 
 def _deterministic_f():
@@ -53,7 +49,7 @@ def test_deterministic_metadata_is_serializable_and_uses_effective_rank_for_wilk
     assert metadata["degrees_of_freedom"] == rank.degrees_of_freedom
     assert metadata["tolerance"] == rank.tolerance
     assert metadata["f_regularity"] == "deterministic"
-    assert metadata["calibration_policy"] == WILKS_CALIBRATION
+    assert metadata["calibration_policy"] == CalibrationPolicy.WILKS.value
 
 
 def test_adaptive_f_metadata_requires_empirical_null_calibration():
@@ -69,7 +65,7 @@ def test_adaptive_f_metadata_requires_empirical_null_calibration():
     assert metadata["f_family"] == "adaptive_neural"
     assert metadata["f_regularity"] == "adaptive"
     assert metadata["regularity"] == "nonregular"
-    assert metadata["calibration_policy"] == EMPIRICAL_NULL_CALIBRATION
+    assert metadata["calibration_policy"] == CalibrationPolicy.EMPIRICAL_NULL.value
 
 
 def test_disabled_nuisance_is_explicit_in_metadata():
@@ -86,7 +82,7 @@ def test_disabled_nuisance_is_explicit_in_metadata():
     assert metadata["nuisance_state"] == "disabled"
     assert metadata["nuisance_feature_count"] == 0
     assert metadata["nuisance_regularity"] is None
-    assert metadata["calibration_policy"] == WILKS_CALIBRATION
+    assert metadata["calibration_policy"] == CalibrationPolicy.WILKS.value
 
 
 def test_nplm_backend_is_empirical_null():
@@ -101,7 +97,7 @@ def test_nplm_backend_is_empirical_null():
 
     assert metadata["mode"] == metadata["backend"] == "nplm"
     assert metadata["f_family"] == "adaptive_neural"
-    assert metadata["calibration_policy"] == EMPIRICAL_NULL_CALIBRATION
+    assert metadata["calibration_policy"] == CalibrationPolicy.EMPIRICAL_NULL.value
 
 
 def test_rank_diagnostic_does_not_select_calibration_policy():
@@ -118,4 +114,4 @@ def test_rank_diagnostic_does_not_select_calibration_policy():
     metadata = build_statistical_metadata(config, rank)
 
     assert metadata["effective_f_rank"] == 1
-    assert metadata["calibration_policy"] == WILKS_CALIBRATION
+    assert metadata["calibration_policy"] == CalibrationPolicy.WILKS.value

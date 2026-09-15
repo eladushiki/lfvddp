@@ -11,7 +11,8 @@ import torch
 from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
-from test.environment import ConfigType, TrainConfigFixture
+from test.environment import ConfigType
+from test.function_space_cases import function_space_train_config
 from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import (
     _torch_load,
@@ -23,23 +24,6 @@ from train.checkpoints import (
 
 _DATASET = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR = Path("test/configs/detector/basic_1D_detector_config.json")
-
-
-def _train_config(*, f, nuisance, epochs=1):
-    return TrainConfigFixture(
-        {
-            "random_seed": 18018,
-            "train__epochs": epochs,
-            "train__number_of_epochs_for_checkpoint": 1,
-            "train__enable_progress_bar": False,
-            "train__nn_input_dimension": 1,
-            "train__nn_inner_layer_nodes": 4,
-            "train__learning_rate": 0.01,
-            "train__final_learning_rate": 0.01,
-            "train__f": f,
-            "train__nuisance": nuisance,
-        }
-    )
 
 
 _BINNED = {
@@ -58,7 +42,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _train_config(
+            ConfigType.TRAIN: function_space_train_config(
                 f=_ADAPTIVE,
                 nuisance={
                     "family": "adaptive_neural",
@@ -72,7 +56,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _train_config(f=_CUBIC, nuisance=_BINNED),
+            ConfigType.TRAIN: function_space_train_config(f=_CUBIC, nuisance=_BINNED),
         },
         id="cubic-bspline",
     ),
@@ -80,7 +64,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _train_config(
+            ConfigType.TRAIN: function_space_train_config(
                 f={
                     "family": "orthogonal_polynomial",
                     "options": {
@@ -98,7 +82,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _train_config(
+            ConfigType.TRAIN: function_space_train_config(
                 f={
                     "family": "gaussian_radial_basis",
                     "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]},
@@ -112,7 +96,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _train_config(
+            ConfigType.TRAIN: function_space_train_config(
                 f={
                     "family": "fixed_sigmoid",
                     "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]},
@@ -126,7 +110,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _train_config(f=_BINNED, nuisance=_BINNED),
+            ConfigType.TRAIN: function_space_train_config(f=_BINNED, nuisance=_BINNED),
         },
         id="bin-indicators",
     ),
@@ -135,7 +119,7 @@ _FUNCION_SAPCE_CASES = [
 _CONTINUATION_CONFIG = {
     ConfigType.DATASET: _DATASET,
     ConfigType.DETECTOR: _DETECTOR,
-    ConfigType.TRAIN: _train_config(
+    ConfigType.TRAIN: function_space_train_config(
         f=_ADAPTIVE,
         nuisance={
             "family": "adaptive_neural",
@@ -212,8 +196,8 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     )
     checkpoint = _torch_load(checkpoint_path)
 
-    # The legacy payload shape is part of the baseline contract.  Metadata is
-    # deliberately stored beside it rather than adding a top-level key.
+    # The checkpoint payload contains tensor state; its required sidecar holds
+    # the resolved function-space and normalization metadata.
     assert set(checkpoint) == {
         "model_name",
         "epoch",
@@ -333,7 +317,7 @@ def test_continuation_restores_normalization_and_resumes_history(
             {
                 ConfigType.DATASET: _DATASET,
                 ConfigType.DETECTOR: _DETECTOR,
-                ConfigType.TRAIN: _train_config(f=_CUBIC, nuisance=_BINNED),
+                ConfigType.TRAIN: function_space_train_config(f=_CUBIC, nuisance=_BINNED),
             },
             id="cubic-bspline",
         )
@@ -385,39 +369,9 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
         torch.testing.assert_close(value, before[key])
 
 
-@pytest.mark.parametrize(
-    "function_execution_context", _FUNCION_SAPCE_CASES, indirect=True
-)
-def test_legacy_checkpoint_without_sidecar_still_loads(
-    function_execution_context,
-    isolated_data_generation,
-    detector_effect,
-    tmp_path,
-    monkeypatch,
-):
-    context = function_execution_context
-    data_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
-    model = _make_model(context, detector_effect, "legacy_load")
-    optimizer = _take_one_step(model, data_batch)
-    checkpoint_path = save_training_checkpoint(
-        context=_checkpoint_context(tmp_path, context),
-        model_name="legacy_load",
-        model=model,
-        optimizer=optimizer,
-        epoch=0,
-        training_history=model._training_history,
-        metadata=_metadata(model),
-    )
-    checkpoint_metadata_path(checkpoint_path).unlink()
-    checkpoint = _torch_load(checkpoint_path)
+def test_checkpoint_without_metadata_is_rejected(tmp_path):
+    checkpoint_path = tmp_path / "checkpoint.pt"
+    checkpoint_path.touch()
 
-    restored = _make_model(context, detector_effect, "legacy_load")
-    monkeypatch.setattr(
-        "neural_networks.differentiating_model.find_latest_training_checkpoint",
-        lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
-    )
-    restored_optimizer = restored.configure_optimizers()
-    assert restored_optimizer is not None
-    assert restored._load_training_checkpoint_if_requested(restored_optimizer) == 1
-    assert restored._norm_factor is None
-    assert restored._training_history[HistoryKeys.EPOCH.value] == [0]
+    with pytest.raises(RuntimeError, match="no metadata sidecar"):
+        load_checkpoint_metadata(checkpoint_path)

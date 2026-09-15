@@ -14,9 +14,9 @@ from neural_networks.function_spaces import (
     FUNCTION_SPACE_REGISTRY,
 )
 from neural_networks.nuisance_calculation import (
-    BlankNuisanceEstimator,
+    BinnedNuisanceCalculation,
+    NullNuisanceCalculation,
     PerEventNuisanceEstimator,
-    ScalarBinnedNuisanceEstimator,
     build_nuisance_calculation,
 )
 from train.function_space_config import (
@@ -51,7 +51,7 @@ def _context(*, f_options, nuisance, f_family="adaptive_neural"):
     ],
     ids=["mapping", "typed-spec"],
 )
-def test_model_resolves_legacy_adaptive_f_defaults_in_canonical_config(f):
+def test_model_derives_adaptive_f_defaults_in_canonical_config(f):
     config = TrainConfig(
         train__epochs=1,
         train__number_of_epochs_for_checkpoint=1,
@@ -69,7 +69,7 @@ def test_model_resolves_legacy_adaptive_f_defaults_in_canonical_config(f):
         context=SimpleNamespace(config=config),
         detector_effect=_Detector(),
         is_numerator=True,
-        name="legacy_adaptive_f",
+        name="derived_adaptive_f",
         dtype=torch.float64,
     )
 
@@ -171,7 +171,7 @@ def test_f_remains_enabled_when_nuisance_is_disabled():
     )
 
     assert isinstance(model.signal_region_shift_network, AdaptiveNeuralFunction)
-    assert isinstance(model.nuisance_calculation, BlankNuisanceEstimator)
+    assert isinstance(model.nuisance_calculation, NullNuisanceCalculation)
 
 
 def test_canonical_binned_nuisance_uses_its_own_geometry():
@@ -193,10 +193,10 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
         device=torch.device("cpu"),
     )
 
-    assert isinstance(nuisance, ScalarBinnedNuisanceEstimator)
-    assert isinstance(nuisance._bin_lookup, BinIndicatorFunction)
-    assert nuisance._bin_lookup.geometry.number_of_bins == (3, 4)
-    assert tuple(parameter.shape for parameter in nuisance._bin_lookup._factor_deltas.values()) == (
+    assert isinstance(nuisance, BinnedNuisanceCalculation)
+    assert isinstance(nuisance.function_space, BinIndicatorFunction)
+    assert nuisance.function_space.geometry.number_of_bins == (3, 4)
+    assert tuple(parameter.shape for parameter in nuisance.function_space._factor_deltas.values()) == (
         (3,),
         (4,),
     )
@@ -209,7 +209,7 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
         dtype=torch.float64,
     )
     assert isinstance(model.signal_region_shift_network, AdaptiveNeuralFunction)
-    assert isinstance(model.nuisance_calculation, ScalarBinnedNuisanceEstimator)
+    assert isinstance(model.nuisance_calculation, BinnedNuisanceCalculation)
 
 
 def test_deterministic_family_uses_the_shared_nuisance_adapter():
@@ -245,7 +245,7 @@ def test_backend_is_separate_from_role_family_support():
     assert resolved.nuisance.state.value == "disabled"
 
 
-def test_binned_nuisance_loads_shared_interface_checkpoint_parameter_names():
+def test_binned_nuisance_checkpoint_uses_the_family_owned_parameters():
     context = _context(
         f_options={"input_dimension": 2, "hidden_layer_nodes": 4},
         nuisance={
@@ -265,11 +265,7 @@ def test_binned_nuisance_loads_shared_interface_checkpoint_parameter_names():
         dtype=torch.float64,
     )
     shared_interface_state = {
-        key.replace(
-            "nuisance_calculation._nuisance_deltas.",
-            "nuisance_calculation._bin_lookup._factor_deltas.",
-        ): value.clone()
-        for key, value in model.state_dict().items()
+        key: value.clone() for key, value in model.state_dict().items()
     }
 
     restored = DifferentiatingModel(
@@ -338,12 +334,6 @@ def test_every_registered_family_supports_independent_roles_nuisance_training_an
     nuisance = model.nuisance_calculation
 
     assert set(_ONE_DIMENSIONAL_FAMILY_OPTIONS) == set(FUNCTION_SPACE_REGISTRY)
-    if family is FunctionSpaceFamily.BIN_INDICATORS:
-        assert isinstance(nuisance, ScalarBinnedNuisanceEstimator)
-        assert nuisance._bin_lookup is not model.signal_region_shift_network
-    else:
-        assert isinstance(nuisance, PerEventNuisanceEstimator)
-        assert nuisance.network is not model.signal_region_shift_network
     assert {
         id(parameter) for parameter in model.signal_region_shift_network.parameters()
     }.isdisjoint({id(parameter) for parameter in nuisance.parameters()})

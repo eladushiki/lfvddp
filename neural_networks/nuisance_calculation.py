@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 import torch
@@ -10,6 +11,7 @@ import torch.nn as nn
 
 from data_tools.data_utils import DataSet
 from neural_networks.function_spaces import create_function_space
+from neural_networks.function_spaces.bin_indicators import BinIndicatorFunction
 from neural_networks.nuisance_contract import (
     NuisanceCalculation,
     NuisanceEvaluation,
@@ -35,7 +37,7 @@ def build_nuisance_calculation(
         resolved_config = config.resolve_function_space_config()
     spec = resolved_config.nuisance
     if spec.state is RoleState.DISABLED:
-        return BlankNuisanceEstimator(dtype=dtype, device=device)
+        return NullNuisanceCalculation(dtype=dtype, device=device)
 
     function_space = create_function_space(
         FunctionSpaceRole.NUISANCE,
@@ -46,7 +48,7 @@ def build_nuisance_calculation(
     return function_space.build_nuisance_calculation(dtype=dtype, device=device)
 
 
-class BlankNuisanceEstimator(NuisanceCalculation):
+class NullNuisanceCalculation(NuisanceCalculation):
     """A zero-nuisance representation for runs without nuisance training."""
 
     def prepare(
@@ -80,9 +82,16 @@ class BlankNuisanceEstimator(NuisanceCalculation):
             nuisance_cr_b=WeightedNuisanceValues(empty_control_region),
         )
 
+    def prediction_values(
+        self,
+        raw_data: DataSet,
+        normalized_data: DataSet,
+    ) -> torch.Tensor:
+        return torch.zeros(raw_data.n_samples, dtype=self._dtype, device=self._device)
 
-class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
-    """A bounded scalar nuisance value for every detector-bin combination."""
+
+class BinnedNuisanceCalculation(NuisanceCalculation):
+    """Control-region reduction for a shared bin-indicator function space."""
 
     @dataclass(frozen=True)
     class _PreparedData(PreparedNuisanceData):
@@ -94,50 +103,20 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
         self,
         dtype: torch.dtype,
         device: torch.device,
-        bin_lookup: BinIndicatorFunction,
+        function_space: BinIndicatorFunction,
     ) -> None:
         super().__init__(dtype=dtype, device=device)
-        self._bin_lookup = bin_lookup
-        self._nuisance_deltas = self._bin_lookup.detach_factor_deltas()
-
-    def _load_from_state_dict(
-        self,
-        state_dict,
-        prefix,
-        local_metadata,
-        strict,
-        missing_keys,
-        unexpected_keys,
-        error_msgs,
-    ) -> None:
-        """Map temporary shared-interface binned parameters to their established path."""
-
-        legacy_prefix = f"{prefix}_nuisance_deltas."
-        current_prefix = f"{prefix}_bin_lookup._factor_deltas."
-        for dimension in range(len(self._bin_lookup.geometry.number_of_bins)):
-            legacy_key = f"{legacy_prefix}dimension_{dimension}"
-            current_key = f"{current_prefix}dimension_{dimension}"
-            if current_key in state_dict and legacy_key not in state_dict:
-                state_dict[legacy_key] = state_dict.pop(current_key)
-        super()._load_from_state_dict(
-            state_dict,
-            prefix,
-            local_metadata,
-            strict,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
-        )
+        self.function_space = function_space
 
     def _bin_indices(self, data: DataSet) -> torch.Tensor:
         return torch.tensor(
-            self._bin_lookup.evaluate(data.events),
+            self.function_space.bin_indices(data.events),
             dtype=torch.long,
             device=self._device,
         )
 
     def _values(self, bin_indices: torch.Tensor) -> torch.Tensor:
-        return self._bin_lookup.values_from_indices(bin_indices)
+        return self.function_space.values_from_indices(bin_indices)
 
     def prepare(
         self,
@@ -172,7 +151,7 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
 
     def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
         if not isinstance(data, self._PreparedData):
-            raise TypeError("Scalar nuisance data was not prepared by this calculation.")
+            raise TypeError("Binned nuisance data was not prepared by this calculation.")
 
         nuisance_cr_values = self._values(data.nuisance_cr_bin_indices)
         return NuisanceEvaluation(
@@ -188,10 +167,17 @@ class ScalarBinnedNuisanceEstimator(NuisanceCalculation):
         )
 
     def initialize_parameters(self, gain: float) -> None:
-        self._bin_lookup.initialize_parameters(gain)
+        self.function_space.initialize_parameters(gain)
 
     def clamp_parameters(self) -> None:
-        self._bin_lookup.clamp_parameters()
+        self.function_space.clamp_parameters()
+
+    def prediction_values(
+        self,
+        raw_data: DataSet,
+        normalized_data: DataSet,
+    ) -> torch.Tensor:
+        return self._values(self._bin_indices(raw_data))
 
 
 class PerEventNuisanceEstimator(NuisanceCalculation):
@@ -257,3 +243,17 @@ class PerEventNuisanceEstimator(NuisanceCalculation):
 
     def initialize_parameters(self, gain: float) -> None:
         self.network.initialize_parameters(gain)
+
+    def prediction_values(
+        self,
+        raw_data: DataSet,
+        normalized_data: DataSet,
+    ) -> torch.Tensor:
+        values = self.network(
+            torch.tensor(
+                normalized_data.events,
+                dtype=self._dtype,
+                device=self._device,
+            )
+        )
+        return values.squeeze(-1) if values.ndim == 2 else values

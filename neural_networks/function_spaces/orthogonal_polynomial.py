@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Mapping, Optional
 
 import torch
@@ -18,10 +17,11 @@ from neural_networks.function_spaces.base import (
     events_tensor,
     require_options,
 )
+from frame.value_enum import ValueEnum
 from train.function_space_config import FunctionSpaceFamily
 
 
-class PolynomialBasis(str, Enum):
+class PolynomialBasis(ValueEnum):
     LEGENDRE = "legendre"
     CHEBYSHEV = "chebyshev"
 
@@ -94,11 +94,16 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
         self.register_buffer("_domain", torch.tensor(geometry.domain, dtype=dtype, device=device))
 
     @classmethod
+    def validate_options(cls, options: Mapping[str, Any]) -> None:
+        OrthogonalPolynomialGeometry.from_options(options)
+
+    @classmethod
     def from_options(
         cls,
         options: Mapping[str, Any],
         **construction: Any,
     ) -> "OrthogonalPolynomialFunction":
+        cls.validate_options(options)
         return cls(
             OrthogonalPolynomialGeometry.from_options(options),
             options=options,

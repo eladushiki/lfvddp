@@ -107,10 +107,14 @@ class TrainConfig:
 
     @property
     def train__number_of_nuisance_parameters(self) -> int:
+        """Return the nuisance function space's actual trainable parameter count."""
         nuisance = self.train__function_space_config.nuisance
-        if not nuisance.enabled or nuisance.family is not FunctionSpaceFamily.BIN_INDICATORS:
+        if not nuisance.enabled:
             return 0
-        return sum(nuisance.options["number_of_bins"])
+        from neural_networks.function_spaces import create_function_space
+
+        nuisance_space = create_function_space("nuisance", nuisance)
+        return sum(parameter.numel() for parameter in nuisance_space.parameters())
 
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
     train__nn_weight_clipping: float = False

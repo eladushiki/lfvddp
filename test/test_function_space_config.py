@@ -83,7 +83,7 @@ def test_invalid_configs_are_contextual_and_future_families_are_declared():
             f={"family": "adaptive_neural", "options": {}},
             nuisance={"family": "bin_indicators", "options": []},
         )
-    with pytest.raises(ValueError, match="nuisance family 'bin_indicators' requires"):
+    with pytest.raises(ValueError, match="Missing bin geometry option"):
         resolve_dual_role_config(
             f={"family": "adaptive_neural", "options": {}},
             nuisance={"family": "bin_indicators", "options": {}},
@@ -97,11 +97,10 @@ def test_invalid_configs_are_contextual_and_future_families_are_declared():
         )
 
 
-def test_repr_is_sanitized():
+def test_repr_reports_the_immutable_function_space_description():
     resolved = resolve_dual_role_config(
         f={"family": "adaptive_neural", "options": {"api_token": "secret-value"}},
         nuisance=_binned_role(),
     )
-    assert "secret-value" not in repr(resolved)
-    assert "redacted" in repr(resolved)
+    assert "secret-value" in repr(resolved)
     assert "adaptive_neural" in repr(resolved)

@@ -20,12 +20,7 @@ from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.function_spaces import create_function_space
-from neural_networks.nuisance_calculation import (
-    BlankNuisanceEstimator,
-    PerEventNuisanceEstimator,
-    ScalarBinnedNuisanceEstimator,
-    build_nuisance_calculation,
-)
+from neural_networks.nuisance_calculation import build_nuisance_calculation
 from neural_networks.nuisance_contract import (
     NuisanceEvaluation,
     PreparedNuisanceData,
@@ -191,11 +186,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 else data.sr_events.new_zeros(data.N_sr)
             )
         with profile_region("training/nuisance_theta"):
-            nuisance_estimates = (
-                None
-                if isinstance(self.nuisance_calculation, BlankNuisanceEstimator)
-                else self.nuisance_calculation.evaluate(data=data.nuisance_data)
-            )
+            nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
         return self._assemble_loss(
             signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
             nuisance_estimates=nuisance_estimates,
@@ -237,37 +228,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return a_sr_log_term, b_sr_log_term
 
     @staticmethod
-    def _assemble_loss_without_nuisance(
-        *,
-        signal_hypothesis_sr_shift: torch.Tensor,
-        data: _PreparedTrainingData,
-    ) -> torch.Tensor:
-        """Assemble the same loss without constructing zero nuisance arithmetic."""
-
-        signal_region_shift = signal_hypothesis_sr_shift
-        signal_hypothesis_sr_integral = data.N_sr + DifferentiatingModel._scaled_term(
-            data.sr_category_imbalance,
-            signal_region_shift.sum,
-        )
-        (
-            signal_hypothesis_a_sr_f_log_term,
-            signal_hypothesis_b_sr_f_log_term,
-        ) = DifferentiatingModel._signal_shift_log_terms(
-            signal_region_shift,
-            data.N_a_sr,
-        )
-        signal_hypothesis_sr_loss = (
-            signal_hypothesis_sr_integral
-            + signal_hypothesis_a_sr_f_log_term
-            + signal_hypothesis_b_sr_f_log_term
-        )
-        return signal_hypothesis_sr_loss + data.number_of_cr_events
-
-    @staticmethod
     def _assemble_loss(
         *,
         signal_hypothesis_sr_shift: torch.Tensor,
-        nuisance_estimates: Optional[NuisanceEvaluation],
+        nuisance_estimates: NuisanceEvaluation,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
@@ -300,12 +264,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             - sum_a log(1 + theta(x)) - sum_b log(1 - theta(x))
 
         """
-
-        if nuisance_estimates is None:
-            return DifferentiatingModel._assemble_loss_without_nuisance(
-                signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
-                data=data,
-            )
 
         nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
         common_a_sr_nuisance_log_term = -torch.log1p(
@@ -457,24 +415,23 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         checkpoint_path, checkpoint = checkpoint_result
         metadata = load_checkpoint_metadata(checkpoint_path)
-        if metadata is not None:
-            validate_checkpoint_metadata(
-                checkpoint_path=checkpoint_path,
+        validate_checkpoint_metadata(
+            checkpoint_path=checkpoint_path,
+            model_name=self._name,
+            expected=build_checkpoint_metadata(
                 model_name=self._name,
-                expected=build_checkpoint_metadata(
-                    model_name=self._name,
-                    is_numerator=self._is_numerator,
-                    resolved_config=self._function_space_config,
-                    normalization_factor=self._norm_factor,
-                ),
-                actual=metadata,
-            )
-            restored_normalization = normalization_from_checkpoint_metadata(
-                checkpoint_path,
-                metadata,
-            )
-            if restored_normalization is not None:
-                self._norm_factor = restored_normalization
+                is_numerator=self._is_numerator,
+                resolved_config=self._function_space_config,
+                normalization_factor=self._norm_factor,
+            ),
+            actual=metadata,
+        )
+        restored_normalization = normalization_from_checkpoint_metadata(
+            checkpoint_path,
+            metadata,
+        )
+        if restored_normalization is not None:
+            self._norm_factor = restored_normalization
         self.load_state_dict(checkpoint["model_state_dict"], strict=True)
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
@@ -619,22 +576,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _nuisance_prediction(self, data: DataSet) -> torch.Tensor:
         """Evaluate the configured nuisance estimator for prediction data."""
-        if isinstance(self.nuisance_calculation, PerEventNuisanceEstimator):
-            if self._norm_factor is None:
-                raise RuntimeError("Cannot predict before the model has been fitted.")
-            normalized_data = data / self._norm_factor
-            normalized_events = torch.tensor(
-                normalized_data.events,
-                dtype=self._dtype,
-                device=self._device,
-            )
-            nuisance_values = self.nuisance_calculation.network(normalized_events)
-            return nuisance_values.squeeze(-1) if nuisance_values.ndim == 2 else nuisance_values
-        if isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
-            return self.nuisance_calculation._values(
-                self.nuisance_calculation._bin_indices(data)
-            )
-        return torch.zeros(data.n_samples, dtype=self._dtype, device=self._device)
+        if self._norm_factor is None:
+            raise RuntimeError("Cannot predict before the model has been fitted.")
+        return self.nuisance_calculation.prediction_values(
+            raw_data=data,
+            normalized_data=data / self._norm_factor,
+        )
 
     def _predict_ndf(
         self,

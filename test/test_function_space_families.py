@@ -12,7 +12,7 @@ from neural_networks.function_spaces import (
 )
 from neural_networks.nuisance_calculation import (
     PerEventNuisanceEstimator,
-    ScalarBinnedNuisanceEstimator,
+    BinnedNuisanceCalculation,
 )
 from train.function_space_config import FunctionSpaceFamily, FunctionSpaceRole
 
@@ -102,8 +102,8 @@ def test_family_owned_nuisance_adapters_retain_their_function_space_instances():
 
     assert isinstance(neural_adapter, PerEventNuisanceEstimator)
     assert neural_adapter.network is adaptive
-    assert isinstance(binned_adapter, ScalarBinnedNuisanceEstimator)
-    assert binned_adapter._bin_lookup is binned
+    assert isinstance(binned_adapter, BinnedNuisanceCalculation)
+    assert binned_adapter.function_space is binned
 
 
 def test_shared_neural_family_preserves_role_adapter_shapes():

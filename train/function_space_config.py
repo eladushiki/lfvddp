@@ -9,21 +9,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from enum import Enum
-import math
-from numbers import Real
 from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
+from frame.value_enum import ValueEnum
 
-class _ValueEnum(str, Enum):
-    """String enum with useful config-file coercion semantics."""
-
-    def __str__(self) -> str:
-        return self.value
-
-
-class TrainingBackend(_ValueEnum):
+class TrainingBackend(ValueEnum):
     """Training implementation, orthogonal to mathematical function family."""
 
     LFVDDP = "lfvddp"
@@ -44,7 +35,7 @@ class TrainingBackend(_ValueEnum):
             ) from error
 
 
-class FunctionSpaceFamily(_ValueEnum):
+class FunctionSpaceFamily(ValueEnum):
     """Closed set of reusable function-space families.
 
     The later families are represented here so they can be declared and
@@ -73,7 +64,7 @@ class FunctionSpaceFamily(_ValueEnum):
             ) from error
 
 
-class FunctionSpaceRole(_ValueEnum):
+class FunctionSpaceRole(ValueEnum):
     """The two typed likelihood roles that share a function-space configuration shape."""
 
     F = "f"
@@ -92,7 +83,7 @@ class FunctionSpaceRole(_ValueEnum):
             ) from error
 
 
-class RoleState(_ValueEnum):
+class RoleState(ValueEnum):
     """Whether a role participates in the model.
 
     ``DISABLED`` is valid only for nuisance.  In particular, f is not disabled
@@ -117,9 +108,6 @@ class RoleState(_ValueEnum):
             ) from error
 
 
-_SENSITIVE_KEY_PARTS = ("password", "secret", "token", "credential", "private_key")
-
-
 def _deep_freeze(value: Any) -> Any:
     """Copy a config value and recursively make containers immutable."""
     if isinstance(value, Mapping):
@@ -133,22 +121,6 @@ def _deep_freeze(value: Any) -> Any:
     if isinstance(value, set):
         return frozenset(_deep_freeze(item) for item in value)
     return deepcopy(value)
-
-
-def _sanitized(value: Any, *, key: str = "") -> Any:
-    """Return a bounded, non-secret representation for diagnostics."""
-    if any(part in key.lower() for part in _SENSITIVE_KEY_PARTS):
-        return "<redacted>"
-    if isinstance(value, Mapping):
-        return {str(name): _sanitized(item, key=str(name)) for name, item in value.items()}
-    if isinstance(value, (tuple, list, set, frozenset)):
-        values = list(value)
-        if len(values) > 8:
-            return [_sanitized(item) for item in values[:8]] + [f"<... {len(values) - 8} more>"]
-        return [_sanitized(item) for item in values]
-    if isinstance(value, str) and len(value) > 120:
-        return value[:117] + "..."
-    return value
 
 
 def _role_spec_from_mapping(mapping: Mapping[str, Any], role: str) -> "FunctionSpaceSpec":
@@ -174,75 +146,16 @@ def _role_spec_from_mapping(mapping: Mapping[str, Any], role: str) -> "FunctionS
             raise ValueError(f"{role}.family is required when the role is enabled.")
         family = FunctionSpaceFamily.from_value(raw_family)
     spec = FunctionSpaceSpec(family=family, options=raw_options, state=state)
-    _validate_family_options(spec, role)
+    _validate_family_options(spec)
     return spec
 
 
-def _geometry_rows(value: Any, name: str) -> tuple[tuple[float, ...], ...]:
-    """Normalize scalar/flat/nested numeric config values for validation."""
-    if isinstance(value, (str, bytes, Mapping)):
-        raise ValueError(f"{name} must be numeric geometry.")
-    if isinstance(value, Real):
-        rows = ((float(value),),)
-    else:
-        try:
-            values = tuple(value)
-        except TypeError as error:
-            raise ValueError(f"{name} must be numeric geometry.") from error
-        if not values:
-            raise ValueError(f"{name} must not be empty.")
-        if all(isinstance(item, Real) and not isinstance(item, bool) for item in values):
-            rows = (tuple(float(item) for item in values),)
-        else:
-            rows = tuple(_geometry_rows(item, f"{name}[{index}]")[0] for index, item in enumerate(values))
-    if any(not row or any(not math.isfinite(item) for item in row) for row in rows):
-        raise ValueError(f"{name} must contain finite numeric values.")
-    return rows
+def _validate_family_options(spec: "FunctionSpaceSpec") -> None:
+    """Let the selected family own validation of its own parameters."""
 
+    from neural_networks.function_spaces.factory import validate_function_space_options
 
-def _validate_family_options(spec: "FunctionSpaceSpec", role: str) -> None:
-    if spec.state is RoleState.DISABLED:
-        return
-    assert spec.family is not None
-    options = spec.options
-    required: dict[FunctionSpaceFamily, tuple[str, ...]] = {
-        FunctionSpaceFamily.BIN_INDICATORS: ("minima", "maxima", "number_of_bins"),
-        FunctionSpaceFamily.CUBIC_BSPLINE: ("knots",),
-        FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL: ("basis", "maximum_degree", "domain"),
-        FunctionSpaceFamily.FIXED_SIGMOID: ("centers", "widths"),
-        FunctionSpaceFamily.GAUSSIAN_RADIAL_BASIS: ("centers", "widths"),
-    }
-    missing = [name for name in required.get(spec.family, ()) if name not in options]
-    if missing:
-        raise ValueError(
-            f"{role} family {spec.family.value!r} requires option(s): {', '.join(missing)}."
-        )
-    if spec.family is FunctionSpaceFamily.CUBIC_BSPLINE:
-        knot_rows = _geometry_rows(options["knots"], f"{role}.options.knots")
-        for knots in knot_rows:
-            if len(knots) < 2 or any(left >= right for left, right in zip(knots, knots[1:])):
-                # Full clamped vectors are allowed, but still need a valid span.
-                if len(knots) < 8 or knots[0] >= knots[-1] or any(left > right for left, right in zip(knots, knots[1:])):
-                    raise ValueError(f"{role}.options.knots must be increasing spline knots.")
-    elif spec.family is FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL:
-        basis = str(options["basis"]).strip().lower()
-        if basis not in {"legendre", "chebyshev"}:
-            raise ValueError(
-                f"{role}.options.basis must be 'legendre' or 'chebyshev', got {basis!r}."
-            )
-        degree = options["maximum_degree"]
-        if isinstance(degree, bool) or not isinstance(degree, int) or degree < 0:
-            raise ValueError(f"{role}.options.maximum_degree must be a nonnegative integer.")
-        domains = _geometry_rows(options["domain"], f"{role}.options.domain")
-        if any(len(domain) != 2 or domain[0] >= domain[1] for domain in domains):
-            raise ValueError(f"{role}.options.domain must contain increasing (minimum, maximum) pairs.")
-    elif spec.family in {FunctionSpaceFamily.FIXED_SIGMOID, FunctionSpaceFamily.GAUSSIAN_RADIAL_BASIS}:
-        centers = _geometry_rows(options["centers"], f"{role}.options.centers")
-        widths = _geometry_rows(options["widths"], f"{role}.options.widths")
-        if any(width <= 0 for row in widths for width in row):
-            raise ValueError(f"{role}.options.widths must be strictly positive.")
-        if len(widths) > 1 and len(widths) not in {len(centers), len(centers[0])}:
-            raise ValueError(f"{role}.options.widths has incompatible geometry.")
+    validate_function_space_options(spec)
 
 
 @dataclass(frozen=True)
@@ -279,7 +192,7 @@ class FunctionSpaceSpec:
         return (
             "FunctionSpaceSpec("
             f"family={family!r}, state={self.state.value!r}, "
-            f"options={_sanitized(self.options)!r})"
+            f"options={dict(self.options)!r})"
         )
 
 
@@ -304,7 +217,7 @@ def _coerce_role(value: FunctionSpaceSpec | Mapping[str, Any] | None, role: str)
     if value is None:
         return None
     if isinstance(value, FunctionSpaceSpec):
-        _validate_family_options(value, role)
+        _validate_family_options(value)
         # Rebuild even immutable specs so f and nuisance never share an options
         # object when a caller intentionally supplies the same spec twice.
         return FunctionSpaceSpec(value.family, value.options, value.state)

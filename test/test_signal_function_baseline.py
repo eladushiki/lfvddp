@@ -13,6 +13,7 @@ from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
+from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import _torch_load, save_training_checkpoint
 
 
@@ -27,7 +28,7 @@ _SIGNAL_PARAMETERS = (
     ("signal_region_shift_network.output.bias", (1,)),
 )
 _NUISANCE_PARAMETERS = {
-    "binned": (("nuisance_calculation._nuisance_deltas.dimension_0", (10,)),),
+    "binned": (("nuisance_calculation.function_space._factor_deltas.dimension_0", (10,)),),
     "disabled": (),
     "neural": (
         ("nuisance_calculation.network.hidden.weight", (2, 1)),
@@ -39,14 +40,14 @@ _NUISANCE_PARAMETERS = {
 _BASELINES = {
     "binned": {
         "initial_state": (
-            "90a0115ea0c391df10acf92149ff69f64cbaf2ce635780af9d7083fee60e73e4"
+            "0b26c5791d2b28c988c93ec2b43df6fee4225400e319bae5e83bbb250d13a080"
         ),
         "initial_loss": "0x1.2c7c35a786bc3p+5",
         "one_step_prediction": (
             "0f9d32f0e0a6106946d012301882d777007754f1f6f1ef165befd652031744a1"
         ),
         "continued_state": (
-            "3f9f232efed4524be1a2e632641db49a5492ee9dd64dd409cb1dfcdafd18c518"
+            "1d58a9c7933e18025e481403ad3b1bec5408bea409ef1889c34d90a8cd5caa6f"
         ),
         "continued_prediction": (
             "a429ff3b0c41d5ad6c5c22053902b16259ac7f10d95a1b219c916f048f4a9c0c"
@@ -286,6 +287,12 @@ def test_canonical_adaptive_model_contract(
         optimizer=optimizer,
         epoch=0,
         training_history=model._training_history,
+        metadata=build_checkpoint_metadata(
+            model_name="omitted_f_baseline",
+            is_numerator=True,
+            resolved_config=model._function_space_config,
+            normalization_factor=model._norm_factor,
+        ),
     )
     checkpoint = _torch_load(checkpoint_path)
     assert set(checkpoint) == _CHECKPOINT_KEYS

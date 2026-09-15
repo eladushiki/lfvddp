@@ -79,6 +79,11 @@ class FunctionSpace(Protocol):
     ) -> "FunctionSpace":
         ...
 
+    @classmethod
+    def validate_options(cls, options: Mapping[str, Any]) -> None:
+        """Validate this family's configuration-owned geometry."""
+        ...
+
     def build_nuisance_calculation(
         self,
         *,

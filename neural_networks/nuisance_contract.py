@@ -66,6 +66,14 @@ class NuisanceCalculation(nn.Module, ABC):
     def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
         """Evaluate nuisance values and loss-assembly weights for both regions."""
 
+    @abstractmethod
+    def prediction_values(
+        self,
+        raw_data: DataSet,
+        normalized_data: DataSet,
+    ) -> torch.Tensor:
+        """Evaluate the nuisance shift for prediction inputs."""
+
     def initialize_parameters(self, gain: float) -> None:
         """Initialize trainable nuisance parameters, when present."""
 
