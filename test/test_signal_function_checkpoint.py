@@ -24,6 +24,7 @@ from train.checkpoints import (
 _DATASET = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR = Path("test/configs/detector/basic_1D_detector_config.json")
 
+
 def _train_config(*, f, nuisance, epochs=1):
     return TrainConfigFixture(
         {
@@ -41,18 +42,94 @@ def _train_config(*, f, nuisance, epochs=1):
     )
 
 
-_BINNED = {"family": "bin_indicators", "options": {"minima": [-1.0], "maxima": [1.0], "number_of_bins": [4]}}
+_BINNED = {
+    "family": "bin_indicators",
+    "options": {"minima": [-1.0], "maxima": [1.0], "number_of_bins": [4]},
+}
 _CUBIC = {"family": "cubic_bspline", "options": {"knots": [-1.0, -0.5, 0.0, 0.5, 1.0]}}
-_ADAPTIVE = {"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 4}}
+_ADAPTIVE = {
+    "family": "adaptive_neural",
+    "options": {"input_dimension": 1, "hidden_layer_nodes": 4},
+}
 
 # Each case is materialized by the fixture, so test-run settings are not tracked.
-_CASES = [
-    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f=_ADAPTIVE, nuisance={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 2}})}, id="adaptive-neural"),
-    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f=_CUBIC, nuisance=_BINNED)}, id="cubic-bspline"),
-    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "orthogonal_polynomial", "options": {"basis": "legendre", "maximum_degree": 3, "domain": [-1.0, 1.0]}}, nuisance=_BINNED)}, id="legendre-polynomial"),
-    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "gaussian_radial_basis", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}, nuisance=_BINNED)}, id="gaussian-rbf"),
-    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f={"family": "fixed_sigmoid", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}, nuisance=_BINNED)}, id="fixed-sigmoid"),
-    pytest.param({ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _train_config(f=_BINNED, nuisance=_BINNED)}, id="bin-indicators"),
+_FUNCION_SAPCE_CASES = [
+    pytest.param(
+        {
+            ConfigType.DATASET: _DATASET,
+            ConfigType.DETECTOR: _DETECTOR,
+            ConfigType.TRAIN: _train_config(
+                f=_ADAPTIVE,
+                nuisance={
+                    "family": "adaptive_neural",
+                    "options": {"input_dimension": 1, "hidden_layer_nodes": 2},
+                },
+            ),
+        },
+        id="adaptive-neural",
+    ),
+    pytest.param(
+        {
+            ConfigType.DATASET: _DATASET,
+            ConfigType.DETECTOR: _DETECTOR,
+            ConfigType.TRAIN: _train_config(f=_CUBIC, nuisance=_BINNED),
+        },
+        id="cubic-bspline",
+    ),
+    pytest.param(
+        {
+            ConfigType.DATASET: _DATASET,
+            ConfigType.DETECTOR: _DETECTOR,
+            ConfigType.TRAIN: _train_config(
+                f={
+                    "family": "orthogonal_polynomial",
+                    "options": {
+                        "basis": "legendre",
+                        "maximum_degree": 3,
+                        "domain": [-1.0, 1.0],
+                    },
+                },
+                nuisance=_BINNED,
+            ),
+        },
+        id="legendre-polynomial",
+    ),
+    pytest.param(
+        {
+            ConfigType.DATASET: _DATASET,
+            ConfigType.DETECTOR: _DETECTOR,
+            ConfigType.TRAIN: _train_config(
+                f={
+                    "family": "gaussian_radial_basis",
+                    "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]},
+                },
+                nuisance=_BINNED,
+            ),
+        },
+        id="gaussian-rbf",
+    ),
+    pytest.param(
+        {
+            ConfigType.DATASET: _DATASET,
+            ConfigType.DETECTOR: _DETECTOR,
+            ConfigType.TRAIN: _train_config(
+                f={
+                    "family": "fixed_sigmoid",
+                    "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]},
+                },
+                nuisance=_BINNED,
+            ),
+        },
+        id="fixed-sigmoid",
+    ),
+    pytest.param(
+        {
+            ConfigType.DATASET: _DATASET,
+            ConfigType.DETECTOR: _DETECTOR,
+            ConfigType.TRAIN: _train_config(f=_BINNED, nuisance=_BINNED),
+        },
+        id="bin-indicators",
+    ),
 ]
 
 _CONTINUATION_CONFIG = {
@@ -60,7 +137,10 @@ _CONTINUATION_CONFIG = {
     ConfigType.DETECTOR: _DETECTOR,
     ConfigType.TRAIN: _train_config(
         f=_ADAPTIVE,
-        nuisance={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 2}},
+        nuisance={
+            "family": "adaptive_neural",
+            "options": {"input_dimension": 1, "hidden_layer_nodes": 2},
+        },
         epochs=3,
     ),
 }
@@ -107,7 +187,9 @@ def _take_one_step(model, data_batch):
     return optimizer
 
 
-@pytest.mark.parametrize("function_execution_context", _CASES, indirect=True)
+@pytest.mark.parametrize(
+    "function_execution_context", _FUNCION_SAPCE_CASES, indirect=True
+)
 def test_checkpoint_round_trip_preserves_all_function_space_state(
     function_execution_context,
     isolated_data_generation,
@@ -148,12 +230,15 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
 
     metadata = load_checkpoint_metadata(checkpoint_path)
     assert metadata is not None
-    assert metadata["config_fingerprint"] == build_checkpoint_metadata(
-        model_name=model._name,
-        is_numerator=model._is_numerator,
-        resolved_config=model._function_space_config,
-        normalization_factor=model._norm_factor,
-    )["config_fingerprint"]
+    assert (
+        metadata["config_fingerprint"]
+        == build_checkpoint_metadata(
+            model_name=model._name,
+            is_numerator=model._is_numerator,
+            resolved_config=model._function_space_config,
+            normalization_factor=model._norm_factor,
+        )["config_fingerprint"]
+    )
     assert metadata["normalization_factor"]["factors"] == {
         name: model._norm_factor.get_factor(name)
         for name in model._norm_factor._factors
@@ -161,9 +246,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     assert checkpoint_metadata_path(checkpoint_path).exists()
 
     restored = _make_model(context, detector_effect, "checkpoint_round_trip")
-    incompatible = restored.load_state_dict(
-        checkpoint["model_state_dict"], strict=True
-    )
+    incompatible = restored.load_state_dict(checkpoint["model_state_dict"], strict=True)
     assert incompatible.missing_keys == []
     assert incompatible.unexpected_keys == []
     assert tuple(restored.state_dict()) == tuple(model.state_dict())
@@ -174,7 +257,9 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     assert restored_optimizer is not None
     restored_optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     assert len(restored_optimizer.state) == len(optimizer.state)
-    for old_state, new_state in zip(optimizer.state.values(), restored_optimizer.state.values()):
+    for old_state, new_state in zip(
+        optimizer.state.values(), restored_optimizer.state.values()
+    ):
         assert old_state.keys() == new_state.keys()
         for key in old_state:
             if isinstance(old_state[key], torch.Tensor):
@@ -186,9 +271,12 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     # prediction surface once the runtime normalization is restored as well.
     restored._norm_factor = model._norm_factor
     prediction_data = data_batch.datasets[DataSet.DataSetCategory.A_SR]
-    np.testing.assert_array_equal(restored.predict(prediction_data), model.predict(prediction_data))
     np.testing.assert_array_equal(
-        restored.predict_secondary(prediction_data), model.predict_secondary(prediction_data)
+        restored.predict(prediction_data), model.predict(prediction_data)
+    )
+    np.testing.assert_array_equal(
+        restored.predict_secondary(prediction_data),
+        model.predict_secondary(prediction_data),
     )
 
 
@@ -282,7 +370,9 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
     checkpoint = _torch_load(checkpoint_path)
 
     restored = _make_model(context, detector_effect, "mismatch")
-    before = {key: value.detach().clone() for key, value in restored.state_dict().items()}
+    before = {
+        key: value.detach().clone() for key, value in restored.state_dict().items()
+    }
     monkeypatch.setattr(
         "neural_networks.differentiating_model.find_latest_training_checkpoint",
         lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
@@ -295,7 +385,9 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
         torch.testing.assert_close(value, before[key])
 
 
-@pytest.mark.parametrize("function_execution_context", _CASES, indirect=True)
+@pytest.mark.parametrize(
+    "function_execution_context", _FUNCION_SAPCE_CASES, indirect=True
+)
 def test_legacy_checkpoint_without_sidecar_still_loads(
     function_execution_context,
     isolated_data_generation,
