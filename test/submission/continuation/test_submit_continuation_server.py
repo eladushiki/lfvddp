@@ -200,7 +200,7 @@ def test_submit_continue_advances_all_array_jobs(
     submit_context = load_submit_context(out_dir, config.config__dirsafe_runtag)
     submit_run_dir = LOCAL_PROJECT_ROOT / submit_context.unique_out_dir
     first_job_id = submit_context.qsub_submissions[0]["job_id"]
-    expected_training_names = symmetric_training_names(config.train__data_is_train_for_nuisances)
+    expected_training_names = symmetric_training_names(config.train__function_space_config.nuisance.enabled)
     target_epochs = config.train__epochs
 
     wait_for_job_to_finish(first_job_id)

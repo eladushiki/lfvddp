@@ -19,22 +19,28 @@ from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.likelihood_parameterization import (
-    smoothly_bounded_likelihood_shift,
-)
-from neural_networks.nuisance_calculation import (
-    BlankNuisanceEstimator,
-    NeuralPerEventNuisanceEstimator,
+from neural_networks.function_spaces import create_function_space
+from neural_networks.nuisance_calculation import build_nuisance_calculation
+from neural_networks.nuisance_contract import (
     NuisanceEvaluation,
     PreparedNuisanceData,
-    ScalarBinnedNuisanceEstimator,
     WeightedNuisanceValues,
 )
+from train.function_space_config import FunctionSpaceRole
 from neural_networks.utils import (
     ContextedModel,
     save_model_parameters_outcome,
 )
-from train.checkpoints import find_latest_training_checkpoint, save_training_checkpoint
+from train.checkpoint_metadata import (
+    build_checkpoint_metadata,
+    normalization_from_checkpoint_metadata,
+    validate_checkpoint_metadata,
+)
+from train.checkpoints import (
+    find_latest_training_checkpoint,
+    load_checkpoint_metadata,
+    save_training_checkpoint,
+)
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
@@ -61,25 +67,11 @@ class _PreparedTrainingData:
         return self.N_a_cr + self.N_b_cr
 
 
-class _SignalRegionShiftEstimator(nn.Module):
-    """Estimate the single bounded signal-region shift f for both categories."""
-
-    def __init__(
-        self,
-        input_dimension: int,
-        hidden_size: int,
-        output_dimension: int,
-        dtype: torch.dtype,
-    ) -> None:
-        super().__init__()
-        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype)
-        self.activation = nn.Sigmoid()
-        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype)
+class _NullSignalRegionShift(nn.Module):
+    """Denominator-only signal estimator with the neutral likelihood shift."""
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return smoothly_bounded_likelihood_shift(
-            self.output(self.activation(self.hidden(events)))
-        )
+        return events.new_zeros((events.shape[0], 1))
 
 
 class DifferentiatingModel(nn.Module, ContextedModel):
@@ -99,12 +91,15 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ):
         super().__init__()
         self._context = context
-        self._config: Union[TrainConfig, DetectorConfig] = context.config
+        if not isinstance(context.config, TrainConfig):
+            raise TypeError("DifferentiatingModel requires a TrainConfig.")
+        self._config: TrainConfig = context.config
         self._detector_effect = detector_effect
         self._is_numerator = is_numerator
         self._name = name
         self._dtype = dtype
         self._assigned_device = torch.device(device)
+        self._function_space_config = self._config.resolve_function_space_config()
         self.nuisance_calculation = self._build_nuisance_estimators()
 
         self._build_signal_hypothesis_estimator()
@@ -122,36 +117,30 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return self._assigned_device
 
     def _build_nuisance_estimators(self):
-        if not self._config.train__data_is_train_for_nuisances:
-            return BlankNuisanceEstimator(
-                dtype=self._dtype,
-                device=self._device,
-            )
-        if self._config.train__nuisance_is_neural_network:
-            return NeuralPerEventNuisanceEstimator(
-                input_dimension=self._config.train__nn_input_dimension,
-                hidden_size=self._config.train__nuisance_nn_inner_layer_nodes,
-                output_dimension=self._config.train__nn_output_dimension,
-                dtype=self._dtype,
-                device=self._device,
-            )
-        return ScalarBinnedNuisanceEstimator(
-            detector_effect=self._detector_effect,
+        return build_nuisance_calculation(
+            config=self._config,
             dtype=self._dtype,
             device=self._device,
+            resolved_config=self._function_space_config,
         )
 
     def _build_signal_hypothesis_estimator(self) -> None:
-        self.signal_region_shift_network = (
-            _SignalRegionShiftEstimator(
-                input_dimension=self._config.train__nn_input_dimension,
-                hidden_size=self._config.train__nn_inner_layer_nodes,
-                output_dimension=self._config.train__nn_output_dimension,
-                dtype=self._dtype,
-            )
-            if self._is_numerator
-            else None
+        if not self._is_numerator:
+            self.signal_region_shift_network = _NullSignalRegionShift()
+            return
+
+        spec = self._function_space_config.f
+        construction = {}
+        if "output_dimension" not in spec.options:
+            construction["output_dimension"] = self._config.train__nn_output_dimension
+        estimator = create_function_space(
+            FunctionSpaceRole.F,
+            spec,
+            dtype=self._dtype,
+            device=self._assigned_device,
+            **construction,
         )
+        self.signal_region_shift_network = estimator
 
     def _initialize_parameters(self) -> None:
         """
@@ -162,17 +151,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__nn_xavier_gain
 
-        if self.signal_region_shift_network is not None:
-            nn.init.xavier_uniform_(
-                self.signal_region_shift_network.hidden.weight,
-                gain=gain,
-            )
-            nn.init.uniform_(self.signal_region_shift_network.hidden.bias, a=-0.3, b=0.3)
-            nn.init.xavier_uniform_(
-                self.signal_region_shift_network.output.weight,
-                gain=gain,
-            )
-            nn.init.uniform_(self.signal_region_shift_network.output.bias, a=-0.3, b=0.3)
+        if self._is_numerator:
+            self.signal_region_shift_network.initialize_parameters(gain)
 
         self.nuisance_calculation.initialize_parameters(gain)
 
@@ -189,7 +169,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return optimizer
 
     def _signal_region_shift(self, sr_events: torch.Tensor) -> torch.Tensor:
-        if self.signal_region_shift_network is None:
+        if not self._is_numerator:
             raise RuntimeError("The denominator has no signal-region shift estimator.")
         return self.signal_region_shift_network(sr_events).squeeze(-1)
 
@@ -201,16 +181,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/signal_region_shift"):
             signal_hypothesis_sr_shift = (
-                None
-                if self.signal_region_shift_network is None
-                else self._signal_region_shift(data.sr_events)
+                self._signal_region_shift(data.sr_events)
+                if self._is_numerator
+                else data.sr_events.new_zeros(data.N_sr)
             )
         with profile_region("training/nuisance_theta"):
-            nuisance_estimates = (
-                None
-                if isinstance(self.nuisance_calculation, BlankNuisanceEstimator)
-                else self.nuisance_calculation.evaluate(data=data.nuisance_data)
-            )
+            nuisance_estimates = self.nuisance_calculation.evaluate(data=data.nuisance_data)
         return self._assemble_loss(
             signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
             nuisance_estimates=nuisance_estimates,
@@ -252,40 +228,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return a_sr_log_term, b_sr_log_term
 
     @staticmethod
-    def _assemble_loss_without_nuisance(
-        *,
-        signal_hypothesis_sr_shift: Optional[torch.Tensor],
-        data: _PreparedTrainingData,
-    ) -> torch.Tensor:
-        """Assemble the same loss without constructing zero nuisance arithmetic."""
-
-        if signal_hypothesis_sr_shift is None:
-            return data.sr_events.new_tensor(data.N_sr) + data.number_of_cr_events
-
-        signal_region_shift = signal_hypothesis_sr_shift
-        signal_hypothesis_sr_integral = data.N_sr + DifferentiatingModel._scaled_term(
-            data.sr_category_imbalance,
-            signal_region_shift.sum,
-        )
-        (
-            signal_hypothesis_a_sr_f_log_term,
-            signal_hypothesis_b_sr_f_log_term,
-        ) = DifferentiatingModel._signal_shift_log_terms(
-            signal_region_shift,
-            data.N_a_sr,
-        )
-        signal_hypothesis_sr_loss = (
-            signal_hypothesis_sr_integral
-            + signal_hypothesis_a_sr_f_log_term
-            + signal_hypothesis_b_sr_f_log_term
-        )
-        return signal_hypothesis_sr_loss + data.number_of_cr_events
-
-    @staticmethod
     def _assemble_loss(
         *,
-        signal_hypothesis_sr_shift: Optional[torch.Tensor],
-        nuisance_estimates: Optional[NuisanceEvaluation],
+        signal_hypothesis_sr_shift: torch.Tensor,
+        nuisance_estimates: NuisanceEvaluation,
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
@@ -318,12 +264,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             - sum_a log(1 + theta(x)) - sum_b log(1 - theta(x))
 
         """
-
-        if nuisance_estimates is None:
-            return DifferentiatingModel._assemble_loss_without_nuisance(
-                signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
-                data=data,
-            )
 
         nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
         common_a_sr_nuisance_log_term = -torch.log1p(
@@ -361,18 +301,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             + b_cr_log_term
         )
 
-        if signal_hypothesis_sr_shift is None:
-            null_hypothesis_sr_loss = (
-                data.N_sr
-                + DifferentiatingModel._scaled_term(
-                    data.sr_category_imbalance,
-                    nuisance_sr_estimates.sum,
-                )
-                + common_a_sr_nuisance_log_term
-                + common_b_sr_nuisance_log_term
-            )
-            return null_hypothesis_sr_loss + cr_loss
-
         signal_region_shift = signal_hypothesis_sr_shift
         signal_hypothesis_sr_integral = (
             data.N_sr
@@ -399,7 +327,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         return signal_hypothesis_sr_loss + cr_loss
 
     def _prepare_training_data(self, data: DataBatch) -> _PreparedTrainingData:
-        normalized_data, self._norm_factor = data.get_normalized()
+        if self._norm_factor is None:
+            normalized_data, self._norm_factor = data.get_normalized()
+        else:
+            normalized_data = DataBatch(
+                (dataset / self._norm_factor, parameters)
+                for dataset, parameters in data
+            )
         categories = DataSet.DataSetCategory
         normalized_a_sr = normalized_data.datasets[categories.A_SR]
         normalized_b_sr = normalized_data.datasets[categories.B_SR]
@@ -480,7 +414,25 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             return 0
 
         checkpoint_path, checkpoint = checkpoint_result
-        self.load_state_dict(checkpoint["model_state_dict"])
+        metadata = load_checkpoint_metadata(checkpoint_path)
+        validate_checkpoint_metadata(
+            checkpoint_path=checkpoint_path,
+            model_name=self._name,
+            expected=build_checkpoint_metadata(
+                model_name=self._name,
+                is_numerator=self._is_numerator,
+                resolved_config=self._function_space_config,
+                normalization_factor=self._norm_factor,
+            ),
+            actual=metadata,
+        )
+        restored_normalization = normalization_from_checkpoint_metadata(
+            checkpoint_path,
+            metadata,
+        )
+        if restored_normalization is not None:
+            self._norm_factor = restored_normalization
+        self.load_state_dict(checkpoint["model_state_dict"], strict=True)
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
             optimizer.load_state_dict(optimizer_state_dict)
@@ -549,13 +501,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         data: DataBatch,
     ) -> Dict[str, List[float]]:
-        training_data = self._prepare_training_data(data)
-
         self.train()
         optimizer = self.configure_optimizers()
 
         target_epochs = self._config.train__epochs
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
+        # A new checkpoint carries the original normalization factor.  Prepare
+        # data only after loading so continuation uses that exact transform.
+        training_data = self._prepare_training_data(data)
         if start_epoch >= target_epochs:
             return self._training_history
         self._epochs_executed = target_epochs - start_epoch
@@ -593,6 +546,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                                 optimizer=optimizer,
                                 epoch=epoch,
                                 training_history=self._training_history,
+                                metadata=build_checkpoint_metadata(
+                                    model_name=self._name,
+                                    is_numerator=self._is_numerator,
+                                    resolved_config=self._function_space_config,
+                                    normalization_factor=self._norm_factor,
+                                ),
                             )
                 profiler.step()
 
@@ -617,21 +576,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _nuisance_prediction(self, data: DataSet) -> torch.Tensor:
         """Evaluate the configured nuisance estimator for prediction data."""
-        if isinstance(self.nuisance_calculation, NeuralPerEventNuisanceEstimator):
-            if self._norm_factor is None:
-                raise RuntimeError("Cannot predict before the model has been fitted.")
-            normalized_data = data / self._norm_factor
-            normalized_events = torch.tensor(
-                normalized_data.events,
-                dtype=self._dtype,
-                device=self._device,
-            )
-            return self.nuisance_calculation.network(normalized_events)
-        if isinstance(self.nuisance_calculation, ScalarBinnedNuisanceEstimator):
-            return self.nuisance_calculation._values(
-                self.nuisance_calculation._bin_indices(data)
-            )
-        return torch.zeros(data.n_samples, dtype=self._dtype, device=self._device)
+        if self._norm_factor is None:
+            raise RuntimeError("Cannot predict before the model has been fitted.")
+        return self.nuisance_calculation.prediction_values(
+            raw_data=data,
+            normalized_data=data / self._norm_factor,
+        )
 
     def _predict_ndf(
         self,
@@ -649,13 +599,10 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         self.eval()
         with torch.no_grad():
-            if self.signal_region_shift_network is None:
-                signal_weight = x_tensor.new_ones((x_tensor.shape[0], 1))
-            else:
-                signal_region_shift = self.signal_region_shift_network(x_tensor)
-                signal_weight = 1 + (
-                    -signal_region_shift if secondary else signal_region_shift
-                )
+            signal_region_shift = self.signal_region_shift_network(x_tensor)
+            signal_weight = 1 + (
+                -signal_region_shift if secondary else signal_region_shift
+            )
             theta_estimate = self._nuisance_prediction(data).unsqueeze(1)
             theta_term = torch.clamp(1 + theta_sign * theta_estimate, min=1e-12)
             predictions = signal_weight * theta_term

@@ -1,6 +1,14 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import warning
-from typing import List, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Tuple
+
+from train.function_space_config import (
+    FunctionSpaceFamily,
+    FunctionSpaceSpec,
+    ResolvedFunctionSpaceConfig,
+    TrainingBackend,
+    resolve_dual_role_config,
+)
 
 import numpy as np
 import numpy.typing as npt
@@ -33,99 +41,81 @@ class TrainConfig:
     train__profiling_warmup_epochs: int = 5
     train__profiling_active_epochs: int = 10
     
-    ## Training for nuisance parameters
-    train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
-    train__nuisance_is_neural_network: bool = False
-    train__nuisance_nn_inner_layer_nodes: Optional[int] = None
-    train__nuisance_binning_minima: Optional[List[float]] = None
-    train__nuisance_binning_maxima: Optional[List[float]] = None
-    train__nuisance_binning_number_of_bins: Optional[List[int]] = None
-    train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
+    train__like_NPLM: bool = False
 
-    def _validate_nuisance_configuration(self) -> None:
-        binning_parameters = (
-            self.train__nuisance_binning_minima,
-            self.train__nuisance_binning_maxima,
-            self.train__nuisance_binning_number_of_bins,
-        )
-        has_binning = any(parameter is not None for parameter in binning_parameters)
-        has_complete_binning = all(
-            parameter is not None for parameter in binning_parameters
-        )
-        if not self.train__data_is_train_for_nuisances:
-            if has_binning and not has_complete_binning:
-                raise ValueError(
-                    "Nuisance binning configuration must define minima, maxima, "
-                    "and number of bins together."
-                )
-            return
+    train__backend: TrainingBackend | str | None = None
+    train__f: FunctionSpaceSpec | Mapping[str, Any] | None = None
+    train__nuisance: FunctionSpaceSpec | Mapping[str, Any] | None = None
+    train__resolved_function_space_config: Optional[ResolvedFunctionSpaceConfig] = field(
+        default=None, init=False, repr=False
+    )
 
-        if self.train__nuisance_is_neural_network:
-            if has_binning:
-                raise ValueError(
-                    "Neural nuisance configuration must not define nuisance binning parameters."
-                )
-            if self.train__nuisance_nn_inner_layer_nodes is None:
-                raise ValueError(
-                    "Neural nuisance configuration requires train__nuisance_nn_inner_layer_nodes."
-                )
+    def _f_with_adaptive_defaults(
+        self,
+    ) -> FunctionSpaceSpec | Mapping[str, Any]:
+        """Add configured adaptive-network dimensions to the canonical f specification."""
+        assert self.train__f is not None
+        if isinstance(self.train__f, FunctionSpaceSpec):
+            family = self.train__f.family
+            options = self.train__f.options
         else:
-            if self.train__nuisance_nn_inner_layer_nodes is not None:
-                raise ValueError(
-                    "Binned nuisance configuration must not define train__nuisance_nn_inner_layer_nodes."
-                )
-            if not has_complete_binning:
-                raise ValueError(
-                    "Binned nuisance configuration requires minima, maxima, and number of bins."
-                )
+            try:
+                family = FunctionSpaceFamily.from_value(self.train__f.get("family"))
+            except ValueError:
+                return self.train__f
+            options = self.train__f.get("options", {})
+            if options is None:
+                options = {}
+            if not isinstance(options, Mapping):
+                return self.train__f
 
-    def configure_nuisance_binning(self, number_of_dimensions: int) -> None:
-        """Normalize scalar binning parameters after detector dimensions are known."""
-        if (
-            self.train__nuisance_is_neural_network
-            or self.train__nuisance_binning_minima is None
-        ):
-            return
+        if family is not FunctionSpaceFamily.ADAPTIVE_NEURAL:
+            return self.train__f
 
-        for parameter_name in (
-            "train__nuisance_binning_minima",
-            "train__nuisance_binning_maxima",
-            "train__nuisance_binning_number_of_bins",
-        ):
-            parameter = getattr(self, parameter_name)
-            if isinstance(parameter, (int, float)):
-                setattr(self, parameter_name, [parameter] * number_of_dimensions)
-            elif len(parameter) != number_of_dimensions:
-                raise ValueError(
-                    f"{parameter_name} length {len(parameter)} does not match detector dimensions {number_of_dimensions}."
-                )
+        resolved_options = dict(options)
+        if "input_dimension" not in resolved_options and self.train__nn_input_dimension is not None:
+            resolved_options["input_dimension"] = self.train__nn_input_dimension
+        if not ({"hidden_size", "hidden_layer_nodes"} & set(resolved_options)):
+            resolved_options["hidden_size"] = self.train__nn_inner_layer_nodes
 
-    def observable_bins(self, observable_name: str) -> Tuple[npt.NDArray, npt.NDArray]:
-        """Return bin edges and centers for a scalar binned nuisance observable."""
-        try:
-            index = self.detector__detect_observable_names.index(observable_name)
-        except ValueError as error:
-            raise ValueError(
-                f"Observable name {observable_name} not found in detector observable names "
-                f"{self.detector__detect_observable_names}"
-            ) from error
+        if isinstance(self.train__f, FunctionSpaceSpec):
+            return FunctionSpaceSpec(
+                family=family,
+                options=resolved_options,
+                state=self.train__f.state,
+            )
+        return {**self.train__f, "options": resolved_options}
 
-        bins_edges = np.linspace(
-            self.train__nuisance_binning_minima[index],
-            self.train__nuisance_binning_maxima[index],
-            self.train__nuisance_binning_number_of_bins[index] + 1,
+    def resolve_function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        if self.train__f is None:
+            raise ValueError("train__f must define a canonical function-space mapping.")
+        if self.train__nuisance is None:
+            raise ValueError("train__nuisance must define a canonical function-space mapping.")
+        self.train__resolved_function_space_config = resolve_dual_role_config(
+            backend=self.train__backend,
+            f=self._f_with_adaptive_defaults(),
+            nuisance=self.train__nuisance,
         )
-        return bins_edges, 0.5 * (bins_edges[:-1] + bins_edges[1:])
+        return self.train__resolved_function_space_config
+
+    @property
+    def train__function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        """Return the cached canonical configuration used by training code."""
+        if self.train__resolved_function_space_config is None:
+            return self.resolve_function_space_config()
+        return self.train__resolved_function_space_config
 
     @property
     def train__number_of_nuisance_parameters(self) -> int:
-        if (
-            not self.train__data_is_train_for_nuisances
-            or self.train__nuisance_is_neural_network
-        ):
+        """Return the nuisance function space's actual trainable parameter count."""
+        nuisance = self.train__function_space_config.nuisance
+        if not nuisance.enabled:
             return 0
-        return sum(self.train__nuisance_binning_number_of_bins)
-    
+        from neural_networks.function_spaces import create_function_space
+
+        nuisance_space = create_function_space("nuisance", nuisance)
+        return sum(parameter.numel() for parameter in nuisance_space.parameters())
+
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
     train__nn_weight_clipping: float = False
     # Correction - what should be taken into account about the nuisance parameters?
@@ -159,7 +149,7 @@ class TrainConfig:
         self.validate()
 
     def validate(self):
-        self._validate_nuisance_configuration()
+        self.resolve_function_space_config()
 
         if self.train__profiling_warmup_epochs < 0:
             raise ValueError("Profiling warmup epochs cannot be negative.")
@@ -174,6 +164,8 @@ class TrainConfig:
                 self.train__epochs < 5e5 and not self.train__like_NPLM:
             warning("Training epochs not sufficient, train may not converge")
 
-        if not self.train__like_NPLM and \
-                (self.train__nuisance_correction_types != "" or self.train__data_is_train_for_nuisances):
+        if not self.train__like_NPLM and (
+            self.train__nuisance_correction_types != ""
+            or self.train__function_space_config.nuisance.enabled
+        ):
             warning("You probably meant to mimic LFVNN, but it does not deal with nuisances.")

@@ -32,6 +32,21 @@ from train.model_trainer import TrainLauncher
         pytest.param(
             {
                 ConfigType.DATASET: Path(
+                    "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/short_1D_train_config_without_nuisance.json"
+                ),
+            },
+            1,
+            id="1d-disabled-nuisance",
+        ),
+        pytest.param(
+            {
+                ConfigType.DATASET: Path(
                     "test/configs/dataset/disjoint_2D_generated_dataset_config.json"
                 ),
                 ConfigType.DETECTOR: Path(

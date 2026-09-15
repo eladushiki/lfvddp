@@ -28,7 +28,7 @@ fi
 quoted_root=$(shell_quote "$remote_project_root")
 
 if [ "$#" -eq 0 ]; then
-    remote_command="cd $quoted_root && exec \${SHELL:-/bin/sh} -l"
+    remote_command="cd $quoted_root && exec /bin/bash -l"
     if [ -n "$identity_file" ]; then
         exec ssh -tt -i "$identity_file" "$ssh_target" "$remote_command"
     fi
@@ -37,7 +37,7 @@ fi
 
 command_text=$*
 quoted_command=$(shell_quote "$command_text")
-remote_command="cd $quoted_root && exec \${SHELL:-/bin/sh} -lc $quoted_command"
+remote_command="cd $quoted_root && exec /bin/bash -lc $quoted_command"
 
 if [ -n "$identity_file" ]; then
     exec ssh -i "$identity_file" "$ssh_target" "$remote_command"
