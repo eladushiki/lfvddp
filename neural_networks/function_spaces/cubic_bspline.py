@@ -21,16 +21,18 @@ from neural_networks.function_spaces.base import (
 from train.function_space_config import FunctionSpaceFamily
 
 
+CUBIC_BSPLINE_DEGREE = 3
+
+
 @dataclass(frozen=True)
 class CubicBSplineGeometry:
     """Clamped cubic knot vectors, one immutable vector per input dimension."""
 
     knots: tuple[tuple[float, ...], ...]
-    degree: int = 3
 
     def __post_init__(self) -> None:
-        if self.degree != 3 or not self.knots:
-            raise ValueError("Cubic B-spline geometry requires cubic knot vectors.")
+        if not self.knots:
+            raise ValueError("Cubic B-spline geometry requires at least one knot vector.")
         for knots in self.knots:
             if len(knots) < 8 or any(left > right for left, right in zip(knots, knots[1:])):
                 raise ValueError("Each cubic B-spline knot vector must be nondecreasing and valid.")
@@ -39,7 +41,7 @@ class CubicBSplineGeometry:
 
     @property
     def feature_counts(self) -> tuple[int, ...]:
-        return tuple(len(knots) - self.degree - 1 for knots in self.knots)
+        return tuple(len(knots) - CUBIC_BSPLINE_DEGREE - 1 for knots in self.knots)
 
     @property
     def feature_count(self) -> int:
@@ -111,16 +113,16 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
         return knots
 
     @staticmethod
-    def _basis(values: torch.Tensor, knots: torch.Tensor, degree: int = 3) -> torch.Tensor:
-        count = knots.numel() - degree - 1
+    def _basis(values: torch.Tensor, knots: torch.Tensor) -> torch.Tensor:
+        count = knots.numel() - CUBIC_BSPLINE_DEGREE - 1
         bases = [
             ((values >= knots[index]) & (values < knots[index + 1])).to(values.dtype)
-            for index in range(count + degree)
+            for index in range(count + CUBIC_BSPLINE_DEGREE)
         ]
         bases[-1] = ((values >= knots[-2]) & (values <= knots[-1])).to(values.dtype)
-        for order in range(1, degree + 1):
+        for order in range(1, CUBIC_BSPLINE_DEGREE + 1):
             next_bases = []
-            for index in range(count + degree - order):
+            for index in range(count + CUBIC_BSPLINE_DEGREE - order):
                 left_denominator = knots[index + order] - knots[index]
                 right_denominator = knots[index + order + 1] - knots[index + 1]
                 left = torch.zeros_like(values) if left_denominator == 0 else (values - knots[index]) / left_denominator * bases[index]

@@ -314,7 +314,3 @@ class PerEventNuisanceEstimator(NuisanceCalculation):
 
     def initialize_parameters(self, gain: float) -> None:
         self.network.initialize_parameters(gain)
-
-
-# Kept for callers that used the former neural-specific name.
-NeuralPerEventNuisanceEstimator = PerEventNuisanceEstimator

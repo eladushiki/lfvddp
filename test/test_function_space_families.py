@@ -11,7 +11,7 @@ from neural_networks.function_spaces import (
     create_function_space,
 )
 from neural_networks.nuisance_calculation import (
-    NeuralPerEventNuisanceEstimator,
+    PerEventNuisanceEstimator,
     ScalarBinnedNuisanceEstimator,
 )
 from train.function_space_config import FunctionSpaceFamily, FunctionSpaceRole
@@ -34,6 +34,8 @@ def test_registry_constructs_supported_families_for_both_typed_roles():
         )
         assert isinstance(adaptive, AdaptiveNeuralFunction)
         assert isinstance(binned, BinIndicatorFunction)
+        assert adaptive.prediction_grid_edges() is None
+        np.testing.assert_equal(binned.prediction_grid_edges(), binned.geometry.edges)
 
 
 def test_role_construction_does_not_alias_geometry_or_options():
@@ -98,7 +100,7 @@ def test_family_owned_nuisance_adapters_retain_their_function_space_instances():
         device=torch.device("cpu"),
     )
 
-    assert isinstance(neural_adapter, NeuralPerEventNuisanceEstimator)
+    assert isinstance(neural_adapter, PerEventNuisanceEstimator)
     assert neural_adapter.network is adaptive
     assert isinstance(binned_adapter, ScalarBinnedNuisanceEstimator)
     assert binned_adapter._bin_lookup is binned

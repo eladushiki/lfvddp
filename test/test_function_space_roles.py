@@ -15,7 +15,6 @@ from neural_networks.function_spaces import (
 )
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
-    NeuralPerEventNuisanceEstimator,
     PerEventNuisanceEstimator,
     ScalarBinnedNuisanceEstimator,
     build_nuisance_calculation,
@@ -112,7 +111,7 @@ def test_model_builds_independent_same_family_role_adapters():
     )
 
     assert isinstance(model.signal_region_shift_network, AdaptiveNeuralFunction)
-    assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceEstimator)
+    assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
     assert isinstance(model.nuisance_calculation.network, AdaptiveNeuralFunction)
     assert model.signal_region_shift_network.hidden.out_features == 5
     assert model.nuisance_calculation.network.hidden.out_features == 3
@@ -151,7 +150,7 @@ def test_model_builds_fixed_family_for_both_roles():
     )
 
     assert isinstance(model.signal_region_shift_network, FixedSigmoidFunction)
-    assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceEstimator)
+    assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
     events = torch.tensor([[0.0, 0.5], [1.0, -0.5]], dtype=torch.float64)
     assert model.signal_region_shift_network(events).shape == (2, 1)
     assert model.nuisance_calculation.network(events).shape == (2, 1)
@@ -228,7 +227,7 @@ def test_deterministic_family_uses_the_shared_nuisance_adapter():
         device=torch.device("cpu"),
     )
 
-    assert isinstance(nuisance, NeuralPerEventNuisanceEstimator)
+    assert isinstance(nuisance, PerEventNuisanceEstimator)
     assert isinstance(nuisance.network, CubicBSplineFunction)
 
 

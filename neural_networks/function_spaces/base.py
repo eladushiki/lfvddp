@@ -90,6 +90,10 @@ class FunctionSpace(Protocol):
     ) -> "NuisanceCalculation":
         ...
 
+    def prediction_grid_edges(self) -> Optional[tuple[npt.NDArray[np.float64], ...]]:
+        """Return family-owned bin edges when a prediction grid needs them."""
+        ...
+
 
 def unexpected_construction_options(
     family: FunctionSpaceFamily,
@@ -180,6 +184,11 @@ def events_tensor(
 
 class PerEventFunctionSpace(nn.Module):
     """A trainable function space evaluated independently for each event."""
+
+    def prediction_grid_edges(self) -> Optional[tuple[npt.NDArray[np.float64], ...]]:
+        """Return no bin geometry for families without a binned prediction grid."""
+
+        return None
 
     def build_nuisance_calculation(
         self,

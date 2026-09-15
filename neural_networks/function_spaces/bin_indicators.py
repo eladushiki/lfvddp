@@ -138,15 +138,10 @@ class BinIndicatorFunction(PerEventFunctionSpace):
                 persistent=False,
             )
 
-    def detach_factor_deltas(self) -> nn.ParameterDict:
-        """Retain coefficient lookup while transferring parameter ownership."""
+    def prediction_grid_edges(self) -> tuple[npt.NDArray[np.float64], ...]:
+        """Expose the family-owned bin edges required for prediction grids."""
 
-        factor_deltas = self._factor_deltas
-        if not isinstance(factor_deltas, nn.ParameterDict):
-            raise RuntimeError("Bin-indicator coefficients have already been detached.")
-        del self._factor_deltas
-        self._factor_deltas = dict(factor_deltas)
-        return factor_deltas
+        return self.geometry.edges
 
     @property
     def input_dimension(self) -> int:
@@ -237,8 +232,7 @@ class BinIndicatorFunction(PerEventFunctionSpace):
     def forward(self, events: EventInput) -> torch.Tensor:
         return self.values_from_indices(self._tensor_bin_indices(events)).unsqueeze(-1)
 
-    def initialize_parameters(self, gain: float) -> None:
-        del gain
+    def initialize_parameters(self, _gain: float) -> None:
         for parameter in self._factor_deltas.values():
             nn.init.normal_(parameter, mean=0.0, std=1e-3)
 

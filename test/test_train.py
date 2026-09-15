@@ -17,7 +17,7 @@ from neural_networks.likelihood_parameterization import (
     smoothly_bounded_likelihood_shift,
 )
 from neural_networks.nuisance_calculation import (
-    NeuralPerEventNuisanceEstimator,
+    PerEventNuisanceEstimator,
     NuisanceEvaluation,
     ScalarBinnedNuisanceEstimator,
     WeightedNuisanceValues,
@@ -605,7 +605,7 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
 
     prepared = model._prepare_training_data(detected_batch)
 
-    assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceEstimator)
+    assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
     assert prepared.nuisance_data.cr_inputs is not None
     assert prepared.nuisance_data.cr_inputs.shape[0] == prepared.number_of_cr_events
     assert prepared.nuisance_data.number_of_a_cr_events == prepared.N_a_cr

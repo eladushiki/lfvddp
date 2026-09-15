@@ -12,8 +12,8 @@ from scipy.stats import chi2
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
-from neural_networks.function_spaces import BinIndicatorFunction, create_function_space
-from train.function_space_config import FunctionSpaceFamily, FunctionSpaceSpec
+from neural_networks.function_spaces import create_function_space
+from train.function_space_config import FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
@@ -777,11 +777,10 @@ def _prediction_spanning_dataset(
 ) -> DataSet:
     """Build the prediction grid from display axes and nuisance geometry."""
     nuisance_bins_by_observable: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-    if nuisance_spec.family is FunctionSpaceFamily.BIN_INDICATORS:
-        nuisance_lookup = create_function_space("nuisance", nuisance_spec)
-        if not isinstance(nuisance_lookup, BinIndicatorFunction):
-            raise TypeError("Binned nuisance specification did not create a bin lookup.")
-        if len(configured_observables) != len(nuisance_lookup.geometry.number_of_bins):
+    nuisance_lookup = create_function_space("nuisance", nuisance_spec)
+    nuisance_edges = nuisance_lookup.prediction_grid_edges()
+    if nuisance_edges is not None:
+        if len(configured_observables) != len(nuisance_edges):
             raise ValueError("Nuisance bin geometry dimension does not match configured observables.")
         nuisance_bins_by_observable = {
             observable_name: (
@@ -789,7 +788,7 @@ def _prediction_spanning_dataset(
                 0.5 * (edges[:-1] + edges[1:]),
             )
             for observable_name, edges in zip(
-                configured_observables, nuisance_lookup.geometry.edges
+                configured_observables, nuisance_edges
             )
         }
 
