@@ -2,16 +2,20 @@ import pytest
 import torch
 
 from neural_networks.function_spaces import (
+    AdaptiveNeuralFunction,
+    BinIndicatorFunction,
     CubicBSplineFunction,
     FixedSigmoidFunction,
     GaussianRadialBasisFunction,
     OrthogonalPolynomialFunction,
     create_function_space,
 )
-from train.function_space_config import resolve_dual_role_config
+from train.function_space_config import FunctionSpaceFamily, resolve_dual_role_config
 
 
 FAMILY_OPTIONS = {
+    "adaptive_neural": {"input_dimension": 1, "hidden_layer_nodes": 2},
+    "bin_indicators": {"minima": [0.0], "maxima": [3.0], "number_of_bins": [3]},
     "cubic_bspline": {"knots": [0.0, 1.0, 2.0, 3.0]},
     "orthogonal_polynomial": {
         "basis": "legendre",
@@ -22,23 +26,35 @@ FAMILY_OPTIONS = {
     "gaussian_radial_basis": {"centers": [-1.0, 1.0], "widths": [0.5, 0.5]},
 }
 
+FAMILY_TYPES = {
+    "adaptive_neural": AdaptiveNeuralFunction,
+    "bin_indicators": BinIndicatorFunction,
+    "cubic_bspline": CubicBSplineFunction,
+    "orthogonal_polynomial": OrthogonalPolynomialFunction,
+    "fixed_sigmoid": FixedSigmoidFunction,
+    "gaussian_radial_basis": GaussianRadialBasisFunction,
+}
 
-def test_all_deterministic_families_are_factory_created_for_both_roles():
-    expected = {
-        "cubic_bspline": CubicBSplineFunction,
-        "orthogonal_polynomial": OrthogonalPolynomialFunction,
-        "fixed_sigmoid": FixedSigmoidFunction,
-        "gaussian_radial_basis": GaussianRadialBasisFunction,
-    }
+DETERMINISTIC_FAMILY_OPTIONS = {
+    family: FAMILY_OPTIONS[family]
+    for family in (
+        "cubic_bspline",
+        "orthogonal_polynomial",
+        "fixed_sigmoid",
+        "gaussian_radial_basis",
+    )
+}
+
+
+def test_all_function_space_families_are_factory_created_for_both_roles():
+    assert set(FAMILY_OPTIONS) == {family.value for family in FunctionSpaceFamily}
     for role in ("f", "nuisance"):
         for family, options in FAMILY_OPTIONS.items():
             space = create_function_space(role, family, options, dtype=torch.float64)
-            assert type(space) is expected[family]
-            assert space.features(torch.tensor([[0.5], [1.5]], dtype=torch.float64)).shape == (
-                2,
-                space.feature_count,
-            )
-            assert space.evaluate(torch.tensor([[0.5], [1.5]], dtype=torch.float64)).shape == (2, 1)
+            assert type(space) is FAMILY_TYPES[family]
+            assert space.evaluate(
+                torch.tensor([[0.5], [1.5]], dtype=torch.float64)
+            ).shape == (2, 1)
 
 
 def test_feature_counts_and_multidimensional_geometry_are_explicit():
@@ -94,7 +110,7 @@ def test_fixed_sigmoid_and_radial_values_use_their_documented_formulas():
 
 
 def test_fixed_maps_are_linear_in_their_common_coefficients():
-    for family, options in FAMILY_OPTIONS.items():
+    for family, options in DETERMINISTIC_FAMILY_OPTIONS.items():
         space = create_function_space("nuisance", family, options, dtype=torch.float64)
         with torch.no_grad():
             space.coefficients.copy_(torch.arange(space.feature_count, dtype=torch.float64)[:, None])
@@ -134,12 +150,24 @@ def test_dtype_and_device_follow_the_constructed_module():
 @pytest.mark.parametrize(
     "config, message",
     [
+        ({"family": "bin_indicators", "options": {"minima": [0], "maxima": [1]}}, "requires"),
         ({"family": "fixed_sigmoid", "options": {"centers": [0], "widths": [0]}}, "positive"),
         ({"family": "orthogonal_polynomial", "options": {"basis": "fourier", "maximum_degree": 2, "domain": [0, 1]}}, "legendre"),
         ({"family": "cubic_bspline", "options": {"knots": [0, 1, 1]}}, "knots"),
         ({"family": "gaussian_radial_basis", "options": {"centers": [0]}}, "requires"),
     ],
 )
-def test_invalid_deterministic_options_fail_canonically(config, message):
+def test_invalid_function_space_options_fail_canonically(config, message):
     with pytest.raises(ValueError, match=message):
-        resolve_dual_role_config(f=config, nuisance={"family": "bin_indicators", "options": {"minima": [0], "maxima": [1], "number_of_bins": [2]}})
+        resolve_dual_role_config(
+            f=config,
+            nuisance={
+                "family": "bin_indicators",
+                "options": {"minima": [0], "maxima": [1], "number_of_bins": [2]},
+            },
+        )
+
+
+def test_invalid_adaptive_neural_options_fail_canonically():
+    with pytest.raises(ValueError, match="requires input_dimension"):
+        create_function_space("f", "adaptive_neural", {"input_dimension": 1})

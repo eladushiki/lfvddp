@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -21,10 +21,8 @@ from neural_networks.function_spaces.base import (
     unexpected_construction_options,
 )
 from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
+from neural_networks.nuisance_contract import NuisanceCalculation
 from train.function_space_config import FunctionSpaceFamily
-
-if TYPE_CHECKING:
-    from neural_networks.nuisance_calculation import NuisanceCalculation
 
 
 @dataclass(frozen=True)

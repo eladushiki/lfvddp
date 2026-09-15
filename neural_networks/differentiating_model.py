@@ -23,11 +23,13 @@ from neural_networks.function_spaces import create_function_space
 from neural_networks.nuisance_calculation import (
     BlankNuisanceEstimator,
     PerEventNuisanceEstimator,
+    ScalarBinnedNuisanceEstimator,
+    build_nuisance_calculation,
+)
+from neural_networks.nuisance_contract import (
     NuisanceEvaluation,
     PreparedNuisanceData,
-    ScalarBinnedNuisanceEstimator,
     WeightedNuisanceValues,
-    build_nuisance_calculation,
 )
 from train.function_space_config import FunctionSpaceRole
 from neural_networks.utils import (
