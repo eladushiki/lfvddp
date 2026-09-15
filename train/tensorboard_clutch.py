@@ -11,6 +11,9 @@ def log_t_history_to_tensorboard(
     history: Mapping[str, Any],
 ) -> None:
     """Log the numerator, denominator, and derived t progress for one sample."""
+    if not context.is_debug_mode:
+        return
+
     import sys
     print(sys.executable)
 

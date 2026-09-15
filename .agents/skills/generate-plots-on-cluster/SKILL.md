@@ -69,9 +69,33 @@ python plot/create_plots.py <remote-submission-directory>
 ```
 
 Verify that the command succeeds and creates the configured single-submission
-figures. Then set the submission to `analyzed` and record
-`single_run_plot.completed_at`. A rerun must skip submissions already marked
-`analyzed` unless the user explicitly requests regeneration.
+figures. This verification must happen before checkpoint cleanup, because a
+single-run plot can read training outcomes. Then clean the completed
+single-train outcomes as follows:
+
+1. Reconfirm that every tracked array job completed successfully, every saved
+   `single_train.py` context reports `run_successful: true`, and scheduler
+   evidence does not call for a `--continue ... --extra-time` recovery. Never
+   clean an active, failed, partial, or walltime-killed submission, or one
+   selected for continuation.
+2. From each saved `context.json` for a `single_train.py` run in the timestamped
+   submission directory, derive that run's `training_outcomes` directory. Check
+   that the derived directory is directly below that run directory and that the
+   run directory is below the tracked `remote_submission_directory`; do not use
+   a broad recursive target or a guessed path.
+3. Delete every item *inside* each verified `training_outcomes` directory while
+   retaining the directory itself. Use a path-validated command such as
+   `find "$training_outcomes_dir" -mindepth 1 -depth -delete`, then verify that
+   `find "$training_outcomes_dir" -mindepth 1 -print -quit` emits nothing.
+   This removes checkpoints, histories, profiler outputs, and debug-only
+   TensorBoard logs, but retains final results and plots outside that directory.
+4. Record the verified run directories, scheduler evidence, and cleanup time
+   in `training_outcomes_cleanup` on the submission. A later run must skip an
+   already recorded cleanup unless the user explicitly regenerates results.
+
+Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
+A rerun must skip submissions already marked `analyzed` unless the user
+explicitly requests regeneration.
 
 ## Multi-run plots
 
