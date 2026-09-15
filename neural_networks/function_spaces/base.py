@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from enum import Enum
 from types import MappingProxyType
 from typing import (
-    TYPE_CHECKING,
     Any,
     Iterable,
     Mapping,
@@ -23,10 +22,8 @@ import torch
 from torch import nn
 
 from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
+from neural_networks.nuisance_contract import NuisanceCalculation
 from train.function_space_config import FunctionSpaceFamily
-
-if TYPE_CHECKING:
-    from neural_networks.nuisance_calculation import NuisanceCalculation
 
 
 class FunctionSpaceRegularity(str, Enum):
