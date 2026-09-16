@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -6,6 +7,7 @@ import torch
 
 from data_tools.data_utils import DataSet
 from frame.command_line.handle_args import create_config_from_paths
+from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
@@ -29,7 +31,7 @@ from train.checkpoints import (
 )
 from train.model_trainer import SequentialTrainLauncher
 from train.runtime_resources import RuntimeAllocation
-from train.tensorboard_clutch import log_t_history
+from train.tensorboard_clutch import log_t_history, log_t_history_to_tensorboard
 
 
 @pytest.mark.parametrize("unbounded_value", [-2.0, 2.0])
@@ -1046,6 +1048,27 @@ def test_t_history_is_logged_to_tensorboard():
         ("A/t", 1.0, 9),
     ]
     assert recorder.histograms == []
+
+
+@pytest.mark.parametrize("is_debug_mode", [False, True])
+def test_tensorboard_output_requires_debug_mode(tmp_path, is_debug_mode):
+    context = SimpleNamespace(
+        is_debug_mode=is_debug_mode,
+        training_outcomes_dir=tmp_path / "training_outcomes",
+    )
+    history = {
+        HistoryKeys.EPOCH.value: [1],
+        HistoryKeys.NUMERATOR.value: [1.5],
+        HistoryKeys.DENOMINATOR.value: [2.0],
+        HistoryKeys.T.value: [1.0],
+    }
+
+    log_t_history_to_tensorboard(context, "A", history)
+
+    log_dir = context.training_outcomes_dir / TENSORBOARD_LOG_DIR_NAME
+    assert log_dir.exists() is is_debug_mode
+    if is_debug_mode:
+        assert any(log_dir.iterdir())
 
 
 @pytest.mark.parametrize(
