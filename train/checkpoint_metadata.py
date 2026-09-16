@@ -54,7 +54,7 @@ def build_checkpoint_metadata(
         json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     return {
-        "format_version": 1,
+        "format_version": 2,
         **compatibility,
         "config_fingerprint": fingerprint,
         "normalization_factor": (

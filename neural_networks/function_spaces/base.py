@@ -21,6 +21,8 @@ import numpy.typing as npt
 import torch
 from torch import nn
 
+from data_tools.data_utils import ShiftAndNormalizationFactor
+
 from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
 from neural_networks.nuisance_contract import NuisanceCalculation
 from train.function_space_config import FunctionSpaceFamily
@@ -94,6 +96,14 @@ class FunctionSpace(Protocol):
 
     def prediction_grid_edges(self) -> Optional[tuple[npt.NDArray[np.float64], ...]]:
         """Return family-owned bin edges when a prediction grid needs them."""
+        ...
+
+    def normalize_input_geometry(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: Iterable[str],
+    ) -> None:
+        """Map physical configuration geometry into model-input coordinates."""
         ...
 
 
@@ -191,6 +201,15 @@ class PerEventFunctionSpace(nn.Module):
         """Return no bin geometry for families without a binned prediction grid."""
 
         return None
+
+    def normalize_input_geometry(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: Iterable[str],
+    ) -> None:
+        """Accept normalized inputs; geometry-free families need no adjustment."""
+
+        del normalization_factor, observable_names
 
     def build_nuisance_calculation(
         self,

@@ -30,13 +30,18 @@ Support these top-level modes:
    linear output coefficients are fitted. Configurable number of neurons.
 4. `cubic_bspline`: cubic B-spline basis functions with fixed knots.
 5. `orthogonal_polynomial`: Legendre or Chebyshev functions through a configured
-  maximum degree on the normalized observable domain.
+  maximum degree on a configured physical observable domain, normalized with
+  the data at evaluation time.
 
 Basis geometry must not be selected from the A/B labels being tested. It may be
 specified directly, derived from physics or simulation, or learned from an
 independent reference sample. The adaptive-neural mode remains available when
 data-driven feature location and scale are required; its null distribution is
 to be calibrated empirically rather than inferred from raw parameter count.
+Geometry comparable to observable axes—bin limits, spline knots, polynomial
+domains, centres, and widths—must be written in physical observable units. A
+single pooled affine transform maps both events and per-event geometry into the
+model coordinates; raw configuration geometry remains immutable.
 
 ## Mehtod
 - Split to several milestones - the infrastructure overhaul itself, then each

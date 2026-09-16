@@ -54,6 +54,9 @@ def _exercise_model(context, detector_effect, data_batch, name):
         dtype=torch.float64,
         device="cpu",
     )
+    # Geometry is transformed once from its physical configuration coordinates
+    # using the same batch affine map as the model inputs.
+    model._prepare_training_data(data_batch)
     fixed_buffers_before = _buffer_snapshot(model)
     coefficient_parameters = dict(model.signal_region_shift_network.named_parameters())
     coefficients = coefficient_parameters.get("coefficients")

@@ -8,6 +8,8 @@ from typing import Any, Mapping, Optional
 import numpy as np
 import torch
 
+from data_tools.data_utils import ShiftAndNormalizationFactor
+
 from neural_networks.function_spaces.base import (
     DeterministicFeatureFunction,
     EventInput,
@@ -114,3 +116,20 @@ class CenteredFeatureFunction(DeterministicFeatureFunction):
             device=self.coefficients.device,
         )
         return (values[:, None, :] - self._centers[None, :, :]) / self._widths[None, :, :]
+
+    def normalize_input_geometry(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: tuple[str, ...],
+    ) -> None:
+        """Derive normalized buffers from immutable physical centres and widths."""
+
+        if len(observable_names) != self.input_dimension:
+            raise ValueError("Function-space geometry does not match the observable dimension.")
+        centers = normalization_factor.normalize_values(
+            self.geometry.centers, observable_names
+        )
+        widths = normalization_factor.scale_values(self.geometry.widths, observable_names)
+        with torch.no_grad():
+            self._centers.copy_(torch.as_tensor(centers, dtype=self._centers.dtype, device=self._centers.device))
+            self._widths.copy_(torch.as_tensor(widths, dtype=self._widths.dtype, device=self._widths.device))

@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
+import numpy as np
 import torch
+
+from data_tools.data_utils import ShiftAndNormalizationFactor
 
 from neural_networks.function_spaces.base import (
     CoefficientTopology,
@@ -98,6 +101,21 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
         cls, options: Mapping[str, Any]
     ) -> OrthogonalPolynomialGeometry:
         return OrthogonalPolynomialGeometry.from_options(options)
+
+    def normalize_input_geometry(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: tuple[str, ...],
+    ) -> None:
+        """Derive a normalized polynomial domain from physical configuration values."""
+
+        if len(observable_names) != self.input_dimension:
+            raise ValueError("Function-space geometry does not match the observable dimension.")
+        normalized_domain = normalization_factor.normalize_values(
+            np.asarray(self.geometry.domain).T, observable_names
+        ).T
+        with torch.no_grad():
+            self._domain.copy_(torch.as_tensor(normalized_domain, dtype=self._domain.dtype, device=self._domain.device))
 
     def features(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(

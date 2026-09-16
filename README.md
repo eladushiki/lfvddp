@@ -98,7 +98,10 @@ Important configuration choices include:
   `adaptive_neural`, `bin_indicators`, `cubic_bspline`,
   `orthogonal_polynomial` (Legendre or Chebyshev), `fixed_sigmoid`, and
   `gaussian_radial_basis`. The roles resolve independently; equal family names
-  do not share mutable geometry.
+  do not share mutable geometry. Geometry comparable to observable axes
+  (bin limits, spline knots, polynomial domains, centres, and widths) is given
+  in physical observable units; LFVDDP applies the run's shared data
+  normalization before evaluating per-event function spaces.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Adaptive neural and NPLM studies require empirical-null
   calibration rather than assigning Wilks degrees of freedom from parameter

@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional, Sequence
 
+import numpy as np
 import torch
+
+from data_tools.data_utils import ShiftAndNormalizationFactor
 
 from neural_networks.function_spaces.base import (
     CoefficientTopology,
@@ -107,6 +110,23 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
         knots = self._buffers[f"_knots_{dimension}"]
         assert isinstance(knots, torch.Tensor)
         return knots
+
+    def normalize_input_geometry(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: tuple[str, ...],
+    ) -> None:
+        """Derive normalized knots from the immutable physical knot vectors."""
+
+        if len(observable_names) != self.input_dimension:
+            raise ValueError("Function-space geometry does not match the observable dimension.")
+        with torch.no_grad():
+            for dimension, (name, knots) in enumerate(zip(observable_names, self.geometry.knots)):
+                normalized = normalization_factor.normalize_values(
+                    np.asarray(knots)[:, None], (name,)
+                )[:, 0]
+                buffer = self._knot_vector(dimension)
+                buffer.copy_(torch.as_tensor(normalized, dtype=buffer.dtype, device=buffer.device))
 
     @staticmethod
     def _basis(values: torch.Tensor, knots: torch.Tensor) -> torch.Tensor:

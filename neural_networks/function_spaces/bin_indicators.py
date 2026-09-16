@@ -10,6 +10,7 @@ import numpy.typing as npt
 import torch
 from torch import nn
 
+from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import (
     CoefficientTopology,
     EventInput,
@@ -140,6 +141,21 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         """Expose the family-owned bin edges required for prediction grids."""
 
         return self.geometry.edges
+
+    def normalize_input_geometry(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: tuple[str, ...],
+    ) -> None:
+        """Derive normalized lookup edges from immutable physical bin geometry."""
+
+        if len(observable_names) != self.input_dimension:
+            raise ValueError("Function-space geometry does not match the observable dimension.")
+        with torch.no_grad():
+            for dimension, (name, edges) in enumerate(zip(observable_names, self.geometry.edges)):
+                normalized = normalization_factor.normalize_values(edges[:, None], (name,))[:, 0]
+                buffer = getattr(self, f"_edges_{dimension}")
+                buffer.copy_(torch.as_tensor(normalized, dtype=buffer.dtype, device=buffer.device))
 
     @property
     def input_dimension(self) -> int:

@@ -20,7 +20,10 @@ from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.function_spaces import create_function_space
-from neural_networks.nuisance_calculation import build_nuisance_calculation
+from neural_networks.nuisance_calculation import (
+    PerEventNuisanceEstimator,
+    build_nuisance_calculation,
+)
 from neural_networks.nuisance_contract import (
     NuisanceEvaluation,
     PreparedNuisanceData,
@@ -344,6 +347,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         a_cr = data.datasets[categories.A_CR]
         b_cr = data.datasets[categories.B_CR]
 
+        self._normalize_function_space_geometry(a_sr.observable_names)
+
         N_sr = a_sr.n_samples + b_sr.n_samples
         N_cr = a_cr.n_samples + b_cr.n_samples
         if N_sr == 0:
@@ -381,6 +386,19 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             nuisance_cr_coefficient=(a_cr.n_samples - b_cr.n_samples)
             / N_cr,
         )
+
+    def _normalize_function_space_geometry(self, observable_names) -> None:
+        """Align physical configured geometry with the data's affine input map."""
+
+        assert self._norm_factor is not None
+        if self._is_numerator:
+            self.signal_region_shift_network.normalize_input_geometry(
+                self._norm_factor, observable_names
+            )
+        if isinstance(self.nuisance_calculation, PerEventNuisanceEstimator):
+            self.nuisance_calculation.network.normalize_input_geometry(
+                self._norm_factor, observable_names
+            )
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
         self._training_history[HistoryKeys.LOSS.value].append(
@@ -578,6 +596,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         """Evaluate the configured nuisance estimator for prediction data."""
         if self._norm_factor is None:
             raise RuntimeError("Cannot predict before the model has been fitted.")
+        self._normalize_function_space_geometry(data.observable_names)
         return self.nuisance_calculation.prediction_values(
             raw_data=data,
             normalized_data=data / self._norm_factor,
@@ -591,6 +610,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> npt.NDArray:
         if self._norm_factor is None:
             raise RuntimeError("Cannot predict before the model has been fitted.")
+        self._normalize_function_space_geometry(data.observable_names)
         normalized_data = data / self._norm_factor
         x_tensor = torch.tensor(
             normalized_data.events,

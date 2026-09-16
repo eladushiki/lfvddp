@@ -42,45 +42,45 @@ _BASELINES = {
         "initial_state": (
             "0b26c5791d2b28c988c93ec2b43df6fee4225400e319bae5e83bbb250d13a080"
         ),
-        "initial_loss": "0x1.2c7c35a786bc3p+5",
+        "initial_loss": "0x1.ffa27259c6784p+4",
         "one_step_prediction": (
-            "0f9d32f0e0a6106946d012301882d777007754f1f6f1ef165befd652031744a1"
+            "6bdd3e7721fee946af69278e1162df6ec92ddb4906ea39125012e20b3ed643b2"
         ),
         "continued_state": (
-            "1d58a9c7933e18025e481403ad3b1bec5408bea409ef1889c34d90a8cd5caa6f"
+            "3ea454dfbd8d7bc31e5e56d66df3ace75762d8c13c34371af0af4e381c4e558a"
         ),
         "continued_prediction": (
-            "a429ff3b0c41d5ad6c5c22053902b16259ac7f10d95a1b219c916f048f4a9c0c"
+            "2084701adb6ca5cdd9b1065e64c361f69e3add3d613d0cec7ae22e23ec815326"
         ),
     },
     "disabled": {
         "initial_state": (
             "2bf7dabca1b0d5d924df48ac90612ad14606164bc5eb7f6590e1d31ebeb1eaf5"
         ),
-        "initial_loss": "0x1.2c79ca6ddaff9p+5",
+        "initial_loss": "0x1.ffafbb0fa5cb2p+4",
         "one_step_prediction": (
-            "140b6c30b651c962f9de184ea80f4bbd53efaadab9f7ff38b341836379f78984"
+            "334f8bf1c93708d42f1c1aaf5ef7c298bfe79e935b6d623d49a57078a79903bd"
         ),
         "continued_state": (
-            "d381ffbf3f944a4326c1dce07e66e89d655e3f3a6c8186136c8e470fcf02ff8b"
+            "ff91546963c0f379f362cdc198ed995de29234f4a848eb6535876087493f67de"
         ),
         "continued_prediction": (
-            "d00587e2b81d32cf9d2539f8abc90a89bfa66b350134d45ea4b5536a66b0f954"
+            "6d478d1a135eee80f043b26d72974202aca8e051809da3270780105b384fbd2d"
         ),
     },
     "neural": {
         "initial_state": (
             "1baccdf56705aa8fdc4ffeb3fe1049706d4b02aa5c419707dced28684dfe3e17"
         ),
-        "initial_loss": "0x1.b4d4c43d9f3a1p+4",
+        "initial_loss": "0x1.c162b9fe16504p+4",
         "one_step_prediction": (
-            "273e1ec45147adfb2ce778ede720e9ae8cce6ff0e9195b66003f7fd407b95619"
+            "593e400d91a2948e1fdb9e6179d85b4160d1c157dd3f5b9bd0ca2e4a2fd4c155"
         ),
         "continued_state": (
-            "5f055727713f06153c6808270461eb9fcf4acd5320973c2be3523d3f1cd79c38"
+            "33f9846f89a5ab40fb201ed9233b308b164c0938428981fea7bf25880c890550"
         ),
         "continued_prediction": (
-            "cad321410c527655a5945d0aa78482d0e60cfcc98a6d81b50fab9da5e646de6c"
+            "c8db4545eaf8b07065ee77c3aa5d3142c936492387856e4dd1035ca5d0e1ad25"
         ),
     },
 }
