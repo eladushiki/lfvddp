@@ -26,11 +26,15 @@ second connection.
   `qstat -tu $USER | grep <state-letter> | wc -l`.
 - Match only job IDs saved in submission `attempts`. Do not add pre-existing or
   otherwise unknown scheduler jobs to state.
-- Mark a submission `finished` only when every saved array job has left active
-  states and completed successfully. Record `finished_at`.
+- Mark a submission `finished` when every saved array job has left active states
+  and either all elements succeeded or more than 90% of the expected elements
+  have individually verified exit status 0. Record `finished_at`, and for an
+  accepted partial result also record the successful and expected counts plus
+  the completion basis.
 - Record failures and their scheduler evidence in `last_error`; do not plot a
-  failed or partially completed array. Handle scheduler walltime kills with the
-  continuation procedure below; other failures remain blocked.
+  failed array or a partial result at or below the acceptance threshold. Handle
+  scheduler walltime kills with the continuation procedure below; other
+  failures remain blocked.
 
 ## Continue walltime-killed submissions
 

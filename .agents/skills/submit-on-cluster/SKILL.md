@@ -1,6 +1,6 @@
 ---
 name: submit-on-cluster
-description: "Submit explicitly requested ATLAS array jobs in saved priority order without exceeding the queued-element quota."
+description: "Submit explicitly requested ATLAS array jobs in saved priority order while letting PBS enforce its live queue quota."
 ---
 
 # Submit on Cluster
@@ -17,10 +17,8 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 
 - Count queued elements with `qstat -tu $USER | grep Q | wc -l` and running
   elements with `qstat -tu $USER | grep R | wc -l`.
-- The enforced queued-element limit is read from state and starts at exactly
-  1000, with no reserved capacity.
 - Existing untracked jobs are not added to state, but their scheduler rows
-  count toward quota calculations.
+  are included in scheduler reporting.
 - Never pull, checkout, reset, merge, rebase, or replace the checkout while any
   jobs are queued or running. This is not a submission gate: record the current
   branch and commit, then submit more jobs from the same checkout when quota
@@ -36,11 +34,9 @@ For the first `requested` entry:
 
 1. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
    definition in the pack and is not copied into state.
-2. Recount queued elements immediately before submission.
-3. Submit the whole array only when `queued + cluster__qsub_n_jobs` is at most
-   `limits.max_queued_elements`. Do not split it or reserve scheduler capacity.
-   If it does not fit, leave it `requested` and continue scanning saved requests
-   for an array that fits.
+2. Recount queued elements immediately before submission for reporting.
+3. Submit the whole array and let PBS enforce its current quota. Never split an
+   array or reserve capacity locally.
 4. Use the entry's `output_root`. Explicit pack values take precedence; seeded
    Plot 01-05 requests derive missing roots as
    `results/highlights/2026-09/plot-XX`.
@@ -58,19 +54,18 @@ For the first `requested` entry:
    $USER` before updating state. A returned `qsub` ID alone is not evidence
    that training is running. If an array is absent, inspect its PBS output and
    scheduler history; record it as failed or blocked rather than `submitted`.
-   Only then update the same entry to `submitted` with an initial `attempt`
-   containing its job IDs and timestamp, the timestamped directory, and the
-   observed remote commit.
+   Only then update the same entry to `submitted` with an `initial` attempt for
+   its first submission or a `rerun` attempt when prior attempts exist. Save its
+   job IDs and timestamp, the new timestamped directory, and the observed remote
+   commit.
 8. Continue until no `requested` entries remain.
 
 If PBS rejects a whole array because of its current queue-state quota, keep the
 entry `requested`, record `last_error`, and defer it only for this routine run.
-Do not retry the same deferred entry again during that run. If PBS reports an
-explicit numeric limit, save it as the observed limit; otherwise infer the
-upper bound from the rejected array and tighten the enforced limit as described
-in the state schema. Apply the narrowly authorized pre-`qsub` cleanup rule in
-`generate-plots-on-cluster`, then continue scanning later saved requests for
-arrays PBS will accept.
+Do not retry the same deferred entry again during that run. Apply the narrowly
+authorized pre-`qsub` cleanup rule in `generate-plots-on-cluster`, then continue
+scanning later saved requests for arrays PBS will accept. Do not infer or save
+an internal quota from the rejection.
 
 For other submission or verification failures, keep the entry in place, set it
 `blocked` with `blocked_reason` and `last_error`, and stop processing so later
