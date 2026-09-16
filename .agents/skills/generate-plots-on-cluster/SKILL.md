@@ -45,7 +45,7 @@ walltime:
 3. Continue the saved run without debug mode:
 
    ```sh
-   python train/submit_train.py \
+   python -m train.submit_train \
      --continue <remote-submission-directory> \
      --extra-time <HH:MM:SS>
    ```
@@ -65,7 +65,7 @@ For each newly `finished` submission, use its saved timestamped
 `remote_submission_directory`:
 
 ```sh
-python plot/create_plots.py <remote-submission-directory>
+python -m plot.create_plots <remote-submission-directory>
 ```
 
 Verify that the command succeeds and creates the configured single-submission
@@ -87,7 +87,7 @@ a different background at runtime.
 Run:
 
 ```sh
-python plot/create_plots.py <remote-multi-run-directory> \
+python -m plot.create_plots <remote-multi-run-directory> \
   --multi-run-plots \
   --background-directory <background-submission-directory>
 ```

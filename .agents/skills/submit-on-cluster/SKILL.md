@@ -47,7 +47,7 @@ For the first `requested` entry:
 5. Run the current submission entry point from the observed remote checkout:
 
    ```sh
-   python train/submit_train.py --configs <config-pack> \
+   python -m train.submit_train --configs <config-pack> \
      --only-train --out-dir <output-root>
    ```
 
