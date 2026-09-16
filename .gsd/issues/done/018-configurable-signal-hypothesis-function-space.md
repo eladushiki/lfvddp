@@ -122,3 +122,10 @@ model coordinates; raw configuration geometry remains immutable.
   in the empirical null calibration.
 - Add background-only cluster configuration packs for at least bin indicators,
   cubic B-splines, and fixed sigmoids.
+
+## Implementation note
+
+The executable background-only cluster packs live in `configs/background-only`.
+Their function-space and nuisance geometry is specified in physical observable
+units from 0 to 10; training applies the shared pooled normalization to those
+coordinates together with each event batch.
