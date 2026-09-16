@@ -6,10 +6,28 @@
     "train__learning_rate": 0.03,
     "train__final_learning_rate": 0.001,
     "train__enable_progress_bar": false,
-    "train__nuisance_binning_minima": 0,
-    "train__nuisance_binning_maxima": [
-        5,
-        2.45
-    ],
-    "train__nuisance_binning_number_of_bins": 10
+    "train__nuisance": {
+        "family": "bin_indicators",
+        "options": {
+            "minima": [
+                0,
+                0
+            ],
+            "maxima": [
+                5,
+                2.45
+            ],
+            "number_of_bins": [
+                10,
+                10
+            ]
+        }
+    },
+    "train__f": {
+        "family": "adaptive_neural",
+        "options": {
+            "input_dimension": 2,
+            "hidden_layer_nodes": 4
+        }
+    }
 }

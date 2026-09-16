@@ -211,7 +211,7 @@ def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
 def lfvnn_denominator_is_trainable(config: TrainConfig) -> bool:
     """Return whether LFVNN must optimize, rather than calculate, its denominator."""
 
-    return config.train__data_is_train_for_nuisances
+    return config.train__function_space_config.nuisance.enabled
 
 
 def allocation_supports_parallel_training(allocation: RuntimeAllocation) -> bool:
@@ -569,13 +569,14 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             name=self._training_model_name(training),
             device=assignment.device,
         )
+        model._norm_factor = payload["norm_factor"]
+        model._prepare_training_data(training.data_batch)
         model.load_state_dict(
             {
                 key: torch.as_tensor(value)
                 for key, value in payload["state_dict"].items()
             }
         )
-        model._norm_factor = payload["norm_factor"]
         model._epochs_executed = payload["epochs_executed"]
         training.model = model
         training.result = float(payload["result"])

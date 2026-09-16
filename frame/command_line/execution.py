@@ -76,7 +76,7 @@ JOB_STARTED_AT_SECONDS=$(date +%s)
 echo "Running on host: $(hostname)"
 echo "Job ID: $PBS_JOBID"
 echo "Current directory: $(pwd)"
-{task_id_line}{cvmfs_python_activation_command}
+{task_id_line}{python_environment_activation_command}
 {uv_cache_directory_export_command}
 {singularity_uv_cache_directory_export_command}
 {environment_activation_command}
@@ -580,6 +580,7 @@ def format_qsub_build_script(
         container_project_root=CONTAINER_PROJECT_ROOT,
         singularity_executable=config.cluster__singularity_executable,
         project_name=PROJECT_NAME,
+        include_cvmfs_python=False,
     )
 
 
@@ -587,6 +588,7 @@ def format_qsub_script(
     config: Union[ClusterConfig, UserConfig],
     core_script_lines: str,
     array_jobs: Optional[int] = None,
+    include_cvmfs_python: bool = True,
     **additional_template_kwargs,
 ) -> str:
     script = wrap_lines_with_qsub_script(core_script_lines)
@@ -610,7 +612,9 @@ def format_qsub_script(
         memory=config.cluster__qsub_mem or 2,
         array_job_line=array_job_line,
         task_id_line=task_id_line,
-        cvmfs_python_activation_command=cvmfs_python_activation_command(),
+        python_environment_activation_command=(
+            cvmfs_python_activation_command() if include_cvmfs_python else ""
+        ),
         uv_cache_directory_export_command=uv_cache_directory_export_command(
             config.cluster__uv_cache_dir
         ),

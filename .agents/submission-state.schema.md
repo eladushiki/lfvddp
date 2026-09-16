@@ -11,13 +11,6 @@ explicitly asks.
 version: 4
 last_checked_at: null
 
-limits:
-  max_queued_elements: 1000
-  limit_source: configured
-  observed_admin_max_queued_elements: null
-  inferred_max_queued_elements: null
-  updated_at: null
-
 remote_checkout:
   branch: null
   commit: null
@@ -30,14 +23,8 @@ submissions: []
 
 - `last_checked_at` is the completion time of the most recent successful
   scheduler reconciliation. A failed SSH attempt does not advance it.
-- `limits.max_queued_elements` is the enforced limit. It starts at 1000 with no
-  reserve. `limit_source` is `configured`, `scheduler_message`, or
-  `rejection_inference`.
-- Save an explicit numeric scheduler limit in
-  `observed_admin_max_queued_elements`. When a quota rejection provides no
-  number, set `inferred_max_queued_elements` to
-  `queued_before_submission + array_size - 1`. Enforce the smallest known bound
-  and timestamp every change.
+- Queue counts are observational. Do not maintain or enforce an internal queue
+  limit; submit whole arrays and let PBS enforce its live quota.
 - `remote_checkout` records what the routine actually observed. Never replace
   or update the checkout while jobs are active. The targeted source-pack
   walltime correction is safe because active jobs use staged config copies. An
@@ -65,7 +52,9 @@ immediately before submission.
 
 Submission statuses and their additional fields are:
 
-- `requested`: explicitly authorized and waiting in FIFO order.
+- `requested`: explicitly authorized and waiting in FIFO order. A previously
+  attempted entry may return to this status with `retry_requested_at` and
+  `retry_reason`; it retains its attempt history and list position.
 - `blocked`: temporarily unable to submit; requires `blocked_reason` and
   `last_error`. A retry keeps the same list position.
 - `submitted`: requires `attempts`, `remote_commit`, and the runtime-discovered
@@ -74,8 +63,11 @@ Submission statuses and their additional fields are:
   walltime and its whole continuation array is waiting for submission. Requires
   `pending_continuation.extra_time`, scheduler evidence, and source-pack update
   status.
-- `finished`: every saved array job completed successfully; requires
-  `finished_at`. Failed or partial arrays remain blocked with evidence.
+- `finished`: every saved array job left active states and either all elements
+  succeeded or more than 90% of expected elements have verified exit status 0.
+  Requires `finished_at`; accepted partial results also record
+  `accepted_successful_elements`, `expected_elements`, and `completion_basis`.
+  Results at or below 90% remain blocked with evidence.
 - `analyzed`: the single-submission plot completed; requires
   `single_run_plot.completed_at`.
 - `retired`: preserved audit history that is no longer eligible for submission,
@@ -108,7 +100,15 @@ attempts:
     extra_time: "12:00:00"
     scheduler_outcome: active
     source_config_updated_at: 2026-09-01T09:06:00+03:00
+  - kind: rerun
+    job_ids: ["12420[]"]
+    submitted_at: 2026-09-02T09:10:00+03:00
+    scheduler_outcome: active
 ```
+
+A fresh retry appends a `rerun` attempt and updates the top-level
+`remote_submission_directory` to the newly discovered directory. Earlier
+attempts and directories remain audit history.
 
 Match scheduler history against the job IDs in all attempts. For a verified
 walltime kill, choose an evidence-based `extra_time`, defaulting to the killed
