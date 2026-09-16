@@ -31,7 +31,7 @@ bootstrap_command='set +u; export COMPILER="${COMPILER:-gcc}"; export CXX="${CXX
 if [ "$#" -eq 0 ]; then
     interactive_command="$bootstrap_command; exec /bin/bash --noprofile --norc -i"
     quoted_interactive_command=$(shell_quote "$interactive_command")
-    remote_command="cd $quoted_root && exec /bin/bash --noprofile --norc -ic $quoted_interactive_command"
+    remote_command="cd $quoted_root && exec /bin/bash -lic $quoted_interactive_command"
     if [ -n "$identity_file" ]; then
         exec ssh -tt -i "$identity_file" "$ssh_target" "$remote_command"
     fi
@@ -41,7 +41,7 @@ fi
 command_text=$*
 run_command="$bootstrap_command; $command_text"
 quoted_run_command=$(shell_quote "$run_command")
-remote_command="cd $quoted_root && exec /bin/bash --noprofile --norc -c $quoted_run_command"
+remote_command="cd $quoted_root && exec /bin/bash -lc $quoted_run_command"
 
 if [ -n "$identity_file" ]; then
     exec ssh -i "$identity_file" "$ssh_target" "$remote_command"
