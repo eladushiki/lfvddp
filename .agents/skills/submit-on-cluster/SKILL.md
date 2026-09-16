@@ -54,9 +54,13 @@ For the first `requested` entry:
 6. Capture every returned parent job ID. Discover the newly created timestamped
    `*_run_of_submit_train.py_*` directory under `output_root`; do not predict its
    name. Save it as `remote_submission_directory`.
-7. Verify the job with `qstat -wu $USER`, then update the same entry to
-   `submitted` with an initial `attempt` containing its job IDs and timestamp,
-   the timestamped directory, and the observed remote commit.
+7. Verify every returned parent ID has active array elements in `qstat -tu
+   $USER` before updating state. A returned `qsub` ID alone is not evidence
+   that training is running. If an array is absent, inspect its PBS output and
+   scheduler history; record it as failed or blocked rather than `submitted`.
+   Only then update the same entry to `submitted` with an initial `attempt`
+   containing its job IDs and timestamp, the timestamped directory, and the
+   observed remote commit.
 8. Continue until no `requested` entries remain.
 
 If PBS rejects a whole array because of its current queue-state quota, keep the
