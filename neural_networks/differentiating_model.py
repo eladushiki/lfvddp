@@ -14,14 +14,13 @@ from torch import nn, optim
 from tqdm.auto import tqdm
 
 from data_tools.data_generation import DataBatch
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.function_spaces import create_function_space
 from neural_networks.nuisance_calculation import (
-    PerEventNuisanceEstimator,
     build_nuisance_calculation,
 )
 from neural_networks.nuisance_contract import (
@@ -103,15 +102,22 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._dtype = dtype
         self._assigned_device = torch.device(device)
         self._function_space_config = self._config.resolve_function_space_config()
-        self.nuisance_calculation = self._build_nuisance_estimators()
-
-        self._build_signal_hypothesis_estimator()
-
-        # Initialize NN parameters according to strategy
-        self._initialize_parameters()
-        self.to(self._assigned_device)
+        fork_devices = (
+            [self._assigned_device.index or 0]
+            if self._assigned_device.type == "cuda"
+            else []
+        )
+        # Retain a pre-data shape for direct inspection and checkpoint loading,
+        # without consuming the random initialization reserved for the data-
+        # normalized construction below.
+        with torch.random.fork_rng(devices=fork_devices):
+            self.nuisance_calculation = self._build_nuisance_estimators()
+            self._build_signal_hypothesis_estimator()
+            self._initialize_parameters()
+            self.to(self._assigned_device)
 
         self._norm_factor = None
+        self._function_spaces_use_normalized_geometry = False
         self._training_history = defaultdict(list)
         self._epochs_executed = 0
 
@@ -119,15 +125,25 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _device(self) -> torch.device:
         return self._assigned_device
 
-    def _build_nuisance_estimators(self):
+    def _build_nuisance_estimators(
+        self,
+        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+        observable_names: Optional[tuple[str, ...]] = None,
+    ):
         return build_nuisance_calculation(
             config=self._config,
             dtype=self._dtype,
             device=self._device,
             resolved_config=self._function_space_config,
+            normalization_factor=normalization_factor,
+            observable_names=observable_names,
         )
 
-    def _build_signal_hypothesis_estimator(self) -> None:
+    def _build_signal_hypothesis_estimator(
+        self,
+        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+        observable_names: Optional[tuple[str, ...]] = None,
+    ) -> None:
         if not self._is_numerator:
             self.signal_region_shift_network = _NullSignalRegionShift()
             return
@@ -141,9 +157,40 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             spec,
             dtype=self._dtype,
             device=self._assigned_device,
+            normalization_factor=normalization_factor,
+            observable_names=observable_names,
             **construction,
         )
         self.signal_region_shift_network = estimator
+
+    def _construct_function_spaces(
+        self,
+        normalization_factor: ShiftAndNormalizationFactor,
+        observable_names: tuple[str, ...],
+    ) -> None:
+        """Construct data-coordinate spaces after deriving the pooled input map."""
+
+        self.nuisance_calculation = self._build_nuisance_estimators(
+            normalization_factor, observable_names
+        )
+        self._build_signal_hypothesis_estimator(normalization_factor, observable_names)
+        self._initialize_parameters()
+        self.to(self._assigned_device)
+
+    def _ensure_function_spaces_use_normalized_geometry(
+        self,
+        observable_names: tuple[str, ...],
+    ) -> None:
+        """Construct spaces once with the pooled map that defines model inputs."""
+
+        if self._function_spaces_use_normalized_geometry:
+            return
+        if self._norm_factor is None:
+            raise RuntimeError(
+                "Cannot construct function spaces before data normalization."
+            )
+        self._construct_function_spaces(self._norm_factor, observable_names)
+        self._function_spaces_use_normalized_geometry = True
 
     def _initialize_parameters(self) -> None:
         """
@@ -337,6 +384,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 (dataset / self._norm_factor, parameters)
                 for dataset, parameters in data
             )
+        self._ensure_function_spaces_use_normalized_geometry(
+            data.unified_data.observable_names
+        )
         categories = DataSet.DataSetCategory
         normalized_a_sr = normalized_data.datasets[categories.A_SR]
         normalized_b_sr = normalized_data.datasets[categories.B_SR]
@@ -346,8 +396,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         b_sr = data.datasets[categories.B_SR]
         a_cr = data.datasets[categories.A_CR]
         b_cr = data.datasets[categories.B_CR]
-
-        self._normalize_function_space_geometry(a_sr.observable_names)
 
         N_sr = a_sr.n_samples + b_sr.n_samples
         N_cr = a_cr.n_samples + b_cr.n_samples
@@ -386,19 +434,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             nuisance_cr_coefficient=(a_cr.n_samples - b_cr.n_samples)
             / N_cr,
         )
-
-    def _normalize_function_space_geometry(self, observable_names) -> None:
-        """Align physical configured geometry with the data's affine input map."""
-
-        assert self._norm_factor is not None
-        if self._is_numerator:
-            self.signal_region_shift_network.normalize_input_geometry(
-                self._norm_factor, observable_names
-            )
-        if isinstance(self.nuisance_calculation, PerEventNuisanceEstimator):
-            self.nuisance_calculation.network.normalize_input_geometry(
-                self._norm_factor, observable_names
-            )
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
         self._training_history[HistoryKeys.LOSS.value].append(
@@ -520,13 +555,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         data: DataBatch,
     ) -> Dict[str, List[float]]:
         self.train()
-        optimizer = self.configure_optimizers()
-
         target_epochs = self._config.train__epochs
-        start_epoch = self._load_training_checkpoint_if_requested(optimizer)
-        # A new checkpoint carries the original normalization factor.  Prepare
-        # data only after loading so continuation uses that exact transform.
+        # Construct spaces only after the pooled normalization map is known.
         training_data = self._prepare_training_data(data)
+        optimizer = self.configure_optimizers()
+        start_epoch = self._load_training_checkpoint_if_requested(optimizer)
         if start_epoch >= target_epochs:
             return self._training_history
         self._epochs_executed = target_epochs - start_epoch
@@ -596,7 +629,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         """Evaluate the configured nuisance estimator for prediction data."""
         if self._norm_factor is None:
             raise RuntimeError("Cannot predict before the model has been fitted.")
-        self._normalize_function_space_geometry(data.observable_names)
+        self._ensure_function_spaces_use_normalized_geometry(data.observable_names)
         return self.nuisance_calculation.prediction_values(
             raw_data=data,
             normalized_data=data / self._norm_factor,
@@ -610,7 +643,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> npt.NDArray:
         if self._norm_factor is None:
             raise RuntimeError("Cannot predict before the model has been fitted.")
-        self._normalize_function_space_geometry(data.observable_names)
+        self._ensure_function_spaces_use_normalized_geometry(data.observable_names)
         normalized_data = data / self._norm_factor
         x_tensor = torch.tensor(
             normalized_data.events,

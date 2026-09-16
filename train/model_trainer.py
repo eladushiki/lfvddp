@@ -569,13 +569,14 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             name=self._training_model_name(training),
             device=assignment.device,
         )
+        model._norm_factor = payload["norm_factor"]
+        model._prepare_training_data(training.data_batch)
         model.load_state_dict(
             {
                 key: torch.as_tensor(value)
                 for key, value in payload["state_dict"].items()
             }
         )
-        model._norm_factor = payload["norm_factor"]
         model._epochs_executed = payload["epochs_executed"]
         training.model = model
         training.result = float(payload["result"])

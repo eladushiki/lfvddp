@@ -1,93 +1,168 @@
 """Physical-coordinate geometry must share the model input normalization."""
 
-from types import SimpleNamespace
+from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
 
-from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet
-from neural_networks.differentiating_model import DifferentiatingModel
 from neural_networks.function_spaces import create_function_space
-from neural_networks.nuisance_calculation import BinnedNuisanceCalculation
-from train.train_config import TrainConfig
+from neural_networks.nuisance_calculation import (
+    BinnedNuisanceCalculation,
+    PerEventNuisanceEstimator,
+)
+from test.environment import ConfigType
 
 
-_PHYSICAL_OPTIONS = {
-    "cubic_bspline": {"knots": [0.0, 2.5, 5.0, 7.5, 10.0]},
-    "orthogonal_polynomial": {
-        "basis": "legendre",
-        "maximum_degree": 2,
-        "domain": [0.0, 10.0],
-    },
-    "fixed_sigmoid": {"centers": [2.5, 7.5], "widths": [1.75, 1.75]},
-    "gaussian_radial_basis": {
-        "centers": [2.5, 7.5],
-        "widths": [1.75, 1.75],
-    },
-}
+_DATASET_CONFIG = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
+_DETECTOR_CONFIG = Path("test/configs/detector/basic_1D_detector_config.json")
 
 
-def _physical_batch():
-    categories = DataSet.DataSetCategory
-    datasets = (
-        DataSet(np.array([[0.0], [2.5]]), ["x"], categories.A_SR),
-        DataSet(np.array([[7.5], [10.0]]), ["x"], categories.B_SR),
-        DataSet(np.array([[1.0], [3.0]]), ["x"], categories.A_CR),
-        DataSet(np.array([[7.0], [9.0]]), ["x"], categories.B_CR),
+def _context_params(train_config: str):
+    return {
+        ConfigType.DATASET: _DATASET_CONFIG,
+        ConfigType.DETECTOR: _DETECTOR_CONFIG,
+        ConfigType.TRAIN: Path("test/configs/train") / train_config,
+    }
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        pytest.param(
+            _context_params("issue018_cubic_bspline_binned.json"),
+            id="cubic-bspline",
+        ),
+        pytest.param(
+            _context_params("issue018_orthogonal_legendre_binned.json"),
+            id="legendre",
+        ),
+        pytest.param(
+            _context_params("issue018_orthogonal_chebyshev_binned.json"),
+            id="chebyshev",
+        ),
+        pytest.param(
+            _context_params("issue018_fixed_sigmoid_binned.json"),
+            id="fixed-sigmoid",
+        ),
+        pytest.param(
+            _context_params("issue018_gaussian_radial_basis_binned.json"),
+            id="gaussian-radial-basis",
+        ),
+    ],
+    indirect=True,
+)
+def test_signal_geometry_from_config_is_evaluated_in_physical_coordinates(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    differentiating_model_factory,
+):
+    data = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    model = differentiating_model_factory(
+        function_execution_context, detector_effect, name="physical_signal_geometry"
     )
-    return DataBatch((dataset, None) for dataset in datasets)
-
-
-def _model(family, options, nuisance):
-    config = TrainConfig(
-        train__epochs=1,
-        train__number_of_epochs_for_checkpoint=1,
-        train__nn_input_dimension=1,
-        train__nn_inner_layer_nodes=2,
-        train__f={"family": family, "options": options},
-        train__nuisance=nuisance,
+    prepared = model._prepare_training_data(data)
+    spec = function_execution_context.config.train__resolved_function_space_config.f
+    raw_space = create_function_space("f", spec, dtype=torch.float64)
+    raw_sr = np.concatenate(
+        (
+            data.datasets[DataSet.DataSetCategory.A_SR].events,
+            data.datasets[DataSet.DataSetCategory.B_SR].events,
+        )
     )
-    return DifferentiatingModel(
-        context=SimpleNamespace(config=config),
-        detector_effect=SimpleNamespace(),
-        is_numerator=True,
-        name="physical_geometry",
-        dtype=torch.float64,
-    )
-
-
-@pytest.mark.parametrize("family", tuple(_PHYSICAL_OPTIONS))
-def test_per_event_geometry_is_configured_in_physical_coordinates(family):
-    options = _PHYSICAL_OPTIONS[family]
-    model = _model(family, options, {"family": family, "options": options})
-    prepared = model._prepare_training_data(_physical_batch())
-    raw_sr_events = np.array([[0.0], [2.5], [7.5], [10.0]])
-    raw_space = create_function_space("f", family, options, dtype=torch.float64)
 
     torch.testing.assert_close(
         model.signal_region_shift_network.features(prepared.sr_events),
-        raw_space.features(torch.tensor(raw_sr_events, dtype=torch.float64)),
-    )
-    torch.testing.assert_close(
-        model.nuisance_calculation.network.features(prepared.nuisance_data.sr_inputs),
-        raw_space.features(torch.tensor(raw_sr_events, dtype=torch.float64)),
+        raw_space.features(torch.tensor(raw_sr, dtype=torch.float64)),
     )
     assert model.signal_region_shift_network.geometry == raw_space.geometry
 
 
-def test_binned_signal_geometry_is_normalized_but_binned_nuisance_stays_physical():
-    options = {"minima": [0.0], "maxima": [10.0], "number_of_bins": [4]}
-    model = _model("bin_indicators", options, {"family": "bin_indicators", "options": options})
-    prepared = model._prepare_training_data(_physical_batch())
-    raw_space = create_function_space("f", "bin_indicators", options, dtype=torch.float64)
-    for space in (model.signal_region_shift_network, raw_space):
-        for index, parameter in enumerate(space._factor_deltas.values()):
-            parameter.data.copy_(torch.arange(1, parameter.numel() + 1, dtype=torch.float64))
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        pytest.param(
+            _context_params("issue018_cubic_bspline_cubic_bspline.json"),
+            id="cubic-bspline-nuisance",
+        ),
+        pytest.param(
+            _context_params("issue018_cubic_bspline_fixed_sigmoid.json"),
+            id="fixed-sigmoid-nuisance",
+        ),
+    ],
+    indirect=True,
+)
+def test_per_event_nuisance_geometry_from_config_uses_the_same_map(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    differentiating_model_factory,
+):
+    data = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    model = differentiating_model_factory(
+        function_execution_context, detector_effect, name="physical_nuisance_geometry"
+    )
+    prepared = model._prepare_training_data(data)
+    assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
+    spec = function_execution_context.config.train__resolved_function_space_config.nuisance
+    raw_space = create_function_space("nuisance", spec, dtype=torch.float64)
+    raw_sr = np.concatenate(
+        (
+            data.datasets[DataSet.DataSetCategory.A_SR].events,
+            data.datasets[DataSet.DataSetCategory.B_SR].events,
+        )
+    )
 
-    raw_sr_events = torch.tensor([[0.0], [2.5], [7.5], [10.0]], dtype=torch.float64)
-    torch.testing.assert_close(model.signal_region_shift_network(prepared.sr_events), raw_space(raw_sr_events))
+    torch.testing.assert_close(
+        model.nuisance_calculation.network.features(prepared.nuisance_data.sr_inputs),
+        raw_space.features(torch.tensor(raw_sr, dtype=torch.float64)),
+    )
+    assert model.nuisance_calculation.network.geometry == raw_space.geometry
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        pytest.param(
+            _context_params("issue018_bin_indicators_binned.json"),
+            id="binned-signal-and-nuisance",
+        ),
+    ],
+    indirect=True,
+)
+def test_binned_signal_geometry_is_normalized_but_binned_nuisance_stays_physical(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    differentiating_model_factory,
+):
+    data = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    model = differentiating_model_factory(
+        function_execution_context, detector_effect, name="physical_binned_geometry"
+    )
+    prepared = model._prepare_training_data(data)
+    spec = function_execution_context.config.train__resolved_function_space_config.f
+    raw_space = create_function_space("f", spec, dtype=torch.float64)
+    for space in (model.signal_region_shift_network, raw_space):
+        for parameter in space._factor_deltas:
+            parameter.data.copy_(
+                torch.arange(1, parameter.numel() + 1, dtype=torch.float64)
+            )
+
+    raw_sr = torch.tensor(
+        np.concatenate(
+            (
+                data.datasets[DataSet.DataSetCategory.A_SR].events,
+                data.datasets[DataSet.DataSetCategory.B_SR].events,
+            )
+        ),
+        dtype=torch.float64,
+    )
+    torch.testing.assert_close(
+        model.signal_region_shift_network(prepared.sr_events), raw_space(raw_sr)
+    )
     assert isinstance(model.nuisance_calculation, BinnedNuisanceCalculation)
     np.testing.assert_allclose(
         model.nuisance_calculation.function_space.prediction_grid_edges()[0],

@@ -196,7 +196,7 @@ def test_canonical_binned_nuisance_uses_its_own_geometry():
     assert isinstance(nuisance, BinnedNuisanceCalculation)
     assert isinstance(nuisance.function_space, BinIndicatorFunction)
     assert nuisance.function_space.geometry.number_of_bins == (3, 4)
-    assert tuple(parameter.shape for parameter in nuisance.function_space._factor_deltas.values()) == (
+    assert tuple(parameter.shape for parameter in nuisance.function_space._factor_deltas) == (
         (3,),
         (4,),
     )

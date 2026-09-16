@@ -29,6 +29,7 @@ from train.checkpoints import (
     _torch_load,
     save_training_checkpoint,
 )
+from train.checkpoint_metadata import build_checkpoint_metadata
 from train.model_trainer import SequentialTrainLauncher
 from train.runtime_resources import RuntimeAllocation
 from train.tensorboard_clutch import log_t_history, log_t_history_to_tensorboard
@@ -736,9 +737,10 @@ def test_checkpoint_continuation_uses_current_format(
         is_numerator=True,
         name="checkpoint_model",
     )
+    prepared_data = model._prepare_training_data(detected_batch)
     optimizer = model.configure_optimizers()
     assert optimizer is not None
-    loss = model(model._prepare_training_data(detected_batch))
+    loss = model(prepared_data)
     loss.backward()
     optimizer.step()
 
@@ -752,6 +754,12 @@ def test_checkpoint_continuation_uses_current_format(
             HistoryKeys.EPOCH.value: [4],
             HistoryKeys.LOSS.value: [1.0],
         },
+        metadata=build_checkpoint_metadata(
+            model_name="checkpoint_model",
+            is_numerator=True,
+            resolved_config=model._function_space_config,
+            normalization_factor=model._norm_factor,
+        ),
     )
     checkpoint = _torch_load(checkpoint_path)
     assert checkpoint["epoch"] == 4
@@ -763,6 +771,7 @@ def test_checkpoint_continuation_uses_current_format(
         is_numerator=True,
         name="checkpoint_model",
     )
+    reloaded_model._prepare_training_data(detected_batch)
     reloaded_optimizer = reloaded_model.configure_optimizers()
     monkeypatch.setattr(
         "neural_networks.differentiating_model.find_latest_training_checkpoint",

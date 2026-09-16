@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterable, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
 from neural_networks.function_spaces import create_function_space
 from neural_networks.function_spaces.bin_indicators import BinIndicatorFunction
 from neural_networks.nuisance_contract import (
@@ -31,6 +31,8 @@ def build_nuisance_calculation(
     dtype: torch.dtype,
     device: torch.device,
     resolved_config: Optional[ResolvedFunctionSpaceConfig] = None,
+    normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+    observable_names: Optional[Iterable[str]] = None,
 ) -> NuisanceCalculation:
     """Build the nuisance role from the same resolved shape used for ``f``."""
     if resolved_config is None:
@@ -39,13 +41,23 @@ def build_nuisance_calculation(
     if spec.state is RoleState.DISABLED:
         return NullNuisanceCalculation(dtype=dtype, device=device)
 
+    if (normalization_factor is None) != (observable_names is None):
+        raise ValueError(
+            "Nuisance construction requires both normalization and observables."
+        )
+
     function_space = create_function_space(
         FunctionSpaceRole.NUISANCE,
         spec,
         dtype=dtype,
         device=device,
     )
-    return function_space.build_nuisance_calculation(dtype=dtype, device=device)
+    return function_space.build_nuisance_calculation(
+        dtype=dtype,
+        device=device,
+        normalization_factor=normalization_factor,
+        observable_names=observable_names,
+    )
 
 
 class NullNuisanceCalculation(NuisanceCalculation):

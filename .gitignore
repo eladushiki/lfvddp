@@ -50,7 +50,6 @@ configs/**/*.yaml
 configs/**/*.yml
 !configs/basic-loaded/*.json
 !configs/basic-generated/*.json
-!configs/background-only/**/*.json
 
 # Mid process files and results
 ## Untracked directories

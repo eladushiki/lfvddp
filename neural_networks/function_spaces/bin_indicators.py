@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -92,6 +92,24 @@ class BinIndicatorGeometry:
         return np.column_stack(indices).astype(np.int64, copy=False)
 
 
+class _BinIndicatorAxis(nn.Module):
+    """One typed, non-persistent normalized lookup grid."""
+
+    def __init__(
+        self,
+        edges: npt.NDArray[np.float64],
+        *,
+        dtype: torch.dtype,
+        device: Optional[torch.device | str],
+    ) -> None:
+        super().__init__()
+        self.register_buffer(
+            "edges",
+            torch.tensor(edges, dtype=dtype, device=device),
+            persistent=False,
+        )
+
+
 class BinIndicatorFunction(PerEventFunctionSpace):
     """Piecewise-constant factorized-bin function with fixed geometry."""
 
@@ -121,21 +139,19 @@ class BinIndicatorFunction(PerEventFunctionSpace):
                 "number_of_bins": list(geometry.number_of_bins),
             }
         )
-        self._factor_deltas = nn.ParameterDict(
-            {
-                f"dimension_{index}": nn.Parameter(
-                    torch.empty(number_of_bins, dtype=dtype, device=device)
-                )
-                for index, number_of_bins in enumerate(geometry.number_of_bins)
-            }
+        self._factor_deltas = nn.ParameterList(
+            [
+                nn.Parameter(torch.empty(number_of_bins, dtype=dtype, device=device))
+                for number_of_bins in geometry.number_of_bins
+            ]
         )
         self.feature_count = sum(geometry.number_of_bins)
-        for index, edges in enumerate(geometry.edges):
-            self.register_buffer(
-                f"_edges_{index}",
-                torch.tensor(edges, dtype=dtype, device=device),
-                persistent=False,
-            )
+        self._axes = nn.ModuleList(
+            [
+                _BinIndicatorAxis(edges, dtype=dtype, device=device)
+                for edges in geometry.edges
+            ]
+        )
 
     def prediction_grid_edges(self) -> tuple[npt.NDArray[np.float64], ...]:
         """Expose the family-owned bin edges required for prediction grids."""
@@ -152,10 +168,19 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         if len(observable_names) != self.input_dimension:
             raise ValueError("Function-space geometry does not match the observable dimension.")
         with torch.no_grad():
-            for dimension, (name, edges) in enumerate(zip(observable_names, self.geometry.edges)):
-                normalized = normalization_factor.normalize_values(edges[:, None], (name,))[:, 0]
-                buffer = getattr(self, f"_edges_{dimension}")
-                buffer.copy_(torch.as_tensor(normalized, dtype=buffer.dtype, device=buffer.device))
+            for name, edges, axis in zip(
+                observable_names, self.geometry.edges, self._axes
+            ):
+                normalized = normalization_factor.normalize_values(
+                    edges[:, None], (name,)
+                )[:, 0]
+                axis.edges.copy_(
+                    torch.as_tensor(
+                        normalized,
+                        dtype=axis.edges.dtype,
+                        device=axis.edges.device,
+                    )
+                )
 
     @property
     def input_dimension(self) -> int:
@@ -190,8 +215,14 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         *,
         dtype: torch.dtype,
         device: torch.device,
+        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+        observable_names: Optional[Iterable[str]] = None,
     ) -> "NuisanceCalculation":
         """Adapt this family for its compact scalar control-region reduction."""
+
+        # Binned nuisance calculation consumes raw control-region values, so its
+        # bin geometry deliberately remains in physical coordinates.
+        del normalization_factor, observable_names
 
         from neural_networks.nuisance_calculation import BinnedNuisanceCalculation
 
@@ -213,17 +244,19 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         values = events_tensor(
             events,
             self.input_dimension,
-            dtype=self._factor_deltas["dimension_0"].dtype,
-            device=self._factor_deltas["dimension_0"].device,
+            dtype=self._factor_deltas[0].dtype,
+            device=self._factor_deltas[0].device,
         )
         return torch.stack(
             tuple(
                 torch.bucketize(
                     values[:, dimension],
-                    getattr(self, f"_edges_{dimension}"),
+                    axis.edges,
                     right=True,
                 ).sub(1).clamp_(min=0, max=number_of_bins - 1)
-                for dimension, number_of_bins in enumerate(self.geometry.number_of_bins)
+                for dimension, (axis, number_of_bins) in enumerate(
+                    zip(self._axes, self.geometry.number_of_bins)
+                )
             ),
             dim=1,
         )
@@ -233,12 +266,12 @@ class BinIndicatorFunction(PerEventFunctionSpace):
 
         values = torch.ones(
             bin_indices.shape[0],
-            dtype=self._factor_deltas["dimension_0"].dtype,
-            device=self._factor_deltas["dimension_0"].device,
+            dtype=self._factor_deltas[0].dtype,
+            device=self._factor_deltas[0].device,
         )
         for dimension in range(self.input_dimension):
             values = values * torch.index_select(
-                self._factor_deltas[f"dimension_{dimension}"],
+                self._factor_deltas[dimension],
                 0,
                 bin_indices[:, dimension],
             )
@@ -251,12 +284,12 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         return self.values_from_indices(self._tensor_bin_indices(events)).unsqueeze(-1)
 
     def initialize_parameters(self, _gain: float) -> None:
-        for parameter in self._factor_deltas.values():
+        for parameter in self._factor_deltas:
             nn.init.normal_(parameter, mean=0.0, std=1e-3)
 
     def clamp_parameters(self) -> None:
         with torch.no_grad():
-            for parameter in self._factor_deltas.values():
+            for parameter in self._factor_deltas:
                 parameter.clamp_(
                     min=-LIKELIHOOD_SHIFT_BOUND,
                     max=LIKELIHOOD_SHIFT_BOUND,

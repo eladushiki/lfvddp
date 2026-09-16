@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Optional
 
+from data_tools.data_utils import ShiftAndNormalizationFactor
+
 from neural_networks.function_spaces.registry import FUNCTION_SPACE_REGISTRY
 from train.function_space_config import (
     FunctionSpaceFamily,
@@ -35,6 +37,18 @@ def create_function_space(
     """Construct one registered family for an explicitly typed likelihood role."""
 
     role_value = FunctionSpaceRole.from_value(role)
+    normalization_factor = construction.pop("normalization_factor", None)
+    observable_names = construction.pop("observable_names", None)
+    if (normalization_factor is None) != (observable_names is None):
+        raise ValueError(
+            "Function-space construction requires both normalization and observables."
+        )
+    if normalization_factor is not None and not isinstance(
+        normalization_factor, ShiftAndNormalizationFactor
+    ):
+        raise TypeError("normalization_factor must be a ShiftAndNormalizationFactor.")
+    if observable_names is not None:
+        observable_names = tuple(observable_names)
     family_value, family_options, state = _family_and_options(family, options)
     if state is RoleState.DISABLED:
         raise ValueError(f"Cannot construct a disabled {role_value.value} function-space role.")
@@ -47,7 +61,10 @@ def create_function_space(
             f"supported families: {supported}."
         ) from error
 
-    return registration.factory.from_options(family_options, **construction)
+    function_space = registration.factory.from_options(family_options, **construction)
+    if normalization_factor is not None:
+        function_space.normalize_input_geometry(normalization_factor, observable_names)
+    return function_space
 
 
 def validate_function_space_options(spec: FunctionSpaceSpec) -> None:

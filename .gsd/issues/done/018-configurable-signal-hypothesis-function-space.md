@@ -120,12 +120,6 @@ model coordinates; raw configuration geometry remains immutable.
 - Choosing among several fixed bases after examining the same A/B labels is
   itself a trials factor. Either predeclare the basis or include that selection
   in the empirical null calibration.
-- Add background-only cluster configuration packs for at least bin indicators,
-  cubic B-splines, and fixed sigmoids.
-
-## Implementation note
-
-The executable background-only cluster packs live in `configs/background-only`.
-Their function-space and nuisance geometry is specified in physical observable
-units from 0 to 10; training applies the shared pooled normalization to those
-coordinates together with each event batch.
+- Keep background-only comparison packs on the cluster for bin indicators,
+  cubic B-splines, and fixed sigmoids. Their geometry is specified in physical
+  observable units and normalized with the data at evaluation time.

@@ -28,7 +28,7 @@ _SIGNAL_PARAMETERS = (
     ("signal_region_shift_network.output.bias", (1,)),
 )
 _NUISANCE_PARAMETERS = {
-    "binned": (("nuisance_calculation.function_space._factor_deltas.dimension_0", (10,)),),
+    "binned": (("nuisance_calculation.function_space._factor_deltas.0", (10,)),),
     "disabled": (),
     "neural": (
         ("nuisance_calculation.network.hidden.weight", (2, 1)),
@@ -40,14 +40,14 @@ _NUISANCE_PARAMETERS = {
 _BASELINES = {
     "binned": {
         "initial_state": (
-            "0b26c5791d2b28c988c93ec2b43df6fee4225400e319bae5e83bbb250d13a080"
+            "68ecbc86e3e5e3afbac433974a3418e2e2f7bb1876b22678718f69a3a5f1cbcf"
         ),
         "initial_loss": "0x1.ffa27259c6784p+4",
         "one_step_prediction": (
             "6bdd3e7721fee946af69278e1162df6ec92ddb4906ea39125012e20b3ed643b2"
         ),
         "continued_state": (
-            "3ea454dfbd8d7bc31e5e56d66df3ace75762d8c13c34371af0af4e381c4e558a"
+            "16f7aea01783b649bcd3b80c44866f039c41065be96612fb3ee33a169cd30c1b"
         ),
         "continued_prediction": (
             "2084701adb6ca5cdd9b1065e64c361f69e3add3d613d0cec7ae22e23ec815326"

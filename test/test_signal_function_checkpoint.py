@@ -184,6 +184,8 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     assert checkpoint_metadata_path(checkpoint_path).exists()
 
     restored = _make_model(context, detector_effect, "checkpoint_round_trip")
+    restored._norm_factor = model._norm_factor
+    restored._prepare_training_data(data_batch)
     incompatible = restored.load_state_dict(checkpoint["model_state_dict"], strict=True)
     assert incompatible.missing_keys == []
     assert incompatible.unexpected_keys == []
@@ -207,7 +209,6 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
 
     # Strictly restored buffers and coefficient ordering must reproduce every
     # prediction surface once the runtime normalization is restored as well.
-    restored._norm_factor = model._norm_factor
     prediction_data = data_batch.datasets[DataSet.DataSetCategory.A_SR]
     np.testing.assert_array_equal(
         restored.predict(prediction_data), model.predict(prediction_data)

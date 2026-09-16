@@ -777,20 +777,25 @@ def _prediction_spanning_dataset(
 ) -> DataSet:
     """Build the prediction grid from display axes and nuisance geometry."""
     nuisance_bins_by_observable: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-    nuisance_lookup = create_function_space(FunctionSpaceRole.NUISANCE, nuisance_spec)
-    nuisance_edges = nuisance_lookup.prediction_grid_edges()
-    if nuisance_edges is not None:
-        if len(configured_observables) != len(nuisance_edges):
-            raise ValueError("Nuisance bin geometry dimension does not match configured observables.")
-        nuisance_bins_by_observable = {
-            observable_name: (
-                edges,
-                0.5 * (edges[:-1] + edges[1:]),
-            )
-            for observable_name, edges in zip(
-                configured_observables, nuisance_edges
-            )
-        }
+    if nuisance_spec.enabled:
+        nuisance_lookup = create_function_space(
+            FunctionSpaceRole.NUISANCE, nuisance_spec
+        )
+        nuisance_edges = nuisance_lookup.prediction_grid_edges()
+        if nuisance_edges is not None:
+            if len(configured_observables) != len(nuisance_edges):
+                raise ValueError(
+                    "Nuisance bin geometry dimension does not match configured observables."
+                )
+            nuisance_bins_by_observable = {
+                observable_name: (
+                    edges,
+                    0.5 * (edges[:-1] + edges[1:]),
+                )
+                for observable_name, edges in zip(
+                    configured_observables, nuisance_edges
+                )
+            }
 
     def selected_axis_values(observable_name: str) -> np.ndarray:
         display_edges = display_edges_by_observable[observable_name]

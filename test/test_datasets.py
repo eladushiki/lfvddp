@@ -11,6 +11,12 @@ from data_tools.dataset_config import DatasetConfig
     "function_execution_context",
     [{
         ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
+        ConfigType.TRAIN.value: Path(
+            "test/configs/train/issue018_adaptive_neural_nuisance.json"
+        ),
+        ConfigType.DETECTOR.value: Path(
+            "test/configs/detector/basic_1D_detector_config.json"
+        ),
     }],
     indirect=True,
 )

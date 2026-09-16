@@ -91,6 +91,8 @@ class FunctionSpace(Protocol):
         *,
         dtype: torch.dtype,
         device: torch.device,
+        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+        observable_names: Optional[Iterable[str]] = None,
     ) -> "NuisanceCalculation":
         ...
 
@@ -216,8 +218,17 @@ class PerEventFunctionSpace(nn.Module):
         *,
         dtype: torch.dtype,
         device: torch.device,
+        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+        observable_names: Optional[Iterable[str]] = None,
     ) -> "NuisanceCalculation":
         """Adapt this per-event function space for nuisance evaluation."""
+
+        if (normalization_factor is None) != (observable_names is None):
+            raise ValueError(
+                "Per-event nuisance construction requires both normalization and observables."
+            )
+        if normalization_factor is not None:
+            self.normalize_input_geometry(normalization_factor, observable_names)
 
         from neural_networks.nuisance_calculation import PerEventNuisanceEstimator
 
