@@ -8,35 +8,25 @@ import torch
 from data_tools.data_utils import DataSet
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
-from test.function_space_cases import function_space_train_config
 
 
 _DATASET_1D = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR_1D = Path("test/configs/detector/basic_1D_detector_config.json")
 _DATASET_2D = Path("test/configs/dataset/disjoint_2D_generated_dataset_config.json")
 _DETECTOR_2D = Path("test/configs/detector/basic_2D_detector_config.json")
-
-
-_BINNED_1D = {
-    "family": "bin_indicators",
-    "options": {"minima": [-1.0], "maxima": [1.0], "number_of_bins": [4]},
-}
-_CUBIC_1D = {"family": "cubic_bspline", "options": {"knots": [-1.0, -0.5, 0.0, 0.5, 1.0]}}
-_FIXED_1D = {"family": "fixed_sigmoid", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}
-_GAUSSIAN_1D = {"family": "gaussian_radial_basis", "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]}}
-_ADAPTIVE_1D = {"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 4}}
+_TRAIN_CONFIG_DIR = Path("test/configs/train")
 
 
 _ONE_D_CASES = [
-    pytest.param(function_space_train_config(f=_ADAPTIVE_1D, nuisance={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 2}}), "adaptive_neural", "adaptive_neural", False, id="explicit-adaptive-neural-nuisance"),
-    pytest.param(function_space_train_config(f=_CUBIC_1D, nuisance=_BINNED_1D), "cubic_bspline", "bin_indicators", True, id="cubic-binned-nuisance"),
-    pytest.param(function_space_train_config(f={"family": "orthogonal_polynomial", "options": {"basis": "legendre", "maximum_degree": 3, "domain": [-1.0, 1.0]}}, nuisance=_BINNED_1D), "orthogonal_polynomial", "bin_indicators", True, id="legendre-binned-nuisance"),
-    pytest.param(function_space_train_config(f={"family": "orthogonal_polynomial", "options": {"basis": "chebyshev", "maximum_degree": 3, "domain": [-1.0, 1.0]}}, nuisance=_BINNED_1D), "orthogonal_polynomial", "bin_indicators", True, id="chebyshev-binned-nuisance"),
-    pytest.param(function_space_train_config(f=_FIXED_1D, nuisance=_BINNED_1D), "fixed_sigmoid", "bin_indicators", True, id="fixed-sigmoid-binned-nuisance"),
-    pytest.param(function_space_train_config(f=_GAUSSIAN_1D, nuisance=_BINNED_1D), "gaussian_radial_basis", "bin_indicators", True, id="gaussian-radial-basis-binned-nuisance"),
-    pytest.param(function_space_train_config(f=_CUBIC_1D, nuisance=_CUBIC_1D), "cubic_bspline", "cubic_bspline", True, id="same-cubic-role-families"),
-    pytest.param(function_space_train_config(f=_CUBIC_1D, nuisance=_FIXED_1D), "cubic_bspline", "fixed_sigmoid", True, id="different-deterministic-role-families"),
-    pytest.param(function_space_train_config(f=_ADAPTIVE_1D, nuisance={"state": "disabled"}), "adaptive_neural", None, False, id="explicit-adaptive-disabled-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance.json", "adaptive_neural", "adaptive_neural", False, id="explicit-adaptive-neural-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_cubic_bspline_binned.json", "cubic_bspline", "bin_indicators", True, id="cubic-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_orthogonal_legendre_binned.json", "orthogonal_polynomial", "bin_indicators", True, id="legendre-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_orthogonal_chebyshev_binned.json", "orthogonal_polynomial", "bin_indicators", True, id="chebyshev-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_fixed_sigmoid_binned.json", "fixed_sigmoid", "bin_indicators", True, id="fixed-sigmoid-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_gaussian_radial_basis_binned.json", "gaussian_radial_basis", "bin_indicators", True, id="gaussian-radial-basis-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_cubic_bspline_cubic_bspline.json", "cubic_bspline", "cubic_bspline", True, id="same-cubic-role-families"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_cubic_bspline_fixed_sigmoid.json", "cubic_bspline", "fixed_sigmoid", True, id="different-deterministic-role-families"),
+    pytest.param(_TRAIN_CONFIG_DIR / "issue018_adaptive_neural_disabled.json", "adaptive_neural", None, False, id="explicit-adaptive-disabled-nuisance"),
 ]
 
 
@@ -188,11 +178,7 @@ def test_issue018_1d_function_space_training_matrix(
             {
                 ConfigType.DATASET: _DATASET_2D,
                 ConfigType.DETECTOR: _DETECTOR_2D,
-                ConfigType.TRAIN: function_space_train_config(
-                    dimension=2,
-                    f={"family": "adaptive_neural", "options": {"input_dimension": 2, "hidden_layer_nodes": 4}},
-                    nuisance={"family": "bin_indicators", "options": {"minima": [-1.0, -1.0], "maxima": [1.0, 1.0], "number_of_bins": [2, 2]}},
-                ),
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_2d_adaptive_neural_binned.json",
             },
             id="2d-adaptive-binned",
         ),
@@ -200,11 +186,7 @@ def test_issue018_1d_function_space_training_matrix(
             {
                 ConfigType.DATASET: _DATASET_2D,
                 ConfigType.DETECTOR: _DETECTOR_2D,
-                ConfigType.TRAIN: function_space_train_config(
-                    dimension=2,
-                    f={"family": "cubic_bspline", "options": {"knots": [[-1.0, -0.5, 0.0, 0.5, 1.0], [-1.0, -0.5, 0.0, 0.5, 1.0]]}},
-                    nuisance={"family": "adaptive_neural", "options": {"input_dimension": 2, "hidden_layer_nodes": 2}},
-                ),
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_2d_cubic_bspline_adaptive_neural.json",
             },
             id="2d-cubic-neural",
         ),
@@ -231,11 +213,7 @@ def test_issue018_2d_function_space_training_smoke(
         {
             ConfigType.DATASET: _DATASET_1D,
             ConfigType.DETECTOR: _DETECTOR_1D,
-            ConfigType.TRAIN: function_space_train_config(
-                dimension=1,
-                f=_ADAPTIVE_1D,
-                nuisance={"family": "adaptive_neural", "options": {"input_dimension": 1, "hidden_layer_nodes": 2}},
-            ),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance.json",
         }
     ],
     indirect=True,

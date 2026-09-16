@@ -14,7 +14,6 @@ from frame.context.execution_context import version_controlled_execution_context
 from test.environment import (
     ConfigType,
     DEFAULT_CONFIG_PATHS,
-    TrainConfigFixture,
     wrap_with_command_line_args,
 )
 
@@ -66,15 +65,10 @@ def pytest_collection_modifyitems(config, items):
 def function_execution_context(
     request,
     session_execution_context,
-    tmp_path,
 ):
     config_paths = DEFAULT_CONFIG_PATHS.copy()
     if request.param:
         config_paths.update(request.param)
-    train_config = config_paths[ConfigType.TRAIN]
-    if isinstance(train_config, TrainConfigFixture):
-        config_paths[ConfigType.TRAIN] = train_config.write(tmp_path)
-
     args = Namespace(
         debug=session_execution_context.is_debug_mode,
         build_container=session_execution_context.is_build_container,

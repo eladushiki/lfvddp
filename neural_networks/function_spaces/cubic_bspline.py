@@ -99,18 +99,9 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
             self.register_buffer(f"_knots_{index}", torch.tensor(knots, dtype=dtype, device=device))
 
     @classmethod
-    def validate_options(cls, options: Mapping[str, Any]) -> None:
+    def geometry_from_options(cls, options: Mapping[str, Any]) -> CubicBSplineGeometry:
         require_options(options, "cubic_bspline", ("knots",))
-        CubicBSplineGeometry.from_breakpoints(options["knots"])
-
-    @classmethod
-    def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "CubicBSplineFunction":
-        cls.validate_options(options)
-        return cls(
-            CubicBSplineGeometry.from_breakpoints(options["knots"]),
-            options=options,
-            **cls.construction_kwargs(options, construction),
-        )
+        return CubicBSplineGeometry.from_breakpoints(options["knots"])
 
     def _knot_vector(self, dimension: int) -> torch.Tensor:
         knots = self._buffers[f"_knots_{dimension}"]

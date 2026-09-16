@@ -94,21 +94,10 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
         self.register_buffer("_domain", torch.tensor(geometry.domain, dtype=dtype, device=device))
 
     @classmethod
-    def validate_options(cls, options: Mapping[str, Any]) -> None:
-        OrthogonalPolynomialGeometry.from_options(options)
-
-    @classmethod
-    def from_options(
-        cls,
-        options: Mapping[str, Any],
-        **construction: Any,
-    ) -> "OrthogonalPolynomialFunction":
-        cls.validate_options(options)
-        return cls(
-            OrthogonalPolynomialGeometry.from_options(options),
-            options=options,
-            **cls.construction_kwargs(options, construction),
-        )
+    def geometry_from_options(
+        cls, options: Mapping[str, Any]
+    ) -> OrthogonalPolynomialGeometry:
+        return OrthogonalPolynomialGeometry.from_options(options)
 
     def features(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(

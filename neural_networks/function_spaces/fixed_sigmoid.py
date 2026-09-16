@@ -26,21 +26,8 @@ class FixedSigmoidFunction(CenteredFeatureFunction):
     )
 
     @classmethod
-    def validate_options(cls, options: Mapping[str, Any]) -> None:
-        CenterGeometry.from_options(options, cls.family.value)
-
-    @classmethod
-    def from_options(
-        cls,
-        options: Mapping[str, Any],
-        **construction: Any,
-    ) -> "FixedSigmoidFunction":
-        cls.validate_options(options)
-        return cls(
-            CenterGeometry.from_options(options, "fixed_sigmoid"),
-            options=options,
-            **cls.construction_kwargs(options, construction),
-        )
+    def geometry_from_options(cls, options: Mapping[str, Any]) -> CenterGeometry:
+        return CenterGeometry.from_options(options, cls.family.value)
 
     def features(self, events: EventInput) -> torch.Tensor:
         return torch.sigmoid(self.centered_values(events)).prod(dim=2)

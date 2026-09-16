@@ -24,10 +24,16 @@ Never commit connection values or credentials.
 1. Run `.agents/skills/ssh-to-cluster/scripts/ssh-to-cluster.sh` from the local repository root in a
    persistent terminal session. The helper opens SSH at
    `WIS_CLUSTER_REMOTE_PROJECT_ROOT` and starts a clean Bash shell with the
-   project venv activated.
+   project venv activated when it exists; a new checkout receives the CVMFS
+   Python needed to create it.
    When launched by Codex, request the elevated network permission: the
    restricted shell cannot resolve the cluster host.
-2. Verify that `python -c 'import torch'` succeeds. The helper starts clean
+2. Verify that `python -c 'import torch'` succeeds. If it fails, run both
+   `quota` and `lquota` in the same session and report their output to the
+   user: a quota outage can prevent imports and other apparently unrelated
+   environment operations. Do not diagnose this as an interpreter mismatch or
+   replace it with `/usr/bin/python`; wait for the user to restore capacity.
+   The helper starts clean
    Bash and supplies default `COMPILER`, `CXX`, and `MANPATH` values before the
    Bash-specific project activation. The generated CVMFS scripts dereference
    those variables under `nounset`; a plain remote zsh login leaves them unset.
@@ -35,11 +41,11 @@ Never commit connection values or credentials.
 3. Reuse that terminal session for every cluster command in the workflow.
 4. Verify the connection with `pwd` and `git status --short --branch` before
    doing work.
-4. In a newly created cluster checkout, initialize its own locked environment
+5. In a newly created cluster checkout, initialize its own locked environment
    once in clean Bash with `export COMPILER=gcc CXX='' MANPATH=''; source
    scripts/setup_python_environment.sh`. Later shells use the helper's normal
    activation. Do not borrow or bind another checkout's `.venv`.
-5. Exit the connection only after plotting, submission, and verification are
+6. Exit the connection only after plotting, submission, and verification are
    complete.
 
 For a bounded non-interactive check, pass one shell command string to the

@@ -238,6 +238,28 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         unexpected_construction_options(cls.family, construction)
         return result
 
+    @classmethod
+    def geometry_from_options(cls, options: Mapping[str, Any]) -> Any:
+        """Construct this fixed family's immutable feature geometry."""
+
+        raise NotImplementedError(f"{cls.__name__} must define its feature geometry.")
+
+    @classmethod
+    def validate_options(cls, options: Mapping[str, Any]) -> None:
+        """Validate configuration by constructing the family-owned geometry."""
+
+        cls.geometry_from_options(options)
+
+    @classmethod
+    def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "FunctionSpace":
+        """Build any fixed feature family through its common construction path."""
+
+        return cls(
+            cls.geometry_from_options(options),
+            options=options,
+            **cls.construction_kwargs(options, construction),
+        )
+
     def __init__(
         self,
         feature_count: int,

@@ -26,21 +26,8 @@ class GaussianRadialBasisFunction(CenteredFeatureFunction):
     )
 
     @classmethod
-    def validate_options(cls, options: Mapping[str, Any]) -> None:
-        CenterGeometry.from_options(options, cls.family.value)
-
-    @classmethod
-    def from_options(
-        cls,
-        options: Mapping[str, Any],
-        **construction: Any,
-    ) -> "GaussianRadialBasisFunction":
-        cls.validate_options(options)
-        return cls(
-            CenterGeometry.from_options(options, "gaussian_radial_basis"),
-            options=options,
-            **cls.construction_kwargs(options, construction),
-        )
+    def geometry_from_options(cls, options: Mapping[str, Any]) -> CenterGeometry:
+        return CenterGeometry.from_options(options, cls.family.value)
 
     def features(self, events: EventInput) -> torch.Tensor:
         return torch.exp(-0.5 * self.centered_values(events).square().sum(dim=2))

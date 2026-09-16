@@ -12,7 +12,6 @@ from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
-from test.function_space_cases import function_space_train_config
 from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import (
     _torch_load,
@@ -24,31 +23,15 @@ from train.checkpoints import (
 
 _DATASET = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR = Path("test/configs/detector/basic_1D_detector_config.json")
+_TRAIN_CONFIG_DIR = Path("test/configs/train")
 
 
-_BINNED = {
-    "family": "bin_indicators",
-    "options": {"minima": [-1.0], "maxima": [1.0], "number_of_bins": [4]},
-}
-_CUBIC = {"family": "cubic_bspline", "options": {"knots": [-1.0, -0.5, 0.0, 0.5, 1.0]}}
-_ADAPTIVE = {
-    "family": "adaptive_neural",
-    "options": {"input_dimension": 1, "hidden_layer_nodes": 4},
-}
-
-# Each case is materialized by the fixture, so test-run settings are not tracked.
-_FUNCION_SAPCE_CASES = [
+_FUNCTION_SPACE_CASES = [
     pytest.param(
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: function_space_train_config(
-                f=_ADAPTIVE,
-                nuisance={
-                    "family": "adaptive_neural",
-                    "options": {"input_dimension": 1, "hidden_layer_nodes": 2},
-                },
-            ),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance.json",
         },
         id="adaptive-neural",
     ),
@@ -56,7 +39,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: function_space_train_config(f=_CUBIC, nuisance=_BINNED),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_cubic_bspline_binned.json",
         },
         id="cubic-bspline",
     ),
@@ -64,17 +47,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: function_space_train_config(
-                f={
-                    "family": "orthogonal_polynomial",
-                    "options": {
-                        "basis": "legendre",
-                        "maximum_degree": 3,
-                        "domain": [-1.0, 1.0],
-                    },
-                },
-                nuisance=_BINNED,
-            ),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_orthogonal_legendre_binned.json",
         },
         id="legendre-polynomial",
     ),
@@ -82,13 +55,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: function_space_train_config(
-                f={
-                    "family": "gaussian_radial_basis",
-                    "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]},
-                },
-                nuisance=_BINNED,
-            ),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_gaussian_radial_basis_binned.json",
         },
         id="gaussian-rbf",
     ),
@@ -96,13 +63,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: function_space_train_config(
-                f={
-                    "family": "fixed_sigmoid",
-                    "options": {"centers": [-0.5, 0.5], "widths": [0.35, 0.35]},
-                },
-                nuisance=_BINNED,
-            ),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_fixed_sigmoid_binned.json",
         },
         id="fixed-sigmoid",
     ),
@@ -110,7 +71,7 @@ _FUNCION_SAPCE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: function_space_train_config(f=_BINNED, nuisance=_BINNED),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_bin_indicators_binned.json",
         },
         id="bin-indicators",
     ),
@@ -119,14 +80,7 @@ _FUNCION_SAPCE_CASES = [
 _CONTINUATION_CONFIG = {
     ConfigType.DATASET: _DATASET,
     ConfigType.DETECTOR: _DETECTOR,
-    ConfigType.TRAIN: function_space_train_config(
-        f=_ADAPTIVE,
-        nuisance={
-            "family": "adaptive_neural",
-            "options": {"input_dimension": 1, "hidden_layer_nodes": 2},
-        },
-        epochs=3,
-    ),
+    ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance_continuation.json",
 }
 
 
@@ -172,7 +126,7 @@ def _take_one_step(model, data_batch):
 
 
 @pytest.mark.parametrize(
-    "function_execution_context", _FUNCION_SAPCE_CASES, indirect=True
+    "function_execution_context", _FUNCTION_SPACE_CASES, indirect=True
 )
 def test_checkpoint_round_trip_preserves_all_function_space_state(
     function_execution_context,
@@ -317,7 +271,7 @@ def test_continuation_restores_normalization_and_resumes_history(
             {
                 ConfigType.DATASET: _DATASET,
                 ConfigType.DETECTOR: _DETECTOR,
-                ConfigType.TRAIN: function_space_train_config(f=_CUBIC, nuisance=_BINNED),
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_cubic_bspline_binned.json",
             },
             id="cubic-bspline",
         )

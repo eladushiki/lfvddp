@@ -1,9 +1,6 @@
-from copy import deepcopy
-from dataclasses import dataclass
 from enum import Enum
-import json
 from pathlib import Path
-from typing import Any, Dict, Mapping, Union
+from typing import Dict, Union
 
 
 class ConfigType(Enum):
@@ -13,19 +10,6 @@ class ConfigType(Enum):
     PLOT = "plot"
     TRAIN = "train"
     USER = "user"
-
-
-@dataclass(frozen=True)
-class TrainConfigFixture:
-    """Materialize a per-test train configuration instead of tracking run packs."""
-
-    values: Mapping[str, Any]
-
-    def write(self, directory: Path) -> Path:
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / "train_config.json"
-        path.write_text(json.dumps(deepcopy(dict(self.values))))
-        return path
 
 
 DEFAULT_CONFIG_PATHS = {t: Path(s) for t, s in zip(
