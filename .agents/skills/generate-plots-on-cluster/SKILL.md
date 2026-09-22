@@ -83,10 +83,10 @@ single-train outcomes as follows:
    that the derived directory is directly below that run directory and that the
    run directory is below the tracked `remote_submission_directory`; do not use
    a broad recursive target or a guessed path.
-3. Delete every item *inside* each verified `training_outcomes` directory while
-   retaining the directory itself. Use a path-validated command such as
-   `find "$training_outcomes_dir" -mindepth 1 -depth -delete`, then verify that
-   `find "$training_outcomes_dir" -mindepth 1 -print -quit` emits nothing.
+3. Delete each verified `training_outcomes` directory itself, including its
+   contents. Use a path-validated command such as
+   `find "$training_outcomes_dir" -depth -delete`, then verify that
+   `test ! -e "$training_outcomes_dir"` succeeds.
    This removes checkpoints, histories, profiler outputs, and debug-only
    TensorBoard logs, but retains final results and plots outside that directory.
 4. Record the verified run directories, scheduler evidence, and cleanup time
@@ -107,9 +107,9 @@ without it:
 
 ```sh
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --dry-run <submission-directory>
+  --results-root results/highlights/2026-09 --dry-run <submission-directory>
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  <submission-directory>
+  --results-root results/highlights/2026-09 <submission-directory>
 ```
 
 For a user-authorized full cleanup below the results root, replace the explicit

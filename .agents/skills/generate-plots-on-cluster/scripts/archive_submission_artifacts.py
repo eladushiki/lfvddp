@@ -11,16 +11,15 @@ import uuid
 from pathlib import Path
 
 
-RESULTS_ROOT = Path("results/highlights/2026-09").resolve()
 ARCHIVE_NAME = "array-job-artifacts.tar.gz"
 
 
-def checked_submission(path_arg: str) -> Path:
+def checked_submission(path_arg: str, results_root: Path) -> Path:
     submission = Path(path_arg).resolve()
     try:
-        submission.relative_to(RESULTS_ROOT)
+        submission.relative_to(results_root)
     except ValueError as error:
-        raise ValueError(f"submission is outside {RESULTS_ROOT}: {submission}") from error
+        raise ValueError(f"submission is outside {results_root}: {submission}") from error
     if not submission.is_dir():
         raise ValueError(f"submission is not a directory: {submission}")
     if not (submission / "context.json").is_file():
@@ -39,12 +38,12 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
-def all_submission_directories() -> list[Path]:
-    if not RESULTS_ROOT.is_dir():
-        raise ValueError(f"results root does not exist: {RESULTS_ROOT}")
+def all_submission_directories(results_root: Path) -> list[Path]:
+    if not results_root.is_dir():
+        raise ValueError(f"results root does not exist: {results_root}")
     return sorted(
         path
-        for path in RESULTS_ROOT.glob("**/run_*_run_of_submit_train.py_pid_*")
+        for path in results_root.glob("**/run_*_run_of_submit_train.py_pid_*")
         if path.is_dir()
     )
 
@@ -104,6 +103,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("submission", nargs="*", help="tracked submission directories")
     parser.add_argument(
+        "--results-root",
+        type=Path,
+        required=True,
+        help="root containing the submission directories to archive",
+    )
+    parser.add_argument(
         "--all-under-root",
         action="store_true",
         help="archive every submission directory below results/highlights/2026-09",
@@ -118,7 +123,8 @@ def main() -> int:
     if args.all_under_root == bool(args.submission):
         parser.error("supply submission directories or --all-under-root, but not both")
     try:
-        paths = all_submission_directories() if args.all_under_root else args.submission
+        results_root = args.results_root.resolve()
+        paths = all_submission_directories(results_root) if args.all_under_root else args.submission
         temporary_directory = (
             args.temporary_directory.resolve() if args.temporary_directory else None
         )
@@ -126,7 +132,7 @@ def main() -> int:
             raise ValueError(f"temporary directory is not a directory: {temporary_directory}")
         for path_arg in paths:
             archive_submission(
-                checked_submission(str(path_arg)),
+                checked_submission(str(path_arg), results_root),
                 dry_run=args.dry_run,
                 temporary_directory=temporary_directory,
             )
