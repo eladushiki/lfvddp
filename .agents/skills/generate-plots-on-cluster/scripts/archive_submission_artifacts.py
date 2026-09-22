@@ -7,6 +7,7 @@ import argparse
 import shutil
 import sys
 import tarfile
+import uuid
 from pathlib import Path
 
 
@@ -54,7 +55,9 @@ def all_submission_directories() -> list[Path]:
     )
 
 
-def archive_submission(submission: Path, *, dry_run: bool) -> None:
+def archive_submission(
+    submission: Path, *, dry_run: bool, temporary_directory: Path | None
+) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
     if archive.exists() and sources:
@@ -72,7 +75,12 @@ def archive_submission(submission: Path, *, dry_run: bool) -> None:
     if dry_run:
         return
 
-    temporary_archive = archive.with_suffix(archive.suffix + ".tmp")
+    temporary_archive = (
+        archive.with_suffix(archive.suffix + ".tmp")
+        if temporary_directory is None
+        else temporary_directory / f"{submission.name}.{uuid.uuid4().hex}.tar.gz.tmp"
+    )
+    sources_removed = False
     try:
         with tarfile.open(temporary_archive, "w:gz") as tar:
             for source in sources:
@@ -82,14 +90,19 @@ def archive_submission(submission: Path, *, dry_run: bool) -> None:
         missing = [source.name for source in sources if source.name not in archived]
         if missing:
             raise ValueError(f"archive verification missing: {', '.join(missing)}")
-        temporary_archive.replace(archive)
+        if temporary_directory is None:
+            temporary_archive.replace(archive)
         for source in sources:
             if source.is_dir():
                 shutil.rmtree(source)
             else:
                 source.unlink()
+        sources_removed = True
+        if temporary_directory is not None:
+            shutil.move(str(temporary_archive), str(archive))
     except Exception:
-        temporary_archive.unlink(missing_ok=True)
+        if not sources_removed:
+            temporary_archive.unlink(missing_ok=True)
         raise
     print(f"archived and removed {len(sources)} items: {submission}")
 
@@ -102,14 +115,28 @@ def main() -> int:
         action="store_true",
         help="archive every submission directory below results/highlights/2026-09",
     )
+    parser.add_argument(
+        "--temporary-directory",
+        type=Path,
+        help="build the verified archive here before removing sources; use only when the results filesystem has no temporary space",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.all_under_root == bool(args.submission):
         parser.error("supply submission directories or --all-under-root, but not both")
     try:
         paths = all_submission_directories() if args.all_under_root else args.submission
+        temporary_directory = (
+            args.temporary_directory.resolve() if args.temporary_directory else None
+        )
+        if temporary_directory is not None and not temporary_directory.is_dir():
+            raise ValueError(f"temporary directory is not a directory: {temporary_directory}")
         for path_arg in paths:
-            archive_submission(checked_submission(str(path_arg)), dry_run=args.dry_run)
+            archive_submission(
+                checked_submission(str(path_arg)),
+                dry_run=args.dry_run,
+                temporary_directory=temporary_directory,
+            )
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

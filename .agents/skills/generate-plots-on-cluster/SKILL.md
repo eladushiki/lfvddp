@@ -123,6 +123,12 @@ and contains the expected context and configs. Never archive an active,
 failed, partial, or continuation-pending submission; obtain explicit user
 permission before deleting the original artifacts.
 
+If the results filesystem has insufficient space even for a temporary archive,
+the user may authorize `--temporary-directory /tmp`. The helper verifies the
+archive there, removes the verified sources, then moves the archive into the
+submission directory. If that final move fails, it preserves the verified
+temporary archive and reports its path for recovery.
+
 ## Multi-run plots
 
 Use `plot_groups` as the single definition of background and signal membership.
