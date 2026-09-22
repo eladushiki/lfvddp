@@ -44,6 +44,16 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
+def all_submission_directories() -> list[Path]:
+    if not RESULTS_ROOT.is_dir():
+        raise ValueError(f"results root does not exist: {RESULTS_ROOT}")
+    return sorted(
+        path
+        for path in RESULTS_ROOT.glob("**/run_*_run_of_submit_train.py_pid_*")
+        if path.is_dir()
+    )
+
+
 def archive_submission(submission: Path, *, dry_run: bool) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
@@ -86,12 +96,20 @@ def archive_submission(submission: Path, *, dry_run: bool) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("submission", nargs="+", help="tracked submission directories")
+    parser.add_argument("submission", nargs="*", help="tracked submission directories")
+    parser.add_argument(
+        "--all-under-root",
+        action="store_true",
+        help="archive every submission directory below results/highlights/2026-09",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.all_under_root == bool(args.submission):
+        parser.error("supply submission directories or --all-under-root, but not both")
     try:
-        for path_arg in args.submission:
-            archive_submission(checked_submission(path_arg), dry_run=args.dry_run)
+        paths = all_submission_directories() if args.all_under_root else args.submission
+        for path_arg in paths:
+            archive_submission(checked_submission(str(path_arg)), dry_run=args.dry_run)
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

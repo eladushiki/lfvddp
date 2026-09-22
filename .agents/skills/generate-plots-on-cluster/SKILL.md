@@ -112,6 +112,10 @@ python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artif
   <submission-directory>
 ```
 
+For a user-authorized full cleanup below the results root, replace the explicit
+directory with `--all-under-root`; it discovers only timestamped
+`submit_train.py` directories.
+
 The helper archives only direct `single_train.py` run directories and PBS
 stdout/stderr files, verifies the archive before deletion, and refuses an
 ambiguous retry. It validates every target is beneath the stated results root
