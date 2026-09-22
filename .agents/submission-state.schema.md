@@ -147,6 +147,14 @@ Group statuses are:
 - `failed`: the last aggregate attempt failed; requires `last_error` and may be
   retried without changing membership.
 
+An `analyzed` group may record `output_directory` for its generated products.
+When an archive was restored before a previously blocked aggregate retry, it
+may record `archive_restore` with `completed_at`, `restored_archives`, and
+evidence. A group may also record `stale_residue_cleanup` with `completed_at`,
+the number of deleted directories, and the scheduler/context evidence that
+they were failed or superseded. These audit records do not alter membership or
+permit unreviewed deletion.
+
 The signal tree is `remote_multi_run_directory`. The background submission's
 saved timestamped directory is passed separately with
 `--background-directory`, so a group cannot accidentally consume an unrelated
