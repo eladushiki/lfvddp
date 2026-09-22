@@ -27,9 +27,12 @@ second connection.
 - Match only job IDs saved in submission `attempts`. Do not add pre-existing or
   otherwise unknown scheduler jobs to state.
 - Mark a submission `finished` only when every saved array job has left active
-  states and completed successfully. Record `finished_at`.
-- Record failures and their scheduler evidence in `last_error`; do not plot a
-  failed or partially completed array. Handle scheduler walltime kills with the
+  states, every saved `single_train.py` context reports `run_successful: true`,
+  and every corresponding PBS output log ends with exit status `0`. Record
+  `finished_at` and that evidence.
+- Record any missing context, nonzero or missing PBS exit status, failure, or
+  partial array with its scheduler evidence in `last_error` and report it; do
+  not plot or archive that submission. Handle scheduler walltime kills with the
   continuation procedure below; other failures remain blocked.
 
 ## Continue walltime-killed submissions
@@ -114,15 +117,14 @@ When the user has authorized archival cleanup, retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
 `array-job-artifacts.tar.gz`. The archive must include every `single_train.py`
 directory and its `training_outcomes` contents, including histories used by
-percentile-progression plots. For every eligible tracked submission below
-`results/highlights/2026-09`, run the helper first with `--dry-run`, then
-without it:
+percentile-progression plots. Use the saved submission `output_root` as
+`--results-root`; run the helper first with `--dry-run`, then without it:
 
 ```sh
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root results/highlights/2026-09 --dry-run <submission-directory>
+  --results-root <saved-output-root> --dry-run <submission-directory>
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root results/highlights/2026-09 <submission-directory>
+  --results-root <saved-output-root> <submission-directory>
 ```
 
 For a user-authorized full cleanup below the results root, replace the explicit
@@ -131,7 +133,9 @@ directory with `--all-under-root`; it discovers only timestamped
 continuation-pending submission, or any member still needed by an unfinished
 plot group. The helper validates every target is beneath the stated results
 root and contains the expected context and configs, verifies the archive before
-deletion, and folds later leftovers into it. Before removal, verify that every
+deletion, and folds later leftovers into it. Before archiving, reconfirm every
+tracked array has successful scheduler, `run_successful`, and PBS-exit-status
+evidence, and report any failed check. Before removal, verify that every
 archived `training_outcomes` path is present in the archive; never delete it as
 a separate cleanup action.
 
