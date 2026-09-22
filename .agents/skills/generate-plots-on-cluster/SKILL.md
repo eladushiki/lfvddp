@@ -69,29 +69,11 @@ python plot/create_plots.py <remote-submission-directory>
 ```
 
 Verify that the command succeeds and creates the configured single-submission
-figures. This verification must happen before checkpoint cleanup, because a
-single-run plot can read training outcomes. Then clean the completed
-single-train outcomes as follows:
-
-1. Reconfirm that every tracked array job completed successfully, every saved
-   `single_train.py` context reports `run_successful: true`, and scheduler
-   evidence does not call for a `--continue ... --extra-time` recovery. Never
-   clean an active, failed, partial, or walltime-killed submission, or one
-   selected for continuation.
-2. From each saved `context.json` for a `single_train.py` run in the timestamped
-   submission directory, derive that run's `training_outcomes` directory. Check
-   that the derived directory is directly below that run directory and that the
-   run directory is below the tracked `remote_submission_directory`; do not use
-   a broad recursive target or a guessed path.
-3. Delete each verified `training_outcomes` directory itself, including its
-   contents. Use a path-validated command such as
-   `find "$training_outcomes_dir" -depth -delete`, then verify that
-   `test ! -e "$training_outcomes_dir"` succeeds.
-   This removes checkpoints, histories, profiler outputs, and debug-only
-   TensorBoard logs, but retains final results and plots outside that directory.
-4. Record the verified run directories, scheduler evidence, and cleanup time
-   in `training_outcomes_cleanup` on the submission. A later run must skip an
-   already recorded cleanup unless the user explicitly regenerates results.
+figures. Preserve every `single_train.py` output, including its
+`training_outcomes` directory, until all aggregate plots that reference the
+submission have succeeded. Percentile-progression plots can read the training
+histories there. Do not delete, empty, or archive those directories after the
+single-submission plot.
 
 Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
@@ -130,7 +112,9 @@ prevents an archive from appearing to be a failed or empty result directory.
 
 When the user has authorized archival cleanup, retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
-`array-job-artifacts.tar.gz`. For every eligible tracked submission below
+`array-job-artifacts.tar.gz`. The archive must include every `single_train.py`
+directory and its `training_outcomes` contents, including histories used by
+percentile-progression plots. For every eligible tracked submission below
 `results/highlights/2026-09`, run the helper first with `--dry-run`, then
 without it:
 
@@ -147,7 +131,9 @@ directory with `--all-under-root`; it discovers only timestamped
 continuation-pending submission, or any member still needed by an unfinished
 plot group. The helper validates every target is beneath the stated results
 root and contains the expected context and configs, verifies the archive before
-deletion, and folds later leftovers into it.
+deletion, and folds later leftovers into it. Before removal, verify that every
+archived `training_outcomes` path is present in the archive; never delete it as
+a separate cleanup action.
 
 If an archive was created before its aggregate plot, restore it before retrying
 the group rather than treating it as a failure residue or deleting it. Run the
