@@ -116,10 +116,11 @@ For a user-authorized full cleanup below the results root, replace the explicit
 directory with `--all-under-root`; it discovers only timestamped
 `submit_train.py` directories.
 
-The helper archives only direct `single_train.py` run directories and PBS
-stdout/stderr files, verifies the archive before deletion, and refuses an
-ambiguous retry. It validates every target is beneath the stated results root
-and contains the expected context and configs. Never archive an active,
+The helper archives every direct item except `context.json`, `configs/`, an
+existing archive, and post-training plot directories. It verifies the archive
+before deletion and folds later leftovers into an existing archive. It
+validates every target is beneath the stated results root and contains the
+expected context and configs. Never archive an active,
 failed, partial, or continuation-pending submission; obtain explicit user
 permission before deleting the original artifacts.
 

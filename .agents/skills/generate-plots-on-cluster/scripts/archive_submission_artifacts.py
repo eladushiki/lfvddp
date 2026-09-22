@@ -30,18 +30,12 @@ def checked_submission(path_arg: str) -> Path:
     return submission
 
 
-def is_pbs_log(path: Path) -> bool:
-    name = path.name
-    return path.is_file() and (
-        ".pbs.o" in name or ".pbs.e" in name or name.endswith(".o") or name.endswith(".e")
-    )
-
-
 def removable_children(submission: Path) -> list[Path]:
+    retained = {"context.json", "configs", ARCHIVE_NAME}
     return sorted(
         child
         for child in submission.iterdir()
-        if "_run_of_single_train.py_" in child.name or is_pbs_log(child)
+        if child.name not in retained and "_run_of_create_plots.py_" not in child.name
     )
 
 
@@ -60,11 +54,6 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    if archive.exists() and sources:
-        raise ValueError(
-            f"archive already exists while removable artifacts remain: {archive}; "
-            "inspect it before retrying"
-        )
     if not sources:
         print(f"unchanged: {submission}")
         return
@@ -83,6 +72,10 @@ def archive_submission(
     sources_removed = False
     try:
         with tarfile.open(temporary_archive, "w:gz") as tar:
+            if archive.is_file():
+                with tarfile.open(archive, "r:gz") as previous:
+                    for member in previous:
+                        tar.addfile(member, previous.extractfile(member) if member.isfile() else None)
             for source in sources:
                 tar.add(source, arcname=source.name, recursive=True)
         with tarfile.open(temporary_archive, "r:gz") as tar:
