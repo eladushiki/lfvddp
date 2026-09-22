@@ -27,9 +27,12 @@ second connection.
 - Match only job IDs saved in submission `attempts`. Do not add pre-existing or
   otherwise unknown scheduler jobs to state.
 - Mark a submission `finished` only when every saved array job has left active
-  states and completed successfully. Record `finished_at`.
-- Record failures and their scheduler evidence in `last_error`; do not plot a
-  failed or partially completed array. Handle scheduler walltime kills with the
+  states, every saved `single_train.py` context reports `run_successful: true`,
+  and every corresponding PBS output log ends with exit status `0`. Record
+  `finished_at` and that evidence.
+- Record any missing context, nonzero or missing PBS exit status, failure, or
+  partial array with its scheduler evidence in `last_error` and report it; do
+  not plot or archive that submission. Handle scheduler walltime kills with the
   continuation procedure below; other failures remain blocked.
 
 ## Continue walltime-killed submissions
@@ -69,29 +72,11 @@ python plot/create_plots.py <remote-submission-directory>
 ```
 
 Verify that the command succeeds and creates the configured single-submission
-figures. This verification must happen before checkpoint cleanup, because a
-single-run plot can read training outcomes. Then clean the completed
-single-train outcomes as follows:
-
-1. Reconfirm that every tracked array job completed successfully, every saved
-   `single_train.py` context reports `run_successful: true`, and scheduler
-   evidence does not call for a `--continue ... --extra-time` recovery. Never
-   clean an active, failed, partial, or walltime-killed submission, or one
-   selected for continuation.
-2. From each saved `context.json` for a `single_train.py` run in the timestamped
-   submission directory, derive that run's `training_outcomes` directory. Check
-   that the derived directory is directly below that run directory and that the
-   run directory is below the tracked `remote_submission_directory`; do not use
-   a broad recursive target or a guessed path.
-3. Delete each verified `training_outcomes` directory itself, including its
-   contents. Use a path-validated command such as
-   `find "$training_outcomes_dir" -depth -delete`, then verify that
-   `test ! -e "$training_outcomes_dir"` succeeds.
-   This removes checkpoints, histories, profiler outputs, and debug-only
-   TensorBoard logs, but retains final results and plots outside that directory.
-4. Record the verified run directories, scheduler evidence, and cleanup time
-   in `training_outcomes_cleanup` on the submission. A later run must skip an
-   already recorded cleanup unless the user explicitly regenerates results.
+figures. Preserve every `single_train.py` output, including its
+`training_outcomes` directory, until all aggregate plots that reference the
+submission have succeeded. Percentile-progression plots can read the training
+histories there. Do not delete, empty, or archive those directories after the
+single-submission plot.
 
 Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
@@ -130,15 +115,16 @@ prevents an archive from appearing to be a failed or empty result directory.
 
 When the user has authorized archival cleanup, retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
-`array-job-artifacts.tar.gz`. For every eligible tracked submission below
-`results/highlights/2026-09`, run the helper first with `--dry-run`, then
-without it:
+`array-job-artifacts.tar.gz`. The archive must include every `single_train.py`
+directory and its `training_outcomes` contents, including histories used by
+percentile-progression plots. Use the saved submission `output_root` as
+`--results-root`; run the helper first with `--dry-run`, then without it:
 
 ```sh
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root results/highlights/2026-09 --dry-run <submission-directory>
+  --results-root <saved-output-root> --dry-run <submission-directory>
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root results/highlights/2026-09 <submission-directory>
+  --results-root <saved-output-root> <submission-directory>
 ```
 
 For a user-authorized full cleanup below the results root, replace the explicit
@@ -146,8 +132,12 @@ directory with `--all-under-root`; it discovers only timestamped
 `submit_train.py` directories. Never archive an active, failed, partial, or
 continuation-pending submission, or any member still needed by an unfinished
 plot group. The helper validates every target is beneath the stated results
-root and contains the expected context and configs, verifies the archive before
-deletion, and folds later leftovers into it.
+root and contains the expected context and configs, and verifies the archive
+before deletion. Before archiving, reconfirm every
+tracked array has successful scheduler, `run_successful`, and PBS-exit-status
+evidence, and report any failed check. Before removal, verify that every
+archived `training_outcomes` path is present in the archive; never delete it as
+a separate cleanup action.
 
 If an archive was created before its aggregate plot, restore it before retrying
 the group rather than treating it as a failure residue or deleting it. Run the

@@ -38,6 +38,17 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
+def training_outcome_directories(sources: list[Path]) -> list[Path]:
+    """Return training histories that must survive archive verification."""
+    return [
+        path
+        for source in sources
+        if source.is_dir()
+        for path in source.glob("**/training_outcomes")
+        if path.is_dir()
+    ]
+
+
 def all_submission_directories(results_root: Path) -> list[Path]:
     if not results_root.is_dir():
         raise ValueError(f"results root does not exist: {results_root}")
@@ -53,6 +64,7 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
+    training_outcomes = training_outcome_directories(sources)
     if not sources:
         print(f"unchanged: {submission}")
         return
@@ -79,7 +91,11 @@ def archive_submission(
                 tar.add(source, arcname=source.name, recursive=True)
         with tarfile.open(temporary_archive, "r:gz") as tar:
             archived = set(tar.getnames())
-        missing = [source.name for source in sources if source.name not in archived]
+        required_members = [
+            *[source.name for source in sources],
+            *[str(path.relative_to(submission)) for path in training_outcomes],
+        ]
+        missing = [member for member in required_members if member not in archived]
         if missing:
             raise ValueError(f"archive verification missing: {', '.join(missing)}")
         if temporary_directory is None:
@@ -143,7 +159,7 @@ def main() -> int:
     parser.add_argument(
         "--all-under-root",
         action="store_true",
-        help="archive every submission directory below results/highlights/2026-09",
+        help="archive every submission directory below --results-root",
     )
     parser.add_argument(
         "--temporary-directory",
