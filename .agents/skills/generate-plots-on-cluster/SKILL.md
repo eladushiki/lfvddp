@@ -83,10 +83,10 @@ single-train outcomes as follows:
    that the derived directory is directly below that run directory and that the
    run directory is below the tracked `remote_submission_directory`; do not use
    a broad recursive target or a guessed path.
-3. Delete every item *inside* each verified `training_outcomes` directory while
-   retaining the directory itself. Use a path-validated command such as
-   `find "$training_outcomes_dir" -mindepth 1 -depth -delete`, then verify that
-   `find "$training_outcomes_dir" -mindepth 1 -print -quit` emits nothing.
+3. Delete each verified `training_outcomes` directory itself, including its
+   contents. Use a path-validated command such as
+   `find "$training_outcomes_dir" -depth -delete`, then verify that
+   `test ! -e "$training_outcomes_dir"` succeeds.
    This removes checkpoints, histories, profiler outputs, and debug-only
    TensorBoard logs, but retains final results and plots outside that directory.
 4. Record the verified run directories, scheduler evidence, and cleanup time
@@ -96,6 +96,39 @@ single-train outcomes as follows:
 Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
 explicitly requests regeneration.
+
+## Archive completed array artifacts
+
+When the user authorizes archival cleanup, retain only the submission's
+`context.json`, `configs/`, generated plot directories, and one
+`array-job-artifacts.tar.gz`. For every explicitly selected tracked submission
+below `results/highlights/2026-09`, run the helper first with `--dry-run`, then
+without it:
+
+```sh
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root results/highlights/2026-09 --dry-run <submission-directory>
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root results/highlights/2026-09 <submission-directory>
+```
+
+For a user-authorized full cleanup below the results root, replace the explicit
+directory with `--all-under-root`; it discovers only timestamped
+`submit_train.py` directories.
+
+The helper archives every direct item except `context.json`, `configs/`, an
+existing archive, and post-training plot directories. It verifies the archive
+before deletion and folds later leftovers into an existing archive. It
+validates every target is beneath the stated results root and contains the
+expected context and configs. Never archive an active,
+failed, partial, or continuation-pending submission; obtain explicit user
+permission before deleting the original artifacts.
+
+If the results filesystem has insufficient space even for a temporary archive,
+the user may authorize `--temporary-directory /tmp`. The helper verifies the
+archive there, removes the verified sources, then moves the archive into the
+submission directory. If that final move fails, it preserves the verified
+temporary archive and reports its path for recovery.
 
 ## Multi-run plots
 
