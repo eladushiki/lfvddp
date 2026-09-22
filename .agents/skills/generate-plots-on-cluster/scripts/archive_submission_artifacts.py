@@ -99,6 +99,38 @@ def archive_submission(
     print(f"archived and removed {len(sources)} items: {submission}")
 
 
+def restore_submission(submission: Path, *, dry_run: bool) -> None:
+    """Restore one archive without overwriting existing plot products."""
+    archive = submission / ARCHIVE_NAME
+    if not archive.is_file():
+        raise ValueError(f"submission has no {ARCHIVE_NAME}: {submission}")
+
+    with tarfile.open(archive, "r:gz") as tar:
+        members = tar.getmembers()
+        destinations = []
+        for member in members:
+            destination = (submission / member.name).resolve()
+            try:
+                destination.relative_to(submission)
+            except ValueError as error:
+                raise ValueError(
+                    f"archive contains an unsafe member {member.name!r}: {archive}"
+                ) from error
+            if member.isfile() and destination.exists():
+                raise ValueError(
+                    f"refusing to overwrite restored artifact {destination}: {archive}"
+                )
+            destinations.append(destination)
+
+        print(f"restore: {archive}")
+        if dry_run:
+            for destination in destinations:
+                print(f"  {destination.relative_to(submission)}")
+            return
+        tar.extractall(submission, members=members, filter="data")
+    print(f"restored {len(members)} archived members: {submission}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("submission", nargs="*", help="tracked submission directories")
@@ -118,6 +150,11 @@ def main() -> int:
         type=Path,
         help="build the verified archive here before removing sources; use only when the results filesystem has no temporary space",
     )
+    parser.add_argument(
+        "--restore",
+        action="store_true",
+        help="restore archived artifacts for aggregate plotting without deleting the archive",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.all_under_root == bool(args.submission):
@@ -131,11 +168,15 @@ def main() -> int:
         if temporary_directory is not None and not temporary_directory.is_dir():
             raise ValueError(f"temporary directory is not a directory: {temporary_directory}")
         for path_arg in paths:
-            archive_submission(
-                checked_submission(str(path_arg), results_root),
-                dry_run=args.dry_run,
-                temporary_directory=temporary_directory,
-            )
+            submission = checked_submission(str(path_arg), results_root)
+            if args.restore:
+                restore_submission(submission, dry_run=args.dry_run)
+            else:
+                archive_submission(
+                    submission,
+                    dry_run=args.dry_run,
+                    temporary_directory=temporary_directory,
+                )
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

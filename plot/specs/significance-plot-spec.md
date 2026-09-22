@@ -33,7 +33,7 @@ The plot factory discovers and injects the two parent directories for this multi
 - Signal contexts are discovered recursively and grouped by compatible dataset configuration.
 - Each signal context contributes a `t` distribution and an ideal significance derived from its configured injected signal.
 - For each signal distribution, the measured significance is the common-background percentile of that distribution's mean `t`; uncertainty is reported from mean `t` plus or minus one standard deviation.
-- Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined.
+- Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined. If outlier filtering leaves no usable background values, the error identifies the checked directories and raw, finite, and finite-nonnegative counts. A verified `array-job-artifacts.tar.gz` created before aggregate plotting must be restored rather than misclassified as a failed residue.
 
 ## Rendering
 
