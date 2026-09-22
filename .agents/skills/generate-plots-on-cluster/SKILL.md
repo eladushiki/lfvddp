@@ -97,39 +97,6 @@ Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
 explicitly requests regeneration.
 
-## Archive completed array artifacts
-
-When the user authorizes archival cleanup, retain only the submission's
-`context.json`, `configs/`, generated plot directories, and one
-`array-job-artifacts.tar.gz`. For every explicitly selected tracked submission
-below `results/highlights/2026-09`, run the helper first with `--dry-run`, then
-without it:
-
-```sh
-python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root results/highlights/2026-09 --dry-run <submission-directory>
-python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root results/highlights/2026-09 <submission-directory>
-```
-
-For a user-authorized full cleanup below the results root, replace the explicit
-directory with `--all-under-root`; it discovers only timestamped
-`submit_train.py` directories.
-
-The helper archives every direct item except `context.json`, `configs/`, an
-existing archive, and post-training plot directories. It verifies the archive
-before deletion and folds later leftovers into an existing archive. It
-validates every target is beneath the stated results root and contains the
-expected context and configs. Never archive an active,
-failed, partial, or continuation-pending submission; obtain explicit user
-permission before deleting the original artifacts.
-
-If the results filesystem has insufficient space even for a temporary archive,
-the user may authorize `--temporary-directory /tmp`. The helper verifies the
-archive there, removes the verified sources, then moves the archive into the
-submission directory. If that final move fails, it preserves the verified
-temporary archive and reports its path for recovery.
-
 ## Multi-run plots
 
 Use `plot_groups` as the single definition of background and signal membership.
@@ -151,6 +118,48 @@ python plot/create_plots.py <remote-multi-run-directory> \
 
 Verify the configured aggregate plots, set the group status to `analyzed`, and
 record `completed_at`. Skip completed groups on later daily runs.
+
+## Archive completed array artifacts
+
+Archive only after aggregate plotting. A completed single-submission plot is
+not enough: its final statistics remain input to the group-level significance
+plot. After a group is `analyzed`, an eligible submission may be archived only
+when every saved `plot_group` that names it as a background or signal member is
+also `analyzed`. This preserves a single source of truth for plot readiness and
+prevents an archive from appearing to be a failed or empty result directory.
+
+When the user has authorized archival cleanup, retain only the submission's
+`context.json`, `configs/`, generated plot directories, and one
+`array-job-artifacts.tar.gz`. For every eligible tracked submission below
+`results/highlights/2026-09`, run the helper first with `--dry-run`, then
+without it:
+
+```sh
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root results/highlights/2026-09 --dry-run <submission-directory>
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root results/highlights/2026-09 <submission-directory>
+```
+
+For a user-authorized full cleanup below the results root, replace the explicit
+directory with `--all-under-root`; it discovers only timestamped
+`submit_train.py` directories. Never archive an active, failed, partial, or
+continuation-pending submission, or any member still needed by an unfinished
+plot group. The helper validates every target is beneath the stated results
+root and contains the expected context and configs, verifies the archive before
+deletion, and folds later leftovers into it.
+
+If an archive was created before its aggregate plot, restore it before retrying
+the group rather than treating it as a failure residue or deleting it. Run the
+same helper with `--restore` and `--dry-run` first. Restoration refuses unsafe
+archive members and existing artifact files, leaves the archive in place, and
+must be verified before running `plot.create_plots`.
+
+If the results filesystem has insufficient space even for a temporary archive,
+the user may authorize `--temporary-directory /tmp`. The helper verifies the
+archive there, removes the verified sources, then moves the archive into the
+submission directory. If that final move fails, it preserves the verified
+temporary archive and reports its path for recovery.
 
 ### Submission residue cleanup
 
@@ -186,6 +195,11 @@ After the underlying failure has been fixed, a failed-job residue becomes
 eligible for the same permission-gated cleanup. After an approved deletion,
 retry the multi-run command, verify its products, and clear the group's stale
 `last_error` only when the retry succeeds.
+
+Do not classify a submission as an empty or failed residue merely because its
+per-run artifacts are in `array-job-artifacts.tar.gz`; restore that verified
+archive first when the aggregate plot has not yet been generated. A real
+residue requires its own failed scheduler/context evidence.
 
 ## Failure handling
 
