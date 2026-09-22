@@ -97,6 +97,28 @@ Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
 explicitly requests regeneration.
 
+## Archive completed array artifacts
+
+When the user authorizes archival cleanup, retain only the submission's
+`context.json`, `configs/`, generated plot directories, and one
+`array-job-artifacts.tar.gz`. For every explicitly selected tracked submission
+below `results/highlights/2026-09`, run the helper first with `--dry-run`, then
+without it:
+
+```sh
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --dry-run <submission-directory>
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  <submission-directory>
+```
+
+The helper archives only direct `single_train.py` run directories and PBS
+stdout/stderr files, verifies the archive before deletion, and refuses an
+ambiguous retry. It validates every target is beneath the stated results root
+and contains the expected context and configs. Never archive an active,
+failed, partial, or continuation-pending submission; obtain explicit user
+permission before deleting the original artifacts.
+
 ## Multi-run plots
 
 Use `plot_groups` as the single definition of background and signal membership.
