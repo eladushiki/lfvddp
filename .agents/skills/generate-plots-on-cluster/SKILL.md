@@ -132,8 +132,8 @@ directory with `--all-under-root`; it discovers only timestamped
 `submit_train.py` directories. Never archive an active, failed, partial, or
 continuation-pending submission, or any member still needed by an unfinished
 plot group. The helper validates every target is beneath the stated results
-root and contains the expected context and configs, verifies the archive before
-deletion, and folds later leftovers into it. Before archiving, reconfirm every
+root and contains the expected context and configs, and verifies the archive
+before deletion. Before archiving, reconfirm every
 tracked array has successful scheduler, `run_successful`, and PBS-exit-status
 evidence, and report any failed check. Before removal, verify that every
 archived `training_outcomes` path is present in the archive; never delete it as
