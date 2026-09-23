@@ -32,25 +32,32 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 
 For the first `requested` entry:
 
-1. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
+1. If the entry has `required_submission_branch`, the remote checkout must be
+   on that exact branch before it can submit. When scheduler jobs are active,
+   leave the entry `requested` and stop: do not change the checkout and do not
+   let lower-priority work overtake it. With no active jobs, first perform its
+   saved `required_pre_submission_action`, then verify the branch and commit.
+2. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
    definition in the pack and is not copied into state.
-2. Recount queued elements immediately before submission for reporting.
-3. Submit the whole array and let PBS enforce its current quota. Never split an
+3. Recount queued elements immediately before submission for reporting.
+4. Submit the whole array and let PBS enforce its current quota. Never split an
    array or reserve capacity locally.
-4. Use the entry's `output_root`. Explicit pack values take precedence; seeded
+5. Use the entry's `output_root`. Explicit pack values take precedence; seeded
    Plot 01-05 requests derive missing roots as
    `results/highlights/2026-09/plot-XX`.
-5. Run the current submission entry point from the observed remote checkout:
+6. Run the current submission entry point from the observed remote checkout.
+   Append `--debug` exactly when the saved entry has `debug: true`; otherwise
+   omit it. The normal saved `only_train: true` setting uses `--only-train`:
 
    ```sh
    python -m train.submit_train --configs <config-pack> \
-     --only-train --out-dir <output-root>
+     --only-train [--debug] --out-dir <output-root>
    ```
 
-6. Capture every returned parent job ID. Discover the newly created timestamped
+7. Capture every returned parent job ID. Discover the newly created timestamped
    `*_run_of_submit_train.py_*` directory under `output_root`; do not predict its
    name. Save it as `remote_submission_directory`.
-7. Verify every returned parent ID has active array elements in `qstat -tu
+8. Verify every returned parent ID has active array elements in `qstat -tu
    $USER` before updating state. A returned `qsub` ID alone is not evidence
    that training is running. If an array is absent, inspect its PBS output and
    scheduler history; record it as failed or blocked rather than `submitted`.
@@ -58,7 +65,7 @@ For the first `requested` entry:
    its first submission or a `rerun` attempt when prior attempts exist. Save its
    job IDs and timestamp, the new timestamped directory, and the observed remote
    commit.
-8. Continue until no `requested` entries remain.
+9. Continue until no `requested` entries remain.
 
 If PBS rejects a whole array because of its current queue-state quota, keep the
 entry `requested`, record `last_error`, and defer it only for this routine run.

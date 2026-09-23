@@ -50,6 +50,23 @@ Required initial fields are `id`, `status`, `config_pack`, `output_root`,
 Array size is deliberately absent: read `cluster__qsub_n_jobs` from the pack
 immediately before submission.
 
+Optional request controls are recorded with the request, rather than inferred
+from a directory name:
+
+- `required_submission_branch`: the exact remote branch required to run the
+  pack. A mismatched active checkout leaves this priority entry waiting; it
+  must not be bypassed.
+- `required_pre_submission_action`: the Git preparation required before that
+  branch is used, such as fetching and fast-forwarding it. It may run only
+  after all scheduler jobs are inactive.
+- `debug: true`: requires `train.submit_train --debug` for every attempt of
+  this request.
+- `only_train: true`: requires `--only-train`; this keeps a scheduled training
+  request from unexpectedly generating plots during submission.
+
+These fields are execution requirements, not audit-only annotations. The
+submission procedure must verify them before `qsub`.
+
 Submission statuses and their additional fields are:
 
 - `requested`: explicitly authorized and waiting in FIFO order. A previously
