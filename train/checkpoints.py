@@ -102,6 +102,18 @@ def _single_train_checkpoint_paths(
             yield checkpoint_path
 
 
+def _continuation_checkpoint_paths(
+    context: ExecutionContext,
+    model_name: str,
+) -> Iterable[Path]:
+    """Yield both legacy and per-training-run checkpoint locations."""
+
+    legacy_path = _legacy_continuation_checkpoint_path(context, model_name)
+    if legacy_path is not None and legacy_path.exists():
+        yield legacy_path
+    yield from _single_train_checkpoint_paths(context, model_name)
+
+
 def save_training_checkpoint(
     context: ExecutionContext,
     model_name: str,
