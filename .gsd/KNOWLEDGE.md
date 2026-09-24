@@ -6,6 +6,7 @@ Agents read this before every unit. Add entries when you discover something wort
 
 | # | Scope | Rule | Why | Added |
 |---|-------|------|-----|-------|
+| 1 | All GitHub operations | Interpret “gh app” as the repository-configured GSD Develop GitHub App. For PRs, comments, and other GitHub writes, mint its installation token and use `gh` before considering a Codex plugin, browser login, or personal `gh` authentication. | This preserves the repository’s configured authorization path and makes “gh app” unambiguous. | 2026-09-24 |
 
 ## Patterns
 
