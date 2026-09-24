@@ -24,6 +24,7 @@ Implementing ML machinery to differentiate between similar and different pairs o
   - If asked, answer questions inside Github threads.
   - If you solved a concern raised in a thread on Github, comment on that thread what you did to this end. Never mark as resolved yourself.
 - Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`. Leave local worktree in a prunable state on push - important changed commited, temp files deleted, git head clean.
+- After committing and pushing a dedicated-worktree change, remove that worktree with `git worktree remove` and run `git worktree prune`; do not retain completed worktrees under `.gsd/worktrees`.
 - `.gsd/SECRETS.md` contains local authentication data and must not be backed up
   in the Git repository. Codex has standing authorization to read and use it for
   in-scope GitHub operations without asking again. Never print, commit, or

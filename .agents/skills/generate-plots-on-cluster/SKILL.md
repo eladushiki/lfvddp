@@ -26,15 +26,14 @@ second connection.
   `qstat -tu $USER | grep <state-letter> | wc -l`.
 - Match only job IDs saved in submission `attempts`. Do not add pre-existing or
   otherwise unknown scheduler jobs to state.
-- Mark a submission `finished` when every saved array job has left active states
-  and either all elements succeeded or more than 90% of the expected elements
-  have individually verified exit status 0. Record `finished_at`, and for an
-  accepted partial result also record the successful and expected counts plus
-  the completion basis.
-- Record failures and their scheduler evidence in `last_error`; do not plot a
-  failed array or a partial result at or below the acceptance threshold. Handle
-  scheduler walltime kills with the continuation procedure below; other
-  failures remain blocked.
+- Mark a submission `finished` only when every saved array job has left active
+  states, every saved `single_train.py` context reports `run_successful: true`,
+  and every corresponding PBS output log ends with exit status `0`. Record
+  `finished_at` and that evidence.
+- Record any missing context, nonzero or missing PBS exit status, failure, or
+  partial array with its scheduler evidence in `last_error` and report it; do
+  not plot or archive that submission. Handle scheduler walltime kills with the
+  continuation procedure below; other failures remain blocked.
 
 ## Continue walltime-killed submissions
 
@@ -73,29 +72,11 @@ python -m plot.create_plots <remote-submission-directory>
 ```
 
 Verify that the command succeeds and creates the configured single-submission
-figures. This verification must happen before checkpoint cleanup, because a
-single-run plot can read training outcomes. Then clean the completed
-single-train outcomes as follows:
-
-1. Reconfirm that every tracked array job completed successfully, every saved
-   `single_train.py` context reports `run_successful: true`, and scheduler
-   evidence does not call for a `--continue ... --extra-time` recovery. Never
-   clean an active, failed, partial, or walltime-killed submission, or one
-   selected for continuation.
-2. From each saved `context.json` for a `single_train.py` run in the timestamped
-   submission directory, derive that run's `training_outcomes` directory. Check
-   that the derived directory is directly below that run directory and that the
-   run directory is below the tracked `remote_submission_directory`; do not use
-   a broad recursive target or a guessed path.
-3. Delete every item *inside* each verified `training_outcomes` directory while
-   retaining the directory itself. Use a path-validated command such as
-   `find "$training_outcomes_dir" -mindepth 1 -depth -delete`, then verify that
-   `find "$training_outcomes_dir" -mindepth 1 -print -quit` emits nothing.
-   This removes checkpoints, histories, profiler outputs, and debug-only
-   TensorBoard logs, but retains final results and plots outside that directory.
-4. Record the verified run directories, scheduler evidence, and cleanup time
-   in `training_outcomes_cleanup` on the submission. A later run must skip an
-   already recorded cleanup unless the user explicitly regenerates results.
+figures. Preserve every `single_train.py` output, including its
+`training_outcomes` directory, until all aggregate plots that reference the
+submission have succeeded. Percentile-progression plots can read the training
+histories there. Do not delete, empty, or archive those directories after the
+single-submission plot.
 
 Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
@@ -122,6 +103,53 @@ python -m plot.create_plots <remote-multi-run-directory> \
 
 Verify the configured aggregate plots, set the group status to `analyzed`, and
 record `completed_at`. Skip completed groups on later daily runs.
+
+## Archive completed array artifacts
+
+Archive only after aggregate plotting. A completed single-submission plot is
+not enough: its final statistics remain input to the group-level significance
+plot. After a group is `analyzed`, an eligible submission may be archived only
+when every saved `plot_group` that names it as a background or signal member is
+also `analyzed`. This preserves a single source of truth for plot readiness and
+prevents an archive from appearing to be a failed or empty result directory.
+
+When the user has authorized archival cleanup, retain only the submission's
+`context.json`, `configs/`, generated plot directories, and one
+`array-job-artifacts.tar.gz`. The archive must include every `single_train.py`
+directory and its `training_outcomes` contents, including histories used by
+percentile-progression plots. Use the saved submission `output_root` as
+`--results-root`; run the helper first with `--dry-run`, then without it:
+
+```sh
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root <saved-output-root> --dry-run <submission-directory>
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root <saved-output-root> <submission-directory>
+```
+
+For a user-authorized full cleanup below the results root, replace the explicit
+directory with `--all-under-root`; it discovers only timestamped
+`submit_train.py` directories. Never archive an active, failed, partial, or
+continuation-pending submission, or any member still needed by an unfinished
+plot group. The helper validates every target is beneath the stated results
+root and contains the expected context and configs, and verifies the archive
+before deletion. Before archiving, reconfirm every
+tracked array has successful scheduler, `run_successful`, and PBS-exit-status
+evidence, and report any failed check. Before removal, verify that every
+archived `training_outcomes` path is present in the archive; never delete it as
+a separate cleanup action.
+
+If an archive was created before its aggregate plot, restore it before retrying
+the group rather than treating it as a failure residue or deleting it. Run the
+same helper with `--restore` and `--dry-run` first. Restoration refuses unsafe
+archive members and existing artifact files, leaves the archive in place, and
+must be verified before running `plot.create_plots`.
+
+If the results filesystem has insufficient space even for a temporary archive,
+the user may authorize `--temporary-directory /tmp`. The helper verifies the
+archive there, removes the verified sources, then moves the archive into the
+submission directory. If that final move fails, it preserves the verified
+temporary archive and reports its path for recovery.
 
 ### Submission residue cleanup
 
@@ -157,6 +185,11 @@ After the underlying failure has been fixed, a failed-job residue becomes
 eligible for the same permission-gated cleanup. After an approved deletion,
 retry the multi-run command, verify its products, and clear the group's stale
 `last_error` only when the retry succeeds.
+
+Do not classify a submission as an empty or failed residue merely because its
+per-run artifacts are in `array-job-artifacts.tar.gz`; restore that verified
+archive first when the aggregate plot has not yet been generated. A real
+residue requires its own failed scheduler/context evidence.
 
 ## Failure handling
 

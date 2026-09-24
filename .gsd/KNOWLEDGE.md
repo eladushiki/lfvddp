@@ -11,6 +11,8 @@ Agents read this before every unit. Add entries when you discover something wort
 
 | # | Pattern | Where | Notes |
 |---|---------|-------|-------|
+| 1 | Materialize regional datasets as A/B pairs | `data_tools/dataset_pair.py` | Keep source materialization separate from the shared regional finalization so pairwise invariants cannot be bypassed by a category-specific branch. |
+| 2 | Define A/B and SR/CR topology once | `data_tools/data_utils.py:DATASET_REGIONS` | Use named `.sr`, `.cr`, `.a`, and `.b` fields rather than duplicate category tuples or positional indexing. |
 
 ## Lessons Learned
 

@@ -4,27 +4,35 @@
             "name": "A",
             "type": "loaded",
             "category": "a_sr",
-            "dataset_loaded__file_name": "events.npy",
+            "dataset_loaded__file_name": "sr_a.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__resample_is_resample": true,
             "dataset_loaded__resample_is_replacement": false,
-            "dataset__number_of_background_events": 2
+            "dataset__number_of_background_events": 2,
+            "dataset__signal_generator": {
+                "function": "gaussian_signal",
+                "arguments": {
+                    "location": 1000.0,
+                    "gaussian_signal_sigma": 0.001
+                }
+            },
+            "dataset__number_of_signal_events": 2
         },
         {
             "name": "B",
             "type": "loaded",
             "category": "b_sr",
-            "dataset_loaded__file_name": "events.npy",
+            "dataset_loaded__file_name": "sr_b.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__resample_is_resample": true,
             "dataset_loaded__resample_is_replacement": false,
-            "dataset__number_of_background_events": 2
+            "dataset__number_of_background_events": 3
         },
         {
             "name": "A",
             "type": "loaded",
             "category": "a_cr",
-            "dataset_loaded__file_name": "events.npy",
+            "dataset_loaded__file_name": "cr_a.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__resample_is_resample": true,
             "dataset_loaded__resample_is_replacement": false,
@@ -34,11 +42,11 @@
             "name": "B",
             "type": "loaded",
             "category": "b_cr",
-            "dataset_loaded__file_name": "events.npy",
+            "dataset_loaded__file_name": "cr_b.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__resample_is_resample": true,
             "dataset_loaded__resample_is_replacement": false,
-            "dataset__number_of_background_events": 2
+            "dataset__number_of_background_events": 3
         }
     ]
 }

@@ -454,13 +454,27 @@ def performance_plot(
     )
 
     # Gather background data
+    background_t_values = utils__aggregate_context_t_values(background_contexts)
     background_t_dist, _, _ = _filter_t_distribution_outliers(
-        utils__aggregate_context_t_values(background_contexts),
+        background_t_values,
         cut_non_converged=True,
         cut_overfitted=True,
     )
     if background_t_dist.size == 0:
-        raise ValueError("No finite background t values remain after outlier filtering.")
+        checked_directories = ", ".join(
+            str(directory) for _, directory in background_contexts
+        )
+        finite_t_values = np.isfinite(background_t_values)
+        raise ValueError(
+            "No usable background t values remain after outlier filtering; "
+            f"checked directories: {checked_directories}; "
+            f"raw={background_t_values.size}, "
+            f"finite={np.count_nonzero(finite_t_values)}, "
+            f"finite_nonnegative={np.count_nonzero(background_t_values[finite_t_values] >= 0)}. "
+            "Inspect failed or incomplete submission residues. If a verified "
+            "array-job-artifacts.tar.gz was created before this aggregate plot, "
+            "restore it before retrying rather than deleting it."
+        )
 
     signal_groups = utils__group_signal_contexts(
         signal_t_values_parent_directory

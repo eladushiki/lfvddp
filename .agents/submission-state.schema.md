@@ -96,12 +96,15 @@ Submission statuses and their additional fields are:
 `last_error` may be retained on any non-successful stage for reporting, but it
 must be cleared when that same stage later succeeds.
 
-After a single-submission plot succeeds, a completed submission may record
-`training_outcomes_cleanup`. It requires `completed_at`, the verified
-single-train run directories, and the scheduler evidence establishing that all
-tracked jobs succeeded and no `--extra-time` continuation is required. This
-record authorizes no new cleanup: it makes the already verified cleanup
-idempotent.
+Single-submission plotting never deletes `training_outcomes`: its histories are
+required by aggregate percentile-progression plots. After every referencing
+plot group is analyzed, a submission may record `artifact_archive` with
+`completed_at`, the archive path, verified dependent groups, and the scheduler,
+`run_successful`, and PBS exit-status evidence that every tracked array job
+succeeded and no `--extra-time` continuation is required. The archive contains
+the complete `single_train.py` outputs, including `training_outcomes`; this is
+the only cleanup stage that removes those original directories. A failed check
+must be retained in `last_error` and reported rather than archived.
 
 Each initial submission or continuation is saved once in `attempts`:
 
@@ -163,6 +166,14 @@ Group statuses are:
 - `analyzed`: the multi-run command completed; requires `completed_at`.
 - `failed`: the last aggregate attempt failed; requires `last_error` and may be
   retried without changing membership.
+
+An `analyzed` group may record `output_directory` for its generated products.
+When an archive was restored before a previously blocked aggregate retry, it
+may record `archive_restore` with `completed_at`, `restored_archives`, and
+evidence. A group may also record `stale_residue_cleanup` with `completed_at`,
+the number of deleted directories, and the scheduler/context evidence that
+they were failed or superseded. These audit records do not alter membership or
+permit unreviewed deletion.
 
 The signal tree is `remote_multi_run_directory`. The background submission's
 saved timestamped directory is passed separately with
