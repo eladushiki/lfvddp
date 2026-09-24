@@ -97,10 +97,13 @@ def data_generation(request, function_execution_context):
 def isolated_data_generation(function_execution_context):
     """Create data from the current dimensional config, independent of singleton state."""
     original_instance = DataGeneration._instance
+    original_loaded_datasets = DataGeneration._loaded_datasets
     DataGeneration._instance = None
+    DataGeneration._loaded_datasets = {}
     generator = DataGeneration(function_execution_context)
     yield generator
     DataGeneration._instance = original_instance
+    DataGeneration._loaded_datasets = original_loaded_datasets
 
 
 @fixture(scope="function")

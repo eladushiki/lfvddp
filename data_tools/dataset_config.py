@@ -10,6 +10,12 @@ from urllib.parse import urlparse
 import numpy as np
 
 from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
+from data_tools.dataset_pair import (
+    DatasetPairSplitPolicy,
+    IdentityDatasetPairSplitPolicy,
+    REGIONAL_DATASET_CATEGORY_PAIRS,
+    ShuffledDatasetPairSplitPolicy,
+)
 from data_tools.data_utils import DataSet
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import (
@@ -102,6 +108,11 @@ class DatasetParameters(ABC):
     def dataset__number_of_dimensions(self) -> int:
         """Number of observables / dimensions in the dataset."""
         pass
+
+    @property
+    def dataset__regional_split_policy(self) -> DatasetPairSplitPolicy:
+        """How this category participates in its regional A/B finalization."""
+        return IdentityDatasetPairSplitPolicy()
 
 
 
@@ -297,6 +308,14 @@ class LoadedDatasetParameters(DatasetWithGeneratedSignalParameters):
     # Resampling settings
     dataset_loaded__resample_is_resample: bool = field(default=False)
     dataset_loaded__resample_is_replacement: bool = field(default=False)
+
+    @property
+    def dataset__regional_split_policy(self) -> DatasetPairSplitPolicy:
+        if not self.dataset_loaded__resample_is_resample:
+            return IdentityDatasetPairSplitPolicy()
+        return ShuffledDatasetPairSplitPolicy(
+            replacement=self.dataset_loaded__resample_is_replacement,
+        )
 
     @property
     def dataset_loaded__observable_to_load(self) -> Iterable[str]:
@@ -558,6 +577,29 @@ class DatasetConfig:
             )
 
         self._dataset__parameters_by_category = parameters_by_category
+        self._validate_regional_split_policies()
+
+    def _validate_regional_split_policies(self) -> None:
+        """Require A and B to use one finalization policy within each region."""
+        for first_category, second_category in REGIONAL_DATASET_CATEGORY_PAIRS:
+            if (
+                first_category not in self._dataset__parameters_by_category
+                or second_category not in self._dataset__parameters_by_category
+            ):
+                continue
+
+            first_policy = self._dataset__parameters_by_category[
+                first_category
+            ].dataset__regional_split_policy
+            second_policy = self._dataset__parameters_by_category[
+                second_category
+            ].dataset__regional_split_policy
+            if first_policy != second_policy:
+                raise ValueError(
+                    "Dataset categories "
+                    f"{first_category.name} and {second_category.name} must use "
+                    "matching regional resampling settings."
+                )
 
     def _ensure_dataset_parameters_loaded(self) -> None:
         if not self._dataset__parameters_by_category:

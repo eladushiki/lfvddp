@@ -11,6 +11,7 @@ Agents read this before every unit. Add entries when you discover something wort
 
 | # | Pattern | Where | Notes |
 |---|---------|-------|-------|
+| 1 | Materialize regional datasets as A/B pairs | `data_tools/dataset_pair.py` | Keep source materialization separate from the shared regional finalization so pairwise invariants cannot be bypassed by a category-specific branch. |
 
 ## Lessons Learned
 

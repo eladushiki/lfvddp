@@ -90,6 +90,11 @@ Important configuration choices include:
   and records one.
 - `dataset__definitions` describes the A/B signal-region and control-region
   samples. See the two basic packs for generated and loaded examples.
+- Loaded-dataset resampling is configured per A/B region. When enabled for a
+  region, LFVDDP samples each category at its configured size, injects any
+  configured signal, then shuffles the complete regional A/B pool and restores
+  the original A/B sizes. The two categories in a region must use matching
+  resampling and replacement settings.
 - `train__epochs`, checkpoint frequency, network width, and learning-rate
   settings control optimization.
 - When `train__data_is_train_for_nuisances` is `false`, nuisance parameters may
