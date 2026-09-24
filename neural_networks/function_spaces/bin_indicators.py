@@ -280,35 +280,16 @@ class BinIndicatorFunction(PerEventFunctionSpace):
             max=LIKELIHOOD_SHIFT_BOUND,
         )
 
-    def statistical_design_matrix_from_indices(
-        self,
-        bin_indices: torch.Tensor,
-    ) -> torch.Tensor:
-        """Return the factorized-bin tangent design at the neutral point.
+    def statistical_degrees_of_freedom(self) -> int:
+        """Return marginal-bin parameters after their fixed constraints.
 
-        One one-hot block is emitted per observable.  At unit factors this is
-        the Jacobian of the multiplicative bin model, so SVD removes both
-        unoccupied bins and the redundant inter-axis scaling directions.
+        The factorized parameterization has one relative scale redundancy per
+        axis beyond the first, and fixed observed counts remove the remaining
+        common constant direction.  Together they remove one direction per
+        observable axis.
         """
 
-        return torch.cat(
-            tuple(
-                torch.nn.functional.one_hot(
-                    bin_indices[:, dimension], num_classes=number_of_bins
-                ).to(dtype=self._factor_deltas[dimension].dtype)
-                for dimension, number_of_bins in enumerate(
-                    self.geometry.number_of_bins
-                )
-            ),
-            dim=1,
-        )
-
-    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor:
-        """Return the fixed tangent design for event coordinates."""
-
-        return self.statistical_design_matrix_from_indices(
-            self._tensor_bin_indices(events)
-        )
+        return sum(parameter.numel() for parameter in self._factor_deltas) - self.input_dimension
 
     def forward(self, events: EventInput) -> torch.Tensor:
         return self.values_from_indices(self._tensor_bin_indices(events)).unsqueeze(-1)

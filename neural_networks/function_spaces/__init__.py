@@ -27,11 +27,6 @@ from neural_networks.function_spaces.orthogonal_polynomial import (
     OrthogonalPolynomialGeometry,
     PolynomialBasis,
 )
-from neural_networks.function_spaces.projected_rank import (
-    ProjectedFunctionSpaceRank,
-    compute_projected_function_space_rank,
-    compute_rank_for_backend,
-)
 from neural_networks.function_spaces.registry import FUNCTION_SPACE_REGISTRY, FunctionSpaceRegistration
 
 __all__ = [
@@ -53,8 +48,5 @@ __all__ = [
     "OrthogonalPolynomialFunction",
     "OrthogonalPolynomialGeometry",
     "PolynomialBasis",
-    "ProjectedFunctionSpaceRank",
-    "compute_projected_function_space_rank",
-    "compute_rank_for_backend",
     "create_function_space",
 ]

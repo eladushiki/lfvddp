@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from frame.value_enum import ValueEnum
-from neural_networks.function_spaces.projected_rank import compute_rank_for_backend
+from neural_networks.function_spaces import create_function_space
 from train.function_space_config import (
     FunctionSpaceFamily,
+    FunctionSpaceRole,
     ResolvedFunctionSpaceConfig,
     TrainingBackend,
 )
-
-if TYPE_CHECKING:
-    from data_tools.data_generation import DataBatch
-    from neural_networks.differentiating_model import DifferentiatingModel
+from train.train_config import TrainConfig
 
 
 class CalibrationPolicy(ValueEnum):
@@ -40,32 +36,24 @@ def calibration_policy(
 
 
 def effective_test_statistic_degrees_of_freedom(
-    model: "DifferentiatingModel",
-    data: "DataBatch",
+    config: TrainConfig,
 ) -> int | None:
-    """Return the projected fixed-basis rank for one recreated numerator model.
+    """Return the configured signal hypothesis-space dimension.
 
-    The rank is evaluated on the detected batch because empty bins and overlaps
-    with the fitted nuisance space are properties of that concrete experiment,
-    not merely the declared number of basis functions.
+    The observed event count constrains a constant direction, while fixed
+    family implementations own any further structural dependencies.  Neither
+    depends on the particular Monte Carlo sample used in a run.
     """
 
-    config = model._function_space_config
-    if calibration_policy(config) is CalibrationPolicy.EMPIRICAL_NULL:
+    resolved_config = config.train__function_space_config
+    if calibration_policy(resolved_config) is CalibrationPolicy.EMPIRICAL_NULL:
         return None
-
-    f_design, nuisance_design = model.statistical_design_matrices(data)
-    if f_design is None:
-        raise RuntimeError(
-            "A Wilks-calibrated function-space model did not provide a statistical design."
-        )
-    rank = compute_rank_for_backend(
-        f_design,
-        nuisance_design,
-        backend=config.backend,
+    function_space = create_function_space(
+        FunctionSpaceRole.F,
+        resolved_config.f,
+        output_dimension=config.train__nn_output_dimension,
     )
-    # A fully projected-out f has no non-degenerate chi-square limit.
-    return rank.effective_f_rank or None
+    return function_space.statistical_degrees_of_freedom()
 
 
 __all__ = [

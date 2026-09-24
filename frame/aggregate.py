@@ -6,9 +6,7 @@ from typing import Union
 import numpy as np
 from numpy.typing import NDArray
 
-from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.dataset_config import DatasetConfig, DatasetParameters
-from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
@@ -20,7 +18,6 @@ from frame.file_structure import (
     TRAINING_RESULT_FILE_EXTENSION,
 )
 from frame.file_system.training_history import HistoryKeys, load_training_history
-from neural_networks.differentiating_model import DifferentiatingModel
 from train.statistical_calibration import (
     CalibrationPolicy,
     calibration_policy,
@@ -159,51 +156,6 @@ class ResultAggregator:
         )
         self._epochs = epochs
 
-    @staticmethod
-    def _recreate_detected_batch(
-        context: ExecutionContext,
-    ) -> tuple[DataBatch, DetectorEffect]:
-        """Recreate one observed batch without leaking DataGeneration singleton state."""
-
-        context.seed_random_generators()
-        original_instance = DataGeneration._instance
-        original_loaded_datasets = DataGeneration._loaded_datasets
-        DataGeneration._instance = None
-        DataGeneration._loaded_datasets = {}
-        try:
-            generated_batch = DataGeneration(context).get_batch()
-            detector_effect = DetectorEffect(context)
-            return detector_effect.affect_batch(generated_batch), detector_effect
-        finally:
-            DataGeneration._instance = original_instance
-            DataGeneration._loaded_datasets = original_loaded_datasets
-
-    @classmethod
-    def _chi_square_degrees_of_freedom_for_context(
-        cls,
-        context: ExecutionContext,
-    ) -> int | None:
-        """Derive one run's reference rank from its saved context and seed."""
-
-        if not isinstance(context.config, TrainConfig):
-            raise TypeError(
-                "A chi-square reference requires a training execution context."
-            )
-        if (
-            calibration_policy(context.config.train__function_space_config)
-            is CalibrationPolicy.EMPIRICAL_NULL
-        ):
-            return None
-
-        data, detector_effect = cls._recreate_detected_batch(context)
-        model = DifferentiatingModel(
-            context=context,
-            detector_effect=detector_effect,
-            is_numerator=True,
-            name="statistical_rank",
-        )
-        return effective_test_statistic_degrees_of_freedom(model, data)
-
     @property
     def chi_square_degrees_of_freedom(self) -> int | None:
         """Return a shared Wilks rank, or no analytic reference for empirical modes."""
@@ -229,7 +181,7 @@ class ResultAggregator:
                 "Cannot combine Wilks and empirical-null runs in one chi-square plot."
             )
         degrees_of_freedom = {
-            self._chi_square_degrees_of_freedom_for_context(context)
+            effective_test_statistic_degrees_of_freedom(context.config)
             for context, _ in contexts
         }
         if len(degrees_of_freedom) != 1:

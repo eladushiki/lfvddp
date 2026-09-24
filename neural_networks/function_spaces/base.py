@@ -108,8 +108,8 @@ class FunctionSpace(Protocol):
         """Map physical configuration geometry into model-input coordinates."""
         ...
 
-    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor | None:
-        """Return the family's fixed tangent design, when defined."""
+    def statistical_degrees_of_freedom(self) -> int | None:
+        """Return the fixed hypothesis-space dimension, when defined."""
         ...
 
 
@@ -217,14 +217,9 @@ class PerEventFunctionSpace(nn.Module):
 
         del normalization_factor, observable_names
 
-    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor | None:
-        """Return the fixed tangent design, when this family has one.
+    def statistical_degrees_of_freedom(self) -> int | None:
+        """Return no analytic rank for adaptive feature-search spaces."""
 
-        Adaptive spaces deliberately return ``None``: their searched features
-        need empirical-null calibration rather than a Wilks rank.
-        """
-
-        del events
         return None
 
     def build_nuisance_calculation(
@@ -338,13 +333,20 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
     def evaluate(self, events: EventInput) -> torch.Tensor:
         return self._linear_evaluation(self.features(events))
 
-    def feature_map(self, events: EventInput) -> torch.Tensor:
-        return self.features(events)
+    def statistical_degrees_of_freedom(self) -> int:
+        """Return this family's independent, constrained coefficient count."""
 
-    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor:
-        """Use the fixed linear feature map as the Wilks design matrix."""
+        degrees_of_freedom = sum(
+            parameter.numel() for parameter in self.parameters() if parameter.requires_grad
+        ) - self._statistical_constraint_dimension()
+        if degrees_of_freedom < 0:
+            raise ValueError("Function-space constraints exceed trainable parameters.")
+        return degrees_of_freedom
 
-        return self.feature_map(events)
+    def _statistical_constraint_dimension(self) -> int:
+        """Return fixed dependencies and observed-count constraints in this family."""
+
+        return 0
 
     def initialize_parameters(self, gain: float) -> None:
         nn.init.xavier_uniform_(self.coefficients, gain=gain)

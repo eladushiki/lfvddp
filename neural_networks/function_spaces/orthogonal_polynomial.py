@@ -117,6 +117,11 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
         with torch.no_grad():
             self._domain.copy_(torch.as_tensor(normalized_domain, dtype=self._domain.dtype, device=self._domain.device))
 
+    def _statistical_constraint_dimension(self) -> int:
+        """Remove duplicate per-axis constants and the observed-count direction."""
+
+        return self.input_dimension
+
     def features(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(
             events,

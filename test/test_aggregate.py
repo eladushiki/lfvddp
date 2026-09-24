@@ -94,8 +94,10 @@ def test_injected_significances_use_dataset_integration_limits(
 
 def _context_with_calibration(policy, rank):
     return SimpleNamespace(
-        config=SimpleNamespace(train__function_space_config=SimpleNamespace(policy=policy)),
-        rank=rank,
+        config=SimpleNamespace(
+            train__function_space_config=SimpleNamespace(policy=policy),
+            rank=rank,
+        ),
     )
 
 
@@ -112,9 +114,8 @@ def test_aggregate_derives_a_shared_wilks_rank_from_run_contexts(tmp_path, monke
         "frame.aggregate.calibration_policy", lambda config: config.policy
     )
     monkeypatch.setattr(
-        ResultAggregator,
-        "_chi_square_degrees_of_freedom_for_context",
-        classmethod(lambda cls, context: context.rank),
+        "frame.aggregate.effective_test_statistic_degrees_of_freedom",
+        lambda config: config.rank,
     )
 
     assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 3
@@ -146,9 +147,8 @@ def test_aggregate_rejects_different_recreated_effective_ranks(tmp_path, monkeyp
         "frame.aggregate.calibration_policy", lambda config: config.policy
     )
     monkeypatch.setattr(
-        ResultAggregator,
-        "_chi_square_degrees_of_freedom_for_context",
-        classmethod(lambda cls, context: context.rank),
+        "frame.aggregate.effective_test_statistic_degrees_of_freedom",
+        lambda config: config.rank,
     )
 
     with pytest.raises(ValueError, match="different effective"):

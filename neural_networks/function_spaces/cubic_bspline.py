@@ -128,6 +128,11 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
                 buffer = self._knot_vector(dimension)
                 buffer.copy_(torch.as_tensor(normalized, dtype=buffer.dtype, device=buffer.device))
 
+    def _statistical_constraint_dimension(self) -> int:
+        """Remove duplicate per-axis constants and the observed-count direction."""
+
+        return self.input_dimension
+
     @staticmethod
     def _basis(values: torch.Tensor, knots: torch.Tensor) -> torch.Tensor:
         count = knots.numel() - CUBIC_BSPLINE_DEGREE - 1

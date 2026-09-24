@@ -181,18 +181,6 @@ class BinnedNuisanceCalculation(NuisanceCalculation):
     def initialize_parameters(self, gain: float) -> None:
         self.function_space.initialize_parameters(gain)
 
-    def statistical_design_matrix(
-        self,
-        data: PreparedNuisanceData,
-    ) -> torch.Tensor:
-        """Use the occupied signal-region bins as the nuisance tangent design."""
-
-        if not isinstance(data, self._PreparedData):
-            raise TypeError("Binned nuisance data was not prepared by this calculation.")
-        return self.function_space.statistical_design_matrix_from_indices(
-            data.sr_inputs
-        )
-
     def clamp_parameters(self) -> None:
         self.function_space.clamp_parameters()
 
@@ -267,16 +255,6 @@ class PerEventNuisanceEstimator(NuisanceCalculation):
 
     def initialize_parameters(self, gain: float) -> None:
         self.network.initialize_parameters(gain)
-
-    def statistical_design_matrix(
-        self,
-        data: PreparedNuisanceData,
-    ) -> Optional[torch.Tensor]:
-        """Delegate fixed-family rank diagnostics to the wrapped network."""
-
-        if not isinstance(data, self._PreparedData):
-            raise TypeError("Per-event nuisance data was not prepared by this calculation.")
-        return self.network.statistical_design_matrix(data.sr_inputs)
 
     def prediction_values(
         self,
