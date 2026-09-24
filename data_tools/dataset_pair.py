@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterator, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
@@ -14,26 +14,14 @@ if TYPE_CHECKING:
     from data_tools.dataset_config import DatasetParameters
 
 
-REGIONAL_DATASET_CATEGORY_PAIRS = (
-    (
-        DataSet.DataSetCategory.A_SR,
-        DataSet.DataSetCategory.B_SR,
-    ),
-    (
-        DataSet.DataSetCategory.A_CR,
-        DataSet.DataSetCategory.B_CR,
-    ),
-)
-
-
 class DatasetPairSplitPolicy(ABC):
     """Define how fully materialized A/B datasets are finalized."""
 
     @abstractmethod
     def split(
         self,
-        first: DataSet,
-        second: DataSet,
+        a: DataSet,
+        b: DataSet,
     ) -> Tuple[DataSet, DataSet]:
         """Return finalized A and B datasets for one physical region."""
 
@@ -44,10 +32,10 @@ class IdentityDatasetPairSplitPolicy(DatasetPairSplitPolicy):
 
     def split(
         self,
-        first: DataSet,
-        second: DataSet,
+        a: DataSet,
+        b: DataSet,
     ) -> Tuple[DataSet, DataSet]:
-        return first, second
+        return a, b
 
 
 @dataclass(frozen=True)
@@ -58,63 +46,41 @@ class ShuffledDatasetPairSplitPolicy(DatasetPairSplitPolicy):
 
     def split(
         self,
-        first: DataSet,
-        second: DataSet,
+        a: DataSet,
+        b: DataSet,
     ) -> Tuple[DataSet, DataSet]:
-        first_size = first.n_samples
-        shuffled = (first + second)[np.random.permutation(first_size + second.n_samples)]
-        first_result = shuffled[:first_size]
-        second_result = shuffled[first_size:]
-        first_result.category = first.category
-        second_result.category = second.category
-        return first_result, second_result
+        a_size = a.n_samples
+        shuffled = (a + b)[np.random.permutation(a_size + b.n_samples)]
+        a_result = shuffled[:a_size]
+        b_result = shuffled[a_size:]
+        a_result.category = a.category
+        b_result.category = b.category
+        return a_result, b_result
 
 
 @dataclass(frozen=True)
 class RegionalDataPair:
     """The two datasets and common finalization policy of one SR or CR region."""
 
-    first: Tuple[DataSet, DatasetParameters]
-    second: Tuple[DataSet, DatasetParameters]
+    a: DataSet
+    a_parameters: DatasetParameters
+    b: DataSet
+    b_parameters: DatasetParameters
     split_policy: DatasetPairSplitPolicy
 
-    def __post_init__(self) -> None:
-        first_category = self.first[0].category
-        second_category = self.second[0].category
-        if (first_category, second_category) not in REGIONAL_DATASET_CATEGORY_PAIRS:
-            raise ValueError(
-                "A regional pair must contain A and B datasets from the same region, "
-                f"got {first_category} and {second_category}."
-            )
-
     def finalized(self) -> RegionalDataPair:
-        first_dataset, second_dataset = self.split_policy.split(
-            self.first[0],
-            self.second[0],
-        )
+        a, b = self.split_policy.split(self.a, self.b)
         return RegionalDataPair(
-            first=(first_dataset, self.first[1]),
-            second=(second_dataset, self.second[1]),
+            a=a,
+            a_parameters=self.a_parameters,
+            b=b,
+            b_parameters=self.b_parameters,
             split_policy=IdentityDatasetPairSplitPolicy(),
         )
 
-    def __iter__(self) -> Iterator[Tuple[DataSet, DatasetParameters]]:
-        yield self.first
-        yield self.second
-
     def get(self, category: DataSet.DataSetCategory) -> Tuple[DataSet, DatasetParameters]:
-        for dataset, parameters in self:
-            if dataset.category == category:
-                return dataset, parameters
+        if category == self.a.category:
+            return self.a, self.a_parameters
+        if category == self.b.category:
+            return self.b, self.b_parameters
         raise KeyError(f"Dataset category '{category}' is not part of this regional pair.")
-
-
-def regional_categories_for(
-    category: DataSet.DataSetCategory,
-) -> Tuple[DataSet.DataSetCategory, DataSet.DataSetCategory]:
-    """Return the A/B category pair that contains ``category``."""
-
-    for regional_categories in REGIONAL_DATASET_CATEGORY_PAIRS:
-        if category in regional_categories:
-            return regional_categories
-    raise KeyError(f"Dataset category '{category}' does not belong to an SR or CR pair.")

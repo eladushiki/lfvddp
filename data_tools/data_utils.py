@@ -31,31 +31,27 @@ class DataSet:
 
         @staticmethod
         def from_string(category_str: str) -> DataSet.DataSetCategory:
-            key_map = {
-                DataSet.DataSetCategory.A_SR: ("a", "sr"),
-                DataSet.DataSetCategory.A_CR: ("a", "cr"),
-                DataSet.DataSetCategory.B_SR: ("b", "sr"),
-                DataSet.DataSetCategory.B_CR: ("b", "cr"),
-            }
-            for category, strings in key_map.items():
-                if all(s in re.split(r"[_\- ]", category_str.lower()) for s in strings):
-                    return category
+            parts = re.split(r"[_\- ]", category_str.lower())
+            if "a" in parts and "sr" in parts:
+                return DATASET_REGIONS.sr.a
+            if "a" in parts and "cr" in parts:
+                return DATASET_REGIONS.cr.a
+            if "b" in parts and "sr" in parts:
+                return DATASET_REGIONS.sr.b
+            if "b" in parts and "cr" in parts:
+                return DATASET_REGIONS.cr.b
             return DataSet.DataSetCategory.UNDEFINED
 
         def __add__(self, other: DataSet.DataSetCategory) -> DataSet.DataSetCategory:
             if self == other:
                 return self
-            if (self in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.A_CR] and
-                    other in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.A_CR]):
+            if DATASET_REGIONS.is_a(self) and DATASET_REGIONS.is_a(other):
                 return DataSet.DataSetCategory.A
-            if (self in [DataSet.DataSetCategory.B_SR, DataSet.DataSetCategory.B_CR] and
-                    other in [DataSet.DataSetCategory.B_SR, DataSet.DataSetCategory.B_CR]):
+            if DATASET_REGIONS.is_b(self) and DATASET_REGIONS.is_b(other):
                 return DataSet.DataSetCategory.B
-            if (self in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR] and
-                    other in [DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR]):
+            if DATASET_REGIONS.sr.contains(self) and DATASET_REGIONS.sr.contains(other):
                 return DataSet.DataSetCategory.SR
-            if (self in [DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR] and
-                    other in [DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR]):
+            if DATASET_REGIONS.cr.contains(self) and DATASET_REGIONS.cr.contains(other):
                 return DataSet.DataSetCategory.CR
             return DataSet.DataSetCategory.UNDEFINED
 
@@ -229,6 +225,50 @@ class DataSet:
             observable_names=[observables] if isinstance(observables, str) else observables,
             category=self._category,
         )
+
+
+@dataclass(frozen=True)
+class DataSetRegion:
+    """The A and B categories of one physical region."""
+
+    a: DataSet.DataSetCategory
+    b: DataSet.DataSetCategory
+
+    def contains(self, category: DataSet.DataSetCategory) -> bool:
+        return category == self.a or category == self.b
+
+
+@dataclass(frozen=True)
+class DataSetRegions:
+    """The single category topology used by dataset loading and batching."""
+
+    sr: DataSetRegion
+    cr: DataSetRegion
+
+    def for_category(self, category: DataSet.DataSetCategory) -> DataSetRegion:
+        if self.sr.contains(category):
+            return self.sr
+        if self.cr.contains(category):
+            return self.cr
+        raise KeyError(f"Dataset category '{category}' does not belong to an SR or CR pair.")
+
+    def is_a(self, category: DataSet.DataSetCategory) -> bool:
+        return category == self.sr.a or category == self.cr.a
+
+    def is_b(self, category: DataSet.DataSetCategory) -> bool:
+        return category == self.sr.b or category == self.cr.b
+
+
+DATASET_REGIONS = DataSetRegions(
+    sr=DataSetRegion(
+        a=DataSet.DataSetCategory.A_SR,
+        b=DataSet.DataSetCategory.B_SR,
+    ),
+    cr=DataSetRegion(
+        a=DataSet.DataSetCategory.A_CR,
+        b=DataSet.DataSetCategory.B_CR,
+    ),
+)
 
 
 def resample(

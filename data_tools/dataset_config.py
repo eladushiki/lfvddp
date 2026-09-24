@@ -13,10 +13,9 @@ from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
 from data_tools.dataset_pair import (
     DatasetPairSplitPolicy,
     IdentityDatasetPairSplitPolicy,
-    REGIONAL_DATASET_CATEGORY_PAIRS,
     ShuffledDatasetPairSplitPolicy,
 )
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DATASET_REGIONS, DataSet
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import (
     DataDistribution,
@@ -581,23 +580,23 @@ class DatasetConfig:
 
     def _validate_regional_split_policies(self) -> None:
         """Require A and B to use one finalization policy within each region."""
-        for first_category, second_category in REGIONAL_DATASET_CATEGORY_PAIRS:
+        for region in (DATASET_REGIONS.sr, DATASET_REGIONS.cr):
             if (
-                first_category not in self._dataset__parameters_by_category
-                or second_category not in self._dataset__parameters_by_category
+                region.a not in self._dataset__parameters_by_category
+                or region.b not in self._dataset__parameters_by_category
             ):
                 continue
 
-            first_policy = self._dataset__parameters_by_category[
-                first_category
+            a_policy = self._dataset__parameters_by_category[
+                region.a
             ].dataset__regional_split_policy
-            second_policy = self._dataset__parameters_by_category[
-                second_category
+            b_policy = self._dataset__parameters_by_category[
+                region.b
             ].dataset__regional_split_policy
-            if first_policy != second_policy:
+            if a_policy != b_policy:
                 raise ValueError(
                     "Dataset categories "
-                    f"{first_category.name} and {second_category.name} must use "
+                    f"{region.a.name} and {region.b.name} must use "
                     "matching regional resampling settings."
                 )
 

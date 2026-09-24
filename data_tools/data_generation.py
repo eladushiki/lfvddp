@@ -1,11 +1,13 @@
 from typing import Dict, Iterable, Iterator, Tuple
-from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor, resample as ddp_resample
-from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
-from data_tools.dataset_pair import (
-    REGIONAL_DATASET_CATEGORY_PAIRS,
-    RegionalDataPair,
-    regional_categories_for,
+from data_tools.data_utils import (
+    DATASET_REGIONS,
+    DataSet,
+    DataSetRegion,
+    ShiftAndNormalizationFactor,
+    resample as ddp_resample,
 )
+from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
+from data_tools.dataset_pair import RegionalDataPair
 from frame.context.execution_context import ExecutionContext
 
 class DataBatch:
@@ -13,8 +15,10 @@ class DataBatch:
     All the data sets needed for a single training run.
     """
     REQUIRED_DATASET_CATEGORIES = [
-        *(categories[0] for categories in REGIONAL_DATASET_CATEGORY_PAIRS),
-        *(categories[1] for categories in REGIONAL_DATASET_CATEGORY_PAIRS),
+        DATASET_REGIONS.sr.a,
+        DATASET_REGIONS.cr.a,
+        DATASET_REGIONS.sr.b,
+        DATASET_REGIONS.cr.b,
     ]
 
     def __init__(self, dss_and_params: Iterable[Tuple[DataSet, DatasetParameters]]):
@@ -75,21 +79,22 @@ class DataGeneration:
         self._config: DatasetConfig = context.config
 
     def get_batch(self) -> DataBatch:
-        regional_pairs = [
-            self.__retrieve_regional_pair(categories)
-            for categories in REGIONAL_DATASET_CATEGORY_PAIRS
-        ]
+        sr = self.__retrieve_regional_pair(DATASET_REGIONS.sr)
+        cr = self.__retrieve_regional_pair(DATASET_REGIONS.cr)
         return DataBatch(
-            dataset_and_parameters
-            for regional_pair in regional_pairs
-            for dataset_and_parameters in regional_pair
+            [
+                (sr.a, sr.a_parameters),
+                (cr.a, cr.a_parameters),
+                (sr.b, sr.b_parameters),
+                (cr.b, cr.b_parameters),
+            ]
         )
 
     def __getitem__(self, item: DataSet.DataSetCategory) -> Tuple[DataSet, DatasetParameters]:
         try:
-            categories = regional_categories_for(item)
-            if all(self.__has_parameters(category) for category in categories):
-                return self.__retrieve_regional_pair(categories).get(item)
+            region = DATASET_REGIONS.for_category(item)
+            if self.__has_parameters(region.a) and self.__has_parameters(region.b):
+                return self.__retrieve_regional_pair(region).get(item)
 
             dataset_parameters = self._config.get_parameters(item)
             return self.__materialize_dataset(dataset_parameters), dataset_parameters
@@ -106,27 +111,16 @@ class DataGeneration:
 
     def __retrieve_regional_pair(
         self,
-        categories: Tuple[DataSet.DataSetCategory, DataSet.DataSetCategory],
+        region: DataSetRegion,
     ) -> RegionalDataPair:
-        datasets_and_parameters = tuple(
-            (
-                self.__materialize_dataset(
-                    self._config.get_parameters(category)
-                ),
-                self._config.get_parameters(category),
-            )
-            for category in categories
-        )
-        first_policy = datasets_and_parameters[0][1].dataset__regional_split_policy
-        second_policy = datasets_and_parameters[1][1].dataset__regional_split_policy
-        if first_policy != second_policy:
-            raise ValueError(
-                "A and B datasets must use matching regional resampling settings."
-            )
+        a_parameters = self._config.get_parameters(region.a)
+        b_parameters = self._config.get_parameters(region.b)
         return RegionalDataPair(
-            first=datasets_and_parameters[0],
-            second=datasets_and_parameters[1],
-            split_policy=first_policy,
+            a=self.__materialize_dataset(a_parameters),
+            a_parameters=a_parameters,
+            b=self.__materialize_dataset(b_parameters),
+            b_parameters=b_parameters,
+            split_policy=a_parameters.dataset__regional_split_policy,
         ).finalized()
 
     def __materialize_dataset(self, dataset_parameters: DatasetParameters) -> DataSet:

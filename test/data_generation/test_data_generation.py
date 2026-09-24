@@ -68,11 +68,14 @@ def test_shuffled_regional_pair_preserves_pool_and_can_move_signal(monkeypatch):
     )
 
     pair = RegionalDataPair(
-        first=(first, None),
-        second=(second, None),
+        a=first,
+        a_parameters=None,
+        b=second,
+        b_parameters=None,
         split_policy=ShuffledDatasetPairSplitPolicy(replacement=False),
     ).finalized()
-    first_result, second_result = (dataset for dataset, _ in pair)
+    first_result = pair.a
+    second_result = pair.b
 
     assert first_result.category == categories.A_SR
     assert second_result.category == categories.B_SR
