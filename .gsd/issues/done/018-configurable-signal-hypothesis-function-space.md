@@ -1,6 +1,6 @@
 # Issue 018: Add configurable signal-hypothesis function spaces
 
-**Status:** open
+**Status:** done
 
 ## Description
 
@@ -30,13 +30,18 @@ Support these top-level modes:
    linear output coefficients are fitted. Configurable number of neurons.
 4. `cubic_bspline`: cubic B-spline basis functions with fixed knots.
 5. `orthogonal_polynomial`: Legendre or Chebyshev functions through a configured
-  maximum degree on the normalized observable domain.
+  maximum degree on a configured physical observable domain, normalized with
+  the data at evaluation time.
 
 Basis geometry must not be selected from the A/B labels being tested. It may be
 specified directly, derived from physics or simulation, or learned from an
 independent reference sample. The adaptive-neural mode remains available when
 data-driven feature location and scale are required; its null distribution is
 to be calibrated empirically rather than inferred from raw parameter count.
+Geometry comparable to observable axes—bin limits, spline knots, polynomial
+domains, centres, and widths—must be written in physical observable units. A
+single pooled affine transform maps both events and per-event geometry into the
+model coordinates; raw configuration geometry remains immutable.
 
 ## Mehtod
 - Split to several milestones - the infrastructure overhaul itself, then each
@@ -115,5 +120,17 @@ to be calibrated empirically rather than inferred from raw parameter count.
 - Choosing among several fixed bases after examining the same A/B labels is
   itself a trials factor. Either predeclare the basis or include that selection
   in the empirical null calibration.
-- Add background-only cluster configuration packs for at least bin indicators,
-  cubic B-splines, and fixed sigmoids.
+- Keep background-only comparison packs on the cluster for bin indicators,
+  cubic B-splines, and fixed sigmoids. Their geometry is specified in physical
+  observable units and normalized with the data at evaluation time.
+
+## Completion record
+
+- The canonical configuration is `train__backend` plus required `train__f`
+  and optional `train__nuisance`; `null` is the sole disabled nuisance form.
+  Legacy architecture and backend selectors are deliberately unsupported.
+- Every enabled role is constructed from the same function-space catalog after
+  the pooled normalizer is known. Bin indicators are a Cartesian one-hot,
+  linear fixed space, not a separate factorized nuisance implementation.
+- Fixed-space degrees of freedom are geometry-based and independent of the
+  observed data batch. Adaptive and NPLM modes use empirical calibration.

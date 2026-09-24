@@ -2,9 +2,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from frame.aggregate import ResultAggregator
 from frame.file_system.training_history import HistoryKeys, save_training_history
+from test.environment import ConfigType
 
 
 def _save_t_history(
@@ -88,3 +90,36 @@ def test_injected_significances_use_dataset_integration_limits(
         calculation_arguments["upper_limit"],
         integration_limits,
     )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        pytest.param(
+            {
+                ConfigType.DATASET: Path(
+                    "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/orthogonal_legendre_binned.json"
+                ),
+            },
+            id="orthogonal-polynomial",
+        ),
+    ],
+    indirect=True,
+)
+def test_aggregate_derives_hypothesis_dof_from_run_context(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+):
+    monkeypatch.setattr(
+        "frame.aggregate.ExecutionContext.discover_run_contexts",
+        lambda parent_directory: [(function_execution_context, parent_directory)],
+    )
+
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 3

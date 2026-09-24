@@ -9,9 +9,11 @@ from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import calc_t_LFVDDP
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import RESULTING_T_FILE_NAME
+from frame.file_structure import (
+    RESULTING_T_FILE_NAME,
+)
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.differentiating_model import LFVNN_DTYPE
+from neural_networks.differentiating_model import DifferentiatingModel, LFVNN_DTYPE
 from neural_networks.utils import save_training_history_outcome
 from train.cpu_runtime import configure_cpu_runtime
 from train.model_trainer import (
@@ -95,7 +97,7 @@ def select_train_launcher_class(
 
     if (
         not probe_forces_sequential()
-        and not config.train__like_NPLM
+        and not config.train__is_nplm
         and lfvnn_denominator_is_trainable(config)
         and allocation_supports_parallel_training(allocation)
     ):

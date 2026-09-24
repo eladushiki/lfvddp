@@ -11,7 +11,12 @@ from data_tools.data_generation import DataGeneration
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.command_line.handle_args import create_config_from_paths
 from frame.context.execution_context import version_controlled_execution_context
-from test.environment import DEFAULT_CONFIG_PATHS, wrap_with_command_line_args
+from neural_networks.differentiating_model import DifferentiatingModel
+from test.environment import (
+    ConfigType,
+    DEFAULT_CONFIG_PATHS,
+    wrap_with_command_line_args,
+)
 
 
 @fixture(scope="session", autouse=True)
@@ -65,7 +70,6 @@ def function_execution_context(
     config_paths = DEFAULT_CONFIG_PATHS.copy()
     if request.param:
         config_paths.update(request.param)
-
     args = Namespace(
         debug=session_execution_context.is_debug_mode,
         build_container=session_execution_context.is_build_container,
@@ -129,6 +133,27 @@ def data_batch_events():
 @fixture(scope="function")
 def detector_effect(request, function_execution_context):
     return DetectorEffect(function_execution_context)
+
+
+@fixture
+def differentiating_model_factory():
+    """Construct differentiating models for tests with a shared interface."""
+
+    def create(
+        context,
+        detector_effect,
+        *,
+        is_numerator: bool = True,
+        name: str = "test_model",
+    ):
+        return DifferentiatingModel(
+            context=context,
+            detector_effect=detector_effect,
+            is_numerator=is_numerator,
+            name=name,
+        )
+
+    return create
 
 
 def pytest_runtest_setup(item):

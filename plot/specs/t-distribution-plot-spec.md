@@ -22,7 +22,7 @@ A reader should be able to determine:
 | Input | Current behavior |
 | --- | --- |
 | Execution context | Must supply a merged `PlottingConfig`, `TrainConfig`, and `DetectorConfig`. |
-| Training results | The result aggregator loads recorded test-statistic (`t`) values from a single submission. |
+| Training results | The result aggregator loads recorded test-statistic (`t`) values and the saved run contexts from a single submission. |
 | `number_of_bins` | Required instruction controlling empirical histogram bin count. |
 | `cut_non_converged` | Optional; default `true`; controls removal (and indication) of non-convergent (negative and apart from distribution bulk) `t` values. |
 | `cut_overfitted` | Optional; default `true`; controls removal (and indication) of extreme finite (large and apart from distribution bulk) `t` values. |
@@ -43,9 +43,12 @@ The figure contains one axes:
 | Element | Rendering |
 | --- | --- |
 | Empirical test statistics | Normalized histogram with the configured number of bins. |
-| Target distribution | Chi-square probability-density curve using the train statistic's degrees of freedom. |
+| Target distribution | A chi-square probability-density curve using the effective hypothesis-space dimension reconstructed from each saved run context. |
 | Mean statistic | Marked and labelled on the distribution. |
 | Significance | Derived from the mean statistic and reported in the plot annotation. |
+
+Function spaces without a nonzero analytic degree count omit the chi-square
+curve and chi-square-derived significance annotation.
 
 The plot uses the configured histogram, edge, and chi-square colors, line width, and alpha. It labels the horizontal axis as the test statistic and the vertical axis as probability density, with a legend identifying the empirical and reference distributions.
 
@@ -77,6 +80,7 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 
 - [ ] The input configuration type and required plot instruction are validated.
 - [ ] The empirical histogram contains only the selected `t` values.
-- [ ] The chi-square reference uses the configured statistic degrees of freedom.
+- [x] The chi-square reference uses the effective hypothesis-space dimension reconstructed from the saved run context.
+- [x] Function spaces without a nonzero degree count omit the analytic reference.
 - [ ] Mean statistic, significance, and omitted-run information are readable.
 - [ ] The figure is reproducible from the recorded submission results and configuration.

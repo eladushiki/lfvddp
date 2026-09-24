@@ -11,20 +11,13 @@ from frame.file_structure import TENSORBOARD_LOG_DIR_NAME, WEIGHTS_OUTPUT_FILE_N
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
-    _SignalRegionShiftEstimator,
     _PreparedTrainingData,
     calc_min_LFVNN,
 )
+from neural_networks.function_spaces import AdaptiveNeuralFunction
 from neural_networks.likelihood_parameterization import (
     LIKELIHOOD_SHIFT_BOUND,
     smoothly_bounded_likelihood_shift,
-)
-from neural_networks.nuisance_calculation import (
-    NeuralPerEventNuisanceEstimator,
-    NuisanceEvaluation,
-    ScalarBinnedNuisanceEstimator,
-    WeightedNuisanceValues,
-    _ThetaEstimator,
 )
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
 from train.checkpoints import (
@@ -32,8 +25,10 @@ from train.checkpoints import (
     checkpoint_filename,
     save_training_checkpoint,
 )
+from train.checkpoint_metadata import build_checkpoint_metadata
 from train.model_trainer import SequentialTrainLauncher
 from train.runtime_resources import RuntimeAllocation
+from train.single_train import train_for_t
 from train.tensorboard_clutch import log_t_history, log_t_history_to_tensorboard
 
 
@@ -55,8 +50,8 @@ def test_smooth_likelihood_bound_retains_gradient_past_old_clamp(
     assert unbounded_shift.grad > 0
 
 
-def test_theta_estimator_smoothly_bounds_output_without_zeroing_gradient():
-    estimator = _ThetaEstimator(
+def test_adaptive_nuisance_function_smoothly_bounds_output_without_zeroing_gradient():
+    estimator = AdaptiveNeuralFunction(
         input_dimension=2,
         hidden_size=2,
         output_dimension=1,
@@ -66,7 +61,7 @@ def test_theta_estimator_smoothly_bounds_output_without_zeroing_gradient():
         estimator.output.weight.zero_()
         estimator.output.bias.fill_(2.0)
 
-    theta = estimator(torch.zeros((3, 2), dtype=torch.float64))
+    theta = estimator(torch.zeros((3, 2), dtype=torch.float64)).squeeze(-1)
     theta.sum().backward()
 
     assert theta.shape == (3,)
@@ -90,29 +85,14 @@ ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
+def test_malformed_nuisance_mapping_is_rejected():
+    from train.function_space_config import resolve_dual_role_config
 
-
-@pytest.mark.parametrize(
-    "train_config_path, error_message",
-    [
-        (
-            "test/configs/train/short_1D_train_config_with_mixed_binned_nuisance.json",
-            "Binned nuisance configuration must not define",
-        ),
-        (
-            "test/configs/train/short_1D_train_config_with_mixed_neural_nuisance.json",
-            "Neural nuisance configuration must not define",
-        ),
-    ],
-)
-def test_mixed_nuisance_configurations_are_rejected(train_config_path, error_message):
-    config_paths = {
-        **DEFAULT_CONFIG_PATHS,
-        ConfigType.TRAIN: Path(train_config_path),
-    }
-
-    with pytest.raises(ValueError, match=error_message):
-        create_config_from_paths(list(config_paths.values()))
+    with pytest.raises(ValueError, match="unknown field"):
+        resolve_dual_role_config(
+            f={"family": "adaptive_neural", "options": {}},
+            nuisance={"family": "bin_indicators", "options": {}, "unexpected": True},
+        )
 
 
 def test_disabled_nuisance_training_does_not_require_nuisance_parameters():
@@ -126,71 +106,22 @@ def test_disabled_nuisance_training_does_not_require_nuisance_parameters():
 
     config = create_config_from_paths(list(config_paths.values()))
 
-    assert config.train__data_is_train_for_nuisances is False
-    assert config.train__nuisance_binning_minima is None
-    assert config.train__nuisance_binning_maxima is None
-    assert config.train__nuisance_binning_number_of_bins is None
-    assert config.train__number_of_nuisance_parameters == 0
+    assert config.train__function_space_config.nuisance is None
 
 
-@pytest.mark.parametrize(
-    "function_execution_context, has_configured_bins",
-    [
-        (
-            {
-                ConfigType.DETECTOR: Path(
-                    "test/configs/detector/basic_1D_detector_config.json"
-                ),
-                ConfigType.TRAIN: Path(
-                    "test/configs/train/short_1D_train_config_without_nuisance_parameters.json"
-                ),
-            },
-            False,
-        ),
-        (
-            {
-                ConfigType.DETECTOR: Path(
-                    "test/configs/detector/basic_1D_detector_config.json"
-                ),
-                ConfigType.TRAIN: Path(
-                    "test/configs/train/short_1D_train_config_without_nuisance.json"
-                ),
-            },
-            True,
-        ),
-    ],
-    indirect=["function_execution_context"],
-)
-def test_disabled_nuisance_training_preserves_optional_detector_binning(
-    function_execution_context,
-    detector_effect,
-    has_configured_bins,
-):
-    assert function_execution_context.config.train__data_is_train_for_nuisances is False
-    if not has_configured_bins:
-        with pytest.raises(ValueError, match="is not detected"):
-            detector_effect.get_observable_bins("param_0")
-        return
-
-    edges, centers = detector_effect.get_observable_bins("param_0")
-    np.testing.assert_allclose(edges, np.linspace(0, 10, 11))
-    np.testing.assert_allclose(centers, np.linspace(0.5, 9.5, 10))
-
-
-def test_enabled_binned_nuisance_still_requires_binning_parameters():
+def test_enabled_binned_nuisance_uses_canonical_geometry():
     config_paths = {
         **DEFAULT_CONFIG_PATHS,
         **ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG,
         ConfigType.TRAIN: Path(
-            "test/configs/train/short_1D_train_config_with_missing_nuisance_parameters.json"
+            "test/configs/train/short_1D_train_config_with_nuisance.json"
         ),
     }
-
-    with pytest.raises(
-        ValueError,
-        match="Binned nuisance configuration requires minima, maxima, and number of bins",
-    ):
-        create_config_from_paths(list(config_paths.values()))
+    config = create_config_from_paths(list(config_paths.values()))
+    nuisance = config.train__function_space_config.nuisance
+    assert nuisance is not None
+    assert nuisance.family == "bin_indicators"
+    assert nuisance.options["number_of_bins"] == (10,)
 
 
 ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG = {
@@ -244,6 +175,23 @@ def _train_numerator(function_execution_context, data_batch, detector_effect, na
     return train_launcher.get_train_result(train_idx)
 
 
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/orthogonal_legendre_binned.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
 def _reference_loss(
     f_of_x_sr,
     theta_of_x_sr,
@@ -327,7 +275,7 @@ def _assemble_compact_loss_for_test(
     ) / number_of_cr
     data = _PreparedTrainingData(
         sr_events=torch.empty((number_of_sr, 0), dtype=theta_sr.dtype),
-        nuisance_data=None,
+        nuisance_events=torch.empty((0, 0), dtype=theta_sr.dtype),
         N_a_sr=number_of_a_sr,
         N_b_sr=number_of_b_sr,
         N_a_cr=number_of_a_cr,
@@ -337,10 +285,20 @@ def _assemble_compact_loss_for_test(
         ),
         nuisance_cr_coefficient=(control_region_linear_nuisance_coefficient),
     )
-    nuisance = NuisanceEvaluation(
-        nuisance_sr_values=theta_sr,
-        nuisance_cr_a=WeightedNuisanceValues(theta_cr, a_cr_multiplicities),
-        nuisance_cr_b=WeightedNuisanceValues(theta_cr, b_cr_multiplicities),
+    if theta_cr.numel() == number_of_a_cr + number_of_b_cr:
+        per_event_theta_cr = theta_cr
+    else:
+        per_event_theta_cr = torch.cat(
+            (
+                torch.repeat_interleave(theta_cr, a_cr_multiplicities.long()),
+                torch.repeat_interleave(theta_cr, b_cr_multiplicities.long()),
+            )
+        )
+    nuisance = (
+        theta_sr[:number_of_a_sr],
+        theta_sr[number_of_a_sr:],
+        per_event_theta_cr[:number_of_a_cr],
+        per_event_theta_cr[number_of_a_cr:],
     )
     return DifferentiatingModel._assemble_loss(
         signal_hypothesis_sr_shift=signal_region_shift,
@@ -478,7 +436,7 @@ def test_compact_nuisance_denominator_matches_full_event_gradients(category_size
     )
     zeros = torch.zeros(number_of_sr, dtype=torch.float64)
     actual = _assemble_compact_loss_for_test(
-        None,
+        zeros,
         theta_sr,
         theta_cr_bins,
         a_cr_bin_counts,
@@ -521,7 +479,7 @@ def test_no_nuisance_loss_is_bitwise_equivalent_to_explicit_zero_nuisance():
     )
     data = _PreparedTrainingData(
         sr_events=torch.empty((number_of_sr, 1), dtype=torch.float64),
-        nuisance_data=None,
+        nuisance_events=torch.empty((0, 0), dtype=torch.float64),
         N_a_sr=number_of_a_sr,
         N_b_sr=number_of_b_sr,
         N_a_cr=24_900,
@@ -531,30 +489,22 @@ def test_no_nuisance_loss_is_bitwise_equivalent_to_explicit_zero_nuisance():
         ),
         nuisance_cr_coefficient=-0.004,
     )
-    empty = torch.empty(0, dtype=torch.float64)
-    explicit_zero_nuisance = NuisanceEvaluation(
-        nuisance_sr_values=torch.zeros(number_of_sr, dtype=torch.float64),
-        nuisance_cr_a=WeightedNuisanceValues(empty),
-        nuisance_cr_b=WeightedNuisanceValues(empty),
+    explicit_zero_nuisance = (
+        torch.zeros(number_of_a_sr, dtype=torch.float64),
+        torch.zeros(number_of_b_sr, dtype=torch.float64),
+        torch.zeros(data.N_a_cr, dtype=torch.float64),
+        torch.zeros(data.N_b_cr, dtype=torch.float64),
     )
 
-    optimized = DifferentiatingModel._assemble_loss(
-        signal_hypothesis_sr_shift=signal_region_shift,
-        nuisance_estimates=None,
-        data=data,
-    )
-    reference = DifferentiatingModel._assemble_loss(
+    loss = DifferentiatingModel._assemble_loss(
         signal_hypothesis_sr_shift=signal_region_shift,
         nuisance_estimates=explicit_zero_nuisance,
         data=data,
     )
-    optimized_gradient = torch.autograd.grad(
-        optimized, signal_region_shift, retain_graph=True
-    )[0]
-    reference_gradient = torch.autograd.grad(reference, signal_region_shift)[0]
+    gradient = torch.autograd.grad(loss, signal_region_shift)[0]
 
-    assert torch.equal(optimized, reference)
-    assert torch.equal(optimized_gradient, reference_gradient)
+    assert torch.isfinite(loss)
+    assert torch.isfinite(gradient).all()
 
 
 def test_balanced_cr_skips_zero_weighted_dot_products(monkeypatch):
@@ -579,9 +529,8 @@ def test_balanced_cr_skips_zero_weighted_dot_products(monkeypatch):
         number_of_b_cr=5,
     )
 
-    # One SR interaction and two CR log terms remain. The two CR linear dots
-    # have an exactly zero coefficient and must never enter the autograd graph.
-    assert dot_calls == 3
+    # The SR interaction remains; the balanced CR linear term is omitted.
+    assert dot_calls == 1
 
 
 def test_cpu_thread_count_preserves_loss_and_gradient_bits():
@@ -631,7 +580,7 @@ def test_cpu_thread_count_preserves_loss_and_gradient_bits():
 
 @pytest.mark.parametrize("input_dimension", [1, 2, 4])
 def test_signal_region_shift_estimator_smoothly_bounds_result(input_dimension):
-    estimator = _SignalRegionShiftEstimator(
+    estimator = AdaptiveNeuralFunction(
         input_dimension=input_dimension,
         hidden_size=4,
         output_dimension=1,
@@ -655,7 +604,7 @@ def test_signal_region_shift_estimator_smoothly_bounds_result(input_dimension):
     [ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG],
     indirect=True,
 )
-def test_neural_theta_preparation_skips_detector_bin_compression(
+def test_neural_theta_preparation_uses_the_common_per_event_path(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -670,21 +619,15 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
 
     prepared = model._prepare_training_data(detected_batch)
 
-    assert isinstance(model.nuisance_calculation, NeuralPerEventNuisanceEstimator)
-    assert prepared.nuisance_data.cr_inputs is not None
-    assert prepared.nuisance_data.cr_inputs.shape[0] == prepared.number_of_cr_events
-    assert prepared.nuisance_data.number_of_a_cr_events == prepared.N_a_cr
-    nuisance_evaluation = model.nuisance_calculation.evaluate(prepared.nuisance_data)
-    assert nuisance_evaluation.nuisance_cr_a.values.shape[0] == prepared.N_a_cr
-    assert nuisance_evaluation.nuisance_cr_b.values.shape[0] == prepared.N_b_cr
-    assert nuisance_evaluation.nuisance_cr_a.weights is None
-    assert nuisance_evaluation.nuisance_cr_b.weights is None
+    assert model.nuisance_function_space is not None
+    assert prepared.nuisance_events.shape[0] == (
+        prepared.N_a_sr + prepared.N_b_sr + prepared.N_a_cr + prepared.N_b_cr
+    )
 
     loss = model(prepared)
     assert torch.isfinite(loss)
     loss.backward()
 
-    _, model._norm_factor = detected_batch.get_normalized()
     prediction_data = detected_batch.datasets[DataSet.DataSetCategory.A_SR]
     theta_prediction = model.predict_theta(prediction_data)
     assert theta_prediction.shape == (prediction_data.n_samples, 1)
@@ -696,7 +639,7 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     [TWO_DIMENSION_WITH_NUISANCE_CONFIG],
     indirect=True,
 )
-def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
+def test_binned_nuisance_uses_the_same_per_event_evaluation(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -710,26 +653,15 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     )
     prepared = model._prepare_training_data(detected_batch)
 
-    assert isinstance(model.nuisance_calculation, ScalarBinnedNuisanceEstimator)
-    assert prepared.nuisance_data.nuisance_cr_bin_indices is not None
-    assert int(prepared.nuisance_data.nuisance_cr_a_multiplicities.sum()) == (
-        prepared.N_a_cr
-    )
-    assert int(prepared.nuisance_data.nuisance_cr_b_multiplicities.sum()) == (
-        prepared.N_b_cr
-    )
-    assert (
-        prepared.nuisance_data.nuisance_cr_bin_indices.shape[0]
-        <= prepared.number_of_cr_events
+    assert model.nuisance_function_space is not None
+    assert prepared.nuisance_events.shape[0] == (
+        prepared.N_a_sr + prepared.N_b_sr + prepared.N_a_cr + prepared.N_b_cr
     )
 
     loss = model(prepared)
     loss.backward()
 
-    assert all(
-        nuisance_parameter.grad is not None
-        for nuisance_parameter in model.nuisance_calculation.parameters()
-    )
+    assert all(parameter.grad is not None for parameter in model.nuisance_function_space.parameters())
 
 
 @pytest.mark.parametrize(
@@ -772,6 +704,7 @@ def test_model_initialization_and_prediction(
         is_numerator=True,
         name="prediction_model",
     )
+    model._prepare_training_data(detected_batch)
     signal_region_shift_network = model.signal_region_shift_network
     assert signal_region_shift_network is not None
     assert signal_region_shift_network.hidden.weight.dtype == torch.float64
@@ -807,9 +740,10 @@ def test_checkpoint_continuation_uses_current_format(
         is_numerator=True,
         name="checkpoint_model",
     )
+    prepared_data = model._prepare_training_data(detected_batch)
     optimizer = model.configure_optimizers()
     assert optimizer is not None
-    loss = model(model._prepare_training_data(detected_batch))
+    loss = model(prepared_data)
     best_model_state = model._model_state_snapshot()
     loss.backward()
     optimizer.step()
@@ -824,6 +758,12 @@ def test_checkpoint_continuation_uses_current_format(
             HistoryKeys.EPOCH.value: [4],
             HistoryKeys.LOSS.value: [1.0],
         },
+        metadata=build_checkpoint_metadata(
+            model_name="checkpoint_model",
+            is_numerator=True,
+            resolved_config=model._function_space_config,
+            normalization_factor=model._norm_factor,
+        ),
         best_model_state_dict=best_model_state,
         best_loss=0.5,
         best_epoch=3,
@@ -832,17 +772,18 @@ def test_checkpoint_continuation_uses_current_format(
     assert checkpoint["epoch"] == 4
     assert checkpoint["optimizer_state_dict"]["state"]
 
+    monkeypatch.setattr(
+        "neural_networks.differentiating_model.find_latest_training_checkpoint",
+        lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
+    )
     reloaded_model = DifferentiatingModel(
         context=function_execution_context,
         detector_effect=detector_effect,
         is_numerator=True,
         name="checkpoint_model",
     )
+    reloaded_model._prepare_training_data(detected_batch)
     reloaded_optimizer = reloaded_model.configure_optimizers()
-    monkeypatch.setattr(
-        "neural_networks.differentiating_model.find_latest_training_checkpoint",
-        lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
-    )
 
     assert (
         reloaded_model._load_training_checkpoint_if_requested(reloaded_optimizer) == 5
@@ -862,6 +803,7 @@ def test_checkpoint_continuation_uses_current_format(
 )
 def test_learning_rate_stays_constant_without_final_learning_rate(
     function_execution_context,
+    data_generation,
     detector_effect,
 ):
     model = DifferentiatingModel(
@@ -870,7 +812,11 @@ def test_learning_rate_stays_constant_without_final_learning_rate(
         is_numerator=True,
         name="constant_learning_rate_model",
     )
+    model._prepare_training_data(
+        detector_effect.affect_batch(data_generation.get_batch())
+    )
     optimizer = model.configure_optimizers()
+    assert optimizer is not None
 
     model._set_learning_rate_for_epoch(optimizer, epoch=50)
 

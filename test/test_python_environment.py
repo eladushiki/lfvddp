@@ -47,7 +47,7 @@ def test_generated_cluster_scripts_activate_cvmfs_python(
 def test_definition_activates_the_bound_project_venv_at_runtime():
     definition = Path("lfvddp.def").read_text()
 
-    assert definition.count("from frame.python_environment import CVMFS_PYTHON_SETUP_PATH") == 1
+    assert definition.count(str(CVMFS_PYTHON_SETUP_PATH)) == 1
     assert "python -m uv sync --locked --active" not in definition
     assert "if [ -x /app/.venv/bin/python ]; then" in definition
     assert "source /app/.venv/bin/activate" not in definition

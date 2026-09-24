@@ -18,6 +18,7 @@ from frame.file_structure import (
     TRAINING_RESULT_FILE_EXTENSION,
 )
 from frame.file_system.training_history import HistoryKeys, load_training_history
+from train.statistical_calibration import effective_test_statistic_degrees_of_freedom
 from train.train_config import TrainConfig
 
 
@@ -147,6 +148,29 @@ class ResultAggregator:
             axis=0,
         )
         self._epochs = epochs
+
+    @property
+    def chi_square_degrees_of_freedom(self) -> int | None:
+        """Return the shared configured hypothesis-space dimension."""
+
+        contexts = ExecutionContext.discover_run_contexts(self._parent_directory)
+        if not contexts:
+            raise ValueError("No run contexts found for chi-square calibration.")
+        degrees_of_freedom = {
+            effective_test_statistic_degrees_of_freedom(context.config)
+            for context, _ in contexts
+        }
+        if len(degrees_of_freedom) != 1:
+            raise ValueError(
+                "Cannot combine runs with different effective test-statistic degrees "
+                "of freedom in one chi-square plot."
+        )
+        (degrees_of_freedom,) = degrees_of_freedom
+        if degrees_of_freedom is None:
+            return None
+        if not isinstance(degrees_of_freedom, int) or degrees_of_freedom < 0:
+            raise ValueError("Hypothesis-space dof must be a non-negative integer.")
+        return degrees_of_freedom
 
     @property
     def all_test_statistics(self) -> NDArray[np.float64]:

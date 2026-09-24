@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -102,10 +102,9 @@ class DataSet:
         result = self.create_copy()        
         for obs in self.observable_names:
             try:
-                native_offset = min(result._data[obs])
-                result._data[obs] -= native_offset
-                result._data[obs] *= other.get_factor(obs)
-                result._data[obs] += other.get_offset(obs) + native_offset
+                result._data[obs] = other.denormalize_values(
+                    result._data[obs].to_numpy(), (obs,)
+                )
             except KeyError:
                 raise ArithmeticError(f"No factor for observable {obs} in multiplication")
             
@@ -121,10 +120,9 @@ class DataSet:
         result = self.create_copy()
         for obs in self.observable_names:
             try:
-                native_offset = min(result._data[obs])
-                result._data[obs] -= native_offset
-                result._data[obs] /= other.get_factor(obs)
-                result._data[obs] -= other.get_offset(obs) - native_offset
+                result._data[obs] = other.normalize_values(
+                    result._data[obs].to_numpy(), (obs,)
+                )
             except KeyError:
                 raise ArithmeticError(f"No factor for observable {obs} in division")
             
@@ -203,10 +201,10 @@ class DataSet:
             if span == 0:
                 # A constant observable carries no variation for the model.
                 # Keep its transform finite and map it to zero.
-                offsets[obs] = minimum
+                offsets[obs] = minimum - 1
                 factors[obs] = 1.0
             else:
-                offsets[obs] = minimum + 1
+                offsets[obs] = minimum
                 factors[obs] = span / 2
 
         normalization_factor = ShiftAndNormalizationFactor(factors, offsets)
@@ -304,14 +302,20 @@ def resample(
 
 @dataclass
 class ShiftAndNormalizationFactor:
-    """
-    Normalization factor to be applied to datasets for training and fitting.
+    """One explicit affine map shared by data and feature geometry.
+
+    For every nonconstant observable, ``normalize_values`` applies
+    ``(x - offset) / factor - 1`` and ``denormalize_values`` is its exact
+    inverse.  Constant observables use a finite, deliberately shifted offset
+    so their sole value maps to zero.
     """
     _factors: Dict[str, float]
     _offsets: Dict[str, float]
 
     def __post_init__(self, **kwargs):
-        assert all(key in self._offsets for key in self._factors)
+        assert set(self._factors) == set(self._offsets)
+        assert all(np.isfinite(value) and value > 0 for value in self._factors.values())
+        assert all(np.isfinite(value) for value in self._offsets.values())
 
     @property
     def n_dim(self) -> int:
@@ -322,3 +326,82 @@ class ShiftAndNormalizationFactor:
 
     def get_factor(self, key: str) -> float:
         return self._factors[key]
+
+    def to_mapping(self) -> Dict[str, Dict[str, float]]:
+        """Return a serializable copy of this affine coordinate map."""
+
+        return {
+            "factors": dict(self._factors),
+            "offsets": dict(self._offsets),
+        }
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "ShiftAndNormalizationFactor":
+        """Restore a validated affine coordinate map from serialized metadata."""
+
+        try:
+            factors = value["factors"]
+            offsets = value["offsets"]
+        except KeyError as error:
+            raise ValueError("Normalization mapping requires factors and offsets.") from error
+        if not isinstance(factors, Mapping) or not isinstance(offsets, Mapping):
+            raise ValueError("Normalization factors and offsets must be mappings.")
+        return cls(
+            {str(key): float(item) for key, item in factors.items()},
+            {str(key): float(item) for key, item in offsets.items()},
+        )
+
+    def normalize_values(
+        self,
+        values: npt.ArrayLike,
+        observable_names: Iterable[str],
+    ) -> npt.NDArray[np.float64]:
+        """Apply this factor's affine map along the observable axis."""
+
+        array, offsets, factors = self._affine_parameters(values, observable_names)
+        return (array - offsets) / factors - 1
+
+    def denormalize_values(
+        self,
+        values: npt.ArrayLike,
+        observable_names: Iterable[str],
+    ) -> npt.NDArray[np.float64]:
+        """Invert :meth:`normalize_values` along the observable axis."""
+
+        array, offsets, factors = self._affine_parameters(values, observable_names)
+        return (array + 1) * factors + offsets
+
+    def scale_values(
+        self,
+        values: npt.ArrayLike,
+        observable_names: Iterable[str],
+    ) -> npt.NDArray[np.float64]:
+        """Express physical coordinate widths in normalized units."""
+
+        array, _, factors = self._affine_parameters(values, observable_names)
+        return array / factors
+
+    def _affine_parameters(
+        self,
+        values: npt.ArrayLike,
+        observable_names: Iterable[str],
+    ) -> tuple[
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64] | float,
+        npt.NDArray[np.float64] | float,
+    ]:
+        """Return validated values and broadcastable parameters for one coordinate map."""
+
+        array = np.asarray(values, dtype=float)
+        names = tuple(observable_names)
+        if not names:
+            raise ValueError("At least one observable name is required.")
+        if array.ndim == 1 and len(names) == 1:
+            return array, self.get_offset(names[0]), self.get_factor(names[0])
+        if array.ndim >= 1 and array.shape[-1] == len(names):
+            return (
+                array,
+                np.asarray([self.get_offset(name) for name in names]),
+                np.asarray([self.get_factor(name) for name in names]),
+            )
+        raise ValueError("Values must have one final coordinate per observable.")

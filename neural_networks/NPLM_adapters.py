@@ -49,15 +49,15 @@ class AdaptedImperfectModel(imperfect_model, ContextedModel):
 
         super().__init__(
             name=name,
-            input_shape=(None, config.train__nn_input_dimension),
+            input_shape=(None, config.train__adaptive_architecture[0]),
             NU_S=NU_S, NUR_S=NUR_S, NU0_S=NU0_S, SIGMA_S=SIGMA_S,  # Lists of parameters for nuisance initial values
             NU_N=NU_N, NUR_N=NUR_N, NU0_N=NU0_N, SIGMA_N=SIGMA_N,
             correction = config.train__nuisance_correction_types,  # Which nuisance to compensate for
             shape_dictionary_list = self._build_NPLM_shape_dictionary_list(),  # This is used in "SHAPE" correction case
-            BSMarchitecture = config.train__nn_architecture,
+            BSMarchitecture = config.train__adaptive_architecture,
             BSMweight_clipping = config.train__nn_weight_clipping,
             train_f = is_tau,
-            train_nu = config.train__data_is_train_for_nuisances,   # Should the nuisances change or stick with initial values
+            train_nu = config.train__function_space_config.nuisance is not None,
         )
 
         self._name = name

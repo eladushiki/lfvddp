@@ -1,179 +1,92 @@
 from dataclasses import dataclass
 from logging import warning
-from typing import List, Optional, Tuple
+from typing import Any, Mapping, Optional
 
-import numpy as np
-import numpy.typing as npt
+from train.function_space_config import (
+    FunctionSpaceSpec,
+    ResolvedFunctionSpaceConfig,
+    TrainingBackend,
+    resolve_dual_role_config,
+)
 
 
 @dataclass
 class TrainConfig:
-    
-    ## Training parameters
+    """Training controls and canonical likelihood function-space specifications."""
+
     train__epochs: int
     train__number_of_epochs_for_checkpoint: int
-
-    # NN parameters
-    train__nn_inner_layer_nodes: int
-    train__nn_input_dimension: Optional[int] = None
-    @property
-    def train__nn_output_dimension(self) -> int:
-        return 1
-    @property
-    def train__nn_architecture(self) -> List[int]:
-        return [self.train__nn_input_dimension, self.train__nn_inner_layer_nodes, self.train__nn_output_dimension]
-    
-    train__nn_xavier_gain: float = 1
-    train__learning_rate: float = 0.03  # optimizer learning rate
+    train__learning_rate: float = 0.03
     train__final_learning_rate: Optional[float] = None
     train__enable_progress_bar: bool = True
-    # Opt-in CPU profiling. The warmup epochs are observed by the profiler but
-    # omitted from its measurements; the following active epochs are recorded.
     train__profiling_enabled: bool = False
     train__profiling_warmup_epochs: int = 5
     train__profiling_active_epochs: int = 10
-    
-    ## Training for nuisance parameters
-    train__data_is_train_for_nuisances: bool = True     # Should the nuisance play a role of learnable NN parameters?
-    train__nuisance_is_neural_network: bool = False
-    train__nuisance_nn_inner_layer_nodes: Optional[int] = None
-    train__nuisance_binning_minima: Optional[List[float]] = None
-    train__nuisance_binning_maxima: Optional[List[float]] = None
-    train__nuisance_binning_number_of_bins: Optional[List[int]] = None
-    train__like_NPLM: bool = False  # Should we trian with NPLM's train_model and nuisance parameters? else, DDP's
+    train__function_space_xavier_gain: float = 1
 
-    def _validate_nuisance_configuration(self) -> None:
-        binning_parameters = (
-            self.train__nuisance_binning_minima,
-            self.train__nuisance_binning_maxima,
-            self.train__nuisance_binning_number_of_bins,
-        )
-        has_binning = any(parameter is not None for parameter in binning_parameters)
-        has_complete_binning = all(
-            parameter is not None for parameter in binning_parameters
-        )
-        if not self.train__data_is_train_for_nuisances:
-            if has_binning and not has_complete_binning:
-                raise ValueError(
-                    "Nuisance binning configuration must define minima, maxima, "
-                    "and number of bins together."
-                )
-            return
+    train__backend: TrainingBackend | str = TrainingBackend.LFVDDP
+    train__f: FunctionSpaceSpec | Mapping[str, Any] | None = None
+    train__nuisance: FunctionSpaceSpec | Mapping[str, Any] | None = None
 
-        if self.train__nuisance_is_neural_network:
-            if has_binning:
-                raise ValueError(
-                    "Neural nuisance configuration must not define nuisance binning parameters."
-                )
-            if self.train__nuisance_nn_inner_layer_nodes is None:
-                raise ValueError(
-                    "Neural nuisance configuration requires train__nuisance_nn_inner_layer_nodes."
-                )
-        else:
-            if self.train__nuisance_nn_inner_layer_nodes is not None:
-                raise ValueError(
-                    "Binned nuisance configuration must not define train__nuisance_nn_inner_layer_nodes."
-                )
-            if not has_complete_binning:
-                raise ValueError(
-                    "Binned nuisance configuration requires minima, maxima, and number of bins."
-                )
-
-    def configure_nuisance_binning(self, number_of_dimensions: int) -> None:
-        """Normalize scalar binning parameters after detector dimensions are known."""
-        if (
-            self.train__nuisance_is_neural_network
-            or self.train__nuisance_binning_minima is None
-        ):
-            return
-
-        for parameter_name in (
-            "train__nuisance_binning_minima",
-            "train__nuisance_binning_maxima",
-            "train__nuisance_binning_number_of_bins",
-        ):
-            parameter = getattr(self, parameter_name)
-            if isinstance(parameter, (int, float)):
-                setattr(self, parameter_name, [parameter] * number_of_dimensions)
-            elif len(parameter) != number_of_dimensions:
-                raise ValueError(
-                    f"{parameter_name} length {len(parameter)} does not match detector dimensions {number_of_dimensions}."
-                )
-
-    def observable_bins(self, observable_name: str) -> Tuple[npt.NDArray, npt.NDArray]:
-        """Return bin edges and centers for a scalar binned nuisance observable."""
-        try:
-            index = self.detector__detect_observable_names.index(observable_name)
-        except ValueError as error:
-            raise ValueError(
-                f"Observable name {observable_name} not found in detector observable names "
-                f"{self.detector__detect_observable_names}"
-            ) from error
-
-        bins_edges = np.linspace(
-            self.train__nuisance_binning_minima[index],
-            self.train__nuisance_binning_maxima[index],
-            self.train__nuisance_binning_number_of_bins[index] + 1,
-        )
-        return bins_edges, 0.5 * (bins_edges[:-1] + bins_edges[1:])
-
-    @property
-    def train__number_of_nuisance_parameters(self) -> int:
-        if (
-            not self.train__data_is_train_for_nuisances
-            or self.train__nuisance_is_neural_network
-        ):
-            return 0
-        return sum(self.train__nuisance_binning_number_of_bins)
-    
-    # NPLM PARAMETERS -- only relevant if train__like_NPLM is True
+    # NPLM-specific controls remain meaningful only for the NPLM backend.
     train__nn_weight_clipping: float = False
-    # Correction - what should be taken into account about the nuisance parameters?
-    # - "SHAPE" - both normalization and shape uncertainties are considered
-    # - "NORM" - only normalization uncertainties are considered
-    # - "" - systematic uncertainties are neglected (simple NPLM is run - no Delta calculation and Tau is calculated without nuisance parameters)
-    train__nuisance_correction_types: str = ""  # "SHAPE", "NORM" or "". Which compensations for uncertainties to use.
+    train__nuisance_correction_types: str = ""
+    train__shape_nuisance_std: float = 0
+    train__shape_nuisance_mean: float = 0
+    train__shape_nuisance_reference: float = 0
+    train__norm_nuisance_std: float = 0
+    train__norm_nuisance_mean: float = 0
+    train__norm_nuisance_reference: float = 0
 
-    # Recovery of nuisances parameters
-    train__shape_nuisance_std: float = 0                # shape nuisance sigma
-    train__shape_nuisance_mean: float = 0               # shape nuisance reference, in terms of std
-    train__shape_nuisance_reference: float = 0          # norm nuisance reference, in terms of std
-    
-    train__norm_nuisance_std: float = 0                 # norm nuisance sigma
-    train__norm_nuisance_mean: float = 0                # in terms of std
-    train__norm_nuisance_reference: float = 0           # in terms of std
-
-    @property
-    def train__nn_significant_degrees_of_freedom(self) -> int:
-        # Calculate total trainable parameters (weights + biases) in the dense NN.
-        # This does not include learnable nuisance parameters that may appear.
-        # For architecture [n0, n1, n2, ...], params = sum over layers i: (n[i] * n[i+1] + n[i+1])
-        architecture = self.train__nn_architecture
-        total_params = sum(
-            architecture[i] * architecture[i+1] + architecture[i+1]
-            for i in range(len(architecture) - 1)
-        )
-        return total_params - 1  # The substraction is due to the argument about another constraint on the DoF in our paper
-
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.validate()
 
-    def validate(self):
-        self._validate_nuisance_configuration()
+    @property
+    def train__function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        """Resolve immutable role specifications without retaining mutable cache state."""
+
+        return self.resolve_function_space_config()
+
+    def resolve_function_space_config(self) -> ResolvedFunctionSpaceConfig:
+        return resolve_dual_role_config(
+            backend=self.train__backend,
+            f=self.train__f,
+            nuisance=self.train__nuisance,
+        )
+
+    @property
+    def train__is_nplm(self) -> bool:
+        return self.train__function_space_config.backend is TrainingBackend.NPLM
+
+    @property
+    def train__adaptive_architecture(self) -> list[int]:
+        """Return the explicit adaptive architecture required by the NPLM backend."""
+
+        options = self.train__function_space_config.f.options
+        input_dimension = options["input_dimension"]
+        hidden_size = options["hidden_layer_nodes"]
+        assert isinstance(input_dimension, int)
+        assert isinstance(hidden_size, int)
+        return [input_dimension, hidden_size, 1]
+
+    def validate(self) -> None:
+        resolved = self.resolve_function_space_config()
+        from neural_networks.function_spaces import validate_function_space_specs
+
+        validate_function_space_specs(resolved.f, resolved.nuisance)
 
         if self.train__profiling_warmup_epochs < 0:
             raise ValueError("Profiling warmup epochs cannot be negative.")
         if self.train__profiling_active_epochs < 1:
             raise ValueError("Profiling active epochs must be positive.")
-        if self.train__profiling_enabled and self.train__like_NPLM:
+        if self.train__profiling_enabled and self.train__is_nplm:
+            raise ValueError("Training profiling is only supported for LFVDDP training.")
+
+        required_epochs = 100_000 if self.train__is_nplm else 500_000
+        if self.train__epochs < required_epochs:
+            warning("Training epochs may be insufficient for convergence.")
+
+        if not self.train__is_nplm and self.train__nuisance_correction_types:
             raise ValueError(
-                "Training profiling is only supported for LFVNN training."
+                "train__nuisance_correction_types is only valid for the NPLM backend."
             )
-
-        if self.train__epochs < 1e5 and self.train__like_NPLM or \
-                self.train__epochs < 5e5 and not self.train__like_NPLM:
-            warning("Training epochs not sufficient, train may not converge")
-
-        if not self.train__like_NPLM and \
-                (self.train__nuisance_correction_types != "" or self.train__data_is_train_for_nuisances):
-            warning("You probably meant to mimic LFVNN, but it does not deal with nuisances.")
