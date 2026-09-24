@@ -12,7 +12,11 @@ from neural_networks.function_spaces import (
     OrthogonalPolynomialFunction,
     create_function_space,
 )
-from train.function_space_config import FunctionSpaceFamily, resolve_dual_role_config
+from train.function_space_config import (
+    FunctionSpaceFamily,
+    FunctionSpaceRole,
+    resolve_dual_role_config,
+)
 from test.function_space_cases import FUNCTION_SPACE_OPTIONS
 
 FAMILY_TYPES = {
@@ -27,7 +31,7 @@ FAMILY_TYPES = {
 
 def test_all_function_space_families_are_factory_created_for_both_roles():
     assert set(FUNCTION_SPACE_OPTIONS) == {family.value for family in FunctionSpaceFamily}
-    for role in ("f", "nuisance"):
+    for role in (FunctionSpaceRole.F, FunctionSpaceRole.NUISANCE):
         for family, options in FUNCTION_SPACE_OPTIONS.items():
             space = create_function_space(role, family, options, dtype=torch.float64)
             assert type(space) is FAMILY_TYPES[family]
@@ -59,4 +63,8 @@ def test_family_owned_option_validation_runs_during_configuration(config, messag
 
 def test_adaptive_neural_construction_requires_derived_dimensions():
     with pytest.raises(ValueError, match="requires input_dimension"):
-        create_function_space("f", "adaptive_neural", {"input_dimension": 1})
+        create_function_space(
+            FunctionSpaceRole.F,
+            "adaptive_neural",
+            {"input_dimension": 1},
+        )

@@ -314,31 +314,39 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         """
 
-        nuisance_sr_estimates = nuisance_estimates.nuisance_sr_values
-        common_a_sr_nuisance_log_term = -torch.log1p(
-            nuisance_sr_estimates[: data.N_a_sr]
-        ).sum()
-        common_b_sr_nuisance_log_term = -torch.log1p(
-            -nuisance_sr_estimates[data.N_a_sr :]
-        ).sum()
+        a_sr_nuisance = nuisance_estimates.a_sr
+        b_sr_nuisance = nuisance_estimates.b_sr
+        nuisance_sr_estimates = torch.cat(
+            (a_sr_nuisance.values, b_sr_nuisance.values)
+        )
+        common_a_sr_nuisance_log_term = -DifferentiatingModel._weighted_sum(
+            WeightedNuisanceValues(
+                torch.log1p(a_sr_nuisance.values), a_sr_nuisance.weights
+            )
+        )
+        common_b_sr_nuisance_log_term = -DifferentiatingModel._weighted_sum(
+            WeightedNuisanceValues(
+                torch.log1p(-b_sr_nuisance.values), b_sr_nuisance.weights
+            )
+        )
 
         cr_linear_nuisance_term = DifferentiatingModel._scaled_term(
             data.nuisance_cr_coefficient,
             lambda: (
-                DifferentiatingModel._weighted_sum(nuisance_estimates.nuisance_cr_a)
-                + DifferentiatingModel._weighted_sum(nuisance_estimates.nuisance_cr_b)
+                DifferentiatingModel._weighted_sum(nuisance_estimates.a_cr)
+                + DifferentiatingModel._weighted_sum(nuisance_estimates.b_cr)
             ),
         )
         a_cr_log_term = -DifferentiatingModel._weighted_sum(
             WeightedNuisanceValues(
-                torch.log1p(nuisance_estimates.nuisance_cr_a.values),
-                nuisance_estimates.nuisance_cr_a.weights,
+                torch.log1p(nuisance_estimates.a_cr.values),
+                nuisance_estimates.a_cr.weights,
             )
         )
         b_cr_log_term = -DifferentiatingModel._weighted_sum(
             WeightedNuisanceValues(
-                torch.log1p(-nuisance_estimates.nuisance_cr_b.values),
-                nuisance_estimates.nuisance_cr_b.weights,
+                torch.log1p(-nuisance_estimates.b_cr.values),
+                nuisance_estimates.b_cr.weights,
             )
         )
         cr_loss = (
@@ -401,20 +409,18 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if N_cr == 0:
             raise ValueError("Training requires at least one CR event.")
 
-        normalized_sr = DataSet(
-            np.concatenate((normalized_a_sr.events, normalized_b_sr.events))
-        )
-        raw_sr = DataSet(np.concatenate((a_sr.events, b_sr.events)))
         sr_data = torch.tensor(
-            normalized_sr.events,
+            np.concatenate((normalized_a_sr.events, normalized_b_sr.events)),
             dtype=self._dtype,
             device=self._device,
         )
         nuisance_data = self.nuisance_calculation.prepare(
-            raw_sr=raw_sr,
+            raw_a_sr=a_sr,
+            raw_b_sr=b_sr,
             raw_a_cr=a_cr,
             raw_b_cr=b_cr,
-            normalized_sr=normalized_sr,
+            normalized_a_sr=normalized_a_sr,
+            normalized_b_sr=normalized_b_sr,
             normalized_a_cr=normalized_a_cr,
             normalized_b_cr=normalized_b_cr,
         )

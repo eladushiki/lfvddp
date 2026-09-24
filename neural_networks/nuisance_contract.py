@@ -22,24 +22,25 @@ class WeightedNuisanceValues:
 
 @dataclass(frozen=True)
 class NuisanceEvaluation:
-    """Nuisance values and multiplicities used to assemble the training loss.
+    """Nuisance values for each A/B signal/control category.
 
-    Neural control-region values remain in their contiguous A/B event groups
-    and therefore need no weights. Scalar values are shared occupied-bin
-    evaluations whose weights preserve each category's event multiplicities.
-    The differentiating model owns the loss formula.
+    Signal-region values are kept per event because they multiply the
+    per-event signal hypothesis. Control-region values may instead be reduced
+    to occupied bins, with weights retaining their multiplicities.
     """
 
-    nuisance_sr_values: torch.Tensor
-    nuisance_cr_a: WeightedNuisanceValues
-    nuisance_cr_b: WeightedNuisanceValues
+    a_sr: WeightedNuisanceValues
+    b_sr: WeightedNuisanceValues
+    a_cr: WeightedNuisanceValues
+    b_cr: WeightedNuisanceValues
 
 
 @dataclass(frozen=True)
 class PreparedNuisanceData:
-    """Static nuisance inputs prepared once for full-batch training."""
+    """Static category inputs prepared once for full-batch training."""
 
-    sr_inputs: torch.Tensor
+    a_sr_inputs: torch.Tensor
+    b_sr_inputs: torch.Tensor
 
 
 class NuisanceCalculation(nn.Module, ABC):
@@ -53,10 +54,12 @@ class NuisanceCalculation(nn.Module, ABC):
     @abstractmethod
     def prepare(
         self,
-        raw_sr: DataSet,
+        raw_a_sr: DataSet,
+        raw_b_sr: DataSet,
         raw_a_cr: DataSet,
         raw_b_cr: DataSet,
-        normalized_sr: DataSet,
+        normalized_a_sr: DataSet,
+        normalized_b_sr: DataSet,
         normalized_a_cr: DataSet,
         normalized_b_cr: DataSet,
     ) -> PreparedNuisanceData:

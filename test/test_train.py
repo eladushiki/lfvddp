@@ -192,7 +192,7 @@ def _train_numerator(function_execution_context, data_batch, detector_effect, na
                 "test/configs/detector/basic_1D_detector_config.json"
             ),
             ConfigType.TRAIN.value: Path(
-                "test/configs/train/issue018_orthogonal_legendre_binned.json"
+                "test/configs/train/orthogonal_legendre_binned.json"
             ),
         }
     ],
@@ -292,9 +292,10 @@ def _assemble_compact_loss_for_test(
         nuisance_cr_coefficient=(control_region_linear_nuisance_coefficient),
     )
     nuisance = NuisanceEvaluation(
-        nuisance_sr_values=theta_sr,
-        nuisance_cr_a=WeightedNuisanceValues(theta_cr, a_cr_multiplicities),
-        nuisance_cr_b=WeightedNuisanceValues(theta_cr, b_cr_multiplicities),
+        a_sr=WeightedNuisanceValues(theta_sr[:number_of_a_sr]),
+        b_sr=WeightedNuisanceValues(theta_sr[number_of_a_sr:]),
+        a_cr=WeightedNuisanceValues(theta_cr, a_cr_multiplicities),
+        b_cr=WeightedNuisanceValues(theta_cr, b_cr_multiplicities),
     )
     return DifferentiatingModel._assemble_loss(
         signal_hypothesis_sr_shift=signal_region_shift,
@@ -487,9 +488,10 @@ def test_no_nuisance_loss_is_bitwise_equivalent_to_explicit_zero_nuisance():
     )
     empty = torch.empty(0, dtype=torch.float64)
     explicit_zero_nuisance = NuisanceEvaluation(
-        nuisance_sr_values=torch.zeros(number_of_sr, dtype=torch.float64),
-        nuisance_cr_a=WeightedNuisanceValues(empty),
-        nuisance_cr_b=WeightedNuisanceValues(empty),
+        a_sr=WeightedNuisanceValues(torch.zeros(number_of_a_sr, dtype=torch.float64)),
+        b_sr=WeightedNuisanceValues(torch.zeros(number_of_b_sr, dtype=torch.float64)),
+        a_cr=WeightedNuisanceValues(empty),
+        b_cr=WeightedNuisanceValues(empty),
     )
 
     loss = DifferentiatingModel._assemble_loss(
@@ -617,14 +619,13 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     prepared = model._prepare_training_data(detected_batch)
 
     assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
-    assert prepared.nuisance_data.cr_inputs is not None
-    assert prepared.nuisance_data.cr_inputs.shape[0] == prepared.number_of_cr_events
-    assert prepared.nuisance_data.number_of_a_cr_events == prepared.N_a_cr
+    assert prepared.nuisance_data.a_cr_inputs.shape[0] == prepared.N_a_cr
+    assert prepared.nuisance_data.b_cr_inputs.shape[0] == prepared.N_b_cr
     nuisance_evaluation = model.nuisance_calculation.evaluate(prepared.nuisance_data)
-    assert nuisance_evaluation.nuisance_cr_a.values.shape[0] == prepared.N_a_cr
-    assert nuisance_evaluation.nuisance_cr_b.values.shape[0] == prepared.N_b_cr
-    assert nuisance_evaluation.nuisance_cr_a.weights is None
-    assert nuisance_evaluation.nuisance_cr_b.weights is None
+    assert nuisance_evaluation.a_cr.values.shape[0] == prepared.N_a_cr
+    assert nuisance_evaluation.b_cr.values.shape[0] == prepared.N_b_cr
+    assert nuisance_evaluation.a_cr.weights is None
+    assert nuisance_evaluation.b_cr.weights is None
 
     loss = model(prepared)
     assert torch.isfinite(loss)

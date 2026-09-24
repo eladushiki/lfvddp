@@ -104,7 +104,7 @@ def test_injected_significances_use_dataset_integration_limits(
                     "test/configs/detector/basic_1D_detector_config.json"
                 ),
                 ConfigType.TRAIN: Path(
-                    "test/configs/train/issue018_orthogonal_legendre_binned.json"
+                    "test/configs/train/orthogonal_legendre_binned.json"
                 ),
             },
             id="orthogonal-polynomial",

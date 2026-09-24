@@ -13,6 +13,7 @@ from neural_networks.nuisance_calculation import (
     PerEventNuisanceEstimator,
 )
 from test.environment import ConfigType
+from train.function_space_config import FunctionSpaceRole
 
 
 _DATASET_CONFIG = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
@@ -31,23 +32,23 @@ def _context_params(train_config: str):
     "function_execution_context",
     [
         pytest.param(
-            _context_params("issue018_cubic_bspline_binned.json"),
+            _context_params("cubic_bspline_binned.json"),
             id="cubic-bspline",
         ),
         pytest.param(
-            _context_params("issue018_orthogonal_legendre_binned.json"),
+            _context_params("orthogonal_legendre_binned.json"),
             id="legendre",
         ),
         pytest.param(
-            _context_params("issue018_orthogonal_chebyshev_binned.json"),
+            _context_params("orthogonal_chebyshev_binned.json"),
             id="chebyshev",
         ),
         pytest.param(
-            _context_params("issue018_fixed_sigmoid_binned.json"),
+            _context_params("fixed_sigmoid_binned.json"),
             id="fixed-sigmoid",
         ),
         pytest.param(
-            _context_params("issue018_gaussian_radial_basis_binned.json"),
+            _context_params("gaussian_radial_basis_binned.json"),
             id="gaussian-radial-basis",
         ),
     ],
@@ -65,7 +66,7 @@ def test_signal_geometry_from_config_is_evaluated_in_physical_coordinates(
     )
     prepared = model._prepare_training_data(data)
     spec = function_execution_context.config.train__resolved_function_space_config.f
-    raw_space = create_function_space("f", spec, dtype=torch.float64)
+    raw_space = create_function_space(FunctionSpaceRole.F, spec, dtype=torch.float64)
     raw_sr = np.concatenate(
         (
             data.datasets[DataSet.DataSetCategory.A_SR].events,
@@ -84,11 +85,11 @@ def test_signal_geometry_from_config_is_evaluated_in_physical_coordinates(
     "function_execution_context",
     [
         pytest.param(
-            _context_params("issue018_cubic_bspline_cubic_bspline.json"),
+            _context_params("cubic_bspline_cubic_bspline.json"),
             id="cubic-bspline-nuisance",
         ),
         pytest.param(
-            _context_params("issue018_cubic_bspline_fixed_sigmoid.json"),
+            _context_params("cubic_bspline_fixed_sigmoid.json"),
             id="fixed-sigmoid-nuisance",
         ),
     ],
@@ -107,7 +108,9 @@ def test_per_event_nuisance_geometry_from_config_uses_the_same_map(
     prepared = model._prepare_training_data(data)
     assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
     spec = function_execution_context.config.train__resolved_function_space_config.nuisance
-    raw_space = create_function_space("nuisance", spec, dtype=torch.float64)
+    raw_space = create_function_space(
+        FunctionSpaceRole.NUISANCE, spec, dtype=torch.float64
+    )
     raw_sr = np.concatenate(
         (
             data.datasets[DataSet.DataSetCategory.A_SR].events,
@@ -116,7 +119,14 @@ def test_per_event_nuisance_geometry_from_config_uses_the_same_map(
     )
 
     torch.testing.assert_close(
-        model.nuisance_calculation.network.features(prepared.nuisance_data.sr_inputs),
+        model.nuisance_calculation.network.features(
+            torch.cat(
+                (
+                    prepared.nuisance_data.a_sr_inputs,
+                    prepared.nuisance_data.b_sr_inputs,
+                )
+            )
+        ),
         raw_space.features(torch.tensor(raw_sr, dtype=torch.float64)),
     )
     assert model.nuisance_calculation.network.geometry == raw_space.geometry
@@ -126,7 +136,7 @@ def test_per_event_nuisance_geometry_from_config_uses_the_same_map(
     "function_execution_context",
     [
         pytest.param(
-            _context_params("issue018_bin_indicators_binned.json"),
+            _context_params("bin_indicators_binned.json"),
             id="binned-signal-and-nuisance",
         ),
     ],
@@ -144,7 +154,7 @@ def test_binned_signal_geometry_is_normalized_but_binned_nuisance_stays_physical
     )
     prepared = model._prepare_training_data(data)
     spec = function_execution_context.config.train__resolved_function_space_config.f
-    raw_space = create_function_space("f", spec, dtype=torch.float64)
+    raw_space = create_function_space(FunctionSpaceRole.F, spec, dtype=torch.float64)
     for space in (model.signal_region_shift_network, raw_space):
         for parameter in space._factor_deltas:
             parameter.data.copy_(

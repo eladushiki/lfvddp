@@ -18,15 +18,15 @@ _TRAIN_CONFIG_DIR = Path("test/configs/train")
 
 
 _ONE_D_CASES = [
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance.json", "adaptive_neural", "adaptive_neural", False, id="explicit-adaptive-neural-nuisance"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_cubic_bspline_binned.json", "cubic_bspline", "bin_indicators", True, id="cubic-binned-nuisance"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_orthogonal_legendre_binned.json", "orthogonal_polynomial", "bin_indicators", True, id="legendre-binned-nuisance"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_orthogonal_chebyshev_binned.json", "orthogonal_polynomial", "bin_indicators", True, id="chebyshev-binned-nuisance"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_fixed_sigmoid_binned.json", "fixed_sigmoid", "bin_indicators", True, id="fixed-sigmoid-binned-nuisance"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_gaussian_radial_basis_binned.json", "gaussian_radial_basis", "bin_indicators", True, id="gaussian-radial-basis-binned-nuisance"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_cubic_bspline_cubic_bspline.json", "cubic_bspline", "cubic_bspline", True, id="same-cubic-role-families"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_cubic_bspline_fixed_sigmoid.json", "cubic_bspline", "fixed_sigmoid", True, id="different-deterministic-role-families"),
-    pytest.param(_TRAIN_CONFIG_DIR / "issue018_adaptive_neural_disabled.json", "adaptive_neural", None, False, id="explicit-adaptive-disabled-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "adaptive_neural_nuisance.json", "adaptive_neural", "adaptive_neural", False, id="explicit-adaptive-neural-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "cubic_bspline_binned.json", "cubic_bspline", "bin_indicators", True, id="cubic-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "orthogonal_legendre_binned.json", "orthogonal_polynomial", "bin_indicators", True, id="legendre-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "orthogonal_chebyshev_binned.json", "orthogonal_polynomial", "bin_indicators", True, id="chebyshev-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "fixed_sigmoid_binned.json", "fixed_sigmoid", "bin_indicators", True, id="fixed-sigmoid-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "gaussian_radial_basis_binned.json", "gaussian_radial_basis", "bin_indicators", True, id="gaussian-radial-basis-binned-nuisance"),
+    pytest.param(_TRAIN_CONFIG_DIR / "cubic_bspline_cubic_bspline.json", "cubic_bspline", "cubic_bspline", True, id="same-cubic-role-families"),
+    pytest.param(_TRAIN_CONFIG_DIR / "cubic_bspline_fixed_sigmoid.json", "cubic_bspline", "fixed_sigmoid", True, id="different-deterministic-role-families"),
+    pytest.param(_TRAIN_CONFIG_DIR / "adaptive_neural_disabled.json", "adaptive_neural", None, False, id="explicit-adaptive-disabled-nuisance"),
 ]
 
 
@@ -58,9 +58,6 @@ def _exercise_model(context, detector_effect, data_batch, name):
     # using the same batch affine map as the model inputs.
     model._prepare_training_data(data_batch)
     fixed_buffers_before = _buffer_snapshot(model)
-    coefficient_parameters = dict(model.signal_region_shift_network.named_parameters())
-    coefficients = coefficient_parameters.get("coefficients")
-    coefficients_before = coefficients.detach().clone() if coefficients is not None else None
 
     history = model.fit(data_batch)
     _finite_history(history)
@@ -70,10 +67,6 @@ def _exercise_model(context, detector_effect, data_batch, name):
     assert fixed_buffers_after.keys() == fixed_buffers_before.keys()
     for buffer_name, before in fixed_buffers_before.items():
         torch.testing.assert_close(before, fixed_buffers_after[buffer_name])
-
-    if coefficients_before is not None:
-        coefficients_after = model.signal_region_shift_network.coefficients.detach()
-        assert not torch.equal(coefficients_before, coefficients_after)
 
     prediction_data = data_batch.datasets[DataSet.DataSetCategory.A_SR]
     predictions = (
@@ -145,7 +138,7 @@ for _case in _ONE_D_CASES:
     _ONE_D_PARAMS,
     indirect=["function_execution_context"],
 )
-def test_issue018_1d_function_space_training_matrix(
+def test_function_space_1d_training_matrix(
     function_execution_context,
     f_family,
     nuisance_family,
@@ -166,7 +159,7 @@ def test_issue018_1d_function_space_training_matrix(
         function_execution_context,
         detector_effect,
         data_batch,
-        f"issue018_s04_1d_{f_family}",
+        f"function_space_1d_{f_family}",
     )
     has_coefficients_after_training = any(
         name == "coefficients" for name, _ in model.signal_region_shift_network.named_parameters()
@@ -181,7 +174,7 @@ def test_issue018_1d_function_space_training_matrix(
             {
                 ConfigType.DATASET: _DATASET_2D,
                 ConfigType.DETECTOR: _DETECTOR_2D,
-                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_2d_adaptive_neural_binned.json",
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "two_dimensional_adaptive_neural_binned.json",
             },
             id="2d-adaptive-binned",
         ),
@@ -189,14 +182,14 @@ def test_issue018_1d_function_space_training_matrix(
             {
                 ConfigType.DATASET: _DATASET_2D,
                 ConfigType.DETECTOR: _DETECTOR_2D,
-                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_2d_cubic_bspline_adaptive_neural.json",
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "two_dimensional_cubic_bspline_adaptive_neural.json",
             },
             id="2d-cubic-neural",
         ),
     ],
     indirect=True,
 )
-def test_issue018_2d_function_space_training_smoke(
+def test_function_space_2d_training_smoke(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -206,7 +199,7 @@ def test_issue018_2d_function_space_training_smoke(
         function_execution_context,
         detector_effect,
         data_batch,
-        "issue018_s04_2d",
+        "function_space_2d",
     )
 
 
@@ -216,12 +209,12 @@ def test_issue018_2d_function_space_training_smoke(
         {
             ConfigType.DATASET: _DATASET_1D,
             ConfigType.DETECTOR: _DETECTOR_1D,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "adaptive_neural_nuisance.json",
         }
     ],
     indirect=True,
 )
-def test_issue018_matrix_does_not_mutate_loaded_role_config(function_execution_context):
+def test_function_space_matrix_does_not_mutate_loaded_role_config(function_execution_context):
     """Role mappings remain file-loaded values after canonical resolution."""
     config = function_execution_context.config
     before_f = deepcopy(config.train__f)

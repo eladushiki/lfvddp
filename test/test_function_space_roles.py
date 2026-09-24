@@ -349,18 +349,21 @@ def test_every_registered_family_supports_independent_roles_nuisance_training_an
     )
     normalized_signal_region, normalization_factor = signal_region.get_normalized()
     prepared = nuisance.prepare(
-        signal_region,
+        signal_region[:2],
+        signal_region[2:],
         a_control_region,
         b_control_region,
-        normalized_signal_region,
+        normalized_signal_region[:2],
+        normalized_signal_region[2:],
         a_control_region / normalization_factor,
         b_control_region / normalization_factor,
     )
     evaluation = nuisance.evaluate(prepared)
     nuisance_loss = (
-        evaluation.nuisance_sr_values.sum()
-        + evaluation.nuisance_cr_a.values.sum()
-        + evaluation.nuisance_cr_b.values.sum()
+        evaluation.a_sr.values.sum()
+        + evaluation.b_sr.values.sum()
+        + evaluation.a_cr.values.sum()
+        + evaluation.b_cr.values.sum()
     )
     assert torch.isfinite(nuisance_loss)
 

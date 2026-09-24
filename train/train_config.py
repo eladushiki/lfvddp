@@ -4,6 +4,7 @@ from typing import Any, List, Mapping, Optional, Tuple
 
 from train.function_space_config import (
     FunctionSpaceFamily,
+    FunctionSpaceRole,
     FunctionSpaceSpec,
     ResolvedFunctionSpaceConfig,
     TrainingBackend,
@@ -113,7 +114,7 @@ class TrainConfig:
             return 0
         from neural_networks.function_spaces import create_function_space
 
-        nuisance_space = create_function_space("nuisance", nuisance)
+        nuisance_space = create_function_space(FunctionSpaceRole.NUISANCE, nuisance)
         return sum(parameter.numel() for parameter in nuisance_space.parameters())
 
     # NPLM PARAMETERS -- only relevant if train__like_NPLM is True

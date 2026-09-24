@@ -31,7 +31,7 @@ _FUNCTION_SPACE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "adaptive_neural_nuisance.json",
         },
         id="adaptive-neural",
     ),
@@ -39,7 +39,7 @@ _FUNCTION_SPACE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_cubic_bspline_binned.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "cubic_bspline_binned.json",
         },
         id="cubic-bspline",
     ),
@@ -47,7 +47,7 @@ _FUNCTION_SPACE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_orthogonal_legendre_binned.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "orthogonal_legendre_binned.json",
         },
         id="legendre-polynomial",
     ),
@@ -55,7 +55,7 @@ _FUNCTION_SPACE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_gaussian_radial_basis_binned.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "gaussian_radial_basis_binned.json",
         },
         id="gaussian-rbf",
     ),
@@ -63,7 +63,7 @@ _FUNCTION_SPACE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_fixed_sigmoid_binned.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "fixed_sigmoid_binned.json",
         },
         id="fixed-sigmoid",
     ),
@@ -71,7 +71,7 @@ _FUNCTION_SPACE_CASES = [
         {
             ConfigType.DATASET: _DATASET,
             ConfigType.DETECTOR: _DETECTOR,
-            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_bin_indicators_binned.json",
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "bin_indicators_binned.json",
         },
         id="bin-indicators",
     ),
@@ -80,7 +80,7 @@ _FUNCTION_SPACE_CASES = [
 _CONTINUATION_CONFIG = {
     ConfigType.DATASET: _DATASET,
     ConfigType.DETECTOR: _DETECTOR,
-    ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_adaptive_neural_nuisance_continuation.json",
+    ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "adaptive_neural_nuisance_continuation.json",
 }
 
 
@@ -158,6 +158,9 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         "model_state_dict",
         "optimizer_state_dict",
         "training_history",
+        "best_model_state_dict",
+        "best_loss",
+        "best_epoch",
         "array_index",
         "run_hash",
     }
@@ -272,7 +275,7 @@ def test_continuation_restores_normalization_and_resumes_history(
             {
                 ConfigType.DATASET: _DATASET,
                 ConfigType.DETECTOR: _DETECTOR,
-                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "issue018_cubic_bspline_binned.json",
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "cubic_bspline_binned.json",
             },
             id="cubic-bspline",
         )

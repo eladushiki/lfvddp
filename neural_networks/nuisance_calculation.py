@@ -65,16 +65,23 @@ class NullNuisanceCalculation(NuisanceCalculation):
 
     def prepare(
         self,
-        raw_sr: DataSet,
+        raw_a_sr: DataSet,
+        raw_b_sr: DataSet,
         raw_a_cr: DataSet,
         raw_b_cr: DataSet,
-        normalized_sr: DataSet,
+        normalized_a_sr: DataSet,
+        normalized_b_sr: DataSet,
         normalized_a_cr: DataSet,
         normalized_b_cr: DataSet,
     ) -> PreparedNuisanceData:
         return PreparedNuisanceData(
-            torch.empty(
-                normalized_sr.n_samples,
+            a_sr_inputs=torch.empty(
+                normalized_a_sr.n_samples,
+                dtype=self._dtype,
+                device=self._device,
+            ),
+            b_sr_inputs=torch.empty(
+                normalized_b_sr.n_samples,
                 dtype=self._dtype,
                 device=self._device,
             )
@@ -85,13 +92,18 @@ class NullNuisanceCalculation(NuisanceCalculation):
             0, dtype=self._dtype, device=self._device
         )
         return NuisanceEvaluation(
-            nuisance_sr_values=torch.zeros(
-                data.sr_inputs.shape[0],
+            a_sr=WeightedNuisanceValues(torch.zeros(
+                data.a_sr_inputs.shape[0],
                 dtype=self._dtype,
                 device=self._device,
-            ),
-            nuisance_cr_a=WeightedNuisanceValues(empty_control_region),
-            nuisance_cr_b=WeightedNuisanceValues(empty_control_region),
+            )),
+            b_sr=WeightedNuisanceValues(torch.zeros(
+                data.b_sr_inputs.shape[0],
+                dtype=self._dtype,
+                device=self._device,
+            )),
+            a_cr=WeightedNuisanceValues(empty_control_region),
+            b_cr=WeightedNuisanceValues(empty_control_region),
         )
 
     def prediction_values(
@@ -132,10 +144,12 @@ class BinnedNuisanceCalculation(NuisanceCalculation):
 
     def prepare(
         self,
-        raw_sr: DataSet,
+        raw_a_sr: DataSet,
+        raw_b_sr: DataSet,
         raw_a_cr: DataSet,
         raw_b_cr: DataSet,
-        normalized_sr: DataSet,
+        normalized_a_sr: DataSet,
+        normalized_b_sr: DataSet,
         normalized_a_cr: DataSet,
         normalized_b_cr: DataSet,
     ) -> PreparedNuisanceData:
@@ -149,7 +163,8 @@ class BinnedNuisanceCalculation(NuisanceCalculation):
         )
         number_of_cr_bins = unique_indices.shape[0]
         return self._PreparedData(
-            sr_inputs=self._bin_indices(raw_sr),
+            a_sr_inputs=self._bin_indices(raw_a_sr),
+            b_sr_inputs=self._bin_indices(raw_b_sr),
             nuisance_cr_bin_indices=unique_indices,
             nuisance_cr_a_multiplicities=torch.bincount(
                 inverse_indices[: raw_a_cr.n_samples],
@@ -167,12 +182,13 @@ class BinnedNuisanceCalculation(NuisanceCalculation):
 
         nuisance_cr_values = self._values(data.nuisance_cr_bin_indices)
         return NuisanceEvaluation(
-            nuisance_sr_values=self._values(data.sr_inputs),
-            nuisance_cr_a=WeightedNuisanceValues(
+            a_sr=WeightedNuisanceValues(self._values(data.a_sr_inputs)),
+            b_sr=WeightedNuisanceValues(self._values(data.b_sr_inputs)),
+            a_cr=WeightedNuisanceValues(
                 nuisance_cr_values,
                 data.nuisance_cr_a_multiplicities,
             ),
-            nuisance_cr_b=WeightedNuisanceValues(
+            b_cr=WeightedNuisanceValues(
                 nuisance_cr_values,
                 data.nuisance_cr_b_multiplicities,
             ),
@@ -197,8 +213,8 @@ class PerEventNuisanceEstimator(NuisanceCalculation):
 
     @dataclass(frozen=True)
     class _PreparedData(PreparedNuisanceData):
-        cr_inputs: torch.Tensor
-        number_of_a_cr_events: int
+        a_cr_inputs: torch.Tensor
+        b_cr_inputs: torch.Tensor
 
     def __init__(
         self,
@@ -212,26 +228,36 @@ class PerEventNuisanceEstimator(NuisanceCalculation):
 
     def prepare(
         self,
-        raw_sr: DataSet,
+        raw_a_sr: DataSet,
+        raw_b_sr: DataSet,
         raw_a_cr: DataSet,
         raw_b_cr: DataSet,
-        normalized_sr: DataSet,
+        normalized_a_sr: DataSet,
+        normalized_b_sr: DataSet,
         normalized_a_cr: DataSet,
         normalized_b_cr: DataSet,
     ) -> PreparedNuisanceData:
-        number_of_a_cr_events = normalized_a_cr.n_samples
         return self._PreparedData(
-            sr_inputs=torch.tensor(
-                normalized_sr.events,
+            a_sr_inputs=torch.tensor(
+                normalized_a_sr.events,
                 dtype=self._dtype,
                 device=self._device,
             ),
-            cr_inputs=torch.tensor(
-                np.concatenate((normalized_a_cr.events, normalized_b_cr.events)),
+            b_sr_inputs=torch.tensor(
+                normalized_b_sr.events,
                 dtype=self._dtype,
                 device=self._device,
             ),
-            number_of_a_cr_events=number_of_a_cr_events,
+            a_cr_inputs=torch.tensor(
+                normalized_a_cr.events,
+                dtype=self._dtype,
+                device=self._device,
+            ),
+            b_cr_inputs=torch.tensor(
+                normalized_b_cr.events,
+                dtype=self._dtype,
+                device=self._device,
+            ),
         )
 
     def evaluate(self, data: PreparedNuisanceData) -> NuisanceEvaluation:
@@ -242,15 +268,11 @@ class PerEventNuisanceEstimator(NuisanceCalculation):
             result = self.network(inputs)
             return result.squeeze(-1) if result.ndim == 2 else result
 
-        nuisance_cr_values = values(data.cr_inputs)
         return NuisanceEvaluation(
-            nuisance_sr_values=values(data.sr_inputs),
-            nuisance_cr_a=WeightedNuisanceValues(
-                nuisance_cr_values[: data.number_of_a_cr_events]
-            ),
-            nuisance_cr_b=WeightedNuisanceValues(
-                nuisance_cr_values[data.number_of_a_cr_events :]
-            ),
+            a_sr=WeightedNuisanceValues(values(data.a_sr_inputs)),
+            b_sr=WeightedNuisanceValues(values(data.b_sr_inputs)),
+            a_cr=WeightedNuisanceValues(values(data.a_cr_inputs)),
+            b_cr=WeightedNuisanceValues(values(data.b_cr_inputs)),
         )
 
     def initialize_parameters(self, gain: float) -> None:

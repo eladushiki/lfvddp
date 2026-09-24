@@ -8,6 +8,7 @@ from neural_networks.function_spaces import (
     OrthogonalPolynomialFunction,
     create_function_space,
 )
+from train.function_space_config import FunctionSpaceRole
 from test.function_space_cases import FUNCTION_SPACE_OPTIONS
 
 
@@ -44,7 +45,7 @@ def test_feature_counts_and_multidimensional_geometry_are_explicit():
 
 
 def test_spline_partition_of_unity_and_fixed_geometry_boundary_behavior():
-    spline = create_function_space("f", "cubic_bspline", {"knots": [0.0, 1.0, 2.0, 3.0]})
+    spline = create_function_space(FunctionSpaceRole.F, "cubic_bspline", {"knots": [0.0, 1.0, 2.0, 3.0]})
     values = spline.features(torch.tensor([[0.0], [1.0], [3.0], [-1.0], [4.0]]))
     assert torch.allclose(values[:3].sum(dim=1), torch.ones(3))
     assert torch.equal(values[3:], torch.zeros((2, spline.feature_count)))
@@ -54,8 +55,8 @@ def test_spline_partition_of_unity_and_fixed_geometry_boundary_behavior():
 
 def test_polynomial_basis_is_normalized_and_legendre_differs_from_chebyshev():
     options = {"maximum_degree": 2, "domain": [0.0, 2.0]}
-    legendre = create_function_space("f", "orthogonal_polynomial", {**options, "basis": "legendre"})
-    chebyshev = create_function_space("f", "orthogonal_polynomial", {**options, "basis": "chebyshev"})
+    legendre = create_function_space(FunctionSpaceRole.F, "orthogonal_polynomial", {**options, "basis": "legendre"})
+    chebyshev = create_function_space(FunctionSpaceRole.F, "orthogonal_polynomial", {**options, "basis": "chebyshev"})
     at_midpoint = torch.tensor([[1.0]])
     assert torch.allclose(legendre.features(at_midpoint), torch.tensor([[1.0, 0.0, -0.5]]))
     assert torch.allclose(chebyshev.features(at_midpoint), torch.tensor([[1.0, 0.0, -1.0]]))
@@ -76,7 +77,7 @@ def test_fixed_sigmoid_and_radial_values_use_their_documented_formulas():
 
 def test_fixed_maps_are_linear_in_their_common_coefficients():
     for family, options in DETERMINISTIC_FAMILY_OPTIONS.items():
-        space = create_function_space("nuisance", family, options, dtype=torch.float64)
+        space = create_function_space(FunctionSpaceRole.NUISANCE, family, options, dtype=torch.float64)
         with torch.no_grad():
             space.coefficients.copy_(torch.arange(space.feature_count, dtype=torch.float64)[:, None])
         events = torch.tensor([[-0.25], [0.75]], dtype=torch.float64)
@@ -100,7 +101,7 @@ def test_binned_hypothesis_dof_removes_fixed_constraints():
 
 def test_geometry_options_are_copied_and_not_trainable():
     options = {"centers": [[0.0, 1.0], [2.0, 3.0]], "widths": [[1.0, 1.0], [1.0, 1.0]]}
-    space = create_function_space("f", "gaussian_radial_basis", options)
+    space = create_function_space(FunctionSpaceRole.F, "gaussian_radial_basis", options)
     options["centers"][0][0] = 99.0
     options["widths"][0][0] = 99.0
     assert space.geometry.centers[0][0] == 0.0
