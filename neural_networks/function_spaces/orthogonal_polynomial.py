@@ -11,32 +11,18 @@ import torch
 from data_tools.data_utils import ShiftAndNormalizationFactor
 
 from neural_networks.function_spaces.base import (
-    CoefficientTopology,
     DeterministicFeatureFunction,
     EventInput,
-    FunctionSpaceMetadata,
-    FunctionSpaceRegularity,
     dimensions,
     events_tensor,
     require_options,
 )
 from frame.value_enum import ValueEnum
-from train.function_space_config import FunctionSpaceFamily
 
 
 class PolynomialBasis(ValueEnum):
     LEGENDRE = "legendre"
     CHEBYSHEV = "chebyshev"
-
-    @classmethod
-    def from_value(cls, value: "PolynomialBasis | str") -> "PolynomialBasis":
-        if isinstance(value, cls):
-            return value
-        try:
-            return cls(str(value).lower())
-        except ValueError as error:
-            raise ValueError("Polynomial basis must be 'legendre' or 'chebyshev'.") from error
-
 
 @dataclass(frozen=True)
 class OrthogonalPolynomialGeometry:
@@ -61,7 +47,7 @@ class OrthogonalPolynomialGeometry:
         if any(len(domain) != 2 or domain[0] >= domain[1] for domain in domains):
             raise ValueError("Each polynomial domain must contain an increasing (minimum, maximum) pair.")
         return cls(
-            PolynomialBasis.from_value(options["basis"]),
+            PolynomialBasis.parse(options["basis"]),
             int(options["maximum_degree"]),
             tuple((domain[0], domain[1]) for domain in domains),
         )
@@ -70,11 +56,7 @@ class OrthogonalPolynomialGeometry:
 class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
     """Legendre or Chebyshev additive polynomial feature map."""
 
-    family = FunctionSpaceFamily.ORTHOGONAL_POLYNOMIAL
-    metadata = FunctionSpaceMetadata(
-        FunctionSpaceRegularity.ORTHOGONAL_POLYNOMIAL,
-        CoefficientTopology.LINEAR_COEFFICIENTS,
-    )
+    family = "orthogonal_polynomial"
 
     def __init__(
         self,
@@ -117,10 +99,12 @@ class OrthogonalPolynomialFunction(DeterministicFeatureFunction):
         with torch.no_grad():
             self._domain.copy_(torch.as_tensor(normalized_domain, dtype=self._domain.dtype, device=self._domain.device))
 
-    def _statistical_constraint_dimension(self) -> int:
-        """Remove duplicate per-axis constants and the observed-count direction."""
-
-        return self.input_dimension
+    @classmethod
+    def _statistical_constraint_dimension_for_geometry(
+        cls, geometry: OrthogonalPolynomialGeometry
+    ) -> int:
+        del cls
+        return len(geometry.domain)
 
     def features(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(

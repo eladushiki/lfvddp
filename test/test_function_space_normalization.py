@@ -8,12 +8,7 @@ import torch
 
 from data_tools.data_utils import DataSet
 from neural_networks.function_spaces import create_function_space
-from neural_networks.nuisance_calculation import (
-    BinnedNuisanceCalculation,
-    PerEventNuisanceEstimator,
-)
 from test.environment import ConfigType
-from train.function_space_config import FunctionSpaceRole
 
 
 _DATASET_CONFIG = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
@@ -28,29 +23,23 @@ def _context_params(train_config: str):
     }
 
 
+def _raw_signal_events(data):
+    return np.concatenate(
+        (
+            data.datasets[DataSet.DataSetCategory.A_SR].events,
+            data.datasets[DataSet.DataSetCategory.B_SR].events,
+        )
+    )
+
+
 @pytest.mark.parametrize(
     "function_execution_context",
     [
-        pytest.param(
-            _context_params("cubic_bspline_binned.json"),
-            id="cubic-bspline",
-        ),
-        pytest.param(
-            _context_params("orthogonal_legendre_binned.json"),
-            id="legendre",
-        ),
-        pytest.param(
-            _context_params("orthogonal_chebyshev_binned.json"),
-            id="chebyshev",
-        ),
-        pytest.param(
-            _context_params("fixed_sigmoid_binned.json"),
-            id="fixed-sigmoid",
-        ),
-        pytest.param(
-            _context_params("gaussian_radial_basis_binned.json"),
-            id="gaussian-radial-basis",
-        ),
+        pytest.param(_context_params("cubic_bspline_binned.json"), id="cubic-bspline"),
+        pytest.param(_context_params("orthogonal_legendre_binned.json"), id="legendre"),
+        pytest.param(_context_params("orthogonal_chebyshev_binned.json"), id="chebyshev"),
+        pytest.param(_context_params("fixed_sigmoid_binned.json"), id="fixed-sigmoid"),
+        pytest.param(_context_params("gaussian_radial_basis_binned.json"), id="gaussian-radial-basis"),
     ],
     indirect=True,
 )
@@ -65,18 +54,13 @@ def test_signal_geometry_from_config_is_evaluated_in_physical_coordinates(
         function_execution_context, detector_effect, name="physical_signal_geometry"
     )
     prepared = model._prepare_training_data(data)
-    spec = function_execution_context.config.train__resolved_function_space_config.f
-    raw_space = create_function_space(FunctionSpaceRole.F, spec, dtype=torch.float64)
-    raw_sr = np.concatenate(
-        (
-            data.datasets[DataSet.DataSetCategory.A_SR].events,
-            data.datasets[DataSet.DataSetCategory.B_SR].events,
-        )
-    )
+    spec = function_execution_context.config.train__function_space_config.f
+    raw_space = create_function_space(spec, dtype=torch.float64)
 
+    assert model.signal_region_shift_network is not None
     torch.testing.assert_close(
         model.signal_region_shift_network.features(prepared.sr_events),
-        raw_space.features(torch.tensor(raw_sr, dtype=torch.float64)),
+        raw_space.features(torch.tensor(_raw_signal_events(data), dtype=torch.float64)),
     )
     assert model.signal_region_shift_network.geometry == raw_space.geometry
 
@@ -84,18 +68,12 @@ def test_signal_geometry_from_config_is_evaluated_in_physical_coordinates(
 @pytest.mark.parametrize(
     "function_execution_context",
     [
-        pytest.param(
-            _context_params("cubic_bspline_cubic_bspline.json"),
-            id="cubic-bspline-nuisance",
-        ),
-        pytest.param(
-            _context_params("cubic_bspline_fixed_sigmoid.json"),
-            id="fixed-sigmoid-nuisance",
-        ),
+        pytest.param(_context_params("cubic_bspline_cubic_bspline.json"), id="cubic-bspline"),
+        pytest.param(_context_params("cubic_bspline_fixed_sigmoid.json"), id="fixed-sigmoid"),
     ],
     indirect=True,
 )
-def test_per_event_nuisance_geometry_from_config_uses_the_same_map(
+def test_nuisance_geometry_uses_the_same_physical_to_model_map(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -106,43 +84,25 @@ def test_per_event_nuisance_geometry_from_config_uses_the_same_map(
         function_execution_context, detector_effect, name="physical_nuisance_geometry"
     )
     prepared = model._prepare_training_data(data)
-    assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
-    spec = function_execution_context.config.train__resolved_function_space_config.nuisance
-    raw_space = create_function_space(
-        FunctionSpaceRole.NUISANCE, spec, dtype=torch.float64
-    )
-    raw_sr = np.concatenate(
-        (
-            data.datasets[DataSet.DataSetCategory.A_SR].events,
-            data.datasets[DataSet.DataSetCategory.B_SR].events,
-        )
-    )
+    spec = function_execution_context.config.train__function_space_config.nuisance
+    assert spec is not None
+    assert model.nuisance_function_space is not None
+    raw_space = create_function_space(spec, dtype=torch.float64)
 
+    raw_sr = torch.tensor(_raw_signal_events(data), dtype=torch.float64)
+    normalized_sr = prepared.nuisance_events[: raw_sr.shape[0]]
     torch.testing.assert_close(
-        model.nuisance_calculation.network.features(
-            torch.cat(
-                (
-                    prepared.nuisance_data.a_sr_inputs,
-                    prepared.nuisance_data.b_sr_inputs,
-                )
-            )
-        ),
-        raw_space.features(torch.tensor(raw_sr, dtype=torch.float64)),
+        model.nuisance_function_space.features(normalized_sr), raw_space.features(raw_sr)
     )
-    assert model.nuisance_calculation.network.geometry == raw_space.geometry
+    assert model.nuisance_function_space.geometry == raw_space.geometry
 
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [
-        pytest.param(
-            _context_params("bin_indicators_binned.json"),
-            id="binned-signal-and-nuisance",
-        ),
-    ],
+    [pytest.param(_context_params("bin_indicators_binned.json"), id="binned")],
     indirect=True,
 )
-def test_binned_signal_geometry_is_normalized_but_binned_nuisance_stays_physical(
+def test_binned_signal_and_nuisance_share_the_same_normalized_basis(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -153,28 +113,21 @@ def test_binned_signal_geometry_is_normalized_but_binned_nuisance_stays_physical
         function_execution_context, detector_effect, name="physical_binned_geometry"
     )
     prepared = model._prepare_training_data(data)
-    spec = function_execution_context.config.train__resolved_function_space_config.f
-    raw_space = create_function_space(FunctionSpaceRole.F, spec, dtype=torch.float64)
-    for space in (model.signal_region_shift_network, raw_space):
-        for parameter in space._factor_deltas:
-            parameter.data.copy_(
-                torch.arange(1, parameter.numel() + 1, dtype=torch.float64)
-            )
+    assert model.signal_region_shift_network is not None
+    assert model.nuisance_function_space is not None
+    raw_signal = torch.tensor(_raw_signal_events(data), dtype=torch.float64)
+    spec = function_execution_context.config.train__function_space_config.f
+    raw_space = create_function_space(spec, dtype=torch.float64)
+    with torch.no_grad():
+        values = torch.arange(1, raw_space.feature_count + 1, dtype=torch.float64)[:, None]
+        raw_space.coefficients.copy_(values)
+        model.signal_region_shift_network.coefficients.copy_(values)
+        model.nuisance_function_space.coefficients.copy_(values)
 
-    raw_sr = torch.tensor(
-        np.concatenate(
-            (
-                data.datasets[DataSet.DataSetCategory.A_SR].events,
-                data.datasets[DataSet.DataSetCategory.B_SR].events,
-            )
-        ),
-        dtype=torch.float64,
+    torch.testing.assert_close(
+        model.signal_region_shift_network(prepared.sr_events), raw_space(raw_signal)
     )
     torch.testing.assert_close(
-        model.signal_region_shift_network(prepared.sr_events), raw_space(raw_sr)
-    )
-    assert isinstance(model.nuisance_calculation, BinnedNuisanceCalculation)
-    np.testing.assert_allclose(
-        model.nuisance_calculation.function_space.prediction_grid_edges()[0],
-        [0.0, 2.5, 5.0, 7.5, 10.0],
+        model.nuisance_function_space(prepared.nuisance_events[: raw_signal.shape[0]]),
+        raw_space(raw_signal),
     )

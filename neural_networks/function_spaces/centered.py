@@ -81,6 +81,10 @@ class CenterGeometry:
             )
         if any(width <= 0 for widths in width_matrix for width in widths):
             raise ValueError(f"{family_name} widths must be strictly positive.")
+        if len(set(zip(centers, width_matrix))) != len(centers):
+            raise ValueError(
+                f"{family_name} must not define duplicate centre-and-width features."
+            )
         return cls(tuple(centers), tuple(width_matrix))
 
 

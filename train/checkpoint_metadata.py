@@ -41,29 +41,28 @@ def build_checkpoint_metadata(
         "backend": checkpoint_value(resolved_config.backend),
         "f": {
             "family": checkpoint_value(resolved_config.f.family),
-            "state": checkpoint_value(resolved_config.f.state),
             "options": checkpoint_value(resolved_config.f.options),
         },
-        "nuisance": {
-            "family": checkpoint_value(resolved_config.nuisance.family),
-            "state": checkpoint_value(resolved_config.nuisance.state),
-            "options": checkpoint_value(resolved_config.nuisance.options),
-        },
+        "nuisance": (
+            None
+            if resolved_config.nuisance is None
+            else {
+                "family": checkpoint_value(resolved_config.nuisance.family),
+                "options": checkpoint_value(resolved_config.nuisance.options),
+            }
+        ),
     }
     fingerprint = hashlib.sha256(
         json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     return {
-        "format_version": 2,
+        "format_version": 3,
         **compatibility,
         "config_fingerprint": fingerprint,
         "normalization_factor": (
             None
             if normalization_factor is None
-            else {
-                "factors": checkpoint_value(normalization_factor._factors),
-                "offsets": checkpoint_value(normalization_factor._offsets),
-            }
+            else checkpoint_value(normalization_factor.to_mapping())
         ),
     }
 
@@ -106,21 +105,12 @@ def normalization_from_checkpoint_metadata(
     normalization = metadata.get("normalization_factor")
     if normalization is None:
         return None
-    if not isinstance(normalization, Mapping) or not {"factors", "offsets"} <= set(normalization):
+    if not isinstance(normalization, Mapping):
         raise RuntimeError(
             f"Checkpoint metadata {checkpoint_path} has an invalid normalization_factor."
         )
-    factors = normalization["factors"]
-    offsets = normalization["offsets"]
-    if not isinstance(factors, Mapping) or not isinstance(offsets, Mapping):
-        raise RuntimeError(
-            f"Checkpoint metadata {checkpoint_path} has invalid normalization mappings."
-        )
     try:
-        return ShiftAndNormalizationFactor(
-            {str(key): float(value) for key, value in factors.items()},
-            {str(key): float(value) for key, value in offsets.items()},
-        )
+        return ShiftAndNormalizationFactor.from_mapping(normalization)
     except (TypeError, ValueError, AssertionError) as error:
         raise RuntimeError(
             f"Checkpoint metadata {checkpoint_path} has invalid normalization values."

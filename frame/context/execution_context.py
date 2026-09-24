@@ -137,7 +137,7 @@ class ExecutionContext:
         """Seed every random backend used by the configured training path."""
         random.seed(self.random_seed)
         nprandom.seed(self.random_seed)
-        if self.config.train__like_NPLM:
+        if self.config.train__is_nplm:
             # NPLM's train_model uses tf, so we set its seed as well
             from tensorflow import random as tfrandom
 

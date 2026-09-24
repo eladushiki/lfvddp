@@ -97,7 +97,7 @@ def select_train_launcher_class(
 
     if (
         not probe_forces_sequential()
-        and not config.train__like_NPLM
+        and not config.train__is_nplm
         and lfvnn_denominator_is_trainable(config)
         and allocation_supports_parallel_training(allocation)
     ):

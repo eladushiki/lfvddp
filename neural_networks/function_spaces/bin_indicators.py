@@ -1,34 +1,27 @@
-"""Independent geometry and lookup for the binned function-space family."""
+"""Fixed Cartesian bin-indicator likelihood function space."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping, Optional
+from math import prod
+from typing import Any, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
 import torch
-from torch import nn
+import torch.nn.functional as functional
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import (
-    CoefficientTopology,
+    DeterministicFeatureFunction,
     EventInput,
-    FunctionSpaceMetadata,
-    FunctionSpaceRegularity,
-    PerEventFunctionSpace,
     events_tensor,
-    immutable_options,
-    unexpected_construction_options,
 )
-from neural_networks.likelihood_parameterization import LIKELIHOOD_SHIFT_BOUND
-from neural_networks.nuisance_contract import NuisanceCalculation
-from train.function_space_config import FunctionSpaceFamily
 
 
 @dataclass(frozen=True)
 class BinIndicatorGeometry:
-    """Fixed bin geometry owned by the function space, not the detector."""
+    """Immutable physical bin edges for one Cartesian detector grid."""
 
     minima: tuple[float, ...]
     maxima: tuple[float, ...]
@@ -46,19 +39,30 @@ class BinIndicatorGeometry:
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any]) -> "BinIndicatorGeometry":
-        def values(value: Any, converter: Callable[[Any], Any]) -> tuple[Any, ...]:
+        def real_values(value: Any, name: str) -> tuple[float, ...]:
             if isinstance(value, (str, bytes)):
-                raise ValueError("Bin geometry options must be sequences.")
+                raise ValueError(f"Bin geometry {name} must be a numeric sequence.")
             try:
-                return tuple(converter(item) for item in value)
-            except TypeError as error:
-                raise ValueError("Bin geometry options must be sequences.") from error
+                result = tuple(float(item) for item in value)
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    f"Bin geometry {name} must be a numeric sequence."
+                ) from error
+            if not result or not all(np.isfinite(item) for item in result):
+                raise ValueError(f"Bin geometry {name} must contain finite values.")
+            return result
+
+        def bin_counts(value: Any) -> tuple[int, ...]:
+            values = real_values(value, "number_of_bins")
+            if any(not item.is_integer() for item in values):
+                raise ValueError("Bin geometry number_of_bins must contain integers.")
+            return tuple(int(item) for item in values)
 
         try:
             return cls(
-                minima=values(options["minima"], float),
-                maxima=values(options["maxima"], float),
-                number_of_bins=values(options["number_of_bins"], int),
+                minima=real_values(options["minima"], "minima"),
+                maxima=real_values(options["maxima"], "maxima"),
+                number_of_bins=bin_counts(options["number_of_bins"]),
             )
         except KeyError as error:
             raise ValueError(f"Missing bin geometry option {error.args[0]!r}.") from error
@@ -72,53 +76,15 @@ class BinIndicatorGeometry:
             )
         )
 
-    def indices(self, events: npt.ArrayLike) -> npt.NDArray[np.int64]:
-        """Return clipped zero-based indices for a numeric event matrix."""
-
-        array = np.asarray(events)
-        if array.ndim == 1:
-            array = array[:, None]
-        if array.ndim != 2 or array.shape[1] != len(self.number_of_bins):
-            raise ValueError("Events must have one column per configured bin-geometry dimension.")
-
-        indices = [
-            np.clip(
-                np.digitize(array[:, dimension], edges) - 1,
-                a_min=0,
-                a_max=number - 1,
-            )
-            for dimension, (edges, number) in enumerate(zip(self.edges, self.number_of_bins))
-        ]
-        return np.column_stack(indices).astype(np.int64, copy=False)
+    @property
+    def feature_count(self) -> int:
+        return prod(self.number_of_bins)
 
 
-class _BinIndicatorAxis(nn.Module):
-    """One typed, non-persistent normalized lookup grid."""
+class BinIndicatorFunction(DeterministicFeatureFunction):
+    """One bounded linear coefficient per Cartesian detector-bin cell."""
 
-    def __init__(
-        self,
-        edges: npt.NDArray[np.float64],
-        *,
-        dtype: torch.dtype,
-        device: Optional[torch.device | str],
-    ) -> None:
-        super().__init__()
-        self.register_buffer(
-            "edges",
-            torch.tensor(edges, dtype=dtype, device=device),
-            persistent=False,
-        )
-
-
-class BinIndicatorFunction(PerEventFunctionSpace):
-    """Piecewise-constant factorized-bin function with fixed geometry."""
-
-    family = FunctionSpaceFamily.BIN_INDICATORS
-    metadata = FunctionSpaceMetadata(
-        regularity=FunctionSpaceRegularity.PIECEWISE_CONSTANT,
-        coefficient_topology=CoefficientTopology.FACTORIZED_MARGINAL_BINS,
-    )
-    feature_count = 0
+    family = "bin_indicators"
 
     def __init__(
         self,
@@ -126,182 +92,78 @@ class BinIndicatorFunction(PerEventFunctionSpace):
         *,
         dtype: torch.dtype = torch.get_default_dtype(),
         device: Optional[torch.device | str] = None,
+        output_dimension: int = 1,
         options: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        super().__init__()
         self.geometry = geometry
-        self.options = immutable_options(
-            options
-            if options is not None
-            else {
-                "minima": list(geometry.minima),
-                "maxima": list(geometry.maxima),
-                "number_of_bins": list(geometry.number_of_bins),
-            }
+        self._input_dimension = len(geometry.number_of_bins)
+        super().__init__(
+            geometry.feature_count,
+            output_dimension=output_dimension,
+            dtype=dtype,
+            device=device,
+            options=options,
         )
-        self._factor_deltas = nn.ParameterList(
-            [
-                nn.Parameter(torch.empty(number_of_bins, dtype=dtype, device=device))
-                for number_of_bins in geometry.number_of_bins
-            ]
-        )
-        self.feature_count = sum(geometry.number_of_bins)
-        self._axes = nn.ModuleList(
-            [
-                _BinIndicatorAxis(edges, dtype=dtype, device=device)
-                for edges in geometry.edges
-            ]
-        )
+        for dimension, edges in enumerate(geometry.edges):
+            self.register_buffer(
+                f"_edges_{dimension}",
+                torch.as_tensor(edges, dtype=dtype, device=device),
+            )
 
-    def prediction_grid_edges(self) -> tuple[npt.NDArray[np.float64], ...]:
-        """Expose the family-owned bin edges required for prediction grids."""
+    @classmethod
+    def geometry_from_options(cls, options: Mapping[str, Any]) -> BinIndicatorGeometry:
+        return BinIndicatorGeometry.from_options(options)
 
-        return self.geometry.edges
+    def _edges(self, dimension: int) -> torch.Tensor:
+        edges = self._buffers[f"_edges_{dimension}"]
+        assert isinstance(edges, torch.Tensor)
+        return edges
 
     def normalize_input_geometry(
         self,
         normalization_factor: ShiftAndNormalizationFactor,
         observable_names: tuple[str, ...],
     ) -> None:
-        """Derive normalized lookup edges from immutable physical bin geometry."""
-
         if len(observable_names) != self.input_dimension:
             raise ValueError("Function-space geometry does not match the observable dimension.")
         with torch.no_grad():
-            for name, edges, axis in zip(
-                observable_names, self.geometry.edges, self._axes
+            for name, edges, dimension in zip(
+                observable_names, self.geometry.edges, range(self.input_dimension)
             ):
-                normalized = normalization_factor.normalize_values(
-                    edges[:, None], (name,)
-                )[:, 0]
-                axis.edges.copy_(
+                normalized = normalization_factor.normalize_values(edges[:, None], (name,))[:, 0]
+                self._edges(dimension).copy_(
                     torch.as_tensor(
                         normalized,
-                        dtype=axis.edges.dtype,
-                        device=axis.edges.device,
+                        dtype=self.coefficients.dtype,
+                        device=self.coefficients.device,
                     )
                 )
 
-    @property
-    def input_dimension(self) -> int:
-        return len(self.geometry.number_of_bins)
-
-    @classmethod
-    def validate_options(cls, options: Mapping[str, Any]) -> None:
-        BinIndicatorGeometry.from_options(options)
-
-    @classmethod
-    def from_options(
-        cls,
-        options: Mapping[str, Any],
-        **construction: Any,
-    ) -> "BinIndicatorFunction":
-        """Construct the binned function from its configuration envelope."""
-
-        dtype = construction.pop("dtype", torch.get_default_dtype())
-        device = construction.pop("device", None)
-        construction.pop("output_dimension", None)
-        geometry = construction.pop("geometry", None)
-        unexpected_construction_options(cls.family, construction)
-        return cls(
-            BinIndicatorGeometry.from_options(options) if geometry is None else geometry,
-            dtype=dtype,
-            device=device,
-            options=options,
-        )
-
-    def build_nuisance_calculation(
-        self,
-        *,
-        dtype: torch.dtype,
-        device: torch.device,
-        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
-        observable_names: Optional[Iterable[str]] = None,
-    ) -> "NuisanceCalculation":
-        """Adapt this family for its compact scalar control-region reduction."""
-
-        # Binned nuisance calculation consumes raw control-region values, so its
-        # bin geometry deliberately remains in physical coordinates.
-        del normalization_factor, observable_names
-
-        from neural_networks.nuisance_calculation import BinnedNuisanceCalculation
-
-        return BinnedNuisanceCalculation(
-            dtype=dtype,
-            device=device,
-            function_space=self,
-        )
-
-    def bin_indices(self, events: npt.ArrayLike) -> npt.NDArray[np.int64]:
-        return self.geometry.indices(events)
-
-    def evaluate(self, events: npt.ArrayLike) -> npt.NDArray[np.int64]:
-        """Return fixed bin indices for geometry consumers."""
-
-        return self.bin_indices(events)
-
-    def _tensor_bin_indices(self, events: EventInput) -> torch.Tensor:
+    def _flat_bin_indices(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(
             events,
             self.input_dimension,
-            dtype=self._factor_deltas[0].dtype,
-            device=self._factor_deltas[0].device,
+            dtype=self.coefficients.dtype,
+            device=self.coefficients.device,
         )
-        return torch.stack(
-            tuple(
-                torch.bucketize(
-                    values[:, dimension],
-                    axis.edges,
-                    right=True,
-                ).sub(1).clamp_(min=0, max=number_of_bins - 1)
-                for dimension, (axis, number_of_bins) in enumerate(
-                    zip(self._axes, self.geometry.number_of_bins)
-                )
-            ),
-            dim=1,
-        )
+        flat_indices = torch.zeros(values.shape[0], dtype=torch.long, device=values.device)
+        stride = 1
+        for dimension in reversed(range(self.input_dimension)):
+            indices = torch.bucketize(
+                values[:, dimension].contiguous(), self._edges(dimension), right=True
+            ).sub(1).clamp_(min=0, max=self.geometry.number_of_bins[dimension] - 1)
+            flat_indices.add_(indices * stride)
+            stride *= self.geometry.number_of_bins[dimension]
+        return flat_indices
 
-    def values_from_indices(self, bin_indices: torch.Tensor) -> torch.Tensor:
-        """Return the bounded factorized value for one index tuple per event."""
+    def features(self, events: EventInput) -> torch.Tensor:
+        return functional.one_hot(
+            self._flat_bin_indices(events), num_classes=self.feature_count
+        ).to(dtype=self.coefficients.dtype)
 
-        values = torch.ones(
-            bin_indices.shape[0],
-            dtype=self._factor_deltas[0].dtype,
-            device=self._factor_deltas[0].device,
-        )
-        for dimension in range(self.input_dimension):
-            values = values * torch.index_select(
-                self._factor_deltas[dimension],
-                0,
-                bin_indices[:, dimension],
-            )
-        return values.clamp(
-            min=-LIKELIHOOD_SHIFT_BOUND,
-            max=LIKELIHOOD_SHIFT_BOUND,
-        )
-
-    def statistical_degrees_of_freedom(self) -> int:
-        """Return marginal-bin parameters after their fixed constraints.
-
-        The factorized parameterization has one relative scale redundancy per
-        axis beyond the first, and fixed observed counts remove the remaining
-        common constant direction.  Together they remove one direction per
-        observable axis.
-        """
-
-        return sum(parameter.numel() for parameter in self._factor_deltas) - self.input_dimension
-
-    def forward(self, events: EventInput) -> torch.Tensor:
-        return self.values_from_indices(self._tensor_bin_indices(events)).unsqueeze(-1)
-
-    def initialize_parameters(self, _gain: float) -> None:
-        for parameter in self._factor_deltas:
-            nn.init.normal_(parameter, mean=0.0, std=1e-3)
-
-    def clamp_parameters(self) -> None:
-        with torch.no_grad():
-            for parameter in self._factor_deltas:
-                parameter.clamp_(
-                    min=-LIKELIHOOD_SHIFT_BOUND,
-                    max=LIKELIHOOD_SHIFT_BOUND,
-                )
+    @classmethod
+    def _statistical_constraint_dimension_for_geometry(
+        cls, geometry: BinIndicatorGeometry
+    ) -> int:
+        del cls, geometry
+        return 1

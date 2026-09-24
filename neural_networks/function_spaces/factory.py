@@ -1,76 +1,83 @@
-"""Typed construction of registered function-space families."""
+"""Construction and validation for the registered likelihood function spaces."""
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
-
+from neural_networks.function_spaces.bin_indicators import BinIndicatorGeometry
 from neural_networks.function_spaces.registry import FUNCTION_SPACE_REGISTRY
-from train.function_space_config import (
-    FunctionSpaceFamily,
-    FunctionSpaceRole,
-    FunctionSpaceSpec,
-    RoleState,
-)
+from train.function_space_config import FunctionSpaceSpec
 
 
-def _family_and_options(
-    family: FunctionSpaceFamily | str | FunctionSpaceSpec,
-    options: Optional[Mapping[str, Any]],
-) -> tuple[FunctionSpaceFamily, Mapping[str, Any], RoleState]:
-    if isinstance(family, FunctionSpaceSpec):
-        if options is not None:
-            raise ValueError("Options cannot be supplied twice for a FunctionSpaceSpec.")
-        if family.family is None:
-            return FunctionSpaceFamily.ADAPTIVE_NEURAL, family.options, family.state
-        return family.family, family.options, family.state
-    return FunctionSpaceFamily.from_value(family), options or {}, RoleState.ENABLED
+def _registered_family(spec: FunctionSpaceSpec):
+    try:
+        return FUNCTION_SPACE_REGISTRY[spec.family]
+    except KeyError as error:
+        supported = ", ".join(sorted(FUNCTION_SPACE_REGISTRY))
+        raise ValueError(
+            f"Function-space family {spec.family!r} is not implemented; "
+            f"supported families: {supported}."
+        ) from error
+
+
+def validate_function_space_options(spec: FunctionSpaceSpec) -> None:
+    """Delegate immutable option validation to the selected family."""
+
+    _registered_family(spec).validate_options(spec.options)
+
+
+def validate_function_space_specs(
+    f: FunctionSpaceSpec,
+    nuisance: FunctionSpaceSpec | None,
+) -> None:
+    """Validate every enabled canonical function-space specification."""
+
+    validate_function_space_options(f)
+    if nuisance is not None:
+        validate_function_space_options(nuisance)
 
 
 def create_function_space(
-    role: FunctionSpaceRole | str,
-    family: FunctionSpaceFamily | str | FunctionSpaceSpec,
-    options: Optional[Mapping[str, Any]] = None,
+    spec: FunctionSpaceSpec,
+    *,
+    dtype,
+    device=None,
+    normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
+    observable_names: Optional[Iterable[str]] = None,
     **construction: Any,
-) -> Any:
-    """Construct one registered family for an explicitly typed likelihood role."""
+):
+    """Build one normalized-event likelihood shift from its canonical spec."""
 
-    role_value = FunctionSpaceRole.from_value(role)
-    normalization_factor = construction.pop("normalization_factor", None)
-    observable_names = construction.pop("observable_names", None)
     if (normalization_factor is None) != (observable_names is None):
         raise ValueError(
             "Function-space construction requires both normalization and observables."
         )
-    if normalization_factor is not None and not isinstance(
-        normalization_factor, ShiftAndNormalizationFactor
-    ):
-        raise TypeError("normalization_factor must be a ShiftAndNormalizationFactor.")
-    if observable_names is not None:
-        observable_names = tuple(observable_names)
-    family_value, family_options, state = _family_and_options(family, options)
-    if state is RoleState.DISABLED:
-        raise ValueError(f"Cannot construct a disabled {role_value.value} function-space role.")
-    try:
-        registration = FUNCTION_SPACE_REGISTRY[family_value]
-    except KeyError as error:
-        supported = ", ".join(item.value for item in FUNCTION_SPACE_REGISTRY)
-        raise ValueError(
-            f"Function-space family {family_value.value!r} is not implemented; "
-            f"supported families: {supported}."
-        ) from error
-
-    function_space = registration.factory.from_options(family_options, **construction)
+    validate_function_space_options(spec)
+    function_space = _registered_family(spec).from_options(
+        spec.options,
+        dtype=dtype,
+        device=device,
+        **construction,
+    )
     if normalization_factor is not None:
-        function_space.normalize_input_geometry(normalization_factor, observable_names)
+        function_space.normalize_input_geometry(
+            normalization_factor, tuple(observable_names)
+        )
     return function_space
 
 
-def validate_function_space_options(spec: FunctionSpaceSpec) -> None:
-    """Delegate option validation to the selected concrete family."""
+def prediction_grid_edges(
+    spec: FunctionSpaceSpec | None,
+) -> tuple | None:
+    """Return immutable physical bin edges for plotting when a spec is binned."""
 
-    if spec.state is RoleState.DISABLED:
-        return
-    assert spec.family is not None
-    FUNCTION_SPACE_REGISTRY[spec.family].factory.validate_options(spec.options)
+    if spec is None or spec.family != "bin_indicators":
+        return None
+    return BinIndicatorGeometry.from_options(spec.options).edges
+
+
+def analytic_degrees_of_freedom(spec: FunctionSpaceSpec) -> int | None:
+    """Return a family-owned fixed dimension without allocating tensors."""
+
+    return _registered_family(spec).analytic_degrees_of_freedom(spec.options)

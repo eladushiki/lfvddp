@@ -95,11 +95,13 @@ Important configuration choices include:
   configured signal, then shuffles the complete regional A/B pool and restores
   the original A/B sizes. The two categories in a region must use matching
   resampling and replacement settings.
-- `train__epochs`, checkpoint frequency, network width, and learning-rate
-  settings control optimization.
-- `train__f` and `train__nuisance` both use function-space mappings with
-  `family` and `options`; nuisance may instead use `state: "disabled"`.
-  Binned nuisance geometry belongs in its `options`. Supported families are
+- `train__epochs`, checkpoint frequency, function-space dimensions, and
+  learning-rate settings control optimization.
+- `train__backend` is the sole training-backend selector and defaults to
+  `"lfvddp"`. `train__f` is a required function-space mapping with `family`
+  and `options`; `train__nuisance` uses the same mapping or `null` when
+  disabled. Binned geometry belongs in that family's `options`. Supported
+  families are
   `adaptive_neural`, `bin_indicators`, `cubic_bspline`,
   `orthogonal_polynomial` (Legendre or Chebyshev), `fixed_sigmoid`, and
   `gaussian_radial_basis`. The roles resolve independently; equal family names
@@ -108,9 +110,10 @@ Important configuration choices include:
   in physical observable units; LFVDDP applies the run's shared data
   normalization before evaluating per-event function spaces.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
-  function-space family. Adaptive neural and NPLM studies require empirical-null
-  calibration rather than assigning Wilks degrees of freedom from parameter
-  counts.
+  function-space family. Its adaptive function-space options explicitly supply
+  `input_dimension` and `hidden_layer_nodes`. Adaptive neural and NPLM studies
+  require empirical-null calibration rather than assigning Wilks degrees of
+  freedom from parameter counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs).
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.

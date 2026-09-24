@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
-from enum import Enum
 from types import MappingProxyType
 from typing import (
     Any,
@@ -24,35 +22,6 @@ from torch import nn
 from data_tools.data_utils import ShiftAndNormalizationFactor
 
 from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
-from neural_networks.nuisance_contract import NuisanceCalculation
-from train.function_space_config import FunctionSpaceFamily
-
-
-class FunctionSpaceRegularity(str, Enum):
-    """Regularity categories declared by concrete function-space families."""
-
-    ADAPTIVE = "adaptive"
-    PIECEWISE_CONSTANT = "piecewise_constant"
-    CUBIC_SPLINE = "cubic_spline"
-    ORTHOGONAL_POLYNOMIAL = "orthogonal_polynomial"
-    SMOOTH = "smooth"
-    DETERMINISTIC = "deterministic"
-
-
-class CoefficientTopology(str, Enum):
-    """Coefficient-layout categories declared by concrete function-space families."""
-
-    DENSE_TWO_LAYER = "dense_two_layer"
-    FACTORIZED_MARGINAL_BINS = "factorized_marginal_bins"
-    LINEAR_COEFFICIENTS = "linear_coefficients"
-
-
-@dataclass(frozen=True)
-class FunctionSpaceMetadata:
-    """Structural metadata consumed by adapters and diagnostics."""
-
-    regularity: FunctionSpaceRegularity
-    coefficient_topology: CoefficientTopology
 
 
 EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
@@ -60,14 +29,13 @@ EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
 
 @runtime_checkable
 class FunctionSpace(Protocol):
-    """Role-neutral construction and evaluation contract."""
+    """One parameterized likelihood-shift function on normalized events."""
 
-    family: FunctionSpaceFamily
+    family: str
     options: Mapping[str, Any]
-    metadata: FunctionSpaceMetadata
     feature_count: int
 
-    def evaluate(self, events: EventInput) -> Any:
+    def forward(self, events: EventInput) -> torch.Tensor:
         ...
 
     def initialize_parameters(self, gain: float) -> None:
@@ -86,20 +54,6 @@ class FunctionSpace(Protocol):
         """Validate this family's configuration-owned geometry."""
         ...
 
-    def build_nuisance_calculation(
-        self,
-        *,
-        dtype: torch.dtype,
-        device: torch.device,
-        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
-        observable_names: Optional[Iterable[str]] = None,
-    ) -> "NuisanceCalculation":
-        ...
-
-    def prediction_grid_edges(self) -> Optional[tuple[npt.NDArray[np.float64], ...]]:
-        """Return family-owned bin edges when a prediction grid needs them."""
-        ...
-
     def normalize_input_geometry(
         self,
         normalization_factor: ShiftAndNormalizationFactor,
@@ -114,14 +68,14 @@ class FunctionSpace(Protocol):
 
 
 def unexpected_construction_options(
-    family: FunctionSpaceFamily,
+    family: str,
     construction: Mapping[str, Any],
 ) -> None:
     """Reject construction arguments that a family did not consume."""
 
     if construction:
         names = ", ".join(sorted(construction))
-        raise TypeError(f"Unexpected {family.value} construction option(s): {names}.")
+        raise TypeError(f"Unexpected {family} construction option(s): {names}.")
 
 
 def immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -143,6 +97,15 @@ def require_options(options: Mapping[str, Any], family: str, names: Iterable[str
     missing = [name for name in names if name not in options]
     if missing:
         raise ValueError(f"{family} requires option(s): {', '.join(missing)}.")
+
+
+def scalar_output_dimension(options: Mapping[str, Any], family: str) -> int:
+    """Enforce the scalar likelihood-shift contract for every family."""
+
+    output_dimension = options.get("output_dimension", 1)
+    if output_dimension != 1:
+        raise ValueError(f"{family} must have output_dimension equal to 1.")
+    return 1
 
 
 def number_sequence(value: Any, name: str) -> tuple[float, ...]:
@@ -203,11 +166,6 @@ def events_tensor(
 class PerEventFunctionSpace(nn.Module):
     """A trainable function space evaluated independently for each event."""
 
-    def prediction_grid_edges(self) -> Optional[tuple[npt.NDArray[np.float64], ...]]:
-        """Return no bin geometry for families without a binned prediction grid."""
-
-        return None
-
     def normalize_input_geometry(
         self,
         normalization_factor: ShiftAndNormalizationFactor,
@@ -222,39 +180,15 @@ class PerEventFunctionSpace(nn.Module):
 
         return None
 
-    def build_nuisance_calculation(
-        self,
-        *,
-        dtype: torch.dtype,
-        device: torch.device,
-        normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
-        observable_names: Optional[Iterable[str]] = None,
-    ) -> "NuisanceCalculation":
-        """Adapt this per-event function space for nuisance evaluation."""
+    @classmethod
+    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int | None:
+        """Return the configured fixed-space dimension without constructing a module."""
 
-        if (normalization_factor is None) != (observable_names is None):
-            raise ValueError(
-                "Per-event nuisance construction requires both normalization and observables."
-            )
-        if normalization_factor is not None:
-            self.normalize_input_geometry(normalization_factor, observable_names)
-
-        from neural_networks.nuisance_calculation import PerEventNuisanceEstimator
-
-        return PerEventNuisanceEstimator(
-            dtype=dtype,
-            device=device,
-            network=self,
-        )
-
+        del options
+        return None
 
 class DeterministicFeatureFunction(PerEventFunctionSpace):
     """Common linear-coefficient topology for fixed feature geometries."""
-
-    metadata = FunctionSpaceMetadata(
-        regularity=FunctionSpaceRegularity.DETERMINISTIC,
-        coefficient_topology=CoefficientTopology.LINEAR_COEFFICIENTS,
-    )
 
     @classmethod
     def construction_kwargs(
@@ -265,14 +199,11 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         """Consume the construction envelope shared by fixed families."""
 
         if construction.pop("geometry", None) is not None:
-            raise TypeError(f"{cls.family.value} does not accept geometry overrides.")
+            raise TypeError(f"{cls.family} does not accept geometry overrides.")
         result = {
             "dtype": construction.pop("dtype", torch.get_default_dtype()),
             "device": construction.pop("device", None),
-            "output_dimension": construction.pop(
-                "output_dimension",
-                options.get("output_dimension", 1),
-            ),
+            "output_dimension": scalar_output_dimension(options, cls.family),
         }
         unexpected_construction_options(cls.family, construction)
         return result
@@ -284,10 +215,28 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         raise NotImplementedError(f"{cls.__name__} must define its feature geometry.")
 
     @classmethod
+    def _statistical_constraint_dimension_for_geometry(cls, geometry: Any) -> int:
+        del geometry
+        return 0
+
+    @classmethod
+    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int:
+        geometry = cls.geometry_from_options(options)
+        output_dimension = scalar_output_dimension(options, cls.family)
+        degrees_of_freedom = (
+            geometry.feature_count * output_dimension
+            - cls._statistical_constraint_dimension_for_geometry(geometry)
+        )
+        if degrees_of_freedom < 0:
+            raise ValueError("Function-space constraints exceed trainable parameters.")
+        return degrees_of_freedom
+
+    @classmethod
     def validate_options(cls, options: Mapping[str, Any]) -> None:
         """Validate configuration by constructing the family-owned geometry."""
 
         cls.geometry_from_options(options)
+        scalar_output_dimension(options, cls.family)
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "FunctionSpace":
@@ -311,8 +260,8 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         super().__init__()
         if feature_count <= 0:
             raise ValueError("A deterministic function space must have at least one feature.")
-        if output_dimension <= 0:
-            raise ValueError("output_dimension must be positive.")
+        if output_dimension != 1:
+            raise ValueError("Function-space output_dimension must equal 1.")
         self.feature_count = int(feature_count)
         self.output_dimension = int(output_dimension)
         self.options = immutable_options(options or {})
@@ -328,25 +277,21 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         return features @ self.coefficients
 
     def forward(self, events: EventInput) -> torch.Tensor:
-        return smoothly_bounded_likelihood_shift(self.evaluate(events))
-
-    def evaluate(self, events: EventInput) -> torch.Tensor:
-        return self._linear_evaluation(self.features(events))
+        return smoothly_bounded_likelihood_shift(
+            self._linear_evaluation(self.features(events))
+        )
 
     def statistical_degrees_of_freedom(self) -> int:
         """Return this family's independent, constrained coefficient count."""
 
-        degrees_of_freedom = sum(
-            parameter.numel() for parameter in self.parameters() if parameter.requires_grad
-        ) - self._statistical_constraint_dimension()
-        if degrees_of_freedom < 0:
-            raise ValueError("Function-space constraints exceed trainable parameters.")
-        return degrees_of_freedom
+        return self.analytic_degrees_of_freedom(
+            {**self.options, "output_dimension": self.output_dimension}
+        )
 
     def _statistical_constraint_dimension(self) -> int:
         """Return fixed dependencies and observed-count constraints in this family."""
 
-        return 0
+        return self._statistical_constraint_dimension_for_geometry(self.geometry)
 
     def initialize_parameters(self, gain: float) -> None:
         nn.init.xavier_uniform_(self.coefficients, gain=gain)

@@ -1,13 +1,10 @@
-"""Role-neutral mathematical function-space families and typed construction."""
+"""Role-neutral mathematical function-space families and construction."""
 
 from neural_networks.function_spaces.adaptive_neural import AdaptiveNeuralFunction
 from neural_networks.function_spaces.base import (
-    CoefficientTopology,
     DeterministicFeatureFunction,
     EventInput,
     FunctionSpace,
-    FunctionSpaceMetadata,
-    FunctionSpaceRegularity,
     PerEventFunctionSpace,
 )
 from neural_networks.function_spaces.bin_indicators import (
@@ -19,7 +16,12 @@ from neural_networks.function_spaces.cubic_bspline import (
     CubicBSplineFunction,
     CubicBSplineGeometry,
 )
-from neural_networks.function_spaces.factory import create_function_space
+from neural_networks.function_spaces.factory import (
+    analytic_degrees_of_freedom,
+    create_function_space,
+    prediction_grid_edges,
+    validate_function_space_specs,
+)
 from neural_networks.function_spaces.fixed_sigmoid import FixedSigmoidFunction
 from neural_networks.function_spaces.gaussian_radial_basis import GaussianRadialBasisFunction
 from neural_networks.function_spaces.orthogonal_polynomial import (
@@ -27,10 +29,10 @@ from neural_networks.function_spaces.orthogonal_polynomial import (
     OrthogonalPolynomialGeometry,
     PolynomialBasis,
 )
-from neural_networks.function_spaces.registry import FUNCTION_SPACE_REGISTRY, FunctionSpaceRegistration
 
 __all__ = [
     "AdaptiveNeuralFunction",
+    "analytic_degrees_of_freedom",
     "BinIndicatorFunction",
     "BinIndicatorGeometry",
     "CenterGeometry",
@@ -40,13 +42,13 @@ __all__ = [
     "DeterministicFeatureFunction",
     "EventInput",
     "FixedSigmoidFunction",
-    "FUNCTION_SPACE_REGISTRY",
     "FunctionSpace",
-    "FunctionSpaceMetadata",
-    "FunctionSpaceRegistration",
     "GaussianRadialBasisFunction",
     "OrthogonalPolynomialFunction",
     "OrthogonalPolynomialGeometry",
+    "PerEventFunctionSpace",
     "PolynomialBasis",
     "create_function_space",
+    "prediction_grid_edges",
+    "validate_function_space_specs",
 ]

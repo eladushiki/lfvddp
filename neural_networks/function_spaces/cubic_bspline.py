@@ -11,17 +11,13 @@ import torch
 from data_tools.data_utils import ShiftAndNormalizationFactor
 
 from neural_networks.function_spaces.base import (
-    CoefficientTopology,
     DeterministicFeatureFunction,
     EventInput,
-    FunctionSpaceMetadata,
-    FunctionSpaceRegularity,
     dimensions,
     events_tensor,
     number_sequence,
     require_options,
 )
-from train.function_space_config import FunctionSpaceFamily
 
 
 CUBIC_BSPLINE_DEGREE = 3
@@ -74,11 +70,7 @@ class CubicBSplineGeometry:
 class CubicBSplineFunction(DeterministicFeatureFunction):
     """Additive cubic B-spline features with fixed, clamped knots."""
 
-    family = FunctionSpaceFamily.CUBIC_BSPLINE
-    metadata = FunctionSpaceMetadata(
-        FunctionSpaceRegularity.CUBIC_SPLINE,
-        CoefficientTopology.LINEAR_COEFFICIENTS,
-    )
+    family = "cubic_bspline"
 
     def __init__(
         self,
@@ -128,10 +120,12 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
                 buffer = self._knot_vector(dimension)
                 buffer.copy_(torch.as_tensor(normalized, dtype=buffer.dtype, device=buffer.device))
 
-    def _statistical_constraint_dimension(self) -> int:
-        """Remove duplicate per-axis constants and the observed-count direction."""
-
-        return self.input_dimension
+    @classmethod
+    def _statistical_constraint_dimension_for_geometry(
+        cls, geometry: CubicBSplineGeometry
+    ) -> int:
+        del cls
+        return len(geometry.knots)
 
     @staticmethod
     def _basis(values: torch.Tensor, knots: torch.Tensor) -> torch.Tensor:

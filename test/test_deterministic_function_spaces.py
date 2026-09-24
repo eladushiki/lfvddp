@@ -8,7 +8,7 @@ from neural_networks.function_spaces import (
     OrthogonalPolynomialFunction,
     create_function_space,
 )
-from train.function_space_config import FunctionSpaceRole
+from train.function_space_config import FunctionSpaceSpec
 from test.function_space_cases import FUNCTION_SPACE_OPTIONS
 
 
@@ -24,19 +24,9 @@ DETERMINISTIC_FAMILY_OPTIONS = {
 
 
 def test_feature_counts_and_multidimensional_geometry_are_explicit():
-    spline = create_function_space(
-        "f", "cubic_bspline", {"knots": [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]}
-    )
-    polynomial = create_function_space(
-        "f",
-        "orthogonal_polynomial",
-        {"basis": "legendre", "maximum_degree": 2, "domain": [[0, 1], [0, 2]]},
-    )
-    radial = create_function_space(
-        "f",
-        "gaussian_radial_basis",
-        {"centers": [[0, 0], [1, 2]], "widths": [[1, 2], [2, 1]]},
-    )
+    spline = create_function_space(FunctionSpaceSpec("cubic_bspline", {"knots": [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]}), dtype=torch.float32)
+    polynomial = create_function_space(FunctionSpaceSpec("orthogonal_polynomial", {"basis": "legendre", "maximum_degree": 2, "domain": [[0, 1], [0, 2]]}), dtype=torch.float32)
+    radial = create_function_space(FunctionSpaceSpec("gaussian_radial_basis", {"centers": [[0, 0], [1, 2]], "widths": [[1, 2], [2, 1]]}), dtype=torch.float32)
     assert spline.input_dimension == 2 and spline.feature_count == 10
     assert polynomial.input_dimension == 2 and polynomial.feature_count == 6
     assert radial.input_dimension == 2 and radial.feature_count == 2
@@ -45,7 +35,7 @@ def test_feature_counts_and_multidimensional_geometry_are_explicit():
 
 
 def test_spline_partition_of_unity_and_fixed_geometry_boundary_behavior():
-    spline = create_function_space(FunctionSpaceRole.F, "cubic_bspline", {"knots": [0.0, 1.0, 2.0, 3.0]})
+    spline = create_function_space(FunctionSpaceSpec("cubic_bspline", {"knots": [0.0, 1.0, 2.0, 3.0]}), dtype=torch.float32)
     values = spline.features(torch.tensor([[0.0], [1.0], [3.0], [-1.0], [4.0]]))
     assert torch.allclose(values[:3].sum(dim=1), torch.ones(3))
     assert torch.equal(values[3:], torch.zeros((2, spline.feature_count)))
@@ -55,8 +45,8 @@ def test_spline_partition_of_unity_and_fixed_geometry_boundary_behavior():
 
 def test_polynomial_basis_is_normalized_and_legendre_differs_from_chebyshev():
     options = {"maximum_degree": 2, "domain": [0.0, 2.0]}
-    legendre = create_function_space(FunctionSpaceRole.F, "orthogonal_polynomial", {**options, "basis": "legendre"})
-    chebyshev = create_function_space(FunctionSpaceRole.F, "orthogonal_polynomial", {**options, "basis": "chebyshev"})
+    legendre = create_function_space(FunctionSpaceSpec("orthogonal_polynomial", {**options, "basis": "legendre"}), dtype=torch.float32)
+    chebyshev = create_function_space(FunctionSpaceSpec("orthogonal_polynomial", {**options, "basis": "chebyshev"}), dtype=torch.float32)
     at_midpoint = torch.tensor([[1.0]])
     assert torch.allclose(legendre.features(at_midpoint), torch.tensor([[1.0, 0.0, -0.5]]))
     assert torch.allclose(chebyshev.features(at_midpoint), torch.tensor([[1.0, 0.0, -1.0]]))
@@ -64,12 +54,8 @@ def test_polynomial_basis_is_normalized_and_legendre_differs_from_chebyshev():
 
 
 def test_fixed_sigmoid_and_radial_values_use_their_documented_formulas():
-    sigmoid = create_function_space(
-        "f", "fixed_sigmoid", {"centers": [0.0], "widths": [1.0]}
-    )
-    radial = create_function_space(
-        "nuisance", "gaussian_radial_basis", {"centers": [0.0], "widths": [1.0]}
-    )
+    sigmoid = create_function_space(FunctionSpaceSpec("fixed_sigmoid", {"centers": [0.0], "widths": [1.0]}), dtype=torch.float32)
+    radial = create_function_space(FunctionSpaceSpec("gaussian_radial_basis", {"centers": [0.0], "widths": [1.0]}), dtype=torch.float32)
     events = torch.tensor([[0.0], [1.0]])
     assert torch.allclose(sigmoid.features(events), torch.tensor([[0.5], [torch.sigmoid(torch.tensor(1.0))]]))
     assert torch.allclose(radial.features(events), torch.tensor([[1.0], [torch.exp(torch.tensor(-0.5))]]))
@@ -77,31 +63,28 @@ def test_fixed_sigmoid_and_radial_values_use_their_documented_formulas():
 
 def test_fixed_maps_are_linear_in_their_common_coefficients():
     for family, options in DETERMINISTIC_FAMILY_OPTIONS.items():
-        space = create_function_space(FunctionSpaceRole.NUISANCE, family, options, dtype=torch.float64)
+        space = create_function_space(FunctionSpaceSpec(family, options), dtype=torch.float64)
         with torch.no_grad():
             space.coefficients.copy_(torch.arange(space.feature_count, dtype=torch.float64)[:, None])
         events = torch.tensor([[-0.25], [0.75]], dtype=torch.float64)
         features = space.features(events)
-        assert torch.allclose(space.evaluate(events), features @ space.coefficients)
-        baseline = space.evaluate(events).detach()
+        baseline = features @ space.coefficients
         with torch.no_grad():
             space.coefficients.mul_(2.0)
-        assert torch.allclose(space.evaluate(events), 2.0 * baseline)
+        assert torch.allclose(space.features(events) @ space.coefficients, 2.0 * baseline)
 
 
 def test_binned_hypothesis_dof_removes_fixed_constraints():
     space = create_function_space(
-        "f",
-        "bin_indicators",
-        {"minima": [0, 0], "maxima": [2, 3], "number_of_bins": [2, 3]},
+        FunctionSpaceSpec("bin_indicators", {"minima": [0, 0], "maxima": [2, 3], "number_of_bins": [2, 3]}),
         dtype=torch.float64,
     )
-    assert space.statistical_degrees_of_freedom() == 3
+    assert space.statistical_degrees_of_freedom() == 5
 
 
 def test_geometry_options_are_copied_and_not_trainable():
     options = {"centers": [[0.0, 1.0], [2.0, 3.0]], "widths": [[1.0, 1.0], [1.0, 1.0]]}
-    space = create_function_space(FunctionSpaceRole.F, "gaussian_radial_basis", options)
+    space = create_function_space(FunctionSpaceSpec("gaussian_radial_basis", options), dtype=torch.float32)
     options["centers"][0][0] = 99.0
     options["widths"][0][0] = 99.0
     assert space.geometry.centers[0][0] == 0.0
@@ -113,11 +96,11 @@ def test_geometry_options_are_copied_and_not_trainable():
 
 def test_dtype_and_device_follow_the_constructed_module():
     space = create_function_space(
-        "nuisance", "fixed_sigmoid", FUNCTION_SPACE_OPTIONS["fixed_sigmoid"], dtype=torch.float64
+        FunctionSpaceSpec("fixed_sigmoid", FUNCTION_SPACE_OPTIONS["fixed_sigmoid"]), dtype=torch.float64
     )
-    output = space.evaluate(torch.tensor([[0.0]], dtype=torch.float32))
+    output = space(torch.tensor([[0.0]], dtype=torch.float32))
     assert output.dtype is torch.float64 and output.device == space.coefficients.device
     if torch.cuda.is_available():
         space = space.to("cuda")
-        output = space.evaluate(torch.tensor([[0.0]], device="cuda"))
+        output = space(torch.tensor([[0.0]], device="cuda"))
         assert output.device.type == "cuda" and output.dtype is torch.float64

@@ -18,12 +18,6 @@ def cross_configure(config: Union[
 ]) -> None:
     """Fill defaults that depend on the fully merged configuration."""
     detector_dimension = config.detector__number_of_dimensions
-
-    if config.train__nn_input_dimension is None:
-        config.train__nn_input_dimension = detector_dimension
-
-    config.resolve_function_space_config()
-
     generated_type = GeneratedDatasetParameters.DATASET_PARAMETER_TYPE_NAME()
     for dataset_definition in config.dataset__definitions:
         if dataset_definition.get(config._dataset__type_property) == generated_type:
@@ -41,12 +35,8 @@ def cross_validate(config: Union[
     TrainConfig,
     UserConfig,
 ]):
-    if config.cluster__qsub_needs_continuation and config.train__like_NPLM:
+    if config.cluster__qsub_needs_continuation and config.train__is_nplm:
         raise NotImplementedError("Long-walltime continuation is only implemented for LFVNN/PyTorch training.")
-
-    assert config.train__nn_input_dimension == config.detector__number_of_dimensions, \
-        f"Input dimension {config.train__nn_input_dimension} does not match detector dimension " \
-        f"{config.detector__number_of_dimensions}"
 
     if config.train__final_learning_rate is not None:
         assert config.train__final_learning_rate <= config.train__learning_rate, \

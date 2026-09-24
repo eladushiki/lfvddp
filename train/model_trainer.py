@@ -151,7 +151,7 @@ class TrainLauncher(ABC):
 
         model_name = self._training_model_name(training)
 
-        if self._config.train__like_NPLM:
+        if self._config.train__is_nplm:
             from neural_networks.NPLM_adapters import calc_t_NPLM
 
             sample_a_dataset = training.data_batch.datasets[
@@ -214,7 +214,7 @@ def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
 def lfvnn_denominator_is_trainable(config: TrainConfig) -> bool:
     """Return whether LFVNN must optimize, rather than calculate, its denominator."""
 
-    return config.train__function_space_config.nuisance.enabled
+    return config.train__function_space_config.nuisance is not None
 
 
 def allocation_supports_parallel_training(allocation: RuntimeAllocation) -> bool:
@@ -385,7 +385,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
     def _requires_optimization(self, training: TrainLauncher.Training) -> bool:
         """Return whether a branch must run an optimizer rather than a formula."""
 
-        if self._config.train__like_NPLM:
+        if self._config.train__is_nplm:
             return True
         return training.is_numerator or lfvnn_denominator_is_trainable(self._config)
 
@@ -760,7 +760,7 @@ class SequentialTrainLauncher(_ResourceAwareTrainLauncher):
     def execute_trainings(self) -> None:
         """Run the sequential strategy selected by the caller."""
 
-        if self._config.train__like_NPLM:
+        if self._config.train__is_nplm:
             configure_cpu_runtime(self._allocation.cpu_count, log_metadata=False)
             for training in self._train_stack:
                 if not self._completed_checkpoint(training):
@@ -782,7 +782,7 @@ class ParallelTrainLauncher(_ResourceAwareTrainLauncher):
     def execute_trainings(self) -> None:
         """Run the parallel strategy selected by the caller."""
 
-        if self._config.train__like_NPLM:
+        if self._config.train__is_nplm:
             raise RuntimeError("ParallelTrainLauncher does not support NPLM training.")
 
         static_indices, trainable_indices = self._pending_lfvnn_work()

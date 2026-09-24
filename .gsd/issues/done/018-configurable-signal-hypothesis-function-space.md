@@ -1,6 +1,6 @@
 # Issue 018: Add configurable signal-hypothesis function spaces
 
-**Status:** open
+**Status:** done
 
 ## Description
 
@@ -123,3 +123,14 @@ model coordinates; raw configuration geometry remains immutable.
 - Keep background-only comparison packs on the cluster for bin indicators,
   cubic B-splines, and fixed sigmoids. Their geometry is specified in physical
   observable units and normalized with the data at evaluation time.
+
+## Completion record
+
+- The canonical configuration is `train__backend` plus required `train__f`
+  and optional `train__nuisance`; `null` is the sole disabled nuisance form.
+  Legacy architecture and backend selectors are deliberately unsupported.
+- Every enabled role is constructed from the same function-space catalog after
+  the pooled normalizer is known. Bin indicators are a Cartesian one-hot,
+  linear fixed space, not a separate factorized nuisance implementation.
+- Fixed-space degrees of freedom are geometry-based and independent of the
+  observed data batch. Adaptive and NPLM modes use empirical calibration.

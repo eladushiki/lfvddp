@@ -120,7 +120,6 @@ def _take_one_step(model, data_batch):
     optimizer.zero_grad(set_to_none=True)
     loss.backward()
     optimizer.step()
-    model.nuisance_calculation.clamp_parameters()
     model._log(0, loss)
     return optimizer
 
@@ -180,10 +179,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
             normalization_factor=model._norm_factor,
         )["config_fingerprint"]
     )
-    assert metadata["normalization_factor"]["factors"] == {
-        name: model._norm_factor.get_factor(name)
-        for name in model._norm_factor._factors
-    }
+    assert metadata["normalization_factor"] == model._norm_factor.to_mapping()
     assert checkpoint_metadata_path(checkpoint_path).exists()
 
     restored = _make_model(context, detector_effect, "checkpoint_round_trip")
@@ -264,8 +260,7 @@ def test_continuation_restores_normalization_and_resumes_history(
     assert restored._epochs_executed == 2
     assert history[HistoryKeys.EPOCH.value] == [0, 1, 2]
     assert len(history[HistoryKeys.LOSS.value]) == 3
-    assert restored._norm_factor._factors == model._norm_factor._factors
-    assert restored._norm_factor._offsets == model._norm_factor._offsets
+    assert restored._norm_factor.to_mapping() == model._norm_factor.to_mapping()
 
 
 @pytest.mark.parametrize(
@@ -311,14 +306,15 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
     metadata_path.write_text(json.dumps(metadata))
     checkpoint = _torch_load(checkpoint_path)
 
-    restored = _make_model(context, detector_effect, "mismatch")
-    before = {
-        key: value.detach().clone() for key, value in restored.state_dict().items()
-    }
     monkeypatch.setattr(
         "neural_networks.differentiating_model.find_latest_training_checkpoint",
         lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
     )
+    restored = _make_model(context, detector_effect, "mismatch")
+    restored._prepare_training_data(data_batch)
+    before = {
+        key: value.detach().clone() for key, value in restored.state_dict().items()
+    }
     restored_optimizer = restored.configure_optimizers()
     assert restored_optimizer is not None
     with pytest.raises(RuntimeError, match="incompatible.*f"):

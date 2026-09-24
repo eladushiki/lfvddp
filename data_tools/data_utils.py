@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -326,6 +326,30 @@ class ShiftAndNormalizationFactor:
 
     def get_factor(self, key: str) -> float:
         return self._factors[key]
+
+    def to_mapping(self) -> Dict[str, Dict[str, float]]:
+        """Return a serializable copy of this affine coordinate map."""
+
+        return {
+            "factors": dict(self._factors),
+            "offsets": dict(self._offsets),
+        }
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "ShiftAndNormalizationFactor":
+        """Restore a validated affine coordinate map from serialized metadata."""
+
+        try:
+            factors = value["factors"]
+            offsets = value["offsets"]
+        except KeyError as error:
+            raise ValueError("Normalization mapping requires factors and offsets.") from error
+        if not isinstance(factors, Mapping) or not isinstance(offsets, Mapping):
+            raise ValueError("Normalization factors and offsets must be mappings.")
+        return cls(
+            {str(key): float(item) for key, item in factors.items()},
+            {str(key): float(item) for key, item in offsets.items()},
+        )
 
     def normalize_values(
         self,

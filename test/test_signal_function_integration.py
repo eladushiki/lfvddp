@@ -148,11 +148,12 @@ def test_function_space_1d_training_matrix(
 ):
     config = function_execution_context.config
     resolved = config.resolve_function_space_config()
-    assert resolved.f.family.value == f_family
+    assert resolved.f.family == f_family
     if nuisance_family is None:
-        assert resolved.nuisance.state.value == "disabled"
+        assert resolved.nuisance is None
     else:
-        assert resolved.nuisance.family.value == nuisance_family
+        assert resolved.nuisance is not None
+        assert resolved.nuisance.family == nuisance_family
 
     data_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     model = _exercise_model(

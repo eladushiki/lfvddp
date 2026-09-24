@@ -19,12 +19,6 @@ from neural_networks.likelihood_parameterization import (
     LIKELIHOOD_SHIFT_BOUND,
     smoothly_bounded_likelihood_shift,
 )
-from neural_networks.nuisance_calculation import (
-    PerEventNuisanceEstimator,
-    NuisanceEvaluation,
-    BinnedNuisanceCalculation,
-    WeightedNuisanceValues,
-)
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
 from train.checkpoints import (
     _torch_load,
@@ -112,8 +106,7 @@ def test_disabled_nuisance_training_does_not_require_nuisance_parameters():
 
     config = create_config_from_paths(list(config_paths.values()))
 
-    assert config.train__function_space_config.nuisance.state.value == "disabled"
-    assert config.train__number_of_nuisance_parameters == 0
+    assert config.train__function_space_config.nuisance is None
 
 
 def test_enabled_binned_nuisance_uses_canonical_geometry():
@@ -126,7 +119,8 @@ def test_enabled_binned_nuisance_uses_canonical_geometry():
     }
     config = create_config_from_paths(list(config_paths.values()))
     nuisance = config.train__function_space_config.nuisance
-    assert nuisance.family.value == "bin_indicators"
+    assert nuisance is not None
+    assert nuisance.family == "bin_indicators"
     assert nuisance.options["number_of_bins"] == (10,)
 
 
@@ -281,7 +275,7 @@ def _assemble_compact_loss_for_test(
     ) / number_of_cr
     data = _PreparedTrainingData(
         sr_events=torch.empty((number_of_sr, 0), dtype=theta_sr.dtype),
-        nuisance_data=None,
+        nuisance_events=torch.empty((0, 0), dtype=theta_sr.dtype),
         N_a_sr=number_of_a_sr,
         N_b_sr=number_of_b_sr,
         N_a_cr=number_of_a_cr,
@@ -291,11 +285,20 @@ def _assemble_compact_loss_for_test(
         ),
         nuisance_cr_coefficient=(control_region_linear_nuisance_coefficient),
     )
-    nuisance = NuisanceEvaluation(
-        a_sr=WeightedNuisanceValues(theta_sr[:number_of_a_sr]),
-        b_sr=WeightedNuisanceValues(theta_sr[number_of_a_sr:]),
-        a_cr=WeightedNuisanceValues(theta_cr, a_cr_multiplicities),
-        b_cr=WeightedNuisanceValues(theta_cr, b_cr_multiplicities),
+    if theta_cr.numel() == number_of_a_cr + number_of_b_cr:
+        per_event_theta_cr = theta_cr
+    else:
+        per_event_theta_cr = torch.cat(
+            (
+                torch.repeat_interleave(theta_cr, a_cr_multiplicities.long()),
+                torch.repeat_interleave(theta_cr, b_cr_multiplicities.long()),
+            )
+        )
+    nuisance = (
+        theta_sr[:number_of_a_sr],
+        theta_sr[number_of_a_sr:],
+        per_event_theta_cr[:number_of_a_cr],
+        per_event_theta_cr[number_of_a_cr:],
     )
     return DifferentiatingModel._assemble_loss(
         signal_hypothesis_sr_shift=signal_region_shift,
@@ -476,7 +479,7 @@ def test_no_nuisance_loss_is_bitwise_equivalent_to_explicit_zero_nuisance():
     )
     data = _PreparedTrainingData(
         sr_events=torch.empty((number_of_sr, 1), dtype=torch.float64),
-        nuisance_data=None,
+        nuisance_events=torch.empty((0, 0), dtype=torch.float64),
         N_a_sr=number_of_a_sr,
         N_b_sr=number_of_b_sr,
         N_a_cr=24_900,
@@ -486,12 +489,11 @@ def test_no_nuisance_loss_is_bitwise_equivalent_to_explicit_zero_nuisance():
         ),
         nuisance_cr_coefficient=-0.004,
     )
-    empty = torch.empty(0, dtype=torch.float64)
-    explicit_zero_nuisance = NuisanceEvaluation(
-        a_sr=WeightedNuisanceValues(torch.zeros(number_of_a_sr, dtype=torch.float64)),
-        b_sr=WeightedNuisanceValues(torch.zeros(number_of_b_sr, dtype=torch.float64)),
-        a_cr=WeightedNuisanceValues(empty),
-        b_cr=WeightedNuisanceValues(empty),
+    explicit_zero_nuisance = (
+        torch.zeros(number_of_a_sr, dtype=torch.float64),
+        torch.zeros(number_of_b_sr, dtype=torch.float64),
+        torch.zeros(data.N_a_cr, dtype=torch.float64),
+        torch.zeros(data.N_b_cr, dtype=torch.float64),
     )
 
     loss = DifferentiatingModel._assemble_loss(
@@ -527,9 +529,8 @@ def test_balanced_cr_skips_zero_weighted_dot_products(monkeypatch):
         number_of_b_cr=5,
     )
 
-    # One SR interaction and two CR log terms remain. The two CR linear dots
-    # have an exactly zero coefficient and must never enter the autograd graph.
-    assert dot_calls == 3
+    # The SR interaction remains; the balanced CR linear term is omitted.
+    assert dot_calls == 1
 
 
 def test_cpu_thread_count_preserves_loss_and_gradient_bits():
@@ -603,7 +604,7 @@ def test_signal_region_shift_estimator_smoothly_bounds_result(input_dimension):
     [ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG],
     indirect=True,
 )
-def test_neural_theta_preparation_skips_detector_bin_compression(
+def test_neural_theta_preparation_uses_the_common_per_event_path(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -618,20 +619,15 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
 
     prepared = model._prepare_training_data(detected_batch)
 
-    assert isinstance(model.nuisance_calculation, PerEventNuisanceEstimator)
-    assert prepared.nuisance_data.a_cr_inputs.shape[0] == prepared.N_a_cr
-    assert prepared.nuisance_data.b_cr_inputs.shape[0] == prepared.N_b_cr
-    nuisance_evaluation = model.nuisance_calculation.evaluate(prepared.nuisance_data)
-    assert nuisance_evaluation.a_cr.values.shape[0] == prepared.N_a_cr
-    assert nuisance_evaluation.b_cr.values.shape[0] == prepared.N_b_cr
-    assert nuisance_evaluation.a_cr.weights is None
-    assert nuisance_evaluation.b_cr.weights is None
+    assert model.nuisance_function_space is not None
+    assert prepared.nuisance_events.shape[0] == (
+        prepared.N_a_sr + prepared.N_b_sr + prepared.N_a_cr + prepared.N_b_cr
+    )
 
     loss = model(prepared)
     assert torch.isfinite(loss)
     loss.backward()
 
-    _, model._norm_factor = detected_batch.get_normalized()
     prediction_data = detected_batch.datasets[DataSet.DataSetCategory.A_SR]
     theta_prediction = model.predict_theta(prediction_data)
     assert theta_prediction.shape == (prediction_data.n_samples, 1)
@@ -643,7 +639,7 @@ def test_neural_theta_preparation_skips_detector_bin_compression(
     [TWO_DIMENSION_WITH_NUISANCE_CONFIG],
     indirect=True,
 )
-def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
+def test_binned_nuisance_uses_the_same_per_event_evaluation(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
@@ -657,26 +653,15 @@ def test_nuisance_preparation_compresses_cr_and_uses_one_theta_evaluation(
     )
     prepared = model._prepare_training_data(detected_batch)
 
-    assert isinstance(model.nuisance_calculation, BinnedNuisanceCalculation)
-    assert prepared.nuisance_data.nuisance_cr_bin_indices is not None
-    assert int(prepared.nuisance_data.nuisance_cr_a_multiplicities.sum()) == (
-        prepared.N_a_cr
-    )
-    assert int(prepared.nuisance_data.nuisance_cr_b_multiplicities.sum()) == (
-        prepared.N_b_cr
-    )
-    assert (
-        prepared.nuisance_data.nuisance_cr_bin_indices.shape[0]
-        <= prepared.number_of_cr_events
+    assert model.nuisance_function_space is not None
+    assert prepared.nuisance_events.shape[0] == (
+        prepared.N_a_sr + prepared.N_b_sr + prepared.N_a_cr + prepared.N_b_cr
     )
 
     loss = model(prepared)
     loss.backward()
 
-    assert all(
-        nuisance_parameter.grad is not None
-        for nuisance_parameter in model.nuisance_calculation.parameters()
-    )
+    assert all(parameter.grad is not None for parameter in model.nuisance_function_space.parameters())
 
 
 @pytest.mark.parametrize(
@@ -719,6 +704,7 @@ def test_model_initialization_and_prediction(
         is_numerator=True,
         name="prediction_model",
     )
+    model._prepare_training_data(detected_batch)
     signal_region_shift_network = model.signal_region_shift_network
     assert signal_region_shift_network is not None
     assert signal_region_shift_network.hidden.weight.dtype == torch.float64
@@ -786,6 +772,10 @@ def test_checkpoint_continuation_uses_current_format(
     assert checkpoint["epoch"] == 4
     assert checkpoint["optimizer_state_dict"]["state"]
 
+    monkeypatch.setattr(
+        "neural_networks.differentiating_model.find_latest_training_checkpoint",
+        lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
+    )
     reloaded_model = DifferentiatingModel(
         context=function_execution_context,
         detector_effect=detector_effect,
@@ -794,10 +784,6 @@ def test_checkpoint_continuation_uses_current_format(
     )
     reloaded_model._prepare_training_data(detected_batch)
     reloaded_optimizer = reloaded_model.configure_optimizers()
-    monkeypatch.setattr(
-        "neural_networks.differentiating_model.find_latest_training_checkpoint",
-        lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
-    )
 
     assert (
         reloaded_model._load_training_checkpoint_if_requested(reloaded_optimizer) == 5
@@ -817,6 +803,7 @@ def test_checkpoint_continuation_uses_current_format(
 )
 def test_learning_rate_stays_constant_without_final_learning_rate(
     function_execution_context,
+    data_generation,
     detector_effect,
 ):
     model = DifferentiatingModel(
@@ -825,7 +812,11 @@ def test_learning_rate_stays_constant_without_final_learning_rate(
         is_numerator=True,
         name="constant_learning_rate_model",
     )
+    model._prepare_training_data(
+        detector_effect.affect_batch(data_generation.get_batch())
+    )
     optimizer = model.configure_optimizers()
+    assert optimizer is not None
 
     model._set_learning_rate_for_epoch(optimizer, epoch=50)
 

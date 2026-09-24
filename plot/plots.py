@@ -12,8 +12,8 @@ from scipy.stats import chi2
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
-from neural_networks.function_spaces import create_function_space
-from train.function_space_config import FunctionSpaceRole, FunctionSpaceSpec
+from neural_networks.function_spaces import prediction_grid_edges
+from train.function_space_config import FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
@@ -790,15 +790,12 @@ def _prediction_spanning_dataset(
     display_edges_by_observable: dict[str, np.ndarray],
     selected_observables: List[str],
     configured_observables: List[str],
-    nuisance_spec: FunctionSpaceSpec,
+    nuisance_spec: FunctionSpaceSpec | None,
 ) -> DataSet:
     """Build the prediction grid from display axes and nuisance geometry."""
     nuisance_bins_by_observable: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-    if nuisance_spec.enabled:
-        nuisance_lookup = create_function_space(
-            FunctionSpaceRole.NUISANCE, nuisance_spec
-        )
-        nuisance_edges = nuisance_lookup.prediction_grid_edges()
+    if nuisance_spec is not None:
+        nuisance_edges = prediction_grid_edges(nuisance_spec)
         if nuisance_edges is not None:
             if len(configured_observables) != len(nuisance_edges):
                 raise ValueError(
