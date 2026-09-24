@@ -17,27 +17,21 @@
             "dataset_loaded__file_name": "events.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__resample_is_resample": true,
-            "dataset_loaded__resample_is_replacement": false,
+            "dataset_loaded__resample_is_replacement": true,
             "dataset__number_of_background_events": 2
         },
         {
             "name": "A",
-            "type": "loaded",
+            "type": "generated",
             "category": "a_cr",
-            "dataset_loaded__file_name": "events.npy",
-            "dataset_loaded__observable_naming": {"param_0": "param_0"},
-            "dataset_loaded__resample_is_resample": true,
-            "dataset_loaded__resample_is_replacement": false,
+            "dataset_generated__background_generator": {"function": "exponential_background"},
             "dataset__number_of_background_events": 2
         },
         {
             "name": "B",
-            "type": "loaded",
+            "type": "generated",
             "category": "b_cr",
-            "dataset_loaded__file_name": "events.npy",
-            "dataset_loaded__observable_naming": {"param_0": "param_0"},
-            "dataset_loaded__resample_is_resample": true,
-            "dataset_loaded__resample_is_replacement": false,
+            "dataset_generated__background_generator": {"function": "exponential_background"},
             "dataset__number_of_background_events": 2
         }
     ]

@@ -1,7 +1,13 @@
-import re
 from typing import Dict, Iterable, Iterator, Tuple
-from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor, resample as ddp_resample
+from data_tools.data_utils import (
+    DATASET_REGIONS,
+    DataSet,
+    DataSetRegion,
+    ShiftAndNormalizationFactor,
+    resample as ddp_resample,
+)
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
+from data_tools.dataset_pair import RegionalDataPair
 from frame.context.execution_context import ExecutionContext
 
 class DataBatch:
@@ -9,10 +15,10 @@ class DataBatch:
     All the data sets needed for a single training run.
     """
     REQUIRED_DATASET_CATEGORIES = [
-        DataSet.DataSetCategory.A_SR,
-        DataSet.DataSetCategory.A_CR,
-        DataSet.DataSetCategory.B_SR,
-        DataSet.DataSetCategory.B_CR,
+        DATASET_REGIONS.sr.a,
+        DATASET_REGIONS.cr.a,
+        DATASET_REGIONS.sr.b,
+        DATASET_REGIONS.cr.b,
     ]
 
     def __init__(self, dss_and_params: Iterable[Tuple[DataSet, DatasetParameters]]):
@@ -73,25 +79,56 @@ class DataGeneration:
         self._config: DatasetConfig = context.config
 
     def get_batch(self) -> DataBatch:
+        sr = self.__retrieve_regional_pair(DATASET_REGIONS.sr)
+        cr = self.__retrieve_regional_pair(DATASET_REGIONS.cr)
         return DataBatch(
-            [self[category] for category in DataBatch.REQUIRED_DATASET_CATEGORIES]
+            [
+                (sr.a, sr.a_parameters),
+                (cr.a, cr.a_parameters),
+                (sr.b, sr.b_parameters),
+                (cr.b, cr.b_parameters),
+            ]
         )
 
     def __getitem__(self, item: DataSet.DataSetCategory) -> Tuple[DataSet, DatasetParameters]:
         try:
+            region = DATASET_REGIONS.for_category(item)
+            if self.__has_parameters(region.a) and self.__has_parameters(region.b):
+                return self.__retrieve_regional_pair(region).get(item)
+
             dataset_parameters = self._config.get_parameters(item)
-            dataset = self.__retrieve_dataset(dataset_parameters)
-            return dataset, dataset_parameters
+            return self.__materialize_dataset(dataset_parameters), dataset_parameters
 
         except KeyError:
             raise KeyError(f"Dataset category '{item}' not found in the configuration.")
 
-    def __retrieve_dataset(self, dataset_parameters: DatasetParameters) -> DataSet:
+    def __has_parameters(self, category: DataSet.DataSetCategory) -> bool:
+        try:
+            self._config.get_parameters(category)
+        except KeyError:
+            return False
+        return True
+
+    def __retrieve_regional_pair(
+        self,
+        region: DataSetRegion,
+    ) -> RegionalDataPair:
+        a_parameters = self._config.get_parameters(region.a)
+        b_parameters = self._config.get_parameters(region.b)
+        return RegionalDataPair(
+            a=self.__materialize_dataset(a_parameters),
+            a_parameters=a_parameters,
+            b=self.__materialize_dataset(b_parameters),
+            b_parameters=b_parameters,
+            split_policy=a_parameters.dataset__regional_split_policy,
+        ).finalized()
+
+    def __materialize_dataset(self, dataset_parameters: DatasetParameters) -> DataSet:
         """
-        Implements loading, generation and resampling of different datasets while holding global
-        state for them.
-        Signal and background numbers of events are kept as specified and are resampled
-        separately if needed.
+        Materialize one category before its regional A/B finalization.
+
+        Signal and background numbers of events are kept as specified and are
+        resampled separately when configured for a loaded dataset.
         """
         # In case of a generated dataset, just generate the data
         if isinstance(dataset_parameters, GeneratedDatasetParameters):

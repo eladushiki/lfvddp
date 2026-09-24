@@ -1057,6 +1057,54 @@ def test_learning(
     [
         {
             ConfigType.DATASET.value: Path(
+                "test/data_generation/configs/dataset/"
+                "resampled_pairs_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/short_1D_train_config_without_nuisance.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
+def test_learning_accepts_a_resampled_loaded_regional_pair(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+):
+    for filename, values in {
+        "sr_a.npy": np.arange(6, dtype=float),
+        "sr_b.npy": np.arange(10, 16, dtype=float),
+        "cr_a.npy": np.arange(100, 106, dtype=float),
+        "cr_b.npy": np.arange(200, 206, dtype=float),
+    }.items():
+        np.save(tmp_path / filename, values.reshape(-1, 1))
+
+    with monkeypatch.context() as temporary_working_directory:
+        temporary_working_directory.chdir(tmp_path)
+        detected_batch = detector_effect.affect_batch(
+            isolated_data_generation.get_batch()
+        )
+    t_a_loss = _train_numerator(
+        function_execution_context,
+        detected_batch,
+        detector_effect,
+        "resampled_loaded_pair_model",
+    )
+
+    assert t_a_loss != 0
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET.value: Path(
                 "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
             ),
             ConfigType.DETECTOR.value: Path(
