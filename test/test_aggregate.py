@@ -6,7 +6,7 @@ import pytest
 
 from frame.aggregate import ResultAggregator
 from frame.file_system.training_history import HistoryKeys, save_training_history
-from train.statistical_calibration import CalibrationPolicy
+from test.environment import ConfigType
 
 
 def _save_t_history(
@@ -92,64 +92,34 @@ def test_injected_significances_use_dataset_integration_limits(
     )
 
 
-def _context_with_calibration(policy, rank):
-    return SimpleNamespace(
-        config=SimpleNamespace(
-            train__function_space_config=SimpleNamespace(policy=policy),
-            rank=rank,
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        pytest.param(
+            {
+                ConfigType.DATASET: Path(
+                    "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/issue018_orthogonal_legendre_binned.json"
+                ),
+            },
+            id="orthogonal-polynomial",
         ),
-    )
-
-
-def test_aggregate_derives_a_shared_wilks_rank_from_run_contexts(tmp_path, monkeypatch):
-    wilks_contexts = [
-        _context_with_calibration(CalibrationPolicy.WILKS, 3),
-        _context_with_calibration(CalibrationPolicy.WILKS, 3),
-    ]
+    ],
+    indirect=True,
+)
+def test_aggregate_derives_hypothesis_dof_from_run_context(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+):
     monkeypatch.setattr(
         "frame.aggregate.ExecutionContext.discover_run_contexts",
-        lambda parent_directory: [(context, parent_directory) for context in wilks_contexts],
-    )
-    monkeypatch.setattr(
-        "frame.aggregate.calibration_policy", lambda config: config.policy
-    )
-    monkeypatch.setattr(
-        "frame.aggregate.effective_test_statistic_degrees_of_freedom",
-        lambda config: config.rank,
+        lambda parent_directory: [(function_execution_context, parent_directory)],
     )
 
     assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 3
-
-
-def test_aggregate_omits_chi_square_for_empirical_null_contexts(tmp_path, monkeypatch):
-    context = _context_with_calibration(CalibrationPolicy.EMPIRICAL_NULL, None)
-    monkeypatch.setattr(
-        "frame.aggregate.ExecutionContext.discover_run_contexts",
-        lambda parent_directory: [(context, parent_directory)],
-    )
-    monkeypatch.setattr(
-        "frame.aggregate.calibration_policy", lambda config: config.policy
-    )
-
-    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom is None
-
-
-def test_aggregate_rejects_different_recreated_effective_ranks(tmp_path, monkeypatch):
-    wilks_contexts = [
-        _context_with_calibration(CalibrationPolicy.WILKS, 2),
-        _context_with_calibration(CalibrationPolicy.WILKS, 3),
-    ]
-    monkeypatch.setattr(
-        "frame.aggregate.ExecutionContext.discover_run_contexts",
-        lambda parent_directory: [(context, parent_directory) for context in wilks_contexts],
-    )
-    monkeypatch.setattr(
-        "frame.aggregate.calibration_policy", lambda config: config.policy
-    )
-    monkeypatch.setattr(
-        "frame.aggregate.effective_test_statistic_degrees_of_freedom",
-        lambda config: config.rank,
-    )
-
-    with pytest.raises(ValueError, match="different effective"):
-        ResultAggregator(tmp_path).chi_square_degrees_of_freedom

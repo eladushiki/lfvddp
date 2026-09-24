@@ -18,14 +18,8 @@ from frame.file_structure import (
     TRAINING_RESULT_FILE_EXTENSION,
 )
 from frame.file_system.training_history import HistoryKeys, load_training_history
-from train.statistical_calibration import (
-    CalibrationPolicy,
-    calibration_policy,
-    effective_test_statistic_degrees_of_freedom,
-)
+from train.statistical_calibration import effective_test_statistic_degrees_of_freedom
 from train.train_config import TrainConfig
-
-_UNSET = object()
 
 
 def utils__get_signal_dataset_parameters(
@@ -64,7 +58,6 @@ class ResultAggregator:
         self._history_values = None
         self._epochs = None
         self._run_contexts = None
-        self._chi_square_degrees_of_freedom: int | None | object = _UNSET
 
         # Load t-values
         self._load_t_values()
@@ -158,28 +151,11 @@ class ResultAggregator:
 
     @property
     def chi_square_degrees_of_freedom(self) -> int | None:
-        """Return a shared Wilks rank, or no analytic reference for empirical modes."""
-
-        if self._chi_square_degrees_of_freedom is not _UNSET:
-            assert self._chi_square_degrees_of_freedom is None or isinstance(
-                self._chi_square_degrees_of_freedom, int
-            )
-            return self._chi_square_degrees_of_freedom
+        """Return the shared configured hypothesis-space dimension."""
 
         contexts = ExecutionContext.discover_run_contexts(self._parent_directory)
         if not contexts:
             raise ValueError("No run contexts found for chi-square calibration.")
-        policies = {
-            calibration_policy(context.config.train__function_space_config)
-            for context, _ in contexts
-        }
-        if policies == {CalibrationPolicy.EMPIRICAL_NULL}:
-            self._chi_square_degrees_of_freedom = None
-            return None
-        if policies != {CalibrationPolicy.WILKS}:
-            raise ValueError(
-                "Cannot combine Wilks and empirical-null runs in one chi-square plot."
-            )
         degrees_of_freedom = {
             effective_test_statistic_degrees_of_freedom(context.config)
             for context, _ in contexts
@@ -188,14 +164,12 @@ class ResultAggregator:
             raise ValueError(
                 "Cannot combine runs with different effective test-statistic degrees "
                 "of freedom in one chi-square plot."
-            )
+        )
         (degrees_of_freedom,) = degrees_of_freedom
         if degrees_of_freedom is None:
-            self._chi_square_degrees_of_freedom = None
             return None
         if not isinstance(degrees_of_freedom, int) or degrees_of_freedom < 0:
-            raise ValueError("Wilks calibration must define a non-negative integer rank.")
-        self._chi_square_degrees_of_freedom = degrees_of_freedom
+            raise ValueError("Hypothesis-space dof must be a non-negative integer.")
         return degrees_of_freedom
 
     @property

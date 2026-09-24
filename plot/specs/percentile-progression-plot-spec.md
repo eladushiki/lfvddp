@@ -11,7 +11,7 @@
 
 Show how selected empirical test-statistic percentiles evolve over training and
 compare them with the corresponding theoretical chi-square quantiles when the
-run persisted a regular fixed-basis Wilks calibration. The plot is diagnostic:
+configured hypothesis space has a nonzero degree count. The plot is diagnostic:
 it should reveal convergence behavior without allowing failed training runs to
 flatten the valid curves.
 
@@ -31,10 +31,9 @@ flatten the valid curves.
 
 Each sample has one vertically stacked panel sharing the epoch axis. Every panel
 contains empirical 2.5%, 25%, 50%, 75%, and 97.5% percentile curves. For
-regular fixed-basis runs with nonzero rank, dashed horizontal lines use the
-common effective hypothesis-space dimension reconstructed from the saved run contexts;
-empirical-null and zero-rank
-runs omit those lines.
+configured hypothesis spaces with a nonzero degree count, dashed horizontal
+lines use the common effective hypothesis-space dimension reconstructed from
+the saved run contexts. Other spaces omit those lines.
 
 The horizontal axis is the configured training epoch and uses scientific
 notation when appropriate. The vertical axis starts at zero. Its upper limit is
@@ -54,6 +53,6 @@ percentiles are clipped by the documented non-negative display range.
 - [x] Percentiles use the shared final-statistic quality selection.
 - [x] Complete histories are retained for selected runs.
 - [x] Wilks references use the effective hypothesis-space dimension reconstructed from the saved run context.
-- [x] Empirical-null runs do not claim a chi-square reference.
+- [x] Function spaces without a nonzero degree count do not claim a chi-square reference.
 - [x] Each y-axis covers zero through all non-negative curves with 5% headroom.
 - [x] The figure is reproducible from recorded submission results and config.
