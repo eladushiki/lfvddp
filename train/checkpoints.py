@@ -56,6 +56,21 @@ def _checkpoint_dir(context: ExecutionContext) -> Path:
     return context.training_outcomes_dir
 
 
+def _legacy_continuation_checkpoint_path(
+    context: ExecutionContext,
+    model_name: str,
+) -> Optional[Path]:
+    if context.continue_from is None:
+        return None
+
+    checkpoint_dir = (
+        Path(context.continue_from) / TRAINING_OUTCOMES_DIR_NAME / CHECKPOINTS_DIR_NAME
+    )
+    if context.array_index is not None:
+        checkpoint_dir = checkpoint_dir / f"array_{context.array_index}"
+    return checkpoint_dir / checkpoint_filename(model_name)
+
+
 def _single_train_checkpoint_paths(
     context: ExecutionContext,
     model_name: str,
@@ -64,7 +79,9 @@ def _single_train_checkpoint_paths(
         return
 
     continue_from = Path(context.continue_from)
-    dirsafe_runtag = context.config.config__dirsafe_runtag
+    dirsafe_runtag = getattr(
+        getattr(context, "config", None), "config__dirsafe_runtag", None
+    )
     for child_context_path in continue_from.glob(f"*/{CONTEXT_FILE_NAME}"):
         child_context = ExecutionContext.load_from_run_dir(child_context_path.parent)
         if child_context.array_index != context.array_index:
@@ -93,21 +110,32 @@ def save_training_checkpoint(
     epoch: int,
     training_history: dict[str, Any],
     metadata: Optional[Mapping[str, Any]] = None,
+    best_model_state_dict: Optional[dict[str, Any]] = None,
+    best_loss: Optional[float] = None,
+    best_epoch: Optional[int] = None,
 ) -> Path:
     checkpoint_dir = _checkpoint_dir(context)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = checkpoint_dir / checkpoint_filename(model_name)
     temporary_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
 
-    torch.save({
-        "model_name": model_name,
-        "epoch": epoch,
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,
-        "training_history": training_history,
-        "array_index": context.array_index,
-        "run_hash": context.run_hash,
-    }, temporary_path)
+    torch.save(
+        {
+            "model_name": model_name,
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict()
+            if optimizer is not None
+            else None,
+            "training_history": training_history,
+            "best_model_state_dict": best_model_state_dict,
+            "best_loss": best_loss,
+            "best_epoch": best_epoch,
+            "array_index": context.array_index,
+            "run_hash": context.run_hash,
+        },
+        temporary_path,
+    )
     temporary_path.replace(checkpoint_path)
 
     if metadata is not None:
@@ -136,10 +164,12 @@ def find_latest_training_checkpoint(
         return None
 
     candidates = []
-    for checkpoint_path in _single_train_checkpoint_paths(context, model_name):
+    for checkpoint_path in _continuation_checkpoint_paths(context, model_name):
         checkpoint = _torch_load(checkpoint_path)
         if checkpoint.get("model_name") != model_name:
-            raise RuntimeError(f"Checkpoint {checkpoint_path} belongs to {checkpoint.get('model_name')}, not {model_name}")
+            raise RuntimeError(
+                f"Checkpoint {checkpoint_path} belongs to {checkpoint.get('model_name')}, not {model_name}"
+            )
 
         checkpoint_array_index = checkpoint.get("array_index")
         if checkpoint_array_index != context.array_index:

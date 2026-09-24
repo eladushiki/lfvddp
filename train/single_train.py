@@ -181,7 +181,14 @@ def train_for_t(
             model_name=name,
         )
         log_t_history_to_tensorboard(context, name, t_history)
-        final_t = float(t_history[HistoryKeys.T.value][-1])
+        if numerator_training.result is None or denominator_training.result is None:
+            raise RuntimeError("Training completed without minimum loss results.")
+        final_t = float(
+            calc_t_LFVDDP(
+                numerator=numerator_training.result,
+                denominator=denominator_training.result,
+            )
+        )
 
     plot_training_prediction(
         context=context,

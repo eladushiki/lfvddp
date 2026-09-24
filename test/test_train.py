@@ -7,11 +7,12 @@ import torch
 
 from data_tools.data_utils import DataSet
 from frame.command_line.handle_args import create_config_from_paths
-from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
+from frame.file_structure import TENSORBOARD_LOG_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
     _PreparedTrainingData,
+    calc_min_LFVNN,
 )
 from neural_networks.function_spaces import AdaptiveNeuralFunction
 from neural_networks.likelihood_parameterization import (
@@ -27,6 +28,7 @@ from neural_networks.nuisance_calculation import (
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
 from train.checkpoints import (
     _torch_load,
+    checkpoint_filename,
     save_training_checkpoint,
 )
 from train.checkpoint_metadata import build_checkpoint_metadata
@@ -78,9 +80,7 @@ ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
     ConfigType.DATASET: Path(
         "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
     ),
-    ConfigType.DETECTOR: Path(
-        "test/configs/detector/basic_1D_detector_config.json"
-    ),
+    ConfigType.DETECTOR: Path("test/configs/detector/basic_1D_detector_config.json"),
     ConfigType.TRAIN: Path(
         "test/configs/train/short_1D_train_config_without_nuisance.json"
     ),
@@ -289,9 +289,7 @@ def _assemble_compact_loss_for_test(
         sr_category_imbalance=(
             number_of_a_sr / number_of_sr - number_of_b_sr / number_of_sr
         ),
-        nuisance_cr_coefficient=(
-            control_region_linear_nuisance_coefficient
-        ),
+        nuisance_cr_coefficient=(control_region_linear_nuisance_coefficient),
     )
     nuisance = NuisanceEvaluation(
         nuisance_sr_values=theta_sr,
@@ -759,6 +757,7 @@ def test_checkpoint_continuation_uses_current_format(
     optimizer = model.configure_optimizers()
     assert optimizer is not None
     loss = model(prepared_data)
+    best_model_state = model._model_state_snapshot()
     loss.backward()
     optimizer.step()
 
@@ -778,6 +777,9 @@ def test_checkpoint_continuation_uses_current_format(
             resolved_config=model._function_space_config,
             normalization_factor=model._norm_factor,
         ),
+        best_model_state_dict=best_model_state,
+        best_loss=0.5,
+        best_epoch=3,
     )
     checkpoint = _torch_load(checkpoint_path)
     assert checkpoint["epoch"] == 4
@@ -801,6 +803,10 @@ def test_checkpoint_continuation_uses_current_format(
     )
     for expected, actual in zip(model.parameters(), reloaded_model.parameters()):
         torch.testing.assert_close(actual, expected)
+    assert reloaded_model.minimum_loss == pytest.approx(0.5)
+    reloaded_model._restore_best_model_state()
+    for name, expected in best_model_state.items():
+        torch.testing.assert_close(reloaded_model.state_dict()[name], expected)
 
 
 @pytest.mark.parametrize(
@@ -912,6 +918,60 @@ def test_adaptive_learning_rate_continuation_uses_retargeted_epoch_schedule(
     model.fit(detected_batch)
 
     assert learning_rates == pytest.approx([0.04, 0.01])
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_ADAPTIVE_LEARNING_RATE_CONFIG],
+    indirect=True,
+)
+def test_training_returns_and_saves_the_lowest_loss_model_state(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+    monkeypatch,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    losses = iter([3.0, 1.0, 2.0, 4.0])
+    states_before_step = []
+
+    def controlled_train_step(self, optimizer, data, profiler):
+        states_before_step.append(self._model_state_snapshot())
+        with torch.no_grad():
+            for parameter in self.parameters():
+                parameter.add_(1.0)
+        return torch.tensor(next(losses), dtype=self._dtype)
+
+    monkeypatch.setattr(DifferentiatingModel, "_train_step", controlled_train_step)
+
+    model, minimum_loss, history = calc_min_LFVNN(
+        context=function_execution_context,
+        data=detected_batch,
+        detector_effect=detector_effect,
+        is_numerator=True,
+        name="lowest_loss_model",
+    )
+
+    assert minimum_loss == pytest.approx(1.0)
+    assert history[HistoryKeys.LOSS.value] == [3.0, 1.0, 2.0, 4.0]
+    for name, expected in states_before_step[1].items():
+        torch.testing.assert_close(model.state_dict()[name], expected)
+
+    training_outcomes_dir = function_execution_context.training_outcomes_dir
+    [saved_weights_path] = training_outcomes_dir.glob(
+        f"lowest_loss_model*{WEIGHTS_OUTPUT_FILE_NAME.rsplit('.', 1)[1]}"
+    )
+    saved_weights = _torch_load(saved_weights_path)
+    for name, expected in states_before_step[1].items():
+        torch.testing.assert_close(saved_weights[name], expected)
+
+    checkpoint = _torch_load(
+        training_outcomes_dir / checkpoint_filename("lowest_loss_model")
+    )
+    assert checkpoint["best_loss"] == pytest.approx(1.0)
+    assert checkpoint["best_epoch"] == 1
+    for name, expected in states_before_step[1].items():
+        torch.testing.assert_close(checkpoint["best_model_state_dict"][name], expected)
 
 
 class _TensorboardRecorder:

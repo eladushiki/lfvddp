@@ -126,6 +126,9 @@ class TrainLauncher(ABC):
         return int(checkpoint.get("epoch", -1)) >= self._config.train__epochs - 1
 
     def _checkpoint_result(self, checkpoint: dict[str, Any]) -> float:
+        best_loss = checkpoint.get("best_loss")
+        if best_loss is not None:
+            return float(best_loss)
         training_history = checkpoint.get("training_history", {})
         losses = training_history.get(HistoryKeys.LOSS.value)
         if losses is None or len(losses) == 0:
@@ -158,7 +161,7 @@ class TrainLauncher(ABC):
                 DataSet.DataSetCategory.B_SR
             ]
 
-            model, final_val = calc_t_NPLM( # TODO: no chance this works
+            model, final_val = calc_t_NPLM(  # TODO: no chance this works
                 self._context,
                 sample_a_dataset,
                 sample_b_dataset,
@@ -428,9 +431,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
         info("Skipping completed training %s.", self._training_model_name(training))
         return True
 
-    def _parallel_assignments(
-        self, indices: list[int]
-    ) -> list[_TrainingAssignment]:
+    def _parallel_assignments(self, indices: list[int]) -> list[_TrainingAssignment]:
         """Split observed resources between concurrently trainable branches.
 
         There are at most two independently trainable objectives.  The heavier
@@ -440,9 +441,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
 
         cpu_count = self._allocation.cpu_count
         gpu_count = self._allocation.usable_gpu_count
-        torch_thread_capacity = _parallel_torch_thread_capacity(
-            cpu_count, len(indices)
-        )
+        torch_thread_capacity = _parallel_torch_thread_capacity(cpu_count, len(indices))
         if len(indices) == 1:
             self._note_unused_gpus(used_gpu_count=min(1, gpu_count))
             return [
@@ -484,9 +483,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
         self._note_unused_gpus(used_gpu_count=min(2, gpu_count))
         return assignments
 
-    def _sequential_assignments(
-        self, indices: list[int]
-    ) -> list[_TrainingAssignment]:
+    def _sequential_assignments(self, indices: list[int]) -> list[_TrainingAssignment]:
         """Give each sequential branch the complete reusable allocation."""
 
         gpu_count = self._allocation.usable_gpu_count
@@ -497,10 +494,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
             self._allocation.cpu_count,
             probe_torch_capacity(self._allocation.cpu_count),
         )
-        return [
-            _TrainingAssignment(index, device, torch_capacity)
-            for index in indices
-        ]
+        return [_TrainingAssignment(index, device, torch_capacity) for index in indices]
 
     def _note_unused_gpus(self, used_gpu_count: int) -> None:
         """Explain why GPUs beyond the independent branch count stay idle."""
@@ -598,8 +592,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
 
         safe_model_name = secure_filename(model_name) or "training"
         return (
-            self._context.training_outcomes_dir
-            / f"{safe_model_name}.worker_output.txt"
+            self._context.training_outcomes_dir / f"{safe_model_name}.worker_output.txt"
         )
 
     @staticmethod
@@ -634,9 +627,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
         turn, preventing their output from interleaving with the current block.
         """
 
-        model_name = self._training_model_name(
-            self._train_stack[assignment.index]
-        )
+        model_name = self._training_model_name(self._train_stack[assignment.index])
         print(
             f"\n===== BEGIN TRAINING OUTPUT: {model_name} "
             f"(device={assignment.device}, CPU threads={assignment.cpu_threads}) =====",
@@ -659,9 +650,7 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
                                 "error": "Worker exited without returning a result."
                             }
                     elif not process.is_alive():
-                        payload = {
-                            "error": "Worker exited without returning a result."
-                        }
+                        payload = {"error": "Worker exited without returning a result."}
                 else:
                     process.join(timeout=0.1)
 
@@ -801,9 +790,7 @@ class ParallelTrainLauncher(_ResourceAwareTrainLauncher):
             self._execute_in_parent(_TrainingAssignment(index, "cpu", 1))
 
         assignments = (
-            self._parallel_assignments(trainable_indices)
-            if trainable_indices
-            else []
+            self._parallel_assignments(trainable_indices) if trainable_indices else []
         )
         if assignments:
             configure_cpu_runtime(
