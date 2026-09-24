@@ -79,3 +79,12 @@ class NuisanceCalculation(nn.Module, ABC):
 
     def clamp_parameters(self) -> None:
         """Clamp trainable nuisance parameters, when needed."""
+
+    def statistical_design_matrix(
+        self,
+        data: PreparedNuisanceData,
+    ) -> Optional[torch.Tensor]:
+        """Return this nuisance role's fixed tangent design, if available."""
+
+        del data
+        return None

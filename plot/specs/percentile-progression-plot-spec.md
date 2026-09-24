@@ -10,9 +10,10 @@
 ## Purpose
 
 Show how selected empirical test-statistic percentiles evolve over training and
-compare them with the corresponding theoretical chi-square quantiles. The plot
-is diagnostic: it should reveal convergence behavior without allowing failed
-training runs to flatten the valid curves.
+compare them with the corresponding theoretical chi-square quantiles when the
+run persisted a regular fixed-basis Wilks calibration. The plot is diagnostic:
+it should reveal convergence behavior without allowing failed training runs to
+flatten the valid curves.
 
 ## Data Selection and Filtering
 
@@ -29,8 +30,10 @@ training runs to flatten the valid curves.
 ## Rendering
 
 Each sample has one vertically stacked panel sharing the epoch axis. Every panel
-contains empirical 2.5%, 25%, 50%, 75%, and 97.5% percentile curves and dashed
-horizontal lines for the matching chi-square quantiles.
+contains empirical 2.5%, 25%, 50%, 75%, and 97.5% percentile curves. For
+regular fixed-basis runs with nonzero rank, dashed horizontal lines use the
+common persisted effective test-statistic rank; empirical-null and zero-rank
+runs omit those lines.
 
 The horizontal axis is the configured training epoch and uses scientific
 notation when appropriate. The vertical axis starts at zero. Its upper limit is
@@ -49,6 +52,7 @@ percentiles are clipped by the documented non-negative display range.
 
 - [x] Percentiles use the shared final-statistic quality selection.
 - [x] Complete histories are retained for selected runs.
-- [x] Empirical and matching chi-square quantiles are distinguishable.
+- [x] Wilks references use the persisted effective test-statistic rank.
+- [x] Empirical-null runs do not claim a chi-square reference.
 - [x] Each y-axis covers zero through all non-negative curves with 5% headroom.
 - [x] The figure is reproducible from recorded submission results and config.

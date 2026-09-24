@@ -435,6 +435,31 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             / N_cr,
         )
 
+    def statistical_design_matrices(
+        self,
+        data: DataBatch,
+    ) -> tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """Return fixed signal and nuisance tangent designs for this fit.
+
+        The test statistic compares the numerator with the same nuisance model
+        in the denominator.  Its Wilks directions are therefore the signal
+        directions remaining after projection off the nuisance design.
+        """
+
+        if not self._is_numerator:
+            raise ValueError(
+                "Only the numerator model defines signal test-statistic directions."
+            )
+        training_data = self._prepare_training_data(data)
+        return (
+            self.signal_region_shift_network.statistical_design_matrix(
+                training_data.sr_events
+            ),
+            self.nuisance_calculation.statistical_design_matrix(
+                training_data.nuisance_data
+            ),
+        )
+
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
         self._training_history[HistoryKeys.LOSS.value].append(
             float(loss.detach().cpu())

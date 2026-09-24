@@ -9,9 +9,12 @@ from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import calc_t_LFVDDP
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import RESULTING_T_FILE_NAME
+from frame.file_structure import (
+    RESULTING_T_FILE_NAME,
+    STATISTICAL_METADATA_FILE_NAME,
+)
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.differentiating_model import LFVNN_DTYPE
+from neural_networks.differentiating_model import DifferentiatingModel, LFVNN_DTYPE
 from neural_networks.utils import save_training_history_outcome
 from train.cpu_runtime import configure_cpu_runtime
 from train.model_trainer import (
@@ -26,6 +29,10 @@ from train.runtime_resources import (
     detect_runtime_allocation,
 )
 from train.tensorboard_clutch import log_t_history_to_tensorboard
+from train.statistical_metadata import (
+    build_model_statistical_metadata,
+    build_statistical_metadata,
+)
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingResourceProfiler
 from train.training_names import (
@@ -140,6 +147,22 @@ def train_for_t(
 
     numerator_training = train_launcher.get_training(numerator_train_idx)
     denominator_training = train_launcher.get_training(denominator_train_idx)
+
+    if isinstance(numerator_training.model, DifferentiatingModel):
+        statistical_metadata = build_model_statistical_metadata(
+            numerator_training.model,
+            data_batch,
+        )
+    else:
+        # NPLM and adaptive-neural models are explicitly empirical-null modes.
+        statistical_metadata = build_statistical_metadata(
+            context.config.train__function_space_config,
+            None,
+        )
+    context.save_and_document_dict(
+        statistical_metadata,
+        context.unique_out_dir / STATISTICAL_METADATA_FILE_NAME,
+    )
 
     if numerator_training.history is None or denominator_training.history is None:
         # NPLM does not expose the paired minimization histories used here.

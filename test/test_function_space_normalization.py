@@ -13,6 +13,7 @@ from neural_networks.nuisance_calculation import (
     PerEventNuisanceEstimator,
 )
 from test.environment import ConfigType
+from train.statistical_metadata import build_model_statistical_metadata
 
 
 _DATASET_CONFIG = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
@@ -168,3 +169,31 @@ def test_binned_signal_geometry_is_normalized_but_binned_nuisance_stays_physical
         model.nuisance_calculation.function_space.prediction_grid_edges()[0],
         [0.0, 2.5, 5.0, 7.5, 10.0],
     )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        pytest.param(
+            _context_params("issue018_orthogonal_legendre_binned.json"),
+            id="fixed-signal-with-binned-nuisance",
+        ),
+    ],
+    indirect=True,
+)
+def test_statistical_metadata_uses_the_fitted_model_design_rank(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    differentiating_model_factory,
+):
+    data = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    model = differentiating_model_factory(
+        function_execution_context, detector_effect, name="statistical_design"
+    )
+
+    metadata = build_model_statistical_metadata(model, data)
+
+    assert metadata["calibration_policy"] == "wilks"
+    assert metadata["statistic_degrees_of_freedom"] == metadata["effective_f_rank"]
+    assert metadata["statistic_degrees_of_freedom"] > 0

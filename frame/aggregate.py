@@ -1,3 +1,4 @@
+import json
 from glob import glob
 from logging import warning
 from pathlib import Path
@@ -14,10 +15,12 @@ from frame.context.execution_context import ExecutionContext
 from frame.context.execution_products import unstamp_product_stem
 from frame.file_structure import (
     RESULTING_T_FILE_STEM,
+    STATISTICAL_METADATA_FILE_STEM,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_RESULT_FILE_EXTENSION,
 )
 from frame.file_system.training_history import HistoryKeys, load_training_history
+from train.statistical_metadata import CalibrationPolicy
 from train.train_config import TrainConfig
 
 
@@ -57,6 +60,7 @@ class ResultAggregator:
         self._history_values = None
         self._epochs = None
         self._run_contexts = None
+        self._statistical_metadata = None
 
         # Load t-values
         self._load_t_values()
@@ -147,6 +151,67 @@ class ResultAggregator:
             axis=0,
         )
         self._epochs = epochs
+
+    def _load_statistical_metadata(self) -> None:
+        """Load one persisted calibration diagnostic from each completed run."""
+
+        metadata_files = sorted(
+            self._parent_directory.rglob(f"{STATISTICAL_METADATA_FILE_STEM}*.json")
+        )
+        if not metadata_files:
+            raise ValueError(
+                "No statistical metadata found. Re-run training before requesting "
+                "an analytic chi-square reference."
+            )
+        loaded = []
+        for metadata_file in metadata_files:
+            try:
+                metadata = json.loads(metadata_file.read_text())
+            except (OSError, json.JSONDecodeError) as error:
+                raise ValueError(
+                    f"Could not read statistical metadata {metadata_file}."
+                ) from error
+            if not isinstance(metadata, dict):
+                raise ValueError(
+                    f"Statistical metadata {metadata_file} must contain a JSON object."
+                )
+            loaded.append((metadata_file, metadata))
+        self._statistical_metadata = loaded
+
+    @property
+    def chi_square_degrees_of_freedom(self) -> int | None:
+        """Return a shared Wilks rank, or no analytic reference for empirical modes."""
+
+        if self._statistical_metadata is None:
+            self._load_statistical_metadata()
+        assert self._statistical_metadata is not None
+        policies = {
+            metadata.get("calibration_policy")
+            for _, metadata in self._statistical_metadata
+        }
+        if policies == {CalibrationPolicy.EMPIRICAL_NULL.value}:
+            return None
+        if policies != {CalibrationPolicy.WILKS.value}:
+            raise ValueError(
+                "Cannot combine Wilks and empirical-null runs in one chi-square plot."
+            )
+        degrees_of_freedom = {
+            metadata.get("statistic_degrees_of_freedom")
+            for _, metadata in self._statistical_metadata
+        }
+        if len(degrees_of_freedom) != 1:
+            raise ValueError(
+                "Cannot combine runs with different effective test-statistic degrees "
+                "of freedom in one chi-square plot."
+            )
+        (degrees_of_freedom,) = degrees_of_freedom
+        if not isinstance(degrees_of_freedom, int) or degrees_of_freedom < 0:
+            raise ValueError(
+                "Wilks statistical metadata must define a non-negative integer "
+                "statistic_degrees_of_freedom."
+            )
+        # A fully projected-out f has no non-degenerate chi-square limit.
+        return degrees_of_freedom or None
 
     @property
     def all_test_statistics(self) -> NDArray[np.float64]:

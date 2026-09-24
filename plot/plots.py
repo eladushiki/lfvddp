@@ -54,7 +54,6 @@ from plot.plot_utils import (
 from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
-from train.train_utils import statistic_degrees_of_freedom
 
 
 _CONTINUOUS_PREDICTION_AXIS_POINTS = 1000
@@ -159,9 +158,11 @@ def t_train_percentile_progression_plot(
 
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
-    chi2_dof = statistic_degrees_of_freedom(config)
-    reference_quantiles = np.asarray(
-        [chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles]
+    chi2_dof = agg.chi_square_degrees_of_freedom
+    reference_quantiles = (
+        np.asarray([chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles])
+        if chi2_dof is not None
+        else np.empty(0)
     )
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
@@ -169,12 +170,11 @@ def t_train_percentile_progression_plot(
         values = all_history_values[sample_name][HistoryKeys.T.value]
         converged_values = _eventually_converged_histories(values)
         percentiles = np.percentile(converged_values, quantiles, axis=0)
-        for quantile, percentile, reference_quantile, color in zip(
+        for index, (quantile, percentile, color) in enumerate(zip(
             quantiles,
             percentiles,
-            reference_quantiles,
             colors,
-        ):
+        )):
             (line,) = ax.plot(
                 epochs,
                 percentile,
@@ -184,12 +184,13 @@ def t_train_percentile_progression_plot(
             )
             if row == 0:
                 legend_handles.append(line)
-            ax.axhline(
-                reference_quantile,
-                color=color,
-                linestyle="--",
-                linewidth=1.5,
-            )
+            if chi2_dof is not None:
+                ax.axhline(
+                    reference_quantiles[index],
+                    color=color,
+                    linestyle="--",
+                    linewidth=1.5,
+                )
         ax.set_ylabel(HistoryKeys.T.value)
         ax.set_ylim(
             0,
@@ -202,16 +203,17 @@ def t_train_percentile_progression_plot(
         if row == len(sample_names) - 1:
             ax.set_xlabel("Training epochs")
 
-    legend_handles.append(
-        Line2D(
-            [],
-            [],
-            color="black",
-            linestyle="--",
-            linewidth=1.5,
-            label=fr"$\chi^2_{{{chi2_dof}}}$ quantiles",
+    if chi2_dof is not None:
+        legend_handles.append(
+            Line2D(
+                [],
+                [],
+                color="black",
+                linestyle="--",
+                linewidth=1.5,
+                label=fr"$\chi^2_{{{chi2_dof}}}$ quantiles",
+            )
         )
-    )
     fig.suptitle("Training percentile progression", fontsize=24)
     fig.legend(
         handles=legend_handles,
@@ -278,11 +280,7 @@ def t_distribution_plot(
     distribution_std = np.std(t)
 
     # Limits
-    chi2_begin = 0
-    chi2_end = chi2.ppf(
-        0.9999,
-        chi2_dof := statistic_degrees_of_freedom(config),
-    )
+    chi2_dof = agg.chi_square_degrees_of_freedom
     xmin = min(0.0, float(np.min(t)))
     xmax = max(0.0, float(np.max(t)))
     if xmin == xmax:
@@ -334,30 +332,30 @@ def t_distribution_plot(
         ls="",
     )
 
-    # plot reference chi2
-    chi2_bin_centers = np.linspace(chi2_begin, chi2_end, 1000)
-
-    ax.plot(
-        chi2_bin_centers,
-        chi2.pdf(chi2_bin_centers, chi2_dof),
-        style["chi2_color"],
-        linewidth=style["linewidth"],
-        alpha=style["alpha"],
-        label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
-    )
+    if chi2_dof is not None:
+        chi2_bin_centers = np.linspace(0, chi2.ppf(0.9999, chi2_dof), 1000)
+        ax.plot(
+            chi2_bin_centers,
+            chi2.pdf(chi2_bin_centers, chi2_dof),
+            style["chi2_color"],
+            linewidth=style["linewidth"],
+            alpha=style["alpha"],
+            label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
+        )
 
     mean_t = float(np.mean(t))
-    mean_significance = calc_t_significance_by_chi2_percentile(
-        t, chi2_dof
-    )
     ax.axvline(
         mean_t,
         color=style["edge_color"],
         linestyle="--",
         linewidth=style["linewidth"],
     )
+    mean_label = f"mean $t={mean_t:.2f}$"
+    if chi2_dof is not None:
+        mean_significance = calc_t_significance_by_chi2_percentile(t, chi2_dof)
+        mean_label += f"\n$Z(\\mathrm{{mean}}\\ t)={mean_significance:.2f}$"
     ax.annotate(
-        f"mean $t={mean_t:.2f}$\n$Z(\\mathrm{{mean}}\\ t)={mean_significance:.2f}$",
+        mean_label,
         xy=(mean_t, float(np.max(h)) * 0.9),
         xytext=(6, 0),
         textcoords="offset points",
@@ -369,13 +367,18 @@ def t_distribution_plot(
     circ = patches.Circle(
         (0, 0), 1, facecolor=style["histogram_color"], edgecolor=style["edge_color"]
     )
-    rect1 = patches.Rectangle(
-        (0, 0), 1, 1, color=style["chi2_color"], alpha=style["alpha"]
-    )
-
+    legend_handles = [circ]
+    legend_labels = [label]
+    if chi2_dof is not None:
+        legend_handles.append(
+            patches.Rectangle(
+                (0, 0), 1, 1, color=style["chi2_color"], alpha=style["alpha"]
+            )
+        )
+        legend_labels.append(fr"$\chi^{{2}}_{{{chi2_dof}}}$")
     ax.legend(
-        (circ, rect1),
-        (label, fr"$\chi^{{2}}_{{{chi2_dof}}}$"),
+        legend_handles,
+        legend_labels,
         handler_map={
             patches.Rectangle: HandlerRect(),
             patches.Circle: HandlerCircle(),

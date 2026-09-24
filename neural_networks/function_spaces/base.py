@@ -108,6 +108,10 @@ class FunctionSpace(Protocol):
         """Map physical configuration geometry into model-input coordinates."""
         ...
 
+    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor | None:
+        """Return the family's fixed tangent design, when defined."""
+        ...
+
 
 def unexpected_construction_options(
     family: FunctionSpaceFamily,
@@ -212,6 +216,16 @@ class PerEventFunctionSpace(nn.Module):
         """Accept normalized inputs; geometry-free families need no adjustment."""
 
         del normalization_factor, observable_names
+
+    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor | None:
+        """Return the fixed tangent design, when this family has one.
+
+        Adaptive spaces deliberately return ``None``: their searched features
+        need empirical-null calibration rather than a Wilks rank.
+        """
+
+        del events
+        return None
 
     def build_nuisance_calculation(
         self,
@@ -326,6 +340,11 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
 
     def feature_map(self, events: EventInput) -> torch.Tensor:
         return self.features(events)
+
+    def statistical_design_matrix(self, events: EventInput) -> torch.Tensor:
+        """Use the fixed linear feature map as the Wilks design matrix."""
+
+        return self.feature_map(events)
 
     def initialize_parameters(self, gain: float) -> None:
         nn.init.xavier_uniform_(self.coefficients, gain=gain)

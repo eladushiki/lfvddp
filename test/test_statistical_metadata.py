@@ -46,6 +46,7 @@ def test_deterministic_metadata_is_serializable_and_uses_effective_rank_for_wilk
     assert metadata["f_feature_count"] == 3
     assert metadata["nuisance_feature_count"] == 1
     assert metadata["effective_f_rank"] == rank.effective_f_rank
+    assert metadata["statistic_degrees_of_freedom"] == rank.effective_f_rank
     assert metadata["degrees_of_freedom"] == rank.degrees_of_freedom
     assert metadata["tolerance"] == rank.tolerance
     assert metadata["f_regularity"] == "deterministic"

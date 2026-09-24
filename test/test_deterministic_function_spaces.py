@@ -88,6 +88,24 @@ def test_fixed_maps_are_linear_in_their_common_coefficients():
         assert torch.allclose(space.evaluate(events), 2.0 * baseline)
 
 
+def test_binned_tangent_design_removes_factorization_scale_redundancy():
+    space = create_function_space(
+        "f",
+        "bin_indicators",
+        {"minima": [0, 0], "maxima": [2, 3], "number_of_bins": [2, 3]},
+        dtype=torch.float64,
+    )
+    events = torch.tensor(
+        [[first, second] for first in (0.5, 1.5) for second in (0.5, 1.5, 2.5)],
+        dtype=torch.float64,
+    )
+
+    design = space.statistical_design_matrix(events)
+
+    assert design.shape == (6, 5)
+    assert torch.linalg.matrix_rank(design) == 4
+
+
 def test_geometry_options_are_copied_and_not_trainable():
     options = {"centers": [[0.0, 1.0], [2.0, 3.0]], "widths": [[1.0, 1.0], [1.0, 1.0]]}
     space = create_function_space("f", "gaussian_radial_basis", options)

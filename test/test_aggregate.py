@@ -1,7 +1,9 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from frame.aggregate import ResultAggregator
 from frame.file_system.training_history import HistoryKeys, save_training_history
@@ -27,6 +29,25 @@ def _save_t_history(
         },
         outcome_dir / f"{sample_name}_{run_hash}.history.h5",
         epochs=10,
+    )
+
+
+def _save_statistical_metadata(
+    parent: Path,
+    run_name: str,
+    *,
+    calibration_policy: str,
+    statistic_degrees_of_freedom: int | None,
+) -> None:
+    run_directory = parent / run_name
+    run_directory.mkdir(parents=True, exist_ok=True)
+    (run_directory / "statistical_metadata_1.json").write_text(
+        json.dumps(
+            {
+                "calibration_policy": calibration_policy,
+                "statistic_degrees_of_freedom": statistic_degrees_of_freedom,
+            }
+        )
     )
 
 
@@ -88,3 +109,45 @@ def test_injected_significances_use_dataset_integration_limits(
         calculation_arguments["upper_limit"],
         integration_limits,
     )
+
+
+def test_aggregate_uses_the_persisted_effective_wilks_rank(tmp_path):
+    _save_statistical_metadata(
+        tmp_path, "run_1", calibration_policy="wilks", statistic_degrees_of_freedom=3
+    )
+    _save_statistical_metadata(
+        tmp_path, "run_2", calibration_policy="wilks", statistic_degrees_of_freedom=3
+    )
+
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 3
+
+
+def test_aggregate_omits_chi_square_for_empirical_null_calibration(tmp_path):
+    _save_statistical_metadata(
+        tmp_path,
+        "run_1",
+        calibration_policy="empirical-null",
+        statistic_degrees_of_freedom=None,
+    )
+
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom is None
+
+
+def test_aggregate_omits_degenerate_zero_rank_wilks_reference(tmp_path):
+    _save_statistical_metadata(
+        tmp_path, "run_1", calibration_policy="wilks", statistic_degrees_of_freedom=0
+    )
+
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom is None
+
+
+def test_aggregate_rejects_mixed_effective_rank_references(tmp_path):
+    _save_statistical_metadata(
+        tmp_path, "run_1", calibration_policy="wilks", statistic_degrees_of_freedom=2
+    )
+    _save_statistical_metadata(
+        tmp_path, "run_2", calibration_policy="wilks", statistic_degrees_of_freedom=3
+    )
+
+    with pytest.raises(ValueError, match="different effective"):
+        ResultAggregator(tmp_path).chi_square_degrees_of_freedom

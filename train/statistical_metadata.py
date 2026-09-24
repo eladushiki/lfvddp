@@ -8,16 +8,23 @@ role configuration and the rank diagnostic computed from those matrices.
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 from frame.value_enum import ValueEnum
-from neural_networks.function_spaces.projected_rank import ProjectedFunctionSpaceRank
+from neural_networks.function_spaces.projected_rank import (
+    ProjectedFunctionSpaceRank,
+    compute_rank_for_backend,
+)
 from train.function_space_config import (
     FunctionSpaceFamily,
     FunctionSpaceSpec,
     ResolvedFunctionSpaceConfig,
     TrainingBackend,
 )
+
+if TYPE_CHECKING:
+    from data_tools.data_generation import DataBatch
+    from neural_networks.differentiating_model import DifferentiatingModel
 
 
 class CalibrationPolicy(ValueEnum):
@@ -65,7 +72,7 @@ def _calibration_policy(config: ResolvedFunctionSpaceConfig) -> CalibrationPolic
 
 def build_statistical_metadata(
     resolved_config: ResolvedFunctionSpaceConfig,
-    projected_rank: ProjectedFunctionSpaceRank,
+    projected_rank: Optional[ProjectedFunctionSpaceRank],
 ) -> dict[str, Any]:
     """Build JSON-serializable statistical metadata for a resolved model.
 
@@ -82,7 +89,12 @@ def build_statistical_metadata(
     calibration_policy = _calibration_policy(resolved_config)
     is_regular = calibration_policy is CalibrationPolicy.WILKS
 
-    rank_metadata = _json_value(asdict(projected_rank))
+    rank_metadata = (
+        _json_value(asdict(projected_rank)) if projected_rank is not None else {}
+    )
+
+    def rank_value(name: str) -> Any:
+        return rank_metadata.get(name)
 
     # Keep role and rank provenance flat so this can be consumed by existing
     # aggregation/reporting code without knowing evaluator implementation types.
@@ -93,21 +105,48 @@ def build_statistical_metadata(
         "f_state": _value(resolved_config.f.state),
         "nuisance_family": _value(resolved_config.nuisance.family),
         "nuisance_state": _value(resolved_config.nuisance.state),
-        "f_feature_count": rank_metadata["raw_f_dimension"],
-        "nuisance_feature_count": rank_metadata["nuisance_dimension"],
-        "raw_f_dimension": rank_metadata["raw_f_dimension"],
-        "nuisance_dimension": rank_metadata["nuisance_dimension"],
-        "raw_f_rank": rank_metadata["raw_f_rank"],
-        "nuisance_rank": rank_metadata["nuisance_rank"],
-        "overlap_rank": rank_metadata["overlap_rank"],
-        "effective_f_rank": rank_metadata["effective_f_rank"],
-        "degrees_of_freedom": rank_metadata["degrees_of_freedom"],
-        "tolerance": rank_metadata["tolerance"],
+        "f_feature_count": rank_value("raw_f_dimension"),
+        "nuisance_feature_count": rank_value("nuisance_dimension"),
+        "raw_f_dimension": rank_value("raw_f_dimension"),
+        "nuisance_dimension": rank_value("nuisance_dimension"),
+        "raw_f_rank": rank_value("raw_f_rank"),
+        "nuisance_rank": rank_value("nuisance_rank"),
+        "overlap_rank": rank_value("overlap_rank"),
+        "effective_f_rank": rank_value("effective_f_rank"),
+        # The numerator also fits the nuisance parameters.  The test statistic
+        # compares it with a denominator that fits the same nuisance model, so
+        # only the projected f rank belongs to its chi-square reference.
+        "statistic_degrees_of_freedom": rank_value("effective_f_rank"),
+        "degrees_of_freedom": rank_value("degrees_of_freedom"),
+        "tolerance": rank_value("tolerance"),
         "f_regularity": f_regularity,
         "nuisance_regularity": nuisance_regularity,
         "regularity": "regular" if is_regular else "nonregular",
         "calibration_policy": calibration_policy.value,
     }
+
+
+def build_model_statistical_metadata(
+    model: "DifferentiatingModel",
+    data: "DataBatch",
+) -> dict[str, Any]:
+    """Build persisted calibration metadata from one trained numerator model."""
+
+    resolved_config = model._function_space_config
+    if _calibration_policy(resolved_config) is CalibrationPolicy.EMPIRICAL_NULL:
+        return build_statistical_metadata(resolved_config, None)
+
+    f_design, nuisance_design = model.statistical_design_matrices(data)
+    if f_design is None:
+        raise RuntimeError(
+            "A regular function-space model did not provide a statistical design."
+        )
+    projected_rank = compute_rank_for_backend(
+        f_design,
+        nuisance_design,
+        backend=resolved_config.backend,
+    )
+    return build_statistical_metadata(resolved_config, projected_rank)
 
 
 def _json_value(value: Any) -> Any:
@@ -125,5 +164,6 @@ def _json_value(value: Any) -> Any:
 
 __all__ = [
     "CalibrationPolicy",
+    "build_model_statistical_metadata",
     "build_statistical_metadata",
 ]
