@@ -1,4 +1,3 @@
-import json
 from glob import glob
 from logging import warning
 from pathlib import Path
@@ -7,7 +6,9 @@ from typing import Union
 import numpy as np
 from numpy.typing import NDArray
 
+from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.dataset_config import DatasetConfig, DatasetParameters
+from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
@@ -15,13 +16,19 @@ from frame.context.execution_context import ExecutionContext
 from frame.context.execution_products import unstamp_product_stem
 from frame.file_structure import (
     RESULTING_T_FILE_STEM,
-    STATISTICAL_METADATA_FILE_STEM,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_RESULT_FILE_EXTENSION,
 )
 from frame.file_system.training_history import HistoryKeys, load_training_history
-from train.statistical_metadata import CalibrationPolicy
+from neural_networks.differentiating_model import DifferentiatingModel
+from train.statistical_calibration import (
+    CalibrationPolicy,
+    calibration_policy,
+    effective_test_statistic_degrees_of_freedom,
+)
 from train.train_config import TrainConfig
+
+_UNSET = object()
 
 
 def utils__get_signal_dataset_parameters(
@@ -60,7 +67,7 @@ class ResultAggregator:
         self._history_values = None
         self._epochs = None
         self._run_contexts = None
-        self._statistical_metadata = None
+        self._chi_square_degrees_of_freedom: int | None | object = _UNSET
 
         # Load t-values
         self._load_t_values()
@@ -152,52 +159,78 @@ class ResultAggregator:
         )
         self._epochs = epochs
 
-    def _load_statistical_metadata(self) -> None:
-        """Load one persisted calibration diagnostic from each completed run."""
+    @staticmethod
+    def _recreate_detected_batch(
+        context: ExecutionContext,
+    ) -> tuple[DataBatch, DetectorEffect]:
+        """Recreate one observed batch without leaking DataGeneration singleton state."""
 
-        metadata_files = sorted(
-            self._parent_directory.rglob(f"{STATISTICAL_METADATA_FILE_STEM}*.json")
-        )
-        if not metadata_files:
-            raise ValueError(
-                "No statistical metadata found. Re-run training before requesting "
-                "an analytic chi-square reference."
+        context.seed_random_generators()
+        original_instance = DataGeneration._instance
+        original_loaded_datasets = DataGeneration._loaded_datasets
+        DataGeneration._instance = None
+        DataGeneration._loaded_datasets = {}
+        try:
+            generated_batch = DataGeneration(context).get_batch()
+            detector_effect = DetectorEffect(context)
+            return detector_effect.affect_batch(generated_batch), detector_effect
+        finally:
+            DataGeneration._instance = original_instance
+            DataGeneration._loaded_datasets = original_loaded_datasets
+
+    @classmethod
+    def _chi_square_degrees_of_freedom_for_context(
+        cls,
+        context: ExecutionContext,
+    ) -> int | None:
+        """Derive one run's reference rank from its saved context and seed."""
+
+        if not isinstance(context.config, TrainConfig):
+            raise TypeError(
+                "A chi-square reference requires a training execution context."
             )
-        loaded = []
-        for metadata_file in metadata_files:
-            try:
-                metadata = json.loads(metadata_file.read_text())
-            except (OSError, json.JSONDecodeError) as error:
-                raise ValueError(
-                    f"Could not read statistical metadata {metadata_file}."
-                ) from error
-            if not isinstance(metadata, dict):
-                raise ValueError(
-                    f"Statistical metadata {metadata_file} must contain a JSON object."
-                )
-            loaded.append((metadata_file, metadata))
-        self._statistical_metadata = loaded
+        if (
+            calibration_policy(context.config.train__function_space_config)
+            is CalibrationPolicy.EMPIRICAL_NULL
+        ):
+            return None
+
+        data, detector_effect = cls._recreate_detected_batch(context)
+        model = DifferentiatingModel(
+            context=context,
+            detector_effect=detector_effect,
+            is_numerator=True,
+            name="statistical_rank",
+        )
+        return effective_test_statistic_degrees_of_freedom(model, data)
 
     @property
     def chi_square_degrees_of_freedom(self) -> int | None:
         """Return a shared Wilks rank, or no analytic reference for empirical modes."""
 
-        if self._statistical_metadata is None:
-            self._load_statistical_metadata()
-        assert self._statistical_metadata is not None
+        if self._chi_square_degrees_of_freedom is not _UNSET:
+            assert self._chi_square_degrees_of_freedom is None or isinstance(
+                self._chi_square_degrees_of_freedom, int
+            )
+            return self._chi_square_degrees_of_freedom
+
+        contexts = ExecutionContext.discover_run_contexts(self._parent_directory)
+        if not contexts:
+            raise ValueError("No run contexts found for chi-square calibration.")
         policies = {
-            metadata.get("calibration_policy")
-            for _, metadata in self._statistical_metadata
+            calibration_policy(context.config.train__function_space_config)
+            for context, _ in contexts
         }
-        if policies == {CalibrationPolicy.EMPIRICAL_NULL.value}:
+        if policies == {CalibrationPolicy.EMPIRICAL_NULL}:
+            self._chi_square_degrees_of_freedom = None
             return None
-        if policies != {CalibrationPolicy.WILKS.value}:
+        if policies != {CalibrationPolicy.WILKS}:
             raise ValueError(
                 "Cannot combine Wilks and empirical-null runs in one chi-square plot."
             )
         degrees_of_freedom = {
-            metadata.get("statistic_degrees_of_freedom")
-            for _, metadata in self._statistical_metadata
+            self._chi_square_degrees_of_freedom_for_context(context)
+            for context, _ in contexts
         }
         if len(degrees_of_freedom) != 1:
             raise ValueError(
@@ -205,13 +238,13 @@ class ResultAggregator:
                 "of freedom in one chi-square plot."
             )
         (degrees_of_freedom,) = degrees_of_freedom
+        if degrees_of_freedom is None:
+            self._chi_square_degrees_of_freedom = None
+            return None
         if not isinstance(degrees_of_freedom, int) or degrees_of_freedom < 0:
-            raise ValueError(
-                "Wilks statistical metadata must define a non-negative integer "
-                "statistic_degrees_of_freedom."
-            )
-        # A fully projected-out f has no non-degenerate chi-square limit.
-        return degrees_of_freedom or None
+            raise ValueError("Wilks calibration must define a non-negative integer rank.")
+        self._chi_square_degrees_of_freedom = degrees_of_freedom
+        return degrees_of_freedom
 
     @property
     def all_test_statistics(self) -> NDArray[np.float64]:

@@ -7,11 +7,7 @@ import torch
 
 from data_tools.data_utils import DataSet
 from frame.command_line.handle_args import create_config_from_paths
-from frame.file_structure import (
-    STATISTICAL_METADATA_FILE_STEM,
-    TENSORBOARD_LOG_DIR_NAME,
-)
-from frame.file_system.textual_data import load_dict_from_json
+from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
@@ -202,41 +198,6 @@ def _train_numerator(function_execution_context, data_batch, detector_effect, na
     ],
     indirect=True,
 )
-def test_train_for_t_persists_effective_statistical_metadata(
-    function_execution_context,
-    data_generation,
-    detector_effect,
-    monkeypatch,
-):
-    monkeypatch.setattr("train.single_train.plot_training_prediction", lambda **_: None)
-    allocation = RuntimeAllocation(
-        cpu_count=1,
-        cpu_affinity=(),
-        assigned_gpu_ids=(),
-        visible_gpu_count=0,
-        gpu_names=(),
-        gpu_total_memory_bytes=(),
-    )
-    data = detector_effect.affect_batch(data_generation.get_batch())
-
-    train_for_t(
-        context=function_execution_context,
-        data_batch=data,
-        detector_effect=detector_effect,
-        name="statistical_metadata",
-        allocation=allocation,
-    )
-
-    metadata_path = next(
-        function_execution_context.unique_out_dir.glob(
-            f"{STATISTICAL_METADATA_FILE_STEM}_*.json"
-        )
-    )
-    metadata = load_dict_from_json(metadata_path)
-    assert metadata["calibration_policy"] == "wilks"
-    assert metadata["statistic_degrees_of_freedom"] == metadata["effective_f_rank"]
-
-
 def _reference_loss(
     f_of_x_sr,
     theta_of_x_sr,

@@ -32,7 +32,8 @@ flatten the valid curves.
 Each sample has one vertically stacked panel sharing the epoch axis. Every panel
 contains empirical 2.5%, 25%, 50%, 75%, and 97.5% percentile curves. For
 regular fixed-basis runs with nonzero rank, dashed horizontal lines use the
-common persisted effective test-statistic rank; empirical-null and zero-rank
+common effective test-statistic rank reconstructed from the saved run contexts;
+empirical-null and zero-rank
 runs omit those lines.
 
 The horizontal axis is the configured training epoch and uses scientific
@@ -52,7 +53,7 @@ percentiles are clipped by the documented non-negative display range.
 
 - [x] Percentiles use the shared final-statistic quality selection.
 - [x] Complete histories are retained for selected runs.
-- [x] Wilks references use the persisted effective test-statistic rank.
+- [x] Wilks references use the effective test-statistic rank reconstructed from the saved run context and seed.
 - [x] Empirical-null runs do not claim a chi-square reference.
 - [x] Each y-axis covers zero through all non-negative curves with 5% headroom.
 - [x] The figure is reproducible from recorded submission results and config.

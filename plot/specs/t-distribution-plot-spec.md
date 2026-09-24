@@ -43,7 +43,7 @@ The figure contains one axes:
 | Element | Rendering |
 | --- | --- |
 | Empirical test statistics | Normalized histogram with the configured number of bins. |
-| Target distribution | For regular fixed-basis runs, a chi-square probability-density curve using the persisted effective test-statistic rank. |
+| Target distribution | For regular fixed-basis runs, a chi-square probability-density curve using the effective test-statistic rank reconstructed from each saved run context. |
 | Mean statistic | Marked and labelled on the distribution. |
 | Significance | For a Wilks-calibrated run, derived from the mean statistic and reported in the plot annotation. |
 
@@ -81,7 +81,7 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 
 - [ ] The input configuration type and required plot instruction are validated.
 - [ ] The empirical histogram contains only the selected `t` values.
-- [x] The chi-square reference uses the persisted effective test-statistic rank.
+- [x] The chi-square reference uses the effective test-statistic rank reconstructed from the saved run context and seed.
 - [x] Empirical-null runs omit the analytic chi-square reference.
 - [ ] Mean statistic, significance, and omitted-run information are readable.
 - [ ] The figure is reproducible from the recorded submission results and configuration.
