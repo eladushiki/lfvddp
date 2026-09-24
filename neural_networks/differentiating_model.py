@@ -116,6 +116,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._norm_factor = None
         self._training_history = defaultdict(list)
         self._epochs_executed = 0
+        self._best_model_state_dict: Optional[dict[str, torch.Tensor]] = None
+        self._best_loss: Optional[float] = None
+        self._best_epoch: Optional[int] = None
 
     @property
     def _device(self) -> torch.device:
@@ -167,12 +170,16 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 self.signal_region_shift_network.hidden.weight,
                 gain=gain,
             )
-            nn.init.uniform_(self.signal_region_shift_network.hidden.bias, a=-0.3, b=0.3)
+            nn.init.uniform_(
+                self.signal_region_shift_network.hidden.bias, a=-0.3, b=0.3
+            )
             nn.init.xavier_uniform_(
                 self.signal_region_shift_network.output.weight,
                 gain=gain,
             )
-            nn.init.uniform_(self.signal_region_shift_network.output.bias, a=-0.3, b=0.3)
+            nn.init.uniform_(
+                self.signal_region_shift_network.output.bias, a=-0.3, b=0.3
+            )
 
         self.nuisance_calculation.initialize_parameters(gain)
 
@@ -243,12 +250,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return the signal-shift log terms shared by both nuisance paths."""
 
-        a_sr_log_term = -torch.log1p(
-            signal_region_shift[:number_of_a_sr_events]
-        ).sum()
-        b_sr_log_term = -torch.log1p(
-            -signal_region_shift[number_of_a_sr_events:]
-        ).sum()
+        a_sr_log_term = -torch.log1p(signal_region_shift[:number_of_a_sr_events]).sum()
+        b_sr_log_term = -torch.log1p(-signal_region_shift[number_of_a_sr_events:]).sum()
         return a_sr_log_term, b_sr_log_term
 
     @staticmethod
@@ -337,9 +340,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             data.nuisance_cr_coefficient,
             lambda: (
                 DifferentiatingModel._weighted_sum(nuisance_estimates.nuisance_cr_a)
-                + DifferentiatingModel._weighted_sum(
-                    nuisance_estimates.nuisance_cr_b
-                )
+                + DifferentiatingModel._weighted_sum(nuisance_estimates.nuisance_cr_b)
             ),
         )
         a_cr_log_term = -DifferentiatingModel._weighted_sum(
@@ -441,11 +442,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             N_b_sr=b_sr.n_samples,
             N_a_cr=a_cr.n_samples,
             N_b_cr=b_cr.n_samples,
-            sr_category_imbalance=(
-                a_sr.n_samples / N_sr - b_sr.n_samples / N_sr
-            ),
-            nuisance_cr_coefficient=(a_cr.n_samples - b_cr.n_samples)
-            / N_cr,
+            sr_category_imbalance=(a_sr.n_samples / N_sr - b_sr.n_samples / N_sr),
+            nuisance_cr_coefficient=(a_cr.n_samples - b_cr.n_samples) / N_cr,
         )
 
     def _log(self, epoch: int, loss: torch.Tensor) -> None:
@@ -453,6 +451,41 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             float(loss.detach().cpu())
         )
         self._training_history[HistoryKeys.EPOCH.value].append(epoch)
+
+    def _model_state_snapshot(self) -> dict[str, torch.Tensor]:
+        """Return an independent copy of the current model configuration."""
+
+        return {
+            name: value.detach().clone() for name, value in self.state_dict().items()
+        }
+
+    def _record_best_model_state(
+        self,
+        loss: torch.Tensor,
+        epoch: int,
+        model_state: dict[str, torch.Tensor],
+    ) -> None:
+        """Keep the lowest-loss configuration evaluated during optimization."""
+
+        loss_value = float(loss.detach().cpu())
+        if self._best_loss is None or loss_value < self._best_loss:
+            self._best_loss = loss_value
+            self._best_epoch = epoch
+            self._best_model_state_dict = model_state
+
+    def _restore_best_model_state(self) -> None:
+        """Restore the configuration associated with the lowest observed loss."""
+
+        if self._best_model_state_dict is not None:
+            self.load_state_dict(self._best_model_state_dict)
+
+    @property
+    def minimum_loss(self) -> float:
+        """Return the loss of the model configuration retained after training."""
+
+        if self._best_loss is None:
+            raise RuntimeError("Minimum loss is unavailable before model training.")
+        return self._best_loss
 
     def _is_history_epoch(self, epoch: int) -> bool:
         return (
@@ -499,6 +532,20 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             self._training_history[HistoryKeys.EPOCH.value] = list(
                 range(len(self._training_history[HistoryKeys.LOSS.value]))
             )
+        best_state = checkpoint.get("best_model_state_dict")
+        if best_state is not None:
+            self._best_model_state_dict = {
+                name: value.detach().clone() for name, value in best_state.items()
+            }
+            self._best_loss = float(checkpoint["best_loss"])
+            self._best_epoch = int(checkpoint["best_epoch"])
+        else:
+            # Checkpoints written before minimum-state tracking can resume from
+            # their current configuration, but cannot reconstruct older states.
+            self._best_model_state_dict = self._model_state_snapshot()
+            losses = self._training_history.get(HistoryKeys.LOSS.value, [])
+            self._best_loss = float(losses[-1]) if losses else None
+            self._best_epoch = int(checkpoint.get("epoch", -1))
         start_epoch = int(checkpoint.get("epoch", -1)) + 1
         info(
             f"Loaded checkpoint for {self._name} from {checkpoint_path}; resuming at epoch {start_epoch}"
@@ -557,6 +604,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         target_epochs = self._config.train__epochs
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
         if start_epoch >= target_epochs:
+            self._restore_best_model_state()
             return self._training_history
         self._epochs_executed = target_epochs - start_epoch
 
@@ -576,10 +624,16 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             for epoch in epoch_iterator:
                 with profiler.region("training/epoch"):
                     self._set_learning_rate_for_epoch(optimizer, epoch)
+                    model_state_before_step = self._model_state_snapshot()
                     epoch_last_predictions = self._train_step(
                         optimizer=optimizer,
                         data=training_data,
                         profiler=profiler,
+                    )
+                    self._record_best_model_state(
+                        epoch_last_predictions,
+                        epoch,
+                        model_state_before_step,
                     )
 
                     if self._is_history_epoch(epoch):
@@ -593,8 +647,13 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                                 optimizer=optimizer,
                                 epoch=epoch,
                                 training_history=self._training_history,
+                                best_model_state_dict=self._best_model_state_dict,
+                                best_loss=self._best_loss,
+                                best_epoch=self._best_epoch,
                             )
                 profiler.step()
+
+        self._restore_best_model_state()
 
         # Collect history from training
         return self._training_history
@@ -707,8 +766,10 @@ def calc_min_LFVNN(
             torch.cuda.synchronize(model._device)
         info(f"Training time (seconds): {time() - t0}")
 
-    # Calculate minimum loss from training history
-    final_loss = model_history[HistoryKeys.LOSS.value][-1]
+    if model.has_trainable_parameters():
+        final_loss = model.minimum_loss
+    else:
+        final_loss = min(model_history[HistoryKeys.LOSS.value])
     info(f"Minimum loss achieved: {final_loss:.6f}")
 
     save_model_parameters_outcome(context, model)
