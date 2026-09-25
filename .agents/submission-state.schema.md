@@ -166,6 +166,8 @@ Group statuses are:
 - `analyzed`: the multi-run command completed; requires `completed_at`.
 - `failed`: the last aggregate attempt failed; requires `last_error` and may be
   retried without changing membership.
+- `retired`: an incomplete legacy group was superseded. Requires `retired_at`
+  and `retired_reason`; it is not eligible for plotting or archival decisions.
 
 An `analyzed` group may record `output_directory` for its generated products.
 When an archive was restored before a previously blocked aggregate retry, it
