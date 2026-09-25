@@ -139,6 +139,11 @@ evidence, and report any failed check. Before removal, verify that every
 archived `training_outcomes` path is present in the archive; never delete it as
 a separate cleanup action.
 
+For a submission whose `context.json` records `is_debug_mode: true`, retain the
+first lexicographic per-array output directory in place as a debug helper. Do
+not include or delete that helper; archive and remove every other eligible
+array artifact. Report the retained path so later inspection is reproducible.
+
 If an archive was created before its aggregate plot, restore it before retrying
 the group rather than treating it as a failure residue or deleting it. Run the
 same helper with `--restore` and `--dry-run` first. Restoration refuses unsafe

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 import tarfile
@@ -38,6 +39,21 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
+def debug_helper_source(submission: Path, sources: list[Path]) -> Path | None:
+    """Keep one array-worker directory in place for debug submissions."""
+    context = json.loads((submission / "context.json").read_text())
+    if context.get("is_debug_mode") is not True:
+        return None
+    return next(
+        (
+            source
+            for source in sources
+            if source.is_dir() and "_run_of_single_train.py_" in source.name
+        ),
+        None,
+    )
+
+
 def training_outcome_directories(sources: list[Path]) -> list[Path]:
     """Return training histories that must survive archive verification."""
     return [
@@ -64,14 +80,20 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    training_outcomes = training_outcome_directories(sources)
-    if not sources:
+    debug_helper = debug_helper_source(submission, sources)
+    archive_sources = [source for source in sources if source != debug_helper]
+    training_outcomes = training_outcome_directories(archive_sources)
+    if not archive_sources:
         print(f"unchanged: {submission}")
+        if debug_helper is not None:
+            print(f"retained debug helper: {debug_helper.name}")
         return
 
     print(f"archive: {archive}")
-    for source in sources:
+    for source in archive_sources:
         print(f"  {source.name}")
+    if debug_helper is not None:
+        print(f"retain debug helper: {debug_helper.name}")
     if dry_run:
         return
 
@@ -87,12 +109,12 @@ def archive_submission(
                 with tarfile.open(archive, "r:gz") as previous:
                     for member in previous:
                         tar.addfile(member, previous.extractfile(member) if member.isfile() else None)
-            for source in sources:
+            for source in archive_sources:
                 tar.add(source, arcname=source.name, recursive=True)
         with tarfile.open(temporary_archive, "r:gz") as tar:
             archived = set(tar.getnames())
         required_members = [
-            *[source.name for source in sources],
+            *[source.name for source in archive_sources],
             *[str(path.relative_to(submission)) for path in training_outcomes],
         ]
         missing = [member for member in required_members if member not in archived]
@@ -100,7 +122,7 @@ def archive_submission(
             raise ValueError(f"archive verification missing: {', '.join(missing)}")
         if temporary_directory is None:
             temporary_archive.replace(archive)
-        for source in sources:
+        for source in archive_sources:
             if source.is_dir():
                 shutil.rmtree(source)
             else:
@@ -112,7 +134,9 @@ def archive_submission(
         if not sources_removed:
             temporary_archive.unlink(missing_ok=True)
         raise
-    print(f"archived and removed {len(sources)} items: {submission}")
+    print(f"archived and removed {len(archive_sources)} items: {submission}")
+    if debug_helper is not None:
+        print(f"retained debug helper: {debug_helper.name}")
 
 
 def restore_submission(submission: Path, *, dry_run: bool) -> None:
