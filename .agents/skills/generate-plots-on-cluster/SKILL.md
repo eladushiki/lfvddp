@@ -113,7 +113,7 @@ when every saved `plot_group` that names it as a background or signal member is
 also `analyzed`. This preserves a single source of truth for plot readiness and
 prevents an archive from appearing to be a failed or empty result directory.
 
-When the user has authorized archival cleanup, retain only the submission's
+Archival cleanup is standing routine authorization. Retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
 `array-job-artifacts.tar.gz`. The archive must include every `single_train.py`
 directory and its `training_outcomes` contents, including histories used by
@@ -127,7 +127,7 @@ python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artif
   --results-root <saved-output-root> <submission-directory>
 ```
 
-For a user-authorized full cleanup below the results root, replace the explicit
+For a full cleanup below the results root, replace the explicit
 directory with `--all-under-root`; it discovers only timestamped
 `submit_train.py` directories. Never archive an active, failed, partial, or
 continuation-pending submission, or any member still needed by an unfinished
@@ -172,24 +172,18 @@ the same configuration and make an otherwise ready aggregate plot fail. Prefer
 the completed submission only after the residue has been reviewed; do not hide
 or silently ignore the residue.
 
-The user has granted standing permission to delete one narrow class of residue:
-a newly created pre-`qsub` directory when the submission error clearly says the
-whole array could not fit the queued-element quota. Before deleting it, verify
-from its saved context that `run_successful` is false and `qsub_submissions` is
-empty; delete only that exact timestamped directory and verify that it is gone.
-A pre-`qsub` residue is not adopted as a tracked attempt because no scheduler
-job was submitted.
+Standing routine authorization covers deletion of a verified failed residue
+when it has been superseded by a newly submitted or saved `requested` retry,
+and deletion of a failed pre-`qsub` directory. Before deleting, record the
+exact path and failure evidence in state or the routine report, verify the
+saved context has `run_successful: false`, and, for pre-`qsub` residue, verify
+`qsub_submissions` is empty. Delete only the exact timestamped directory and
+verify that it is gone. A pre-`qsub` residue is not adopted as a tracked attempt
+because no scheduler job was submitted.
 
-For every other residue, report its exact remote path, the evidence for its
-classification, and whether a completed replacement exists, then obtain the
-user's explicit permission before deletion. Until permission is given, leave
-the directory unchanged, keep the group failed, and save the candidate and
-reason in `last_error`.
-
-After the underlying failure has been fixed, a failed-job residue becomes
-eligible for the same permission-gated cleanup. After an approved deletion,
-retry the multi-run command, verify its products, and clear the group's stale
-`last_error` only when the retry succeeds.
+After the underlying failure has been fixed, delete the verified superseded
+residue, retry the multi-run command when its dependencies are now ready, and
+clear the group's stale `last_error` only when the retry succeeds.
 
 Do not classify a submission as an empty or failed residue merely because its
 per-run artifacts are in `array-job-artifacts.tar.gz`; restore that verified
