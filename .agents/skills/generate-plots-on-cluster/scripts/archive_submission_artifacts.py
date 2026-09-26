@@ -11,6 +11,15 @@ import tarfile
 import uuid
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from frame.file_structure import (
+    CONTEXT_FILE_NAME,
+    CREATE_PLOTS_SCRIPT_NAME,
+    SINGLE_TRAIN_SCRIPT_NAME,
+    TRAINING_OUTCOMES_DIR_NAME,
+)
+
 
 ARCHIVE_NAME = "array-job-artifacts.tar.gz"
 PROGRESSION_PLOT_NAME = "t_train_percentile_progression_plot"
@@ -21,35 +30,39 @@ def checked_submission(path_arg: str, results_root: Path) -> Path:
     try:
         submission.relative_to(results_root)
     except ValueError as error:
-        raise ValueError(f"submission is outside {results_root}: {submission}") from error
+        raise ValueError(
+            f"submission is outside {results_root}: {submission}"
+        ) from error
     if not submission.is_dir():
         raise ValueError(f"submission is not a directory: {submission}")
-    if not (submission / "context.json").is_file():
-        raise ValueError(f"submission has no context.json: {submission}")
+    if not (submission / CONTEXT_FILE_NAME).is_file():
+        raise ValueError(f"submission has no {CONTEXT_FILE_NAME}: {submission}")
     if not (submission / "configs").is_dir():
         raise ValueError(f"submission has no configs directory: {submission}")
     return submission
 
 
 def removable_children(submission: Path) -> list[Path]:
-    retained = {"context.json", "configs", ARCHIVE_NAME}
+    retained = {CONTEXT_FILE_NAME, "configs", ARCHIVE_NAME}
     return sorted(
         child
         for child in submission.iterdir()
-        if child.name not in retained and "_run_of_create_plots.py_" not in child.name
+        if child.name not in retained
+        and f"_run_of_{CREATE_PLOTS_SCRIPT_NAME}_" not in child.name
     )
 
 
-def debug_helper_source(submission: Path, sources: list[Path]) -> Path | None:
+def debug_helper_source(
+    sources: list[Path], *, retain_debug_helper: bool
+) -> Path | None:
     """Keep one array-worker directory in place for debug submissions."""
-    context = json.loads((submission / "context.json").read_text())
-    if context.get("is_debug_mode") is not True:
+    if not retain_debug_helper:
         return None
     return next(
         (
             source
             for source in sources
-            if source.is_dir() and "_run_of_single_train.py_" in source.name
+            if source.is_dir() and f"_run_of_{SINGLE_TRAIN_SCRIPT_NAME}_" in source.name
         ),
         None,
     )
@@ -61,7 +74,7 @@ def training_outcome_directories(sources: list[Path]) -> list[Path]:
         path
         for source in sources
         if source.is_dir()
-        for path in source.glob("**/training_outcomes")
+        for path in source.glob(f"**/{TRAINING_OUTCOMES_DIR_NAME}")
         if path.is_dir()
     ]
 
@@ -76,22 +89,22 @@ def has_progression_plot(submission: Path) -> bool:
 
 def successful_worker_directories(submission: Path) -> list[Path]:
     """Validate every retained worker context before destructive pruning."""
-    workers = sorted(submission.glob("*_run_of_single_train.py_*"))
+    workers = sorted(submission.glob(f"*_run_of_{SINGLE_TRAIN_SCRIPT_NAME}_*"))
     if not workers:
         raise ValueError(f"submission has no worker directories: {submission}")
     failed = []
     for worker in workers:
-        context_path = worker / "context.json"
+        context_path = worker / CONTEXT_FILE_NAME
         try:
-            successful = json.loads(context_path.read_text()).get("run_successful") is True
+            successful = (
+                json.loads(context_path.read_text()).get("run_successful") is True
+            )
         except (OSError, json.JSONDecodeError):
             successful = False
         if not successful:
             failed.append(worker.name)
     if failed:
-        raise ValueError(
-            f"worker contexts are not successful: {', '.join(failed[:5])}"
-        )
+        raise ValueError(f"worker contexts are not successful: {', '.join(failed[:5])}")
     return workers
 
 
@@ -113,11 +126,13 @@ def verified_pbs_logs(submission: Path) -> list[Path]:
 def prune_finished_intermediates(submission: Path, *, dry_run: bool) -> None:
     """Remove regenerable worker artifacts after preserving progression plots."""
     h5_files = sorted(path for path in submission.glob("**/*.h5") if path.is_file())
-    histories = sorted(path for path in submission.glob("**/training_outcomes") if path.is_dir())
-    runtime_reports = sorted(
+    histories = sorted(
         path
-        for path in submission.glob("**/runtime_resources*.json")
-        if path.is_file()
+        for path in submission.glob(f"**/{TRAINING_OUTCOMES_DIR_NAME}")
+        if path.is_dir()
+    )
+    runtime_reports = sorted(
+        path for path in submission.glob("**/runtime_resources*.json") if path.is_file()
     )
     if not (h5_files or histories or runtime_reports):
         print(f"unchanged: {submission}")
@@ -153,11 +168,15 @@ def all_submission_directories(results_root: Path) -> list[Path]:
 
 
 def archive_submission(
-    submission: Path, *, dry_run: bool, temporary_directory: Path | None
+    submission: Path,
+    *,
+    dry_run: bool,
+    temporary_directory: Path | None,
+    retain_debug_helper: bool,
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    debug_helper = debug_helper_source(submission, sources)
+    debug_helper = debug_helper_source(sources, retain_debug_helper=retain_debug_helper)
     archive_sources = [source for source in sources if source != debug_helper]
     training_outcomes = training_outcome_directories(archive_sources)
     if not archive_sources:
@@ -185,7 +204,10 @@ def archive_submission(
             if archive.is_file():
                 with tarfile.open(archive, "r:gz") as previous:
                     for member in previous:
-                        tar.addfile(member, previous.extractfile(member) if member.isfile() else None)
+                        tar.addfile(
+                            member,
+                            previous.extractfile(member) if member.isfile() else None,
+                        )
             for source in archive_sources:
                 tar.add(source, arcname=source.name, recursive=True)
         with tarfile.open(temporary_archive, "r:gz") as tar:
@@ -273,6 +295,11 @@ def main() -> int:
         help="restore archived artifacts for aggregate plotting without deleting the archive",
     )
     parser.add_argument(
+        "--retain-debug-helper",
+        action="store_true",
+        help="retain the first array-worker directory for debug inspection",
+    )
+    parser.add_argument(
         "--prune-finished-intermediates",
         action="store_true",
         help=(
@@ -285,15 +312,23 @@ def main() -> int:
     if args.all_under_root == bool(args.submission):
         parser.error("supply submission directories or --all-under-root, but not both")
     if args.restore and args.prune_finished_intermediates:
-        parser.error("--restore and --prune-finished-intermediates are mutually exclusive")
+        parser.error(
+            "--restore and --prune-finished-intermediates are mutually exclusive"
+        )
     try:
         results_root = args.results_root.resolve()
-        paths = all_submission_directories(results_root) if args.all_under_root else args.submission
+        paths = (
+            all_submission_directories(results_root)
+            if args.all_under_root
+            else args.submission
+        )
         temporary_directory = (
             args.temporary_directory.resolve() if args.temporary_directory else None
         )
         if temporary_directory is not None and not temporary_directory.is_dir():
-            raise ValueError(f"temporary directory is not a directory: {temporary_directory}")
+            raise ValueError(
+                f"temporary directory is not a directory: {temporary_directory}"
+            )
         for path_arg in paths:
             submission = checked_submission(str(path_arg), results_root)
             if args.restore:
@@ -305,6 +340,7 @@ def main() -> int:
                     submission,
                     dry_run=args.dry_run,
                     temporary_directory=temporary_directory,
+                    retain_debug_helper=args.retain_debug_helper,
                 )
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)

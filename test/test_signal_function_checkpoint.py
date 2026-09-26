@@ -13,8 +13,9 @@ from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
 from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import (
+    CHECKPOINT_METADATA_KEY,
     _torch_load,
-    checkpoint_metadata_path,
+    checkpoint_filename,
     load_checkpoint_metadata,
     save_training_checkpoint,
 )
@@ -161,7 +162,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         "best_epoch",
         "array_index",
         "run_hash",
-        "metadata",
+        CHECKPOINT_METADATA_KEY,
     }
     assert checkpoint["epoch"] == 0
     assert checkpoint["training_history"][HistoryKeys.EPOCH.value] == [0]
@@ -180,7 +181,6 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         )["config_fingerprint"]
     )
     assert metadata["normalization_factor"] == model._norm_factor.to_mapping()
-    assert not checkpoint_metadata_path(checkpoint_path).exists()
 
     restored = _make_model(context, detector_effect, "checkpoint_round_trip")
     restored._norm_factor = model._norm_factor
@@ -301,9 +301,9 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
         metadata=_metadata(model),
     )
     checkpoint = _torch_load(checkpoint_path)
-    metadata = checkpoint["metadata"]
+    metadata = checkpoint[CHECKPOINT_METADATA_KEY]
     metadata["f"]["options"]["knots"] = [-1.0, -0.25, 0.0, 0.5, 1.0]
-    checkpoint["metadata"] = metadata
+    checkpoint[CHECKPOINT_METADATA_KEY] = metadata
     torch.save(checkpoint, checkpoint_path)
     checkpoint = _torch_load(checkpoint_path)
 
@@ -324,17 +324,9 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
         torch.testing.assert_close(value, before[key])
 
 
-def test_checkpoint_without_metadata_is_rejected(tmp_path):
-    checkpoint_path = tmp_path / "checkpoint.pt"
+def test_checkpoint_without_embedded_metadata_is_rejected(tmp_path):
+    checkpoint_path = tmp_path / checkpoint_filename("checkpoint")
     torch.save({}, checkpoint_path)
 
     with pytest.raises(RuntimeError, match="no metadata"):
         load_checkpoint_metadata(checkpoint_path)
-
-
-def test_legacy_metadata_sidecar_still_loads(tmp_path):
-    checkpoint_path = tmp_path / "checkpoint.pt"
-    torch.save({}, checkpoint_path)
-    checkpoint_metadata_path(checkpoint_path).write_text('{"legacy": true}\n')
-
-    assert load_checkpoint_metadata(checkpoint_path) == {"legacy": True}

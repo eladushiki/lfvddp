@@ -151,10 +151,11 @@ tracked array has successful scheduler, `run_successful`, and PBS-exit-status
 evidence, and report any failed check. Before removal, verify that every
 remaining `training_outcomes` path is present in the archive.
 
-For a submission whose `context.json` records `is_debug_mode: true`, retain the
-first lexicographic per-array output directory in place as a debug helper. Do
-not include or delete that helper; archive and remove every other eligible
-array artifact. Report the retained path so later inspection is reproducible.
+For a debug submission, pass `--retain-debug-helper` to retain the first
+lexicographic per-array output directory in place as a debug helper. The helper
+does not infer this from a context-schema field. Do not include or delete that
+helper; archive and remove every other eligible array artifact. Report the
+retained path so later inspection is reproducible.
 
 If an archive was created before its aggregate plot, restore it before retrying
 the group rather than treating it as a failure residue or deleting it. Run the

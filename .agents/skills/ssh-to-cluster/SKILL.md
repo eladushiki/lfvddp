@@ -24,10 +24,9 @@ Never commit connection values or credentials.
 1. Run `.agents/skills/ssh-to-cluster/scripts/ssh-to-cluster.sh` from the local repository root in a
    persistent terminal session. The helper opens SSH at
    `WIS_CLUSTER_REMOTE_PROJECT_ROOT` and starts a clean Bash shell with the
-   project venv activated when it exists. The helper first loads the LCG 110
-   CVMFS view and then activates `.venv` directly from the already-selected
-   project root; do not delegate that path resolution to a project activation
-   wrapper.
+   project venv activated when it exists; a new checkout receives the CVMFS
+   Python needed to create it. Existing environments are activated through
+   `scripts/activate_python_environment.sh`.
    When launched by Codex, request the elevated network permission: the
    restricted shell cannot resolve the cluster host.
 2. Verify that `python -c 'import torch'` succeeds. If it fails, run both
@@ -37,8 +36,8 @@ Never commit connection values or credentials.
    replace it with `/usr/bin/python`; wait for the user to restore capacity.
    The helper starts clean
    Bash and supplies default `COMPILER`, `CXX`, and `MANPATH` values before the
-   CVMFS setup. The generated scripts dereference those variables under
-   `nounset`; a plain remote zsh login leaves them unset.
+   Bash-specific project activation. The generated CVMFS scripts dereference
+   those variables under `nounset`; a plain remote zsh login leaves them unset.
    Do not replace this bootstrap with `/usr/bin/python`.
 3. Reuse that terminal session for every cluster command in the workflow.
 4. Verify the connection with `pwd` and `git status --short --branch` before
