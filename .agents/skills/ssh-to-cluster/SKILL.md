@@ -25,7 +25,8 @@ Never commit connection values or credentials.
    persistent terminal session. The helper opens SSH at
    `WIS_CLUSTER_REMOTE_PROJECT_ROOT` and starts a clean Bash shell with the
    project venv activated when it exists; a new checkout receives the CVMFS
-   Python needed to create it.
+   Python needed to create it. Existing environments are activated through
+   `scripts/activate_python_environment.sh`.
    When launched by Codex, request the elevated network permission: the
    restricted shell cannot resolve the cluster host.
 2. Verify that `python -c 'import torch'` succeeds. If it fails, run both

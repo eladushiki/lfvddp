@@ -1,4 +1,3 @@
-import json
 from logging import warning
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
@@ -16,33 +15,11 @@ from frame.file_structure import (
 )
 
 
+CHECKPOINT_METADATA_KEY = "metadata"
+
+
 def checkpoint_filename(model_name: str) -> str:
     return f"{model_name}.{TRAINING_CHECKPOINT_SUFFIX}"
-
-
-def checkpoint_metadata_path(checkpoint_path: Path) -> Path:
-    """Return the optional metadata sidecar for a training checkpoint."""
-
-    return checkpoint_path.with_name(checkpoint_path.name + ".metadata.json")
-
-
-def load_checkpoint_metadata(checkpoint_path: Path) -> dict[str, Any]:
-    """Load the required metadata sidecar for a training checkpoint."""
-
-    metadata_path = checkpoint_metadata_path(checkpoint_path)
-    if not metadata_path.exists():
-        raise RuntimeError(f"Checkpoint {checkpoint_path} has no metadata sidecar.")
-    try:
-        metadata = json.loads(metadata_path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
-        raise RuntimeError(
-            f"Unable to read checkpoint metadata sidecar {metadata_path}: {error}"
-        ) from error
-    if not isinstance(metadata, dict):
-        raise RuntimeError(
-            f"Checkpoint metadata sidecar {metadata_path} must contain a JSON object."
-        )
-    return metadata
 
 
 def _torch_load(file_path: Path) -> dict[str, Any]:
@@ -50,6 +27,19 @@ def _torch_load(file_path: Path) -> dict[str, Any]:
         return torch.load(file_path, map_location="cpu", weights_only=False)
     except TypeError:
         return torch.load(file_path, map_location="cpu")
+
+
+def load_checkpoint_metadata(checkpoint_path: Path) -> dict[str, Any]:
+    """Load embedded metadata from a training checkpoint."""
+
+    checkpoint = _torch_load(checkpoint_path)
+    metadata = checkpoint.get(CHECKPOINT_METADATA_KEY)
+    if metadata is not None:
+        if not isinstance(metadata, dict):
+            raise RuntimeError(f"Checkpoint {checkpoint_path} has invalid metadata.")
+        return metadata
+
+    raise RuntimeError(f"Checkpoint {checkpoint_path} has no metadata.")
 
 
 def _checkpoint_dir(context: ExecutionContext) -> Path:
@@ -145,25 +135,12 @@ def save_training_checkpoint(
             "best_epoch": best_epoch,
             "array_index": context.array_index,
             "run_hash": context.run_hash,
+            CHECKPOINT_METADATA_KEY: dict(metadata) if metadata is not None else None,
         },
         temporary_path,
     )
     temporary_path.replace(checkpoint_path)
 
-    if metadata is not None:
-        metadata_path = checkpoint_metadata_path(checkpoint_path)
-        temporary_metadata_path = metadata_path.with_suffix(metadata_path.suffix + ".tmp")
-        try:
-            temporary_metadata_path.write_text(
-                json.dumps(dict(metadata), sort_keys=True, indent=2) + "\n"
-            )
-            temporary_metadata_path.replace(metadata_path)
-        except (OSError, TypeError, ValueError) as error:
-            if temporary_metadata_path.exists():
-                temporary_metadata_path.unlink()
-            raise RuntimeError(
-                f"Unable to write checkpoint metadata sidecar {metadata_path}: {error}"
-            ) from error
     return checkpoint_path
 
 

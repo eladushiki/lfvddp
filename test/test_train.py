@@ -7,7 +7,7 @@ import torch
 
 from data_tools.data_utils import DataSet
 from frame.command_line.handle_args import create_config_from_paths
-from frame.file_structure import TENSORBOARD_LOG_DIR_NAME, WEIGHTS_OUTPUT_FILE_NAME
+from frame.file_structure import TENSORBOARD_LOG_DIR_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import (
     DifferentiatingModel,
@@ -950,12 +950,7 @@ def test_training_returns_and_saves_the_lowest_loss_model_state(
         torch.testing.assert_close(model.state_dict()[name], expected)
 
     training_outcomes_dir = function_execution_context.training_outcomes_dir
-    [saved_weights_path] = training_outcomes_dir.glob(
-        f"lowest_loss_model*{WEIGHTS_OUTPUT_FILE_NAME.rsplit('.', 1)[1]}"
-    )
-    saved_weights = _torch_load(saved_weights_path)
-    for name, expected in states_before_step[1].items():
-        torch.testing.assert_close(saved_weights[name], expected)
+    assert not list(training_outcomes_dir.glob("lowest_loss_model*.weights.h5"))
 
     checkpoint = _torch_load(
         training_outcomes_dir / checkpoint_filename("lowest_loss_model")
