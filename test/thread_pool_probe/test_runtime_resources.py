@@ -40,6 +40,11 @@ RESOURCE_CLUSTER_CONFIG = {
         "test/configs/cluster/resource_aware_cluster_config.json"
     )
 }
+RESERVED_CPU_CLUSTER_CONFIG = {
+    ConfigType.CLUSTER.value: Path(
+        "test/configs/cluster/runtime_cpu_reserve_cluster_config.json"
+    )
+}
 ONE_DIMENSION_WITH_NUISANCE_CONFIG = {
     **RESOURCE_CLUSTER_CONFIG,
     ConfigType.DATASET.value: Path(
@@ -62,6 +67,18 @@ ONE_DIMENSION_WITHOUT_NUISANCE_CONFIG = {
     ),
     ConfigType.TRAIN.value: Path(
         "test/configs/train/short_1D_train_config_without_nuisance.json"
+    ),
+}
+ONE_DIMENSION_WITH_NUISANCE_AND_CPU_RESERVE_CONFIG = {
+    **RESERVED_CPU_CLUSTER_CONFIG,
+    ConfigType.DATASET.value: Path(
+        "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+    ),
+    ConfigType.DETECTOR.value: Path(
+        "test/configs/detector/basic_1D_detector_config.json"
+    ),
+    ConfigType.TRAIN.value: Path(
+        "test/configs/train/short_1D_train_config_with_nuisance.json"
     ),
 }
 ONE_DIMENSION_LIKE_NPLM_CONFIG = {
@@ -423,20 +440,25 @@ def test_parallel_branch_placement(
 
 
 @pytest.mark.parametrize(
-    "cpu_count,branch_count,expected",
+    "cpu_count,branch_count,runtime_cpu_reserve,expected",
     [
-        (1, 1, 1),
-        (2, 1, 2),
-        (8, 1, 8),
-        (2, 2, 2),
-        (8, 2, 8),
+        (1, 1, 0, 1),
+        (2, 1, 0, 2),
+        (8, 1, 0, 8),
+        (2, 2, 0, 2),
+        (8, 2, 0, 8),
+        (8, 2, 2, 6),
     ],
 )
 def test_parallel_torch_thread_capacity_uses_full_cpu_allocation(
-    cpu_count, branch_count, expected
+    cpu_count, branch_count, runtime_cpu_reserve, expected
 ):
     assert (
-        model_trainer._parallel_torch_thread_capacity(cpu_count, branch_count)
+        model_trainer._parallel_torch_thread_capacity(
+            cpu_count,
+            branch_count,
+            runtime_cpu_reserve,
+        )
         == expected
     )
 
@@ -444,7 +466,41 @@ def test_parallel_torch_thread_capacity_uses_full_cpu_allocation(
 def test_probe_can_reduce_parallel_torch_capacity(monkeypatch):
     monkeypatch.setenv(PROBE_TORCH_CAPACITY_ENV, "2")
 
-    assert model_trainer._parallel_torch_thread_capacity(8, 2) == 2
+    assert model_trainer._parallel_torch_thread_capacity(8, 2, 0) == 2
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [ONE_DIMENSION_WITH_NUISANCE_AND_CPU_RESERVE_CONFIG],
+    indirect=True,
+)
+def test_parallel_branch_placement_honors_configured_cpu_reserve(
+    function_execution_context,
+    data_generation,
+    detector_effect,
+):
+    detected_batch = detector_effect.affect_batch(data_generation.get_batch())
+    launcher = ParallelTrainLauncher(
+        function_execution_context,
+        detector_effect,
+        allocation=_allocation(8),
+    )
+    indices = [
+        launcher.add_training(
+            detected_batch,
+            detector_effect,
+            is_numerator=is_numerator,
+            name=f"branch_{is_numerator}",
+        )
+        for is_numerator in (True, False)
+    ]
+
+    assignments = launcher._parallel_assignments(indices)
+
+    assert [(item.device, item.cpu_threads) for item in assignments] == [
+        ("cpu", 5),
+        ("cpu", 1),
+    ]
 
 
 @pytest.mark.parametrize(

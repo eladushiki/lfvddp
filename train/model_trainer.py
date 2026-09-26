@@ -192,19 +192,20 @@ class _TrainingAssignment:
     cpu_threads: int
 
 
-# The worker teams receive the complete requested CPU capacity. The parent
-# coordinator remains runnable under the operating system scheduler.
-PARALLEL_RUNTIME_CPU_RESERVE = 0
 PARALLEL_COORDINATOR_CPU_THREADS = 1
 
 
-def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
+def _parallel_torch_thread_capacity(
+    cpu_count: int,
+    branch_count: int,
+    runtime_cpu_reserve: int,
+) -> int:
     """Return the Torch capacity available to spawned worker teams."""
 
     minimum_capacity = branch_count
     normal_capacity = max(
         minimum_capacity,
-        cpu_count - PARALLEL_RUNTIME_CPU_RESERVE,
+        cpu_count - runtime_cpu_reserve,
     )
     requested_capacity = probe_torch_capacity(normal_capacity)
     return max(minimum_capacity, min(cpu_count, requested_capacity))
@@ -440,7 +441,11 @@ class _ResourceAwareTrainLauncher(TrainLauncher):
 
         cpu_count = self._allocation.cpu_count
         gpu_count = self._allocation.usable_gpu_count
-        torch_thread_capacity = _parallel_torch_thread_capacity(cpu_count, len(indices))
+        torch_thread_capacity = _parallel_torch_thread_capacity(
+            cpu_count,
+            len(indices),
+            self._context.config.cluster__parallel_runtime_cpu_reserve,
+        )
         if len(indices) == 1:
             self._note_unused_gpus(used_gpu_count=min(1, gpu_count))
             return [
