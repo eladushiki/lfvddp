@@ -1,4 +1,6 @@
 from data_tools.detector.detector_config import DetectorConfig
+import pytest
+
 from frame.cluster.cluster_config import ClusterConfig
 from frame.config_handle import UserConfig
 from plot.plotting_config import PlottingConfig
@@ -21,6 +23,20 @@ def test_requested_cluster_defaults():
     assert config.cluster__qsub_mem == 2
     assert config.cluster__qsub_ncpus == 8
     assert config.cluster__qsub_ngpus_for_train == 0
+    assert config.cluster__parallel_runtime_cpu_reserve == 0
+
+
+def test_requested_cluster_rejects_negative_runtime_cpu_reserve():
+    with pytest.raises(ValueError, match="parallel_runtime_cpu_reserve"):
+        ClusterConfig(
+            "repo",
+            "activate",
+            "singularity",
+            "N",
+            1,
+            "01:00:00",
+            cluster__parallel_runtime_cpu_reserve=-1,
+        )
 
 
 def test_nuisance_configuration_remains_on_train_config():

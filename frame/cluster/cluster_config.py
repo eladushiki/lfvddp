@@ -19,6 +19,7 @@ class ClusterConfig:
     cluster__qsub_mem: int = 2
     cluster__qsub_ngpus_for_train: int = 0
     cluster__qsub_ncpus: int = 8
+    cluster__parallel_runtime_cpu_reserve: int = 0
     cluster__uv_cache_dir: Optional[Path] = None
     cluster__qsub_walltime_limit: str = "72:00:00"
     # Derived internally from cluster__qsub_walltime; never read from config files.
@@ -30,6 +31,10 @@ class ClusterConfig:
             raise ValueError("cluster__qsub_ncpus must be positive.")
         if self.cluster__qsub_ngpus_for_train < 0:
             raise ValueError("cluster__qsub_ngpus_for_train cannot be negative.")
+        if self.cluster__parallel_runtime_cpu_reserve < 0:
+            raise ValueError(
+                "cluster__parallel_runtime_cpu_reserve cannot be negative."
+            )
         self._set_total_walltime(self.cluster__qsub_walltime)
 
     def _set_total_walltime(self, total_walltime: str) -> None:

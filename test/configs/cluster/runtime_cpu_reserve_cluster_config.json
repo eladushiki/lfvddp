@@ -1,0 +1,4 @@
+{
+    "cluster__qsub_ncpus": 8,
+    "cluster__parallel_runtime_cpu_reserve": 2
+}
