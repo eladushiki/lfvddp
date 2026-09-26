@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 ARCHIVE_NAME = "array-job-artifacts.tar.gz"
+PROGRESSION_PLOT_NAME = "t_train_percentile_progression_plot"
 
 
 def checked_submission(path_arg: str, results_root: Path) -> Path:
@@ -63,6 +64,82 @@ def training_outcome_directories(sources: list[Path]) -> list[Path]:
         for path in source.glob("**/training_outcomes")
         if path.is_dir()
     ]
+
+
+def has_progression_plot(submission: Path) -> bool:
+    """Whether the single-submission history plot was persisted."""
+    return any(
+        path.is_file() and PROGRESSION_PLOT_NAME in path.name
+        for path in submission.glob("**/*")
+    )
+
+
+def successful_worker_directories(submission: Path) -> list[Path]:
+    """Validate every retained worker context before destructive pruning."""
+    workers = sorted(submission.glob("*_run_of_single_train.py_*"))
+    if not workers:
+        raise ValueError(f"submission has no worker directories: {submission}")
+    failed = []
+    for worker in workers:
+        context_path = worker / "context.json"
+        try:
+            successful = json.loads(context_path.read_text()).get("run_successful") is True
+        except (OSError, json.JSONDecodeError):
+            successful = False
+        if not successful:
+            failed.append(worker.name)
+    if failed:
+        raise ValueError(
+            f"worker contexts are not successful: {', '.join(failed[:5])}"
+        )
+    return workers
+
+
+def verified_pbs_logs(submission: Path) -> list[Path]:
+    """Return only PBS outputs that prove zero exit status for every worker."""
+    logs = sorted(path for path in submission.glob("*.OU*") if path.is_file())
+    if not logs:
+        raise ValueError(f"submission has no PBS output logs: {submission}")
+    invalid = [
+        log.name
+        for log in logs
+        if not log.read_text(errors="ignore").rstrip().endswith("Job exit status: 0")
+    ]
+    if invalid:
+        raise ValueError(f"PBS logs lack exit status 0: {', '.join(invalid[:5])}")
+    return logs
+
+
+def prune_finished_intermediates(submission: Path, *, dry_run: bool) -> None:
+    """Remove regenerable worker artifacts after preserving progression plots."""
+    h5_files = sorted(path for path in submission.glob("**/*.h5") if path.is_file())
+    histories = sorted(path for path in submission.glob("**/training_outcomes") if path.is_dir())
+    runtime_reports = sorted(
+        path
+        for path in submission.glob("**/runtime_resources*.json")
+        if path.is_file()
+    )
+    if not (h5_files or histories or runtime_reports):
+        print(f"unchanged: {submission}")
+        return
+    if not has_progression_plot(submission):
+        raise ValueError(
+            f"submission has no {PROGRESSION_PLOT_NAME} output: {submission}"
+        )
+    successful_worker_directories(submission)
+    logs = verified_pbs_logs(submission)
+    targets = [*h5_files, *histories, *runtime_reports, *logs]
+    print(f"prune intermediates: {submission}")
+    for target in targets:
+        print(f"  {target.relative_to(submission)}")
+    if dry_run:
+        return
+    for target in targets:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    print(f"pruned {len(targets)} intermediate artifacts: {submission}")
 
 
 def all_submission_directories(results_root: Path) -> list[Path]:
@@ -195,10 +272,20 @@ def main() -> int:
         action="store_true",
         help="restore archived artifacts for aggregate plotting without deleting the archive",
     )
+    parser.add_argument(
+        "--prune-finished-intermediates",
+        action="store_true",
+        help=(
+            "remove verified-successful worker HDF5, training histories, runtime "
+            "reports, and PBS logs after the percentile-progression plot exists"
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.all_under_root == bool(args.submission):
         parser.error("supply submission directories or --all-under-root, but not both")
+    if args.restore and args.prune_finished_intermediates:
+        parser.error("--restore and --prune-finished-intermediates are mutually exclusive")
     try:
         results_root = args.results_root.resolve()
         paths = all_submission_directories(results_root) if args.all_under_root else args.submission
@@ -211,6 +298,8 @@ def main() -> int:
             submission = checked_submission(str(path_arg), results_root)
             if args.restore:
                 restore_submission(submission, dry_run=args.dry_run)
+            elif args.prune_finished_intermediates:
+                prune_finished_intermediates(submission, dry_run=args.dry_run)
             else:
                 archive_submission(
                     submission,

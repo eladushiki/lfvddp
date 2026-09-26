@@ -72,11 +72,24 @@ python -m plot.create_plots <remote-submission-directory>
 ```
 
 Verify that the command succeeds and creates the configured single-submission
-figures. Preserve every `single_train.py` output, including its
-`training_outcomes` directory, until all aggregate plots that reference the
-submission have succeeded. Percentile-progression plots can read the training
-histories there. Do not delete, empty, or archive those directories after the
-single-submission plot.
+figures, including `t_train_percentile_progression_plot`. After that plot exists
+and every worker context and PBS output proves success, prune regenerable
+intermediates even when aggregate plotting remains pending: `*.h5`,
+`training_outcomes`, `runtime_resources*.json`, and PBS `.OU*` logs. This is
+standing quota-recovery cleanup. Preserve contexts, configs, final statistics,
+and generated plots. Run the helper first with `--dry-run`, then without it:
+
+```sh
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root <saved-output-root> --prune-finished-intermediates --dry-run \
+  <submission-directory>
+python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
+  --results-root <saved-output-root> --prune-finished-intermediates \
+  <submission-directory>
+```
+
+Never prune a failed, partial, active, or continuation-pending submission. PBS
+logs are removed only after their `Job exit status: 0` footer has been verified.
 
 Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user
@@ -115,9 +128,9 @@ prevents an archive from appearing to be a failed or empty result directory.
 
 Archival cleanup is standing routine authorization. Retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
-`array-job-artifacts.tar.gz`. The archive must include every `single_train.py`
-directory and its `training_outcomes` contents, including histories used by
-percentile-progression plots. Use the saved submission `output_root` as
+`array-job-artifacts.tar.gz`. The archive must include every remaining
+`single_train.py` directory. Histories already pruned after their progression
+plot are intentionally absent. Use the saved submission `output_root` as
 `--results-root`; run the helper first with `--dry-run`, then without it:
 
 ```sh
@@ -136,8 +149,7 @@ root and contains the expected context and configs, and verifies the archive
 before deletion. Before archiving, reconfirm every
 tracked array has successful scheduler, `run_successful`, and PBS-exit-status
 evidence, and report any failed check. Before removal, verify that every
-archived `training_outcomes` path is present in the archive; never delete it as
-a separate cleanup action.
+remaining `training_outcomes` path is present in the archive.
 
 For a submission whose `context.json` records `is_debug_mode: true`, retain the
 first lexicographic per-array output directory in place as a debug helper. Do
