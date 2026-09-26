@@ -192,15 +192,14 @@ class _TrainingAssignment:
     cpu_threads: int
 
 
-# The measured run stayed at five materially busy threads on an eight-CPU
-# allocation.  Reduce the prior three-CPU reserve to one CPU, allowing two
-# additional Torch worker threads while retaining coordinator headroom.
-PARALLEL_RUNTIME_CPU_RESERVE = 1
+# The worker teams receive the complete requested CPU capacity. The parent
+# coordinator remains runnable under the operating system scheduler.
+PARALLEL_RUNTIME_CPU_RESERVE = 0
 PARALLEL_COORDINATOR_CPU_THREADS = 1
 
 
 def _parallel_torch_thread_capacity(cpu_count: int, branch_count: int) -> int:
-    """Reserve runnable Python overhead beside spawned Torch workers."""
+    """Return the Torch capacity available to spawned worker teams."""
 
     minimum_capacity = branch_count
     normal_capacity = max(

@@ -383,10 +383,10 @@ def test_probe_can_limit_direct_epoch_loops_to_one_torch_thread(
     "cpus,gpus,expected",
     [
         (2, 0, [("cpu", 1), ("cpu", 1)]),
-        (8, 0, [("cpu", 6), ("cpu", 1)]),
-        (8, 1, [("cuda:0", 6), ("cpu", 1)]),
-        (8, 2, [("cuda:0", 6), ("cuda:1", 1)]),
-        (8, 4, [("cuda:0", 6), ("cuda:1", 1)]),
+        (8, 0, [("cpu", 7), ("cpu", 1)]),
+        (8, 1, [("cuda:0", 7), ("cpu", 1)]),
+        (8, 2, [("cuda:0", 7), ("cuda:1", 1)]),
+        (8, 4, [("cuda:0", 7), ("cuda:1", 1)]),
     ],
 )
 def test_parallel_branch_placement(
@@ -426,13 +426,13 @@ def test_parallel_branch_placement(
     "cpu_count,branch_count,expected",
     [
         (1, 1, 1),
-        (2, 1, 1),
-        (8, 1, 7),
+        (2, 1, 2),
+        (8, 1, 8),
         (2, 2, 2),
-        (8, 2, 7),
+        (8, 2, 8),
     ],
 )
-def test_parallel_torch_thread_capacity_reserves_coordinator_cpu(
+def test_parallel_torch_thread_capacity_uses_full_cpu_allocation(
     cpu_count, branch_count, expected
 ):
     assert (
