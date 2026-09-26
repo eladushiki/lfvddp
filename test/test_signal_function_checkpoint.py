@@ -1,6 +1,5 @@
 """File-backed checkpoint and continuation compatibility for Issue 018 function spaces."""
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -149,8 +148,8 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     )
     checkpoint = _torch_load(checkpoint_path)
 
-    # The checkpoint payload contains tensor state; its required sidecar holds
-    # the resolved function-space and normalization metadata.
+    # The checkpoint carries both tensor state and its resolved function-space
+    # and normalization metadata, avoiding one JSON file per checkpoint.
     assert set(checkpoint) == {
         "model_name",
         "epoch",
@@ -162,6 +161,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         "best_epoch",
         "array_index",
         "run_hash",
+        "metadata",
     }
     assert checkpoint["epoch"] == 0
     assert checkpoint["training_history"][HistoryKeys.EPOCH.value] == [0]
@@ -180,7 +180,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         )["config_fingerprint"]
     )
     assert metadata["normalization_factor"] == model._norm_factor.to_mapping()
-    assert checkpoint_metadata_path(checkpoint_path).exists()
+    assert not checkpoint_metadata_path(checkpoint_path).exists()
 
     restored = _make_model(context, detector_effect, "checkpoint_round_trip")
     restored._norm_factor = model._norm_factor
@@ -284,9 +284,9 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
     tmp_path,
     monkeypatch,
 ):
-    # Alter only the sidecar geometry.  The state_dict shape remains valid, so
-    # this specifically guards against silently loading coefficients with the
-    # wrong basis ordering/geometry.
+    # Alter only the checkpoint metadata geometry. The state_dict shape remains
+    # valid, so this specifically guards against silently loading coefficients
+    # with the wrong basis ordering/geometry.
     context = function_execution_context
     data_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     model = _make_model(context, detector_effect, "mismatch")
@@ -300,10 +300,11 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
         training_history=model._training_history,
         metadata=_metadata(model),
     )
-    metadata_path = checkpoint_metadata_path(checkpoint_path)
-    metadata = json.loads(metadata_path.read_text())
+    checkpoint = _torch_load(checkpoint_path)
+    metadata = checkpoint["metadata"]
     metadata["f"]["options"]["knots"] = [-1.0, -0.25, 0.0, 0.5, 1.0]
-    metadata_path.write_text(json.dumps(metadata))
+    checkpoint["metadata"] = metadata
+    torch.save(checkpoint, checkpoint_path)
     checkpoint = _torch_load(checkpoint_path)
 
     monkeypatch.setattr(
@@ -325,7 +326,15 @@ def test_fixed_geometry_mismatch_has_contextual_error_before_state_load(
 
 def test_checkpoint_without_metadata_is_rejected(tmp_path):
     checkpoint_path = tmp_path / "checkpoint.pt"
-    checkpoint_path.touch()
+    torch.save({}, checkpoint_path)
 
-    with pytest.raises(RuntimeError, match="no metadata sidecar"):
+    with pytest.raises(RuntimeError, match="no metadata"):
         load_checkpoint_metadata(checkpoint_path)
+
+
+def test_legacy_metadata_sidecar_still_loads(tmp_path):
+    checkpoint_path = tmp_path / "checkpoint.pt"
+    torch.save({}, checkpoint_path)
+    checkpoint_metadata_path(checkpoint_path).write_text('{"legacy": true}\n')
+
+    assert load_checkpoint_metadata(checkpoint_path) == {"legacy": True}

@@ -21,17 +21,31 @@ def checkpoint_filename(model_name: str) -> str:
 
 
 def checkpoint_metadata_path(checkpoint_path: Path) -> Path:
-    """Return the optional metadata sidecar for a training checkpoint."""
+    """Return the legacy metadata sidecar path for a training checkpoint."""
 
     return checkpoint_path.with_name(checkpoint_path.name + ".metadata.json")
 
 
+def _torch_load(file_path: Path) -> dict[str, Any]:
+    try:
+        return torch.load(file_path, map_location="cpu", weights_only=False)
+    except TypeError:
+        return torch.load(file_path, map_location="cpu")
+
+
 def load_checkpoint_metadata(checkpoint_path: Path) -> dict[str, Any]:
-    """Load the required metadata sidecar for a training checkpoint."""
+    """Load checkpoint metadata, accepting legacy JSON sidecars."""
+
+    checkpoint = _torch_load(checkpoint_path)
+    metadata = checkpoint.get("metadata")
+    if metadata is not None:
+        if not isinstance(metadata, dict):
+            raise RuntimeError(f"Checkpoint {checkpoint_path} has invalid metadata.")
+        return metadata
 
     metadata_path = checkpoint_metadata_path(checkpoint_path)
     if not metadata_path.exists():
-        raise RuntimeError(f"Checkpoint {checkpoint_path} has no metadata sidecar.")
+        raise RuntimeError(f"Checkpoint {checkpoint_path} has no metadata.")
     try:
         metadata = json.loads(metadata_path.read_text())
     except (OSError, json.JSONDecodeError) as error:
@@ -43,13 +57,6 @@ def load_checkpoint_metadata(checkpoint_path: Path) -> dict[str, Any]:
             f"Checkpoint metadata sidecar {metadata_path} must contain a JSON object."
         )
     return metadata
-
-
-def _torch_load(file_path: Path) -> dict[str, Any]:
-    try:
-        return torch.load(file_path, map_location="cpu", weights_only=False)
-    except TypeError:
-        return torch.load(file_path, map_location="cpu")
 
 
 def _checkpoint_dir(context: ExecutionContext) -> Path:
@@ -145,25 +152,12 @@ def save_training_checkpoint(
             "best_epoch": best_epoch,
             "array_index": context.array_index,
             "run_hash": context.run_hash,
+            "metadata": dict(metadata) if metadata is not None else None,
         },
         temporary_path,
     )
     temporary_path.replace(checkpoint_path)
 
-    if metadata is not None:
-        metadata_path = checkpoint_metadata_path(checkpoint_path)
-        temporary_metadata_path = metadata_path.with_suffix(metadata_path.suffix + ".tmp")
-        try:
-            temporary_metadata_path.write_text(
-                json.dumps(dict(metadata), sort_keys=True, indent=2) + "\n"
-            )
-            temporary_metadata_path.replace(metadata_path)
-        except (OSError, TypeError, ValueError) as error:
-            if temporary_metadata_path.exists():
-                temporary_metadata_path.unlink()
-            raise RuntimeError(
-                f"Unable to write checkpoint metadata sidecar {metadata_path}: {error}"
-            ) from error
     return checkpoint_path
 
 
