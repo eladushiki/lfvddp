@@ -14,11 +14,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from frame.file_structure import (
+    CONFIGS_DIR_NAME,
     CONTEXT_FILE_NAME,
     CREATE_PLOTS_SCRIPT_NAME,
     SINGLE_TRAIN_SCRIPT_NAME,
+    SUBMIT_TRAIN_SCRIPT_NAME,
     TRAINING_OUTCOMES_DIR_NAME,
 )
+from frame.context.run_descriptor import parse_run_descriptor
 
 
 ARCHIVE_NAME = "array-job-artifacts.tar.gz"
@@ -37,18 +40,26 @@ def checked_submission(path_arg: str, results_root: Path) -> Path:
         raise ValueError(f"submission is not a directory: {submission}")
     if not (submission / CONTEXT_FILE_NAME).is_file():
         raise ValueError(f"submission has no {CONTEXT_FILE_NAME}: {submission}")
-    if not (submission / "configs").is_dir():
-        raise ValueError(f"submission has no configs directory: {submission}")
+    if not (submission / CONFIGS_DIR_NAME).is_dir():
+        raise ValueError(
+            f"submission has no {CONFIGS_DIR_NAME} directory: {submission}"
+        )
     return submission
 
 
+def is_run_directory_for_entrypoint(directory: Path, entrypoint: str) -> bool:
+    """Whether a generated run directory belongs to an entrypoint."""
+    descriptor = parse_run_descriptor(directory.name)
+    return descriptor is not None and descriptor.entrypoint == entrypoint
+
+
 def removable_children(submission: Path) -> list[Path]:
-    retained = {CONTEXT_FILE_NAME, "configs", ARCHIVE_NAME}
+    retained = {CONTEXT_FILE_NAME, CONFIGS_DIR_NAME, ARCHIVE_NAME}
     return sorted(
         child
         for child in submission.iterdir()
         if child.name not in retained
-        and f"_run_of_{CREATE_PLOTS_SCRIPT_NAME}_" not in child.name
+        and not is_run_directory_for_entrypoint(child, CREATE_PLOTS_SCRIPT_NAME)
     )
 
 
@@ -62,7 +73,8 @@ def debug_helper_source(
         (
             source
             for source in sources
-            if source.is_dir() and f"_run_of_{SINGLE_TRAIN_SCRIPT_NAME}_" in source.name
+            if source.is_dir()
+            and is_run_directory_for_entrypoint(source, SINGLE_TRAIN_SCRIPT_NAME)
         ),
         None,
     )
@@ -89,7 +101,12 @@ def has_progression_plot(submission: Path) -> bool:
 
 def successful_worker_directories(submission: Path) -> list[Path]:
     """Validate every retained worker context before destructive pruning."""
-    workers = sorted(submission.glob(f"*_run_of_{SINGLE_TRAIN_SCRIPT_NAME}_*"))
+    workers = sorted(
+        directory
+        for directory in submission.iterdir()
+        if directory.is_dir()
+        and is_run_directory_for_entrypoint(directory, SINGLE_TRAIN_SCRIPT_NAME)
+    )
     if not workers:
         raise ValueError(f"submission has no worker directories: {submission}")
     failed = []
@@ -161,9 +178,11 @@ def all_submission_directories(results_root: Path) -> list[Path]:
     if not results_root.is_dir():
         raise ValueError(f"results root does not exist: {results_root}")
     return sorted(
-        path
-        for path in results_root.glob("**/run_*_run_of_submit_train.py_pid_*")
-        if path.is_dir()
+        context_path.parent
+        for context_path in results_root.rglob(CONTEXT_FILE_NAME)
+        if is_run_directory_for_entrypoint(
+            context_path.parent, SUBMIT_TRAIN_SCRIPT_NAME
+        )
     )
 
 
