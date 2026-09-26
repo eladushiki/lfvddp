@@ -96,15 +96,19 @@ Submission statuses and their additional fields are:
 `last_error` may be retained on any non-successful stage for reporting, but it
 must be cleared when that same stage later succeeds.
 
-Single-submission plotting never deletes `training_outcomes`: its histories are
-required by aggregate percentile-progression plots. After every referencing
-plot group is analyzed, a submission may record `artifact_archive` with
+After a verified single-submission percentile-progression plot exists, a
+submission may record `intermediate_prune` even while an aggregate group is
+pending. It records `completed_at`, the removed HDF5, `training_outcomes`,
+runtime-resource, and PBS-log counts, plus the successful worker-context and
+PBS-exit-status evidence. This removes only regenerable intermediates; it
+preserves contexts, configs, final statistics, and generated plots. After every
+referencing plot group is analyzed, a submission may record `artifact_archive` with
 `completed_at`, the archive path, verified dependent groups, and the scheduler,
 `run_successful`, and PBS exit-status evidence that every tracked array job
 succeeded and no `--extra-time` continuation is required. The archive contains
-the complete `single_train.py` outputs, including `training_outcomes`; this is
-the only cleanup stage that removes those original directories. A failed check
-must be retained in `last_error` and reported rather than archived.
+the remaining `single_train.py` outputs; histories already recorded in
+`intermediate_prune` need not be recreated. A failed check must be retained in
+`last_error` and reported rather than archived.
 
 Each initial submission or continuation is saved once in `attempts`:
 
@@ -166,6 +170,8 @@ Group statuses are:
 - `analyzed`: the multi-run command completed; requires `completed_at`.
 - `failed`: the last aggregate attempt failed; requires `last_error` and may be
   retried without changing membership.
+- `retired`: an incomplete legacy group was superseded. Requires `retired_at`
+  and `retired_reason`; it is not eligible for plotting or archival decisions.
 
 An `analyzed` group may record `output_directory` for its generated products.
 When an archive was restored before a previously blocked aggregate retry, it

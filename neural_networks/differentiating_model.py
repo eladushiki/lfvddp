@@ -20,10 +20,7 @@ from data_tools.detector.detector_effect import DetectorEffect
 from frame.context.execution_context import ExecutionContext
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.function_spaces import create_function_space
-from neural_networks.utils import (
-    ContextedModel,
-    save_model_parameters_outcome,
-)
+from neural_networks.utils import ContextedModel
 from train.checkpoint_metadata import (
     build_checkpoint_metadata,
     normalization_from_checkpoint_metadata,
@@ -736,7 +733,5 @@ def calc_min_LFVNN(
     else:
         final_loss = min(model_history[HistoryKeys.LOSS.value])
     info(f"Minimum loss achieved: {final_loss:.6f}")
-
-    save_model_parameters_outcome(context, model)
 
     return model, final_loss, model_history
