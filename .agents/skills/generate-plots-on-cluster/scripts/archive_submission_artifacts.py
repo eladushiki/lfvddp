@@ -63,11 +63,10 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
-def debug_helper_source(
-    sources: list[Path], *, retain_debug_helper: bool
-) -> Path | None:
+def debug_helper_source(submission: Path, sources: list[Path]) -> Path | None:
     """Keep one array-worker directory in place for debug submissions."""
-    if not retain_debug_helper:
+    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
+    if context.get("is_debug_mode") is not True:
         return None
     return next(
         (
@@ -195,7 +194,7 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    debug_helper = debug_helper_source(sources, retain_debug_helper=retain_debug_helper)
+    debug_helper = debug_helper_source(submission, sources)
     archive_sources = [source for source in sources if source != debug_helper]
     training_outcomes = training_outcome_directories(archive_sources)
     if not archive_sources:
@@ -314,11 +313,6 @@ def main() -> int:
         help="restore archived artifacts for aggregate plotting without deleting the archive",
     )
     parser.add_argument(
-        "--retain-debug-helper",
-        action="store_true",
-        help="retain the first array-worker directory for debug inspection",
-    )
-    parser.add_argument(
         "--prune-finished-intermediates",
         action="store_true",
         help=(
@@ -359,7 +353,6 @@ def main() -> int:
                     submission,
                     dry_run=args.dry_run,
                     temporary_directory=temporary_directory,
-                    retain_debug_helper=args.retain_debug_helper,
                 )
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)

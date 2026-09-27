@@ -32,7 +32,7 @@ def _run_directory(root: Path, entrypoint: str, pid: int) -> Path:
 
 def test_helper_uses_project_run_descriptors_for_directory_selection(tmp_path):
     submission = _run_directory(tmp_path, SUBMIT_TRAIN_SCRIPT_NAME, 1)
-    (submission / CONTEXT_FILE_NAME).write_text("{}")
+    (submission / CONTEXT_FILE_NAME).write_text('{"is_debug_mode": true}')
     (submission / CONFIGS_DIR_NAME).mkdir()
     training = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 2)
     plot = _run_directory(submission, CREATE_PLOTS_SCRIPT_NAME, 3)
@@ -43,10 +43,12 @@ def test_helper_uses_project_run_descriptors_for_directory_selection(tmp_path):
 
     assert removable == [arbitrary_artifact, training]
     assert (
-        archive_submission_artifacts.debug_helper_source(
-            removable, retain_debug_helper=True
-        )
+        archive_submission_artifacts.debug_helper_source(submission, removable)
         == training
+    )
+    (submission / CONTEXT_FILE_NAME).write_text("{}")
+    assert (
+        archive_submission_artifacts.debug_helper_source(submission, removable) is None
     )
     assert archive_submission_artifacts.all_submission_directories(tmp_path) == [
         submission

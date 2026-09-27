@@ -17,6 +17,8 @@ remote_checkout:
   observed_at: null
   latest_main_checked_at: null
 
+branch_migrations: []
+
 plot_groups: []
 submissions: []
 ```
@@ -30,6 +32,13 @@ submissions: []
   walltime correction is safe because active jobs use staged config copies. An
   empty queue permits a clean `main` fast-forward, but submission does not wait
   for a Git update.
+- `branch_migrations` is an ordered list of queue-only branch replacements. A
+  migration applies only to entries whose `status` is listed in
+  `applies_to_statuses`; it does not rewrite submitted or analyzed attempts,
+  whose recorded branch remains audit evidence. Before choosing a checkout for
+  a pending entry, resolve its `required_submission_branch` through this list,
+  using the latest matching migration. Each migration records `from`, `to`,
+  `applies_to_statuses`, `enacted_at`, and `reason`.
 
 ## Submission entries
 
