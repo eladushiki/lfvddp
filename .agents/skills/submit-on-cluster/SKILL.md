@@ -15,6 +15,11 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 
 ## Queue and repository state
 
+- Before selecting a checkout for `requested` or `continuation_requested`
+  work, resolve `required_submission_branch` through the ordered
+  `branch_migrations` list in submission state. The latest applicable matching
+  migration wins. Do not rewrite a submitted attempt's recorded branch: it is
+  provenance for the code that actually ran.
 - Count queued elements with `qstat -tu $USER | grep Q | wc -l` and running
   elements with `qstat -tu $USER | grep R | wc -l`.
 - Existing untracked jobs are not added to state, but their scheduler rows
