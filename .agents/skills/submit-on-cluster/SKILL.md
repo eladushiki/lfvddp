@@ -33,6 +33,24 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 - When queued and running counts are both zero, a clean `main` checkout may be
   fast-forwarded to `origin/main`. Record the observed checkout either way; a
   Git update is not required before submission.
+
+## Ordered configuration layers
+
+Resolve the ordered configuration arguments from the saved request. Legacy
+entries use the single `config_pack`. Versioned plot requests from `plots-v4`
+onward use `config_packs`, whose order is part of the request and must not be
+sorted or inferred again at submission time:
+
+1. `configs/plots-vN/generic`
+2. `configs/plots-vN/dimension-dependent/<dimension>`
+3. the plot-specific pack
+
+The dimension is explicit in the plot name when it is 2D or 4D; otherwise use
+the 1D default. Before submitting, verify that the saved three paths follow
+that rule and that merging them in order succeeds. Later packs override values
+from earlier packs. Read `cluster__qsub_n_jobs` from the merged configuration,
+not from one directory in isolation.
+
 ## Priority submission
 
 For the first `requested` entry:
@@ -42,8 +60,8 @@ For the first `requested` entry:
    leave the entry `requested` and stop: do not change the checkout and do not
    let lower-priority work overtake it. With no active jobs, first perform its
    saved `required_pre_submission_action`, then verify the branch and commit.
-2. Read `cluster__qsub_n_jobs` from its configuration pack; array size has one
-   definition in the pack and is not copied into state.
+2. Read `cluster__qsub_n_jobs` from the request's merged ordered configuration
+   packs; array size is not copied into state.
 3. Recount queued elements immediately before submission for reporting.
 4. Submit the whole array and let PBS enforce its current quota. Never split an
    array or reserve capacity locally.
@@ -55,7 +73,7 @@ For the first `requested` entry:
    omit it. The normal saved `only_train: true` setting uses `--only-train`:
 
    ```sh
-   python -m train.submit_train --configs <config-pack> \
+   python -m train.submit_train --configs <ordered-config-pack>... \
      --only-train [--debug] --out-dir <output-root>
    ```
 
