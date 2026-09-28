@@ -117,9 +117,12 @@ def _percentile_progression_y_upper_limit(
     percentiles: np.ndarray,
     reference_quantiles: np.ndarray,
 ) -> float:
-    """Fit the visible non-negative percentile and reference curves."""
+    """Fit the final half of the visible percentile curves and references."""
     plotted_values = np.concatenate(
-        (np.ravel(percentiles), np.ravel(reference_quantiles))
+        (
+            np.ravel(percentiles[:, percentiles.shape[1] // 2 :]),
+            np.ravel(reference_quantiles),
+        )
     )
     visible_values = plotted_values[
         np.isfinite(plotted_values) & (plotted_values >= 0)

@@ -77,6 +77,21 @@ def test_percentile_progression_y_axis_fits_empirical_and_reference_curves():
     ) == pytest.approx(26.25)
 
 
+def test_percentile_progression_y_axis_clips_large_left_half_transients():
+    percentiles = np.array(
+        [
+            [2000.0, 1000.0, 2.0, 5.0],
+            [4000.0, 2000.0, 10.0, 20.0],
+        ]
+    )
+    reference_quantiles = np.array([3.0, 25.0])
+
+    assert _percentile_progression_y_upper_limit(
+        percentiles,
+        reference_quantiles,
+    ) == pytest.approx(26.25)
+
+
 def test_humanize_signal_description_replaces_generator_identifier_separators():
     assert _humanize_signal_description("multivariate_gaussian_signal") == (
         "multivariate gaussian signal"
