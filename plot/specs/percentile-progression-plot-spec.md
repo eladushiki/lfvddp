@@ -37,9 +37,11 @@ the saved run contexts. Other spaces omit those lines.
 
 The horizontal axis is the configured training epoch and uses scientific
 notation when appropriate. The vertical axis starts at zero. Its upper limit is
-the largest non-negative empirical or theoretical percentile shown in that
-panel, plus 5% headroom; it never defaults below one. Negative intermediate
-percentiles are clipped by the documented non-negative display range.
+the largest non-negative empirical percentile in the final half of the training
+history, or theoretical percentile shown in that panel, plus 5% headroom; it
+never defaults below one. This may clip transient values from the left half so
+that the convergence region remains visible. Negative intermediate percentiles
+are clipped by the documented non-negative display range.
 
 ## Output Contract
 
@@ -54,5 +56,6 @@ percentiles are clipped by the documented non-negative display range.
 - [x] Complete histories are retained for selected runs.
 - [x] Wilks references use the effective hypothesis-space dimension reconstructed from the saved run context.
 - [x] Function spaces without a nonzero degree count do not claim a chi-square reference.
-- [x] Each y-axis covers zero through all non-negative curves with 5% headroom.
+- [x] Each y-axis covers zero through the final half of non-negative curves and
+  all non-negative reference curves, with 5% headroom.
 - [x] The figure is reproducible from recorded submission results and config.
