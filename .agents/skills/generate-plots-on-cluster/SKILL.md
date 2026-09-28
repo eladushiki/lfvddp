@@ -54,10 +54,12 @@ walltime:
    ```
 
 4. Verify that the saved context's total `cluster__qsub_walltime` increased by
-   the added duration. Update the original `config_pack` to that same total so
-   future fresh runs inherit the correction. Running jobs use staged configs,
-   so this targeted source-pack edit is not a checkout update. Do not copy the
-   corrected total into top-level submission state.
+   the added duration. For a layered request, locate the last saved
+   `config_packs` layer that defines `cluster__qsub_walltime` and update that
+   source; for a legacy request update `config_pack`. This preserves override
+   order and makes future fresh runs inherit the correction. Running jobs use
+   staged configs, so this targeted source-pack edit is not a checkout update.
+   Do not copy the corrected total into top-level submission state.
 5. Append a `continuation` attempt with its job IDs, added time, submission
    timestamp, and source-config update evidence. Return the submission to
    `submitted` and reconcile all attempts on later checks.
@@ -142,14 +144,22 @@ python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artif
 
 For a full cleanup below the results root, replace the explicit
 directory with `--all-under-root`; it discovers only timestamped
-`submit_train.py` directories. Never archive an active, failed, partial, or
-continuation-pending submission, or any member still needed by an unfinished
-plot group. The helper validates every target is beneath the stated results
-root and contains the expected context and configs, and verifies the archive
-before deletion. Before archiving, reconfirm every
-tracked array has successful scheduler, `run_successful`, and PBS-exit-status
-evidence, and report any failed check. Before removal, verify that every
-remaining `training_outcomes` path is present in the archive.
+`submit_train.py` directories. Never archive an active or
+continuation-pending submission, or any member still needed by a non-retired
+unfinished plot group. The helper validates every target is beneath the stated
+results root and contains the expected context and configs, and verifies the
+archive before deletion.
+
+For a successful `artifact_archive`, reconfirm every tracked array has
+successful scheduler, `run_successful`, and PBS-exit-status evidence. A
+`retired` submission may instead be archived as a terminal audit artifact when
+it has no live scheduler elements and no non-retired plot group depends on it.
+Generate any plots that remain possible first. This exception permits
+compression of canceled, failed, or partial work that will never be continued;
+it does not classify the work as successful. Record it as
+`retired_artifact_archive`, including the archive path and the observed failure
+or partial-completion evidence. Before removal in either mode, verify that
+every remaining `training_outcomes` path is present in the archive.
 
 For a submission whose `context.json` records `is_debug_mode: true`, retain the
 first lexicographic per-array output directory in place as a debug helper. Do

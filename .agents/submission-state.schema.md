@@ -8,7 +8,7 @@ explicitly asks.
 ## Top-level structure
 
 ```yaml
-version: 4
+version: 5
 last_checked_at: null
 
 remote_checkout:
@@ -46,7 +46,10 @@ submissions: []
 submissions:
   - id: plot-02-reproduction-signals--nonlocal--significance-01
     status: requested
-    config_pack: configs/plot-02-reproduction-signals/nonlocal/significance-01
+    config_packs:
+      - configs/plots-v4/generic
+      - configs/plots-v4/dimension-dependent/1d
+      - configs/plots-v4/plot-02-reproduction-signals/nonlocal/significance-01
     output_root: results/highlights/2026-09/plot-02
     purpose: Generate Plot 02 nonlocal significance outputs.
     requested_at: 2026-08-31T09:00:00+03:00
@@ -54,10 +57,20 @@ submissions:
       - plot-02-reproduction-signals
 ```
 
-Required initial fields are `id`, `status`, `config_pack`, `output_root`,
-`purpose`, `requested_at`, and `plot_groups`. `plot_groups` may be empty.
-Array size is deliberately absent: read `cluster__qsub_n_jobs` from the pack
-immediately before submission.
+Required initial fields are `id`, `status`, `output_root`, `purpose`,
+`requested_at`, `plot_groups`, and exactly one of `config_pack` or
+`config_packs`. `plot_groups` may be empty. `config_pack` is the legacy
+single-directory form. `config_packs` is an ordered list and is required for
+versioned plot requests from `plots-v4` onward.
+
+For `plots-v4` onward, `config_packs` contains exactly three layers: the
+version's `generic` pack, its matching `dimension-dependent` pack, and the
+plot-specific pack. A plot name containing `2d` or `4d` selects that dimension;
+all other plot names select `1d`. Preserve list order because later layers
+override earlier values. Read array size and all other effective values from
+the merged list rather than duplicating them in state.
+Array size is deliberately absent: read `cluster__qsub_n_jobs` from the merged
+configuration immediately before submission.
 
 Optional request controls are recorded with the request, rather than inferred
 from a directory name:
@@ -119,6 +132,14 @@ the remaining `single_train.py` outputs; histories already recorded in
 `intermediate_prune` need not be recreated. A failed check must be retained in
 `last_error` and reported rather than archived.
 
+A `retired` submission may record `retired_artifact_archive` when it has no
+live scheduler elements and no non-retired plot group depends on it. This is a
+terminal audit archive for canceled, failed, or partial work and does not imply
+successful completion. It records `completed_at`, `archive_path`,
+`scheduler_inactive_evidence`, `non_retired_groups`, and the observed failure
+or partial-completion evidence. Generate any plots that remain usable before
+creating this archive.
+
 Each initial submission or continuation is saved once in `attempts`:
 
 ```yaml
@@ -147,7 +168,8 @@ Match scheduler history against the job IDs in all attempts. For a verified
 walltime kill, choose an evidence-based `extra_time`, defaulting to the killed
 attempt's configured total when the scheduler provides no better estimate. The
 continuation command persists the increased total in the saved context; update
-the original `config_pack` to that same total so later fresh runs use it too.
+the last ordered `config_packs` layer that defines the walltime (or the legacy
+`config_pack`) to that same total so later fresh runs use it too.
 Walltime remains defined in configuration; only the per-attempt added duration
 is retained as audit evidence in state.
 
