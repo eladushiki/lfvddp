@@ -12,7 +12,6 @@ from frame.file_structure import (
     SUBMIT_TRAIN_SCRIPT_NAME,
 )
 
-
 _HELPER_PATH = Path(
     ".agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py"
 )
@@ -54,3 +53,29 @@ def test_helper_uses_project_run_descriptors_for_directory_selection(tmp_path):
         submission
     ]
     assert plot not in removable
+
+
+def test_cli_archives_debug_submission_and_retains_one_worker(tmp_path, monkeypatch):
+    submission = _run_directory(tmp_path, SUBMIT_TRAIN_SCRIPT_NAME, 1)
+    (submission / CONTEXT_FILE_NAME).write_text('{"is_debug_mode": true}')
+    (submission / CONFIGS_DIR_NAME).mkdir()
+    retained_worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 2)
+    archived_worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 3)
+    artifact = submission / "artifact.txt"
+    artifact.write_text("artifact")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            str(_HELPER_PATH),
+            "--results-root",
+            str(tmp_path),
+            str(submission),
+        ],
+    )
+
+    assert archive_submission_artifacts.main() == 0
+    assert (submission / archive_submission_artifacts.ARCHIVE_NAME).is_file()
+    assert retained_worker.is_dir()
+    assert not archived_worker.exists()
+    assert not artifact.exists()

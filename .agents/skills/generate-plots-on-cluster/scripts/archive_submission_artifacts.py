@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
+from frame.context.run_descriptor import parse_run_descriptor
 from frame.file_structure import (
     CONFIGS_DIR_NAME,
     CONTEXT_FILE_NAME,
@@ -21,8 +22,6 @@ from frame.file_structure import (
     SUBMIT_TRAIN_SCRIPT_NAME,
     TRAINING_OUTCOMES_DIR_NAME,
 )
-from frame.context.run_descriptor import parse_run_descriptor
-
 
 ARCHIVE_NAME = "array-job-artifacts.tar.gz"
 PROGRESSION_PLOT_NAME = "t_train_percentile_progression_plot"
@@ -190,7 +189,6 @@ def archive_submission(
     *,
     dry_run: bool,
     temporary_directory: Path | None,
-    retain_debug_helper: bool,
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
