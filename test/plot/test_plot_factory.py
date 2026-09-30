@@ -121,6 +121,33 @@ def test_scope_selects_plots_declared_for_single_submission():
     ] == ["t_distribution_plot"]
 
 
+@pytest.mark.parametrize(
+    ("plot_name", "title"),
+    (
+        ("t_distribution_plot", "Test statistic"),
+        ("t_train_percentile_progression_plot", "Convergence"),
+        ("performance_plot", "Sensitivity"),
+    ),
+)
+def test_plot_specification_forwards_configured_title(plot_name, title):
+    config = _plotting_config()
+    config.plot__plot_specifications = [
+        {"name": plot_name, "instructions": {"title": title}}
+    ]
+    plot_factory = PlotFactory(context=SimpleNamespace(config=config))
+    plot_scope = getattr(plot_factory[plot_name], "plot_scope")
+
+    [instructions] = plot_factory.plot_instructions_for_scope(
+        plot_scope,
+        performance_directory="runs" if plot_scope is PlotScope.MULTI_RUN else None,
+        background_directory="background"
+        if plot_scope is PlotScope.MULTI_RUN
+        else None,
+    )
+
+    assert instructions.instructions["title"] == title
+
+
 def test_multi_run_scope_supplies_discovered_context_directories(monkeypatch, tmp_path):
     config = _plotting_config()
     config.plot__plot_specifications = [

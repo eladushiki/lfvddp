@@ -55,9 +55,12 @@ The horizontal axis is ideal significance $\sqrt{q_0}$; the vertical axis is mea
 
 ## Configuration Contract
 
+The multi-run plotting input is the first positional command-line argument,
+stored as `config__out_dir`.
+
 | Key | Current default | Effect |
 | --- | ---: | --- |
-The multi-run plotting input is the first positional command-line argument, stored as `config__out_dir`.
+| `title` | `measured vs injected signal significance` | Axes title. Set in this plot's `instructions` mapping. |
 | `plot__figure_size` | `[10, 9]` | Figure dimensions in inches. |
 | `plot__pyplot_styling` | Basic plot config | Global Matplotlib typography and style. |
 | `plot__figure_styling` | Basic plot config | Figure appearance settings. |

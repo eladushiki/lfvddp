@@ -114,8 +114,11 @@ Important configuration choices include:
   `input_dimension` and `hidden_layer_nodes`. Adaptive neural and NPLM studies
   require empirical-null calibration rather than assigning Wilks degrees of
   freedom from parameter counts.
-- `plot__plot_specifications` selects the plots produced for a submission. Plot
-  behavior is documented in [`plot/specs`](plot/specs).
+- `plot__plot_specifications` selects the plots produced for a submission. Its
+  `instructions.title` sets the title of the t-distribution, training-percentile,
+  or performance plot. `plot__prediction_process_title` sets the title of the
+  training-time prediction-process plot. Omit either setting to retain its
+  current title. Plot behavior is documented in [`plot/specs`](plot/specs).
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.

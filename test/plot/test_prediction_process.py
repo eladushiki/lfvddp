@@ -1,14 +1,17 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 import pytest
 
+from data_tools.data_utils import DataSet
 from neural_networks.differentiating_model import DifferentiatingModel
 from plot.plot_factory import PlotFactory
-from plot.plotting_config import PlotInstructions
+from plot.plotting_config import PlotInstructions, PlottingConfig
 from plot.plots import _CONTINUOUS_PREDICTION_AXIS_POINTS
 from test.environment import ConfigType
 from train.model_trainer import TrainLauncher
+from train.single_train import plot_training_prediction
 
 
 @pytest.mark.parametrize(
@@ -114,3 +117,51 @@ def test_prediction_process_plot_generation(
             assert len(x_values) == _CONTINUOUS_PREDICTION_AXIS_POINTS
             assert (x_values[1:] > x_values[:-1]).all()
     plt.close(figure)
+
+
+@pytest.mark.parametrize(
+    ("configured_title", "expected_title"),
+    (
+        (None, "sample prediction process"),
+        ("Configured prediction", "Configured prediction"),
+    ),
+)
+def test_training_prediction_plot_uses_configured_title(
+    monkeypatch,
+    tmp_path,
+    configured_title,
+    expected_title,
+):
+    received = {}
+
+    class FakePlotFactory:
+        def __init__(self, context):
+            received["context"] = context
+
+        def generate_plot(self, instructions):
+            received["instructions"] = instructions
+            return "figure"
+
+    monkeypatch.setattr("plot.plot_factory.PlotFactory", FakePlotFactory)
+    config = PlottingConfig(
+        plot__plot_specifications=[],
+        plot__prediction_process_title=configured_title,
+    )
+    context = SimpleNamespace(
+        config=config,
+        is_debug_mode=True,
+        unique_out_dir=tmp_path,
+        save_and_document_figure=lambda figure, path: received.update(
+            figure=figure, path=path
+        ),
+    )
+    training = SimpleNamespace(
+        model=object(),
+        data_batch=SimpleNamespace(
+            parameters={DataSet.DataSetCategory.A_SR: SimpleNamespace(name="sample")}
+        ),
+    )
+
+    plot_training_prediction(context, training, training)
+
+    assert received["instructions"].instructions["title"] == expected_title

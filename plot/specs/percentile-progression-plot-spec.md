@@ -43,6 +43,12 @@ never defaults below one. This may clip transient values from the left half so
 that the convergence region remains visible. Negative intermediate percentiles
 are clipped by the documented non-negative display range.
 
+## Configuration Contract
+
+| Key or instruction | Current default | Effect |
+| --- | ---: | --- |
+| `title` | `Training percentile progression` | Figure suptitle. Set in this plot's `instructions` mapping. |
+
 ## Output Contract
 
 - **Return type:** Matplotlib `Figure`.

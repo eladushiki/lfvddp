@@ -213,7 +213,10 @@ def plot_training_prediction(
     # Plotting is optional and imports a comparatively heavy scientific stack.
     # Keep it out of the training process until the trained models are ready.
     from plot.plot_factory import PlotFactory
-    from plot.plotting_config import PlotInstructions
+    from plot.plotting_config import PlotInstructions, PlottingConfig
+
+    if not isinstance(config := context.config, PlottingConfig):
+        raise TypeError(f"Expected PlottingConfig, got {type(config)}")
 
     base_name = numerator_training.data_batch.parameters[
         DataSet.DataSetCategory.A_SR
@@ -225,7 +228,11 @@ def plot_training_prediction(
             instructions={
                 "numerator_training": numerator_training,
                 "denominator_training": denominator_training,
-                "title": base_name + " prediction process",
+                "title": (
+                    config.plot__prediction_process_title
+                    if config.plot__prediction_process_title is not None
+                    else base_name + " prediction process"
+                ),
             },
         )
     )

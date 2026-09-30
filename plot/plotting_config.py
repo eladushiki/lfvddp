@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from types import FunctionType
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from frame.file_structure import PLOT_FILE_EXTENSION
 
@@ -71,6 +71,9 @@ class PlottingConfig:
     plot__prediction_process_number_of_bins: int = 30
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True
+    # ``plot_prediction_process`` is generated during training rather than from
+    # a plot specification, so its title is configured separately.
+    plot__prediction_process_title: Optional[str] = None
 
     # Shared layout values used by Carpenter for every plot.
     plot__run_stamp_row_height: float = 0.12

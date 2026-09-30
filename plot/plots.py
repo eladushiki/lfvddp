@@ -138,6 +138,7 @@ def _percentile_progression_y_upper_limit(
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
 def t_train_percentile_progression_plot(
     context: ExecutionContext,
+    title: str = "Training percentile progression",
 ):
     """
     Plot numerator, denominator, and derived-t percentile progression for each
@@ -217,7 +218,7 @@ def t_train_percentile_progression_plot(
                 label=fr"$\chi^2_{{{chi2_dof}}}$ quantiles",
             )
         )
-    fig.suptitle("Training percentile progression", fontsize=24)
+    fig.suptitle(title, fontsize=24)
     fig.legend(
         handles=legend_handles,
         labels=[handle.get_label() for handle in legend_handles],
@@ -237,6 +238,7 @@ def t_distribution_plot(
     number_of_bins: int = 30,
     cut_non_converged: bool = True,
     cut_overfitted: bool = True,
+    title: Optional[str] = None,
 ) -> Figure:
     """
     Plot a test-statistic sample (t) and its target chi-square distribution.
@@ -390,7 +392,11 @@ def t_distribution_plot(
     )
 
     # Texting
-    histogram_title = f"Distribution of t values over {len(t)} test runs"
+    histogram_title = (
+        title
+        if title is not None
+        else f"Distribution of t values over {len(t)} test runs"
+    )
     ax.set_title(histogram_title, fontsize=30, pad=20)
     ax.set_xlabel("t", fontsize=22, labelpad=20)
     ax.set_ylabel("Bin Probability", fontsize=22, labelpad=20)
@@ -408,6 +414,7 @@ def performance_plot(
     context: ExecutionContext,
     background_only_t_values_parent_directory: str,
     signal_t_values_parent_directory: str,
+    title: str = "measured vs injected signal significance",
 ):
     """
     Create a plot of the measured significance as a function of
@@ -614,7 +621,7 @@ def performance_plot(
     # Texting
     ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel("measured significance", fontsize=21)
-    ax.set_title("measured vs injected signal significance", fontsize=24)
+    ax.set_title(title, fontsize=24)
     legend = ax.legend(loc="upper left", fontsize=12, fancybox=True, frameon=False)
 
     # Styling
