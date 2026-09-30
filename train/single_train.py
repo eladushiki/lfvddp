@@ -204,8 +204,7 @@ def plot_training_prediction(
     denominator_training: TrainLauncher.Training,
 ) -> None:
     if (
-        not context.is_debug_mode
-        or numerator_training.model is None
+        numerator_training.model is None
         or denominator_training.model is None
     ):
         return

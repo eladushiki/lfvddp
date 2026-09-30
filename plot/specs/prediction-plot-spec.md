@@ -61,7 +61,7 @@ A 2 × 2 figure with four panels:
 - Legends:
   - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
   - 2D: default / uninterrupting location, also below the title.
-- The suptitle is `<configured title>: A prediction process of <runtag>`; its default configured title is `Datasets Along the Process`.
+- In debug mode, the suptitle is shown in sentence case as `<configured title> of <runtag>`; its default configured title is `Datasets along the process`. Generated non-debug figures omit all axes and figure titles.
 - Every Carpenter figure reserves the same 12% bottom row for the `run hash` stamp, so that row can be cropped for paper display without cutting plot content.
 
 ## Current Distribution Rendering

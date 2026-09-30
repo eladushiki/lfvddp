@@ -7,7 +7,10 @@ from matplotlib.figure import Figure
 from data_tools.detector.detector_config import DetectorConfig
 from frame.context.execution_context import ExecutionContext
 import plot.plots as plots
-from plot.plot_utils import utils__discover_background_only_parent_directory
+from plot.plot_utils import (
+    utils__discover_background_only_parent_directory,
+    utils__format_figure_titles,
+)
 from plot.plotting_config import PlotInstructions, PlotScope, PlottingConfig
 
 
@@ -100,4 +103,11 @@ class PlotFactory:
 
     def generate_plot(self, plot_instructions: PlotInstructions) -> Figure:
         generating_function = self[plot_instructions.name]
-        return generating_function(self._context, **plot_instructions.instructions)
+        figure = generating_function(
+            self._context, **plot_instructions.instructions
+        )
+        utils__format_figure_titles(
+            figure,
+            show_titles=getattr(self._context, "is_debug_mode", False),
+        )
+        return figure
