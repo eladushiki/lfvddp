@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
@@ -61,8 +62,12 @@ _PERCENTILE_PROGRESSION_Y_HEADROOM = 0.05
 
 
 def _title_case(title: str) -> str:
-    """Capitalize every word in a configured figure title."""
-    return title.title()
+    """Capitalize title words without changing user-provided acronyms."""
+    return re.sub(
+        r"(?<!\w)(\w)",
+        lambda match: match.group(1).upper(),
+        title,
+    )
 
 
 def _prediction_process_suptitle(

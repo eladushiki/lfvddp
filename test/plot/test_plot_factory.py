@@ -76,6 +76,7 @@ def test_generate_plot_uses_inferred_dimension_and_forwards_instructions(
     (
         ("training percentile progression", "Training Percentile Progression"),
         ("custom detector result", "Custom Detector Result"),
+        ("LFVDDP detector result", "LFVDDP Detector Result"),
     ),
 )
 def test_plot_titles_are_title_cased(title, expected):
