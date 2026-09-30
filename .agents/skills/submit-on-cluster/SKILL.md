@@ -92,10 +92,16 @@ For the first `requested` entry:
 
 If PBS rejects a whole array because of its current queue-state quota, keep the
 entry `requested`, record `last_error`, and defer it only for this routine run.
-Do not retry the same deferred entry again during that run. Apply the narrowly
-authorized pre-`qsub` cleanup rule in `generate-plots-on-cluster`, then continue
-scanning later saved requests for arrays PBS will accept. Do not infer or save
-an internal quota from the rejection.
+Do not retry the same deferred entry again during that run. Record the rejected
+array size as the current run's size threshold. Apply the narrowly authorized
+pre-`qsub` cleanup rule in `generate-plots-on-cluster`, then continue scanning
+only for later requests whose whole array is strictly smaller than that
+threshold. Skip equal-sized and larger requests without invoking PBS: under the
+same queue state they cannot fit either. If a smaller request is also rejected,
+lower the threshold to that size. Stop scanning when no smaller request remains.
+This is a per-run optimization, not an inferred or saved internal quota; the
+next routine starts without a threshold and lets PBS evaluate the first eligible
+request again.
 
 For other submission or verification failures, keep the entry in place, set it
 `blocked` with `blocked_reason` and `last_error`, and stop processing so later
