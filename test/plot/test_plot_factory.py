@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from matplotlib.figure import Figure
 
 from data_tools.detector.detector_config import DetectorConfig
 import plot.plots as plots
@@ -55,10 +56,11 @@ def test_generate_plot_uses_inferred_dimension_and_forwards_instructions(
 ):
     plot_factory = _plot_factory(number_of_dimensions=1)
     received = {}
+    figure = Figure()
 
     def example_plot_1d(context, *, title):
         received.update(context=context, title=title)
-        return "generated figure"
+        return figure
 
     monkeypatch.setattr(plots, "example_plot_1d", example_plot_1d, raising=False)
     instructions = PlotInstructions(
@@ -67,8 +69,32 @@ def test_generate_plot_uses_inferred_dimension_and_forwards_instructions(
 
     result = plot_factory.generate_plot(instructions)
 
-    assert result == "generated figure"
+    assert result is figure
     assert received == {"context": plot_factory._context, "title": "Example"}
+
+
+def test_generate_plot_formats_titles_only_in_debug_mode(monkeypatch):
+    plot_factory = _plot_factory(number_of_dimensions=1)
+
+    def titled_plot(context):
+        figure = Figure()
+        axes = figure.add_subplot(111)
+        axes.set_title(r"TRANSVERSE MOMENTUM \\[GeV\\]")
+        figure.suptitle("RUN OVERVIEW")
+        return figure
+
+    monkeypatch.setattr(plots, "titled_plot", titled_plot, raising=False)
+    instructions = PlotInstructions(name="titled_plot", instructions={})
+
+    plot_factory._context.is_debug_mode = True
+    debug_figure = plot_factory.generate_plot(instructions)
+    assert debug_figure.axes[0].get_title() == r"Transverse momentum \\[GeV\\]"
+    assert debug_figure._suptitle.get_text() == "Run overview"
+
+    plot_factory._context.is_debug_mode = False
+    production_figure = plot_factory.generate_plot(instructions)
+    assert production_figure.axes[0].get_title() == ""
+    assert production_figure._suptitle.get_text() == ""
 
 
 def test_getitem_rejects_dimension_inference_without_observables():

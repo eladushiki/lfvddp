@@ -12,6 +12,7 @@ import numpy.typing as npt
 from matplotlib import gridspec, patches, ticker
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, to_rgba
+from matplotlib.figure import Figure
 from matplotlib.legend_handler import HandlerPatch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial import Delaunay
@@ -45,6 +46,65 @@ _MESH_BORDER_WIDTH = 0.15
 _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS = 4
 _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 _PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.90
+_TITLE_PROTECTED_SEGMENT_PATTERN = re.compile(r"(\\?\[[^\]]*\\?\]|\$[^$]*\$)")
+_TITLE_ACRONYMS = frozenset({"CR", "LFVDDP", "NPLM", "SR"})
+
+
+def utils__sentence_case_title(title: str) -> str:
+    """Convert a graph title to sentence case without changing units or math.
+
+    Units are protected when written in square brackets, including escaped
+    ``\\[...\\]`` bracket notation used in plot labels. Math spans are protected
+    as well so symbols retain their intended capitalization.
+    """
+
+    def sentence_case_text(text: str) -> str:
+        words = re.findall(r"[A-Za-z]+", text)
+        if not words:
+            return text
+        first_word = words[0]
+
+        def format_word(match: re.Match[str]) -> str:
+            word = match.group()
+            if word in _TITLE_ACRONYMS:
+                return word
+            if word == first_word:
+                return word[0].upper() + word[1:].lower()
+            return word.lower()
+
+        return re.sub(r"[A-Za-z]+", format_word, text)
+
+    return "".join(
+        segment
+        if _TITLE_PROTECTED_SEGMENT_PATTERN.fullmatch(segment)
+        else sentence_case_text(segment)
+        for segment in _TITLE_PROTECTED_SEGMENT_PATTERN.split(title)
+    )
+
+
+def utils__format_figure_titles(
+    figure: Figure,
+    show_titles: bool,
+) -> None:
+    """Apply the shared title policy to every axes and figure title."""
+    for axes in figure.axes:
+        for title_artist in (
+            axes._left_title,
+            axes.title,
+            axes._right_title,
+        ):
+            title_artist.set_text(
+                utils__sentence_case_title(title_artist.get_text())
+                if show_titles
+                else ""
+            )
+
+    if figure._suptitle is not None:
+        figure._suptitle.set_text(
+            utils__sentence_case_title(figure._suptitle.get_text())
+            if show_titles
+            else ""
+        )
 
 
 def utils__prediction_mesh_mask(
