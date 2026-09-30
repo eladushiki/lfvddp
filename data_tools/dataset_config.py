@@ -52,7 +52,7 @@ class DatasetParameters(ABC):
 
     # Created automatically
     ## Picked poissonically based on mean numbers
-    dataset__number_of_background_events: int = field(default=None)  # in the case of loaded datasets, None loads the full amount
+    dataset__number_of_background_events: int = field(default=None)
 
     @classmethod
     @abstractmethod
@@ -91,7 +91,7 @@ class DatasetParameters(ABC):
 
     def __post_init__(self):
         # Poisson distribution of event numbers per run given mean
-        if not self.dataset__number_of_background_events:
+        if self.dataset__number_of_background_events is None:
             assert self.dataset__mean_number_of_background_events is not None, \
                 "Number of background events must be defined in the configuration, either directly or via mean."
             self.dataset__number_of_background_events = np.random.poisson(
@@ -130,7 +130,7 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
     def __post_init__(self):
         super().__post_init__()
 
-        if not self.dataset__number_of_signal_events:
+        if self.dataset__number_of_signal_events is None:
             self.dataset__number_of_signal_events = np.random.poisson(
                 lam=self.dataset__mean_number_of_signal_events
                 * np.exp(self.dataset__induced_norm_nuisance_value),
@@ -305,6 +305,8 @@ class LoadedDatasetParameters(DatasetWithGeneratedSignalParameters):
     dataset_loaded__aliases: Optional[Dict[str, str]] = field(default=None)
 
     # Resampling settings
+    dataset_loaded__sample_is_sample: bool = field(default=True)
+    dataset_loaded__sample_is_replacement: bool = field(default=False)
     dataset_loaded__resample_is_resample: bool = field(default=False)
     dataset_loaded__resample_is_replacement: bool = field(default=False)
 

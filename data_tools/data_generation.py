@@ -4,7 +4,7 @@ from data_tools.data_utils import (
     DataSet,
     DataSetRegion,
     ShiftAndNormalizationFactor,
-    resample as ddp_resample,
+    sample_events,
 )
 from data_tools.dataset_config import DatasetConfig, DatasetParameters, GeneratedDatasetParameters, LoadedDatasetParameters
 from data_tools.dataset_pair import RegionalDataPair
@@ -127,37 +127,39 @@ class DataGeneration:
         """
         Materialize one category before its regional A/B finalization.
 
-        Signal and background numbers of events are kept as specified and are
-        resampled separately when configured for a loaded dataset.
+        The final signal and background event counts are fixed by their
+        corresponding dataset parameters.
         """
-        # In case of a generated dataset, just generate the data
+        # Generated sources already create their requested background count.
         if isinstance(dataset_parameters, GeneratedDatasetParameters):
             background_data, signal_data = dataset_parameters.dataset__data
+            signal_data = sample_events(
+                signal_data,
+                dataset_parameters.dataset__number_of_signal_events,
+                is_random=False,
+            )
             
-        # In case of a loaded dataset, we keep track of the remaining data to enable resampling mechanism
+        # Loaded source pools are retained so each materialization can make an
+        # independent component-level selection before any regional reshuffle.
         elif isinstance(dataset_parameters, LoadedDatasetParameters):
             try:
                 background_data, signal_data = self._loaded_datasets[dataset_parameters.category]
             except KeyError:
                 background_data, signal_data = dataset_parameters.dataset__data
                 self._loaded_datasets[dataset_parameters.category] = (background_data, signal_data)
-            
-            if background_data.n_samples < dataset_parameters.dataset__number_of_background_events:
-                raise ValueError(f"Loaded dataset of category {dataset_parameters.category} has only {background_data.n_samples} "\
-                    f"samples left, but requested {dataset_parameters.dataset__number_of_background_events} samples.")
-            
-            if dataset_parameters.dataset_loaded__resample_is_resample:
-                background_data, background_remainder = ddp_resample(
-                    background_data,
-                    dataset_parameters.dataset__number_of_background_events,
-                    replacement=dataset_parameters.dataset_loaded__resample_is_replacement,
-                )
-                signal_data, signal_remainder = ddp_resample(
-                    signal_data,
-                    dataset_parameters.dataset__number_of_signal_events,
-                    replacement=dataset_parameters.dataset_loaded__resample_is_replacement,
-                )
-                self._loaded_datasets[dataset_parameters.category] = (background_remainder, signal_remainder)
+
+            background_data = sample_events(
+                background_data,
+                dataset_parameters.dataset__number_of_background_events,
+                is_random=dataset_parameters.dataset_loaded__sample_is_sample,
+                replacement=dataset_parameters.dataset_loaded__sample_is_replacement,
+            )
+            signal_data = sample_events(
+                signal_data,
+                dataset_parameters.dataset__number_of_signal_events,
+                is_random=dataset_parameters.dataset_loaded__sample_is_sample,
+                replacement=dataset_parameters.dataset_loaded__sample_is_replacement,
+            )
             
         else:
             raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")

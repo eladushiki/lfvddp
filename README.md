@@ -91,10 +91,14 @@ Important configuration choices include:
 - `dataset__definitions` describes the A/B signal-region and control-region
   samples. See the two basic packs for generated and loaded examples.
 - Loaded-dataset resampling is configured per A/B region. When enabled for a
-  region, LFVDDP samples each category at its configured size, injects any
-  configured signal, then shuffles the complete regional A/B pool and restores
-  the original A/B sizes. The two categories in a region must use matching
-  resampling and replacement settings.
+  region, LFVDDP first selects each category's configured background and signal
+  counts, combines its two components, then resamples the complete regional A/B
+  pool and restores the original A/B sizes. `dataset_loaded__sample_is_sample`
+  controls whether the component selection is random (default) or the first
+  events in source order; `dataset_loaded__sample_is_replacement` controls its
+  replacement mode (default `false`). `dataset_loaded__resample_is_replacement`
+  controls replacement while resampling the regional pool. The two categories
+  in a region must use matching resampling and replacement settings.
 - `train__epochs`, checkpoint frequency, function-space dimensions, and
   learning-rate settings control optimization.
 - `train__backend` is the sole training-backend selector and defaults to
