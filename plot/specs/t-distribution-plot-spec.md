@@ -65,7 +65,7 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 | `number_of_bins` | Required | Histogram resolution. |
 | `cut_non_converged` | `true` | Omits runs that are too far off to the lower side from the displayed distribution. |
 | `cut_overfitted` | `true` | Omits finite outliers classified as overfitted. |
-| `title` | `Distribution of t values over <number of retained runs> test runs` | Axes title. Set in this plot's `instructions` mapping. |
+| `title` | `Distribution Of T Values Over <number of retained runs> Test Runs` | Axes title. Set in this plot's `instructions` mapping and title-cased before display. |
 | `plot__figure_size` | `[10, 9]` | Figure dimensions in inches. |
 | `plot__figure_styling.plot.histogram_color` | `plum` | Empirical histogram color. |
 | `plot__figure_styling.plot.edge_color` | `darkorchid` | Histogram edge color. |

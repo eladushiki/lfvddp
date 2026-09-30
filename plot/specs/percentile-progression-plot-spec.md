@@ -47,7 +47,7 @@ are clipped by the documented non-negative display range.
 
 | Key or instruction | Current default | Effect |
 | --- | ---: | --- |
-| `title` | `Training percentile progression` | Figure suptitle. Set in this plot's `instructions` mapping. |
+| `title` | `Training Percentile Progression` | Figure suptitle. Set in this plot's `instructions` mapping and title-cased before display. |
 
 ## Output Contract
 

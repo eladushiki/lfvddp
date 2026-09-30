@@ -71,6 +71,17 @@ def test_generate_plot_uses_inferred_dimension_and_forwards_instructions(
     assert received == {"context": plot_factory._context, "title": "Example"}
 
 
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    (
+        ("training percentile progression", "Training Percentile Progression"),
+        ("custom detector result", "Custom Detector Result"),
+    ),
+)
+def test_plot_titles_are_title_cased(title, expected):
+    assert plots._title_case(title) == expected
+
+
 def test_getitem_rejects_dimension_inference_without_observables():
     plot_factory = _plot_factory(number_of_dimensions=0)
 

@@ -60,7 +60,7 @@ stored as `config__out_dir`.
 
 | Key | Current default | Effect |
 | --- | ---: | --- |
-| `title` | `measured vs injected signal significance` | Axes title. Set in this plot's `instructions` mapping. |
+| `title` | `Measured Vs Injected Signal Significance` | Axes title. Set in this plot's `instructions` mapping and title-cased before display. |
 | `plot__figure_size` | `[10, 9]` | Figure dimensions in inches. |
 | `plot__pyplot_styling` | Basic plot config | Global Matplotlib typography and style. |
 | `plot__figure_styling` | Basic plot config | Figure appearance settings. |

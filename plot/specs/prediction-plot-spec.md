@@ -63,7 +63,8 @@ A 2 × 2 figure with four panels:
   - 2D: default / uninterrupting location, also below the title.
 - The suptitle is `<configured title> of <runtag>`. During training,
   `plot__prediction_process_title` supplies the configured title; if omitted,
-  the dataset name followed by ` prediction process` is used.
+  the dataset name followed by ` Prediction Process` is used. Configured titles
+  are title-cased before display.
 - Every Carpenter figure reserves the same 12% bottom row for the `run hash` stamp, so that row can be cropped for paper display without cutting plot content.
 
 ## Current Distribution Rendering
@@ -129,7 +130,7 @@ The figure uses the global plotting configuration. The baseline configuration se
 | --- | ---: | --- |
 | `plot__prediction_process_number_of_bins` | `30` | Number of display bins for the prediction-process distributions. |
 | `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each A/B/background distribution and its corresponding prediction with that component's shared sample-count factor. |
-| `plot__prediction_process_title` | Dataset name followed by ` prediction process` | Training-time figure suptitle prefix. |
+| `plot__prediction_process_title` | Dataset name followed by ` Prediction Process` | Training-time figure suptitle prefix, title-cased before display. |
 | `plot__figure_size` | `[10, 9]` | Base figure dimensions in inches. |
 
 ## Output Contract
