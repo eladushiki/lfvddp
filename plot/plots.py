@@ -817,6 +817,23 @@ class _PredictionGrid:
         return int(np.prod(self.selected_shape, dtype=np.int64))
 
     @property
+    def unselected_axis_indices(self) -> Tuple[int, ...]:
+        return tuple(
+            index
+            for index in range(len(self.axes))
+            if index not in self.selected_axis_indices
+        )
+
+    @property
+    def points_per_projection(self) -> int:
+        return int(
+            np.prod(
+                [len(self.axes[index]) for index in self.unselected_axis_indices],
+                dtype=np.int64,
+            )
+        )
+
+    @property
     def projected_coordinates(self) -> np.ndarray:
         selected_axes = {
             self.observable_names[index]: self.axes[index]
@@ -829,31 +846,54 @@ class _PredictionGrid:
             ],
         ).events
 
-    def iter_chunks(self):
-        """Yield model inputs and their projected-coordinate indices."""
-        for start in range(0, self.number_of_points, self.chunk_size):
-            stop = min(start + self.chunk_size, self.number_of_points)
-            flat_indices = np.arange(start, stop, dtype=np.intp)
-            grid_indices = np.unravel_index(flat_indices, self.shape)
-            events = np.column_stack(
-                [
-                    axis[dimension_indices]
-                    for axis, dimension_indices in zip(self.axes, grid_indices)
-                ]
+    @property
+    def _unselected_coordinates(self) -> np.ndarray:
+        if not self.unselected_axis_indices:
+            return np.empty((1, 0))
+        mesh = np.meshgrid(
+            *[self.axes[index] for index in self.unselected_axis_indices],
+            indexing="ij",
+        )
+        return np.column_stack([dimension.ravel() for dimension in mesh])
+
+    def iter_projection_chunks(self):
+        """Yield whole projected coordinates, preserving legacy sum order."""
+        unselected_coordinates = self._unselected_coordinates
+        projections_per_chunk = max(
+            1, self.chunk_size // self.points_per_projection
+        )
+        for start in range(
+            0, self.number_of_projected_points, projections_per_chunk
+        ):
+            stop = min(
+                start + projections_per_chunk, self.number_of_projected_points
             )
-            selected_indices = tuple(
-                grid_indices[index] for index in self.selected_axis_indices
+            projected_indices = np.arange(start, stop, dtype=np.intp)
+            selected_indices = np.unravel_index(
+                projected_indices, self.selected_shape
             )
-            projected_indices = np.ravel_multi_index(
-                selected_indices, self.selected_shape
-            )
-            yield (
-                DataSet(
-                    data=events,
-                    observable_names=list(self.observable_names),
-                ),
-                projected_indices,
-            )
+            event_columns = []
+            for axis_index, axis in enumerate(self.axes):
+                if axis_index in self.selected_axis_indices:
+                    selected_position = self.selected_axis_indices.index(axis_index)
+                    event_columns.append(
+                        np.repeat(
+                            axis[selected_indices[selected_position]],
+                            self.points_per_projection,
+                        )
+                    )
+                else:
+                    unselected_position = self.unselected_axis_indices.index(axis_index)
+                    event_columns.append(
+                        np.tile(
+                            unselected_coordinates[:, unselected_position],
+                            projected_indices.size,
+                        )
+                    )
+            yield DataSet(
+                data=np.column_stack(event_columns),
+                observable_names=list(self.observable_names),
+            ), projected_indices.size
 
 
 def _prediction_grid(
@@ -914,26 +954,77 @@ def _prediction_grid(
     )
 
 
+@dataclass(frozen=True)
+class _ProjectedPredictionValues:
+    signal_plus: np.ndarray
+    signal_minus: np.ndarray
+    numerator_theta: np.ndarray
+    denominator_theta: np.ndarray
+
+
+def _project_prediction_chunk(
+    prediction_function: Callable[[DataSet], np.ndarray],
+    data_chunk: DataSet,
+    number_of_projections: int,
+    points_per_projection: int,
+) -> np.ndarray:
+    """Evaluate one prediction and sum each complete projected coordinate."""
+    prediction = np.asarray(prediction_function(data_chunk)).reshape(-1)
+    expected_size = number_of_projections * points_per_projection
+    if prediction.size != expected_size:
+        raise ValueError(
+            f"Prediction returned {prediction.size} values for {expected_size} events."
+        )
+    return prediction.reshape(number_of_projections, points_per_projection).sum(axis=1)
+
+
 def _evaluate_prediction_grid(
     prediction_grid: _PredictionGrid,
-    prediction_functions: dict[str, Callable[[DataSet], np.ndarray]],
-) -> Tuple[np.ndarray, dict[str, np.ndarray]]:
+    signal_plus_prediction_function: Callable[[DataSet], np.ndarray],
+    signal_minus_prediction_function: Callable[[DataSet], np.ndarray],
+    numerator_theta_prediction_function: Callable[[DataSet], np.ndarray],
+    denominator_theta_prediction_function: Callable[[DataSet], np.ndarray],
+) -> Tuple[np.ndarray, _ProjectedPredictionValues]:
     """Evaluate and project model predictions without materializing the full grid."""
-    projected_predictions = {
-        name: np.zeros(prediction_grid.number_of_projected_points, dtype=float)
-        for name in prediction_functions
-    }
-    for data_chunk, projected_indices in prediction_grid.iter_chunks():
-        for name, prediction_function in prediction_functions.items():
-            prediction = np.asarray(prediction_function(data_chunk)).reshape(-1)
-            if prediction.size != projected_indices.size:
-                raise ValueError(
-                    f"Prediction {name!r} returned {prediction.size} values for "
-                    f"a chunk of {projected_indices.size} events."
-                )
-            np.add.at(projected_predictions[name], projected_indices, prediction)
+    signal_plus = np.empty(prediction_grid.number_of_projected_points)
+    signal_minus = np.empty(prediction_grid.number_of_projected_points)
+    numerator_theta = np.empty(prediction_grid.number_of_projected_points)
+    denominator_theta = np.empty(prediction_grid.number_of_projected_points)
+    offset = 0
+    for data_chunk, number_of_projections in prediction_grid.iter_projection_chunks():
+        stop = offset + number_of_projections
+        signal_plus[offset:stop] = _project_prediction_chunk(
+            signal_plus_prediction_function,
+            data_chunk,
+            number_of_projections,
+            prediction_grid.points_per_projection,
+        )
+        signal_minus[offset:stop] = _project_prediction_chunk(
+            signal_minus_prediction_function,
+            data_chunk,
+            number_of_projections,
+            prediction_grid.points_per_projection,
+        )
+        numerator_theta[offset:stop] = _project_prediction_chunk(
+            numerator_theta_prediction_function,
+            data_chunk,
+            number_of_projections,
+            prediction_grid.points_per_projection,
+        )
+        denominator_theta[offset:stop] = _project_prediction_chunk(
+            denominator_theta_prediction_function,
+            data_chunk,
+            number_of_projections,
+            prediction_grid.points_per_projection,
+        )
+        offset = stop
 
-    return prediction_grid.projected_coordinates, projected_predictions
+    return prediction_grid.projected_coordinates, _ProjectedPredictionValues(
+        signal_plus=signal_plus,
+        signal_minus=signal_minus,
+        numerator_theta=numerator_theta,
+        denominator_theta=denominator_theta,
+    )
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
@@ -1158,17 +1249,15 @@ def plot_prediction_process_1d(
     )
     prediction_coordinates, spanning_predictions = _evaluate_prediction_grid(
         prediction_grid,
-        {
-            "signal_plus": numerator_model.predict,
-            "signal_minus": numerator_model.predict_secondary,
-            "numerator_theta": numerator_model.predict_theta,
-            "denominator_theta": denominator_model.predict_theta,
-        },
+        signal_plus_prediction_function=numerator_model.predict,
+        signal_minus_prediction_function=numerator_model.predict_secondary,
+        numerator_theta_prediction_function=numerator_model.predict_theta,
+        denominator_theta_prediction_function=denominator_model.predict_theta,
     )
-    spanning_signal_plus_prediction = spanning_predictions["signal_plus"]
-    spanning_signal_minus_prediction = spanning_predictions["signal_minus"]
-    numerator_theta = spanning_predictions["numerator_theta"]
-    denominator_theta = spanning_predictions["denominator_theta"]
+    spanning_signal_plus_prediction = spanning_predictions.signal_plus
+    spanning_signal_minus_prediction = spanning_predictions.signal_minus
+    numerator_theta = spanning_predictions.numerator_theta
+    denominator_theta = spanning_predictions.denominator_theta
 
     sr_prediction_specs = {
         "signal_region_shift_theta_plus": (
@@ -1528,17 +1617,15 @@ def plot_prediction_process_2d(
     )
     prediction_coordinates, spanning_predictions = _evaluate_prediction_grid(
         prediction_grid,
-        {
-            "signal_plus": numerator_model.predict,
-            "signal_minus": numerator_model.predict_secondary,
-            "numerator_theta": numerator_model.predict_theta,
-            "denominator_theta": denominator_model.predict_theta,
-        },
+        signal_plus_prediction_function=numerator_model.predict,
+        signal_minus_prediction_function=numerator_model.predict_secondary,
+        numerator_theta_prediction_function=numerator_model.predict_theta,
+        denominator_theta_prediction_function=denominator_model.predict_theta,
     )
-    spanning_signal_plus_prediction = spanning_predictions["signal_plus"]
-    spanning_signal_minus_prediction = spanning_predictions["signal_minus"]
-    numerator_theta = spanning_predictions["numerator_theta"]
-    denominator_theta = spanning_predictions["denominator_theta"]
+    spanning_signal_plus_prediction = spanning_predictions.signal_plus
+    spanning_signal_minus_prediction = spanning_predictions.signal_minus
+    numerator_theta = spanning_predictions.numerator_theta
+    denominator_theta = spanning_predictions.denominator_theta
     sr_prediction_specs = {
         "signal_region_shift_theta_plus": (
             r"signal hypothesis $(1+f(x))(1+\theta(x))$",
