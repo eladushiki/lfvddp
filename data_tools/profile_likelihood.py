@@ -16,7 +16,8 @@ _CUBATURE_RULE = "genz-malik"
 _CUBATURE_MAX_SUBDIVISIONS = 10_000
 _CUBATURE_ABSOLUTE_TOLERANCE = 1e-3
 _CUBATURE_RELATIVE_TOLERANCE = 5e-3
-_MAX_MULTIDIMENSIONAL_INTERVAL_WIDTH = 0.5
+_MULTIDIMENSIONAL_INTERVALS_PER_AXIS = 50
+_MAX_MULTIDIMENSIONAL_INTEGRATION_REGIONS = 10_000
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -155,12 +156,13 @@ def _one_dimensional_integration_regions(
 def _multidimensional_integration_regions(
         upper_limits: np.ndarray,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Split a multidimensional domain into narrow cubature regions."""
+    """Split a multidimensional domain into scale-relative cubature regions."""
+    intervals_per_axis = min(
+        _MULTIDIMENSIONAL_INTERVALS_PER_AXIS,
+        int(_MAX_MULTIDIMENSIONAL_INTEGRATION_REGIONS ** (1 / upper_limits.size)),
+    )
     boundaries = [
-        np.append(
-            np.arange(0, upper_limit, _MAX_MULTIDIMENSIONAL_INTERVAL_WIDTH),
-            upper_limit,
-        )
+        np.linspace(0, upper_limit, intervals_per_axis + 1)
         for upper_limit in upper_limits
     ]
     axis_regions = [
