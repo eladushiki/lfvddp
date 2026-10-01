@@ -6,7 +6,6 @@ import pytest
 from neural_networks.differentiating_model import DifferentiatingModel
 from plot.plot_factory import PlotFactory
 from plot.plotting_config import PlotInstructions
-from plot.plots import _CONTINUOUS_PREDICTION_AXIS_POINTS
 from test.environment import ConfigType
 from train.model_trainer import TrainLauncher
 
@@ -111,6 +110,9 @@ def test_prediction_process_plot_generation(
         assert prediction_lines
         for line in prediction_lines:
             x_values = line.get_xdata()
-            assert len(x_values) == _CONTINUOUS_PREDICTION_AXIS_POINTS
+            assert len(x_values) == (
+                function_execution_context.config
+                .plot__prediction_process_continuous_axis_points
+            )
             assert (x_values[1:] > x_values[:-1]).all()
     plt.close(figure)

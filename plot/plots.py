@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -47,16 +48,17 @@ from plot.plot_utils import (
     utils__plot_region_histograms_sliced,
     utils__plot_weighted_histogram_predictions_sliced,
     utils__prediction_process_observables,
-    utils__project_prediction_values_sliced,
     utils__synchronize_output_axis_limits,
     utils__warn_for_context_discrepancies,
 )
-from plot.plotting_config import PlotScope, PlottingConfig, plot_for_scope
+from plot.plotting_config import (
+    PlotScope,
+    PlottingConfig,
+    plot_for_scope,
+)
 from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 
-
-_CONTINUOUS_PREDICTION_AXIS_POINTS = 1000
 _PERCENTILE_PROGRESSION_Y_HEADROOM = 0.05
 
 
@@ -789,12 +791,79 @@ def _spanning_dataset_from_observable_values(
     )
 
 
-def _prediction_spanning_dataset(
+@dataclass(frozen=True)
+class _PredictionGrid:
+    """A Cartesian prediction grid whose model inputs are yielded in chunks."""
+
+    axes: Tuple[np.ndarray, ...]
+    observable_names: Tuple[str, ...]
+    selected_axis_indices: Tuple[int, ...]
+    chunk_size: int
+
+    @property
+    def shape(self) -> Tuple[int, ...]:
+        return tuple(len(axis) for axis in self.axes)
+
+    @property
+    def selected_shape(self) -> Tuple[int, ...]:
+        return tuple(len(self.axes[index]) for index in self.selected_axis_indices)
+
+    @property
+    def number_of_points(self) -> int:
+        return int(np.prod(self.shape, dtype=np.int64))
+
+    @property
+    def number_of_projected_points(self) -> int:
+        return int(np.prod(self.selected_shape, dtype=np.int64))
+
+    @property
+    def projected_coordinates(self) -> np.ndarray:
+        selected_axes = {
+            self.observable_names[index]: self.axes[index]
+            for index in self.selected_axis_indices
+        }
+        return _spanning_dataset_from_observable_values(
+            values_by_observable=selected_axes,
+            observable_names=[
+                self.observable_names[index] for index in self.selected_axis_indices
+            ],
+        ).events
+
+    def iter_chunks(self):
+        """Yield model inputs and their projected-coordinate indices."""
+        for start in range(0, self.number_of_points, self.chunk_size):
+            stop = min(start + self.chunk_size, self.number_of_points)
+            flat_indices = np.arange(start, stop, dtype=np.intp)
+            grid_indices = np.unravel_index(flat_indices, self.shape)
+            events = np.column_stack(
+                [
+                    axis[dimension_indices]
+                    for axis, dimension_indices in zip(self.axes, grid_indices)
+                ]
+            )
+            selected_indices = tuple(
+                grid_indices[index] for index in self.selected_axis_indices
+            )
+            projected_indices = np.ravel_multi_index(
+                selected_indices, self.selected_shape
+            )
+            yield (
+                DataSet(
+                    data=events,
+                    observable_names=list(self.observable_names),
+                ),
+                projected_indices,
+            )
+
+
+def _prediction_grid(
     display_edges_by_observable: dict[str, np.ndarray],
     selected_observables: List[str],
     configured_observables: List[str],
     nuisance_spec: FunctionSpaceSpec | None,
-) -> DataSet:
+    continuous_axis_points: int,
+    chunk_size: int,
+) -> _PredictionGrid:
     """Build the prediction grid from display axes and nuisance geometry."""
     nuisance_bins_by_observable: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     if nuisance_spec is not None:
@@ -819,7 +888,7 @@ def _prediction_spanning_dataset(
         return np.linspace(
             display_edges[0],
             display_edges[-1],
-            _CONTINUOUS_PREDICTION_AXIS_POINTS,
+            continuous_axis_points,
         )
 
     def projection_axis_values(observable_name: str) -> np.ndarray:
@@ -828,17 +897,43 @@ def _prediction_spanning_dataset(
         display_edges = display_edges_by_observable[observable_name]
         return 0.5 * (display_edges[:-1] + display_edges[1:])
 
-    return _spanning_dataset_from_observable_values(
-        values_by_observable={
-            observable_name: (
-                selected_axis_values(observable_name)
-                if observable_name in selected_observables
-                else projection_axis_values(observable_name)
-            )
-            for observable_name in configured_observables
-        },
-        observable_names=configured_observables,
+    axes = tuple(
+        selected_axis_values(observable_name)
+        if observable_name in selected_observables
+        else projection_axis_values(observable_name)
+        for observable_name in configured_observables
     )
+    return _PredictionGrid(
+        axes=axes,
+        observable_names=tuple(configured_observables),
+        selected_axis_indices=tuple(
+            configured_observables.index(observable_name)
+            for observable_name in selected_observables
+        ),
+        chunk_size=chunk_size,
+    )
+
+
+def _evaluate_prediction_grid(
+    prediction_grid: _PredictionGrid,
+    prediction_functions: dict[str, Callable[[DataSet], np.ndarray]],
+) -> Tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Evaluate and project model predictions without materializing the full grid."""
+    projected_predictions = {
+        name: np.zeros(prediction_grid.number_of_projected_points, dtype=float)
+        for name in prediction_functions
+    }
+    for data_chunk, projected_indices in prediction_grid.iter_chunks():
+        for name, prediction_function in prediction_functions.items():
+            prediction = np.asarray(prediction_function(data_chunk)).reshape(-1)
+            if prediction.size != projected_indices.size:
+                raise ValueError(
+                    f"Prediction {name!r} returned {prediction.size} values for "
+                    f"a chunk of {projected_indices.size} events."
+                )
+            np.add.at(projected_predictions[name], projected_indices, prediction)
+
+    return prediction_grid.projected_coordinates, projected_predictions
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
@@ -1051,24 +1146,29 @@ def plot_prediction_process_1d(
     for panel in distribution_axes:
         utils__add_prediction_process_legend(panel, fontsize=8)
 
-    prediction_spanning_dataset = _prediction_spanning_dataset(
+    prediction_grid = _prediction_grid(
         display_edges_by_observable=display_edges_by_observable,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
+        continuous_axis_points=(
+            config.plot__prediction_process_continuous_axis_points
+        ),
+        chunk_size=config.plot__prediction_process_chunk_size,
     )
-    spanning_signal_plus_prediction = utils__model_prediction_values(
-        numerator_model.predict, prediction_spanning_dataset
+    prediction_coordinates, spanning_predictions = _evaluate_prediction_grid(
+        prediction_grid,
+        {
+            "signal_plus": numerator_model.predict,
+            "signal_minus": numerator_model.predict_secondary,
+            "numerator_theta": numerator_model.predict_theta,
+            "denominator_theta": denominator_model.predict_theta,
+        },
     )
-    spanning_signal_minus_prediction = utils__model_prediction_values(
-        numerator_model.predict_secondary, prediction_spanning_dataset
-    )
-    numerator_theta = utils__model_prediction_values(
-        numerator_model.predict_theta, prediction_spanning_dataset
-    )
-    denominator_theta = utils__model_prediction_values(
-        denominator_model.predict_theta, prediction_spanning_dataset
-    )
+    spanning_signal_plus_prediction = spanning_predictions["signal_plus"]
+    spanning_signal_minus_prediction = spanning_predictions["signal_minus"]
+    numerator_theta = spanning_predictions["numerator_theta"]
+    denominator_theta = spanning_predictions["denominator_theta"]
 
     sr_prediction_specs = {
         "signal_region_shift_theta_plus": (
@@ -1130,23 +1230,14 @@ def plot_prediction_process_1d(
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
-        spanning_dataset: DataSet,
     ) -> dict[str, Tuple[np.ndarray, np.ndarray]]:
         return {
-            key: utils__project_prediction_values_sliced(
-                values=specification[1],
-                spanning_dataset=spanning_dataset,
-                along_observables=selected_observables,
-            )
+            key: (prediction_coordinates, specification[1])
             for key, specification in prediction_specs.items()
         }
 
-    projected_sr_predictions = project_predictions(
-        sr_prediction_specs, prediction_spanning_dataset
-    )
-    projected_cr_predictions = project_predictions(
-        cr_prediction_specs, prediction_spanning_dataset
-    )
+    projected_sr_predictions = project_predictions(sr_prediction_specs)
+    projected_cr_predictions = project_predictions(cr_prediction_specs)
 
     def prediction_axis_limits(
         projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],
@@ -1425,24 +1516,29 @@ def plot_prediction_process_2d(
     for panel in distribution_axes:
         utils__add_prediction_process_legend(panel, fontsize=8)
 
-    prediction_spanning_dataset = _prediction_spanning_dataset(
+    prediction_grid = _prediction_grid(
         display_edges_by_observable=display_edges_by_observable,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
+        continuous_axis_points=(
+            config.plot__prediction_process_continuous_axis_points
+        ),
+        chunk_size=config.plot__prediction_process_chunk_size,
     )
-    spanning_signal_plus_prediction = utils__model_prediction_values(
-        numerator_model.predict, prediction_spanning_dataset
+    prediction_coordinates, spanning_predictions = _evaluate_prediction_grid(
+        prediction_grid,
+        {
+            "signal_plus": numerator_model.predict,
+            "signal_minus": numerator_model.predict_secondary,
+            "numerator_theta": numerator_model.predict_theta,
+            "denominator_theta": denominator_model.predict_theta,
+        },
     )
-    spanning_signal_minus_prediction = utils__model_prediction_values(
-        numerator_model.predict_secondary, prediction_spanning_dataset
-    )
-    numerator_theta = utils__model_prediction_values(
-        numerator_model.predict_theta, prediction_spanning_dataset
-    )
-    denominator_theta = utils__model_prediction_values(
-        denominator_model.predict_theta, prediction_spanning_dataset
-    )
+    spanning_signal_plus_prediction = spanning_predictions["signal_plus"]
+    spanning_signal_minus_prediction = spanning_predictions["signal_minus"]
+    numerator_theta = spanning_predictions["numerator_theta"]
+    denominator_theta = spanning_predictions["denominator_theta"]
     sr_prediction_specs = {
         "signal_region_shift_theta_plus": (
             r"signal hypothesis $(1+f(x))(1+\theta(x))$",
@@ -1503,23 +1599,14 @@ def plot_prediction_process_2d(
 
     def project_predictions(
         prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
-        spanning_dataset: DataSet,
     ) -> dict[str, Tuple[np.ndarray, np.ndarray]]:
         return {
-            key: utils__project_prediction_values_sliced(
-                values=specification[1],
-                spanning_dataset=spanning_dataset,
-                along_observables=selected_observables,
-            )
+            key: (prediction_coordinates, specification[1])
             for key, specification in prediction_specs.items()
         }
 
-    projected_sr_predictions = project_predictions(
-        sr_prediction_specs, prediction_spanning_dataset
-    )
-    projected_cr_predictions = project_predictions(
-        cr_prediction_specs, prediction_spanning_dataset
-    )
+    projected_sr_predictions = project_predictions(sr_prediction_specs)
+    projected_cr_predictions = project_predictions(cr_prediction_specs)
     prediction_mesh_mask = utils__prediction_mesh_mask(
         coordinates=next(iter(projected_sr_predictions.values()))[0],
         data_points=data_batch.unified_data.slice_along_observable_names(
