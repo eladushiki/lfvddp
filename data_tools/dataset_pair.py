@@ -49,7 +49,7 @@ class ShuffledDatasetPairSplitPolicy(DatasetPairSplitPolicy):
     ) -> Tuple[DataSet, DataSet]:
         a_size = a.n_samples
         regional_pool = a + b
-        shuffled = sample_events(
+        shuffled, _ = sample_events(
             regional_pool,
             regional_pool.n_samples,
             is_random=True,

@@ -96,7 +96,9 @@ Important configuration choices include:
   pool and restores the original A/B sizes. `dataset_loaded__sample_is_sample`
   controls whether the component selection is random (default) or the first
   events in source order; `dataset_loaded__sample_is_replacement` controls its
-  replacement mode (default `false`). `dataset_loaded__resample_is_replacement`
+  replacement mode (default `false`). Component selections without replacement
+  consume loaded pools across later batches; selections with replacement keep
+  the full loaded pools available. `dataset_loaded__resample_is_replacement`
   controls replacement while resampling the regional pool. The two categories
   in a region must use matching resampling and replacement settings.
 - `train__epochs`, checkpoint frequency, function-space dimensions, and

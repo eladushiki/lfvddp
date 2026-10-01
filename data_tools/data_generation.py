@@ -133,14 +133,14 @@ class DataGeneration:
         # Generated sources already create their requested background count.
         if isinstance(dataset_parameters, GeneratedDatasetParameters):
             background_data, signal_data = dataset_parameters.dataset__data
-            signal_data = sample_events(
+            signal_data, _ = sample_events(
                 signal_data,
                 dataset_parameters.dataset__number_of_signal_events,
                 is_random=False,
             )
             
-        # Loaded source pools are retained so each materialization can make an
-        # independent component-level selection before any regional reshuffle.
+        # Loaded source pools are updated at the component level before any
+        # regional reshuffle, preserving disjoint draws when replacement is off.
         elif isinstance(dataset_parameters, LoadedDatasetParameters):
             try:
                 background_data, signal_data = self._loaded_datasets[dataset_parameters.category]
@@ -148,17 +148,21 @@ class DataGeneration:
                 background_data, signal_data = dataset_parameters.dataset__data
                 self._loaded_datasets[dataset_parameters.category] = (background_data, signal_data)
 
-            background_data = sample_events(
+            background_data, background_remainder = sample_events(
                 background_data,
                 dataset_parameters.dataset__number_of_background_events,
                 is_random=dataset_parameters.dataset_loaded__sample_is_sample,
                 replacement=dataset_parameters.dataset_loaded__sample_is_replacement,
             )
-            signal_data = sample_events(
+            signal_data, signal_remainder = sample_events(
                 signal_data,
                 dataset_parameters.dataset__number_of_signal_events,
                 is_random=dataset_parameters.dataset_loaded__sample_is_sample,
                 replacement=dataset_parameters.dataset_loaded__sample_is_replacement,
+            )
+            self._loaded_datasets[dataset_parameters.category] = (
+                background_remainder,
+                signal_remainder,
             )
             
         else:

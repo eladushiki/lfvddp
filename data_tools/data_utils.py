@@ -275,11 +275,12 @@ def sample_events(
         *,
         is_random: bool,
         replacement: bool = False,
-    ) -> DataSet:
+    ) -> Tuple[DataSet, DataSet]:
     """Select an exact number of events from a source dataset.
 
     A non-random selection keeps the first events in their source order.
     Random selection uses replacement only when explicitly requested.
+    The second return value is the source remainder for future draws.
     """
     if n_samples < 0:
         raise ValueError(f"Cannot select a negative number of events: {n_samples}.")
@@ -292,14 +293,20 @@ def sample_events(
         )
 
     if not is_random:
-        return source_dataset[:n_samples]
+        return source_dataset[:n_samples], source_dataset[n_samples:]
 
     indices = np.random.choice(
         source_dataset.n_samples,
         size=n_samples,
         replace=replacement,
     )
-    return source_dataset[indices]
+    selected = source_dataset[indices]
+    if replacement:
+        return selected, source_dataset
+
+    remaining_mask = np.ones(source_dataset.n_samples, dtype=bool)
+    remaining_mask[indices] = False
+    return selected, source_dataset[remaining_mask]
 
 
 @dataclass

@@ -33,7 +33,7 @@ def test_illegal_data_request(
         }],
         indirect=True,
 )
-def test_loaded_sampling_keeps_source_pool_for_later_batches(
+def test_loaded_sampling_without_replacement_depletes_source_pool(
         tmp_path,
         monkeypatch,
         isolated_data_generation,
@@ -44,10 +44,8 @@ def test_loaded_sampling_keeps_source_pool_for_later_batches(
         temporary_working_directory.chdir(tmp_path)
         isolated_data_generation.get_batch()
 
-        second_batch = isolated_data_generation.get_batch()
-
-    for dataset, _ in second_batch:
-        assert dataset.n_samples == 2
+        with pytest.raises(ValueError, match="only 0 samples"):
+            isolated_data_generation.get_batch()
 
 
 def test_shuffled_regional_pair_preserves_pool_and_can_move_signal(monkeypatch):
@@ -129,13 +127,13 @@ def test_component_sampling_supports_random_replacement_and_ordered_selection(
         lambda source_size, size, replace: np.array([2, 2, 0, 2]),
     )
 
-    random_selection = sample_events(
+    random_selection, random_remainder = sample_events(
         source,
         4,
         is_random=True,
         replacement=True,
     )
-    ordered_selection = sample_events(
+    ordered_selection, ordered_remainder = sample_events(
         source,
         2,
         is_random=False,
@@ -148,6 +146,14 @@ def test_component_sampling_supports_random_replacement_and_ordered_selection(
     np.testing.assert_array_equal(
         ordered_selection.events.ravel(),
         np.array([0.0, 1.0]),
+    )
+    np.testing.assert_array_equal(
+        random_remainder.events.ravel(),
+        np.array([0.0, 1.0, 2.0]),
+    )
+    np.testing.assert_array_equal(
+        ordered_remainder.events.ravel(),
+        np.array([2.0]),
     )
     with pytest.raises(ValueError, match="without replacement"):
         sample_events(source, 4, is_random=True, replacement=False)
