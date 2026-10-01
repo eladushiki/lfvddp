@@ -183,6 +183,46 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
         denominator_model.predict_theta(spanning_dataset).reshape(-1),
     )
 
+    projected_grid = _prediction_grid(
+        display_edges_by_observable=display_edges_by_observable,
+        selected_observables=[configured_observables[0]],
+        configured_observables=configured_observables,
+        nuisance_spec=function_execution_context.config.train__function_space_config.nuisance,
+        continuous_axis_points=(
+            function_execution_context.config
+            .plot__prediction_process_continuous_axis_points
+        ),
+        chunk_size=10_000,
+    )
+    projected_spanning_dataset = _spanning_dataset_from_observable_values(
+        values_by_observable=dict(
+            zip(configured_observables, projected_grid.axes)
+        ),
+        observable_names=configured_observables,
+    )
+    coordinates, streamed_predictions = _evaluate_prediction_grid(
+        projected_grid,
+        signal_plus_prediction_function=numerator_model.predict,
+        signal_minus_prediction_function=numerator_model.predict_secondary,
+        numerator_theta_prediction_function=numerator_model.predict_theta,
+        denominator_theta_prediction_function=denominator_model.predict_theta,
+    )
+    for prediction_function, streamed_prediction in (
+        (numerator_model.predict, streamed_predictions.signal_plus),
+        (numerator_model.predict_secondary, streamed_predictions.signal_minus),
+        (numerator_model.predict_theta, streamed_predictions.numerator_theta),
+        (denominator_model.predict_theta, streamed_predictions.denominator_theta),
+    ):
+        legacy_coordinates, legacy_prediction = (
+            utils__project_prediction_values_sliced(
+                values=prediction_function(projected_spanning_dataset),
+                spanning_dataset=projected_spanning_dataset,
+                along_observables=[configured_observables[0]],
+            )
+        )
+        np.testing.assert_array_equal(coordinates, legacy_coordinates)
+        np.testing.assert_array_equal(streamed_prediction, legacy_prediction)
+
 
 @pytest.mark.parametrize(
     ("function_execution_context", "number_of_dimensions"),
