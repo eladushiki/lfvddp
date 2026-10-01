@@ -118,6 +118,24 @@ def test_continuous_injected_significance_matches_1d_for_uniform_2d_pdf():
     np.testing.assert_allclose(two_dimensional_significance, expected_significance)
 
 
+def test_multidimensional_significance_resolves_narrow_signal_peak():
+    signal = lambda coordinates: np.prod(
+        norm.pdf(coordinates, loc=4.0, scale=0.004),
+        axis=-1,
+    )
+    background = lambda coordinates: np.exp(-np.sum(coordinates, axis=-1))
+
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=background,
+        signal_pdf=signal,
+        n_background_events=50_000,
+        n_signal_events=100,
+        upper_limit=np.array([4.60517019, 6.4]),
+    )
+
+    assert significance > 1
+
+
 def test_four_dimensional_significance_vectorizes_large_event_count_pdf_calls():
     batch_shapes = []
 

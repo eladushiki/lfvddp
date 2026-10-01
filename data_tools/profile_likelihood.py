@@ -1,3 +1,4 @@
+from itertools import product
 from math import fsum
 from typing import Callable, Union
 import numpy as np
@@ -15,6 +16,7 @@ _CUBATURE_RULE = "genz-malik"
 _CUBATURE_MAX_SUBDIVISIONS = 10_000
 _CUBATURE_ABSOLUTE_TOLERANCE = 1e-3
 _CUBATURE_RELATIVE_TOLERANCE = 5e-3
+_MAX_MULTIDIMENSIONAL_INTERVAL_WIDTH = 0.5
 
 
 def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
@@ -150,6 +152,30 @@ def _one_dimensional_integration_regions(
     ]
 
 
+def _multidimensional_integration_regions(
+        upper_limits: np.ndarray,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Split a multidimensional domain into narrow cubature regions."""
+    boundaries = [
+        np.append(
+            np.arange(0, upper_limit, _MAX_MULTIDIMENSIONAL_INTERVAL_WIDTH),
+            upper_limit,
+        )
+        for upper_limit in upper_limits
+    ]
+    axis_regions = [
+        list(zip(axis_boundaries[:-1], axis_boundaries[1:]))
+        for axis_boundaries in boundaries
+    ]
+    return [
+        (
+            np.asarray([region[0] for region in regions]),
+            np.asarray([region[1] for region in regions]),
+        )
+        for regions in product(*axis_regions)
+    ]
+
+
 def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_pdf: Callable[
             [Union[float, np.ndarray]], Union[float, np.ndarray]
@@ -205,22 +231,27 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
                 background_rate_density,
             )
 
-        result = cubature(
-            q0_integrand,
-            np.zeros(upper_limits.size),
-            upper_limits,
-            rule=_CUBATURE_RULE,
-            rtol=_CUBATURE_RELATIVE_TOLERANCE,
-            atol=_CUBATURE_ABSOLUTE_TOLERANCE,
-            max_subdivisions=_CUBATURE_MAX_SUBDIVISIONS,
-        )
-        q0 = np.asarray(result.estimate).item()
-        estimated_error = np.asarray(result.error).item()
+        results = [
+            cubature(
+                q0_integrand,
+                lower_bounds,
+                upper_bounds,
+                rule=_CUBATURE_RULE,
+                rtol=_CUBATURE_RELATIVE_TOLERANCE,
+                atol=_CUBATURE_ABSOLUTE_TOLERANCE,
+                max_subdivisions=_CUBATURE_MAX_SUBDIVISIONS,
+            )
+            for lower_bounds, upper_bounds in _multidimensional_integration_regions(
+                upper_limits
+            )
+        ]
+        q0 = sum(np.asarray(result.estimate).item() for result in results)
+        estimated_error = sum(np.asarray(result.error).item() for result in results)
         if not np.isfinite(q0) or not np.isfinite(estimated_error):
             raise ValueError(
                 "Multidimensional significance integration was non-finite"
             )
-        if result.status != "converged":
+        if any(result.status != "converged" for result in results):
             warn(
                 "Multidimensional significance reached its cubature subdivision "
                 f"cap with estimated error {estimated_error:g}",
