@@ -19,12 +19,8 @@ from data_tools.profile_likelihood import (
 
 
 def calc_n_signal_events_for_target_injected_t_significance(
-    background_pdf: Callable[
-        [Union[float, np.ndarray]], Union[float, np.ndarray]
-    ],
-    signal_pdf: Callable[
-        [Union[float, np.ndarray]], Union[float, np.ndarray]
-    ],
+    background_pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+    signal_pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
     n_background_events: int,
     target_significance: float,
     upper_limit: Union[float, np.ndarray] = np.inf,
@@ -141,9 +137,7 @@ def _parse_upper_limit(
             return values[0]
         return np.full(number_of_dimensions, values[0])
     if len(values) != number_of_dimensions:
-        raise ValueError(
-            "--upper-limit accepts one value or one value per dimension"
-        )
+        raise ValueError("--upper-limit accepts one value or one value per dimension")
     return np.asarray(values, dtype=float)
 
 
