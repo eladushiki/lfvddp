@@ -113,7 +113,7 @@ calibrate_signal_events \
 ```
 
 The command prints JSON containing the mean signal event count for each target.
-The repository `create-configurations` skill uses this calibration workflow
+The repository `signal-count-estimate-by-dataset-parameters` skill uses this calibration workflow
 when configuration files need target-significance signal amounts.
 - `train__backend` is the sole training-backend selector and defaults to
   `"lfvddp"`. `train__f` is a required function-space mapping with `family`

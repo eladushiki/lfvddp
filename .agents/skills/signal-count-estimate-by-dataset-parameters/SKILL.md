@@ -1,5 +1,5 @@
 ---
-name: create-configurations
+name: signal-count-estimate-by-dataset-parameters
 description: Create or update LFVDDP dataset and plot configurations, including signal event counts calibrated to a target continuous injected significance.
 ---
 
