@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 from scipy.stats import norm
@@ -5,9 +7,12 @@ from scipy.stats import norm
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_mean_t_significance_relative_to_background,
+    calc_t_significance_relative_to_background,
+)
+from data_tools.signal_calibration import (
     calc_n_signal_events_for_generated_signal,
     calc_n_signal_events_for_target_injected_t_significance,
-    calc_t_significance_relative_to_background,
+    main as calibrate_signal_events,
 )
 
 
@@ -88,6 +93,25 @@ def test_signal_event_calibration_reuses_signal_generator_parameters():
     )
 
     assert n_signal_events > 0
+
+
+def test_signal_calibration_entry_point_outputs_json(capsys):
+    calibrate_signal_events([
+        "--background-generator",
+        '{"function":"exponential_background"}',
+        "--signal-generator",
+        '{"function":"gaussian_signal","arguments":{"location":3.0,"gaussian_signal_sigma":0.16}}',
+        "--number-of-dimensions",
+        "1",
+        "--background-events",
+        "10000",
+        "--target-significance",
+        "1",
+    ])
+
+    result = json.loads(capsys.readouterr().out)
+    assert result[0]["target_significance"] == 1
+    assert result[0]["mean_signal_events"] > 0
 
 
 def test_continuous_injected_significance_resolves_narrow_signal_on_wide_domain():
