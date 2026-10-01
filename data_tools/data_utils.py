@@ -269,35 +269,44 @@ DATASET_REGIONS = DataSetRegions(
 )
 
 
-def resample(
+def sample_events(
         source_dataset: DataSet,
         n_samples: int,
-        replacement: bool = True
+        *,
+        is_random: bool,
+        replacement: bool = False,
     ) -> Tuple[DataSet, DataSet]:
-    """
-    Chooses a dataset randomly from the source distribution.
-    
-    Returns: the sampled dataset and the remaining data, by resampling
-    specification.
-    
-    If no replacement, the number of samples can't be larger than the
-    source distribution itself.
-    """
+    """Select an exact number of events from a source dataset.
 
-    idx = np.random.choice(
+    A non-random selection keeps the first events in their source order.
+    Random selection uses replacement only when explicitly requested.
+    The second return value is the source remainder for future draws.
+    """
+    if n_samples < 0:
+        raise ValueError(f"Cannot select a negative number of events: {n_samples}.")
+
+    can_repeat_events = is_random and replacement
+    if n_samples > source_dataset.n_samples and not can_repeat_events:
+        raise ValueError(
+            f"Dataset has only {source_dataset.n_samples} samples, but "
+            f"{n_samples} were requested without replacement."
+        )
+
+    if not is_random:
+        return source_dataset[:n_samples], source_dataset[n_samples:]
+
+    indices = np.random.choice(
         source_dataset.n_samples,
         size=n_samples,
         replace=replacement,
     )
-
-    sample = source_dataset[idx]
+    selected = source_dataset[indices]
     if replacement:
-        remainder = source_dataset
-    else:
-        rest_idx = np.array(list(set(range(source_dataset.n_samples)) - set(idx)), dtype=int)
-        remainder = source_dataset[rest_idx]
+        return selected, source_dataset
 
-    return sample, remainder
+    remaining_mask = np.ones(source_dataset.n_samples, dtype=bool)
+    remaining_mask[indices] = False
+    return selected, source_dataset[remaining_mask]
 
 
 @dataclass

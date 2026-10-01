@@ -6,9 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 
-import numpy as np
-
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, sample_events
 
 if TYPE_CHECKING:
     from data_tools.dataset_config import DatasetParameters
@@ -40,7 +38,7 @@ class IdentityDatasetPairSplitPolicy(DatasetPairSplitPolicy):
 
 @dataclass(frozen=True)
 class ShuffledDatasetPairSplitPolicy(DatasetPairSplitPolicy):
-    """Shuffle a regional A/B pool, then restore its original split sizes."""
+    """Shuffle or sample a regional A/B pool, then restore split sizes."""
 
     replacement: bool
 
@@ -50,7 +48,13 @@ class ShuffledDatasetPairSplitPolicy(DatasetPairSplitPolicy):
         b: DataSet,
     ) -> Tuple[DataSet, DataSet]:
         a_size = a.n_samples
-        shuffled = (a + b)[np.random.permutation(a_size + b.n_samples)]
+        regional_pool = a + b
+        shuffled, _ = sample_events(
+            regional_pool,
+            regional_pool.n_samples,
+            is_random=True,
+            replacement=self.replacement,
+        )
         a_result = shuffled[:a_size]
         b_result = shuffled[a_size:]
         a_result.category = a.category
