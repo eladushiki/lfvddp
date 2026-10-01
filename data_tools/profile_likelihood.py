@@ -2,6 +2,7 @@ from math import fsum
 from typing import Callable, Union
 import numpy as np
 from scipy.integrate import IntegrationWarning, cubature, nquad
+from scipy.optimize import brentq
 from scipy.special import erfinv, kl_div, rel_entr
 from scipy.stats import norm, chi2
 from warnings import catch_warnings, simplefilter, warn
@@ -252,6 +253,115 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
 
         q0 = 2 * (-n_signal_events + integral)
     return np.sqrt(q0)
+
+
+def calc_n_signal_events_for_target_injected_t_significance(
+    background_pdf: Callable[
+        [Union[float, np.ndarray]], Union[float, np.ndarray]
+    ],
+    signal_pdf: Callable[
+        [Union[float, np.ndarray]], Union[float, np.ndarray]
+    ],
+    n_background_events: int,
+    target_significance: float,
+    upper_limit: Union[float, np.ndarray] = np.inf,
+    max_n_signal_events: float = 1e9,
+) -> float:
+    """Solve the continuous injected-significance equation for signal yield.
+
+    The returned signal yield ``n_signal_events`` satisfies, up to the
+    integration tolerance,
+
+    ``calc_injected_t_significance_by_sqrt_q0_continuous(...) == target_significance``.
+
+    The PDFs, background yield, and integration limits are passed unchanged to
+    the forward calculation used by the plotting code.
+    """
+    if n_background_events < 0:
+        raise ValueError("n_background_events must be non-negative")
+    if not np.isfinite(target_significance) or target_significance < 0:
+        raise ValueError("target_significance must be a finite non-negative number")
+    if not np.isfinite(max_n_signal_events) or max_n_signal_events <= 0:
+        raise ValueError("max_n_signal_events must be a finite positive number")
+    if target_significance == 0:
+        return 0.0
+
+    target_q0 = target_significance**2
+
+    def q0_minus_target(n_signal_events: float) -> float:
+        significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+            background_pdf=background_pdf,
+            signal_pdf=signal_pdf,
+            n_background_events=n_background_events,
+            n_signal_events=n_signal_events,
+            upper_limit=upper_limit,
+        )
+        return significance**2 - target_q0
+
+    upper_bracket = 1.0
+    while q0_minus_target(upper_bracket) < 0:
+        upper_bracket *= 2
+        if upper_bracket > max_n_signal_events:
+            raise ValueError(
+                "Target significance was not reached below "
+                f"max_n_signal_events={max_n_signal_events:g}"
+            )
+
+    return float(brentq(q0_minus_target, a=0.0, b=upper_bracket))
+
+
+def calc_n_signal_events_for_generated_signal(
+    background_generator,
+    signal_generator,
+    number_of_dimensions: int,
+    n_background_events: int,
+    target_significance: float,
+    upper_limit: Union[float, np.ndarray, None] = None,
+    max_n_signal_events: float = 1e9,
+) -> float:
+    """Calibrate a generated signal specification to a target significance.
+
+    ``background_generator`` and ``signal_generator`` use the same generator
+    specifications as dataset configuration, for example::
+
+        {"function": "gaussian_signal",
+         "arguments": {"location": 4.0, "gaussian_signal_sigma": 0.16}}
+
+    If ``upper_limit`` is omitted, the component-wise maximum of the two
+    generator integration limits is used, matching generated-dataset plotting.
+    """
+    from data_tools.event_generation import background, signal
+    from data_tools.event_generation.distribution import (
+        normalize_generator_selection,
+        resolve_generator,
+    )
+
+    background_distribution = resolve_generator(
+        background,
+        normalize_generator_selection(background_generator),
+        number_of_dimensions,
+    )
+    signal_distribution = resolve_generator(
+        signal,
+        normalize_generator_selection(signal_generator),
+        number_of_dimensions,
+    )
+    if upper_limit is None:
+        upper_limit = np.maximum(
+            background_distribution.integration_upper_limits,
+            signal_distribution.integration_upper_limits,
+        )
+        if number_of_dimensions == 1:
+            upper_limit = upper_limit.item()
+
+    return calc_n_signal_events_for_target_injected_t_significance(
+        background_pdf=background_distribution.pdf,
+        signal_pdf=signal_distribution.pdf,
+        n_background_events=n_background_events,
+        target_significance=target_significance,
+        upper_limit=upper_limit,
+        max_n_signal_events=max_n_signal_events,
+    )
 
 
 def calc_injected_t_significance_by_sqrt_q0_binned(

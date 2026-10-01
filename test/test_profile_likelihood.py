@@ -5,6 +5,8 @@ from scipy.stats import norm
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_mean_t_significance_relative_to_background,
+    calc_n_signal_events_for_generated_signal,
+    calc_n_signal_events_for_target_injected_t_significance,
     calc_t_significance_relative_to_background,
 )
 
@@ -46,6 +48,46 @@ def test_continuous_injected_significance_handles_pdf_underflow():
     )
 
     np.testing.assert_allclose(significance, expected_significance)
+
+
+def test_signal_event_calibration_inverts_continuous_significance():
+    target_significance = 1.5
+    n_signal_events = calc_n_signal_events_for_target_injected_t_significance(
+        background_pdf=lambda x: 1.0,
+        signal_pdf=lambda x: 1.0,
+        n_background_events=10_000,
+        target_significance=target_significance,
+        upper_limit=1.0,
+    )
+
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=lambda x: 1.0,
+        signal_pdf=lambda x: 1.0,
+        n_background_events=10_000,
+        n_signal_events=n_signal_events,
+        upper_limit=1.0,
+    )
+
+    assert n_signal_events > 0
+    np.testing.assert_allclose(significance, target_significance, rtol=1e-6)
+
+
+def test_signal_event_calibration_reuses_signal_generator_parameters():
+    n_signal_events = calc_n_signal_events_for_generated_signal(
+        background_generator={"function": "exponential_background"},
+        signal_generator={
+            "function": "gaussian_signal",
+            "arguments": {
+                "location": 3.0,
+                "gaussian_signal_sigma": 0.16,
+            },
+        },
+        number_of_dimensions=1,
+        n_background_events=10_000,
+        target_significance=1.0,
+    )
+
+    assert n_signal_events > 0
 
 
 def test_continuous_injected_significance_resolves_narrow_signal_on_wide_domain():
