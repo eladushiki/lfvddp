@@ -38,7 +38,7 @@ def test_t_distribution_lower_reference_boundary_is_non_negative():
 def test_t_distribution_reference_is_not_contaminated_by_opposite_extremes():
     central_values = np.linspace(5.0, 30.0, 70)
     low_failures = np.linspace(-1_300_000.0, -600_000.0, 9)
-    high_failures = np.array([1_310_000.0, 1_315_000.0])
+    high_failures = np.array([100.0, 110.0])
 
     did_not_converge, overfitted = _t_distribution_outlier_masks(
         np.concatenate((central_values, low_failures, high_failures))
@@ -48,6 +48,16 @@ def test_t_distribution_reference_is_not_contaminated_by_opposite_extremes():
     assert overfitted[-2:].all()
     assert not did_not_converge[:70].any()
     assert not overfitted[:70].any()
+
+
+def test_t_distribution_overfitting_threshold_is_eight_standard_deviations():
+    central_values = np.linspace(5.0, 30.0, 70)
+    t_values = np.concatenate((central_values, [60.0, 100.0]))
+
+    _, overfitted = _t_distribution_outlier_masks(t_values)
+
+    assert not overfitted[-2]
+    assert overfitted[-1]
 
 
 def test_percentile_progression_history_filter_uses_final_t_value():
