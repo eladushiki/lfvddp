@@ -6,6 +6,10 @@ from typing import Any, Callable, Dict, List, Tuple
 from frame.file_structure import PLOT_FILE_EXTENSION
 
 
+DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS = 1_000
+DEFAULT_PREDICTION_PROCESS_CHUNK_SIZE = 100_000
+
+
 class PlotScope(Enum):
     SINGLE_SUBMISSION = "single_submission"
     MULTI_RUN = "multi_run"
@@ -69,6 +73,12 @@ class PlottingConfig:
     plot__figure_size: Tuple[int, int] = (10, 9)
 
     plot__prediction_process_number_of_bins: int = 30
+    plot__prediction_process_continuous_axis_points: int = (
+        DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS
+    )
+    plot__prediction_process_chunk_size: int = (
+        DEFAULT_PREDICTION_PROCESS_CHUNK_SIZE
+    )
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True
 
@@ -79,6 +89,16 @@ class PlottingConfig:
     plot__standard_left_border: float = 0.125
     plot__standard_right_border: float = 0.9
     plot__standard_top_border: float = 0.88
+
+    def __post_init__(self) -> None:
+        if self.plot__prediction_process_continuous_axis_points < 1:
+            raise ValueError(
+                "plot__prediction_process_continuous_axis_points must be positive."
+            )
+        if self.plot__prediction_process_chunk_size < 1:
+            raise ValueError(
+                "plot__prediction_process_chunk_size must be positive."
+            )
 
     @property
     def plot_instructions(self) -> List[PlotInstructions]:
