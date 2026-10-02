@@ -19,6 +19,7 @@ from plot.plot_utils import (
     _t_distribution_outlier_masks,
     utils__discover_background_only_parent_directory,
     utils__finalize_prediction_process_layout,
+    utils__plot_region_histograms_sliced,
     utils__prediction_mesh_mask,
     utils__project_prediction_values_sliced,
     utils__set_prediction_process_subplot_title,
@@ -131,6 +132,36 @@ def test_prediction_process_titles_stay_inside_their_own_panels():
     utils__set_prediction_process_subplot_title(axis, "SR distributions")
 
     assert axis.title.get_position() == (0.5, pytest.approx(0.90))
+    plt.close(figure)
+
+
+def test_prediction_process_histograms_support_linear_output_scale():
+    figure, axis = plt.subplots()
+    dataset_a = DataSet(
+        np.array([[0.2], [0.4], [1.2]]),
+        observable_names=["x"],
+    )
+    dataset_b = DataSet(
+        np.array([[0.3], [0.8], [1.4]]),
+        observable_names=["x"],
+    )
+
+    utils__plot_region_histograms_sliced(
+        ax=axis,
+        sample_a=dataset_a,
+        sample_b=dataset_b,
+        background=dataset_a + dataset_b,
+        bins=np.array([0.0, 0.5, 1.0, 1.5]),
+        along_observables=["x"],
+        region_name="SR",
+        background_color="gray",
+        sample_a_color="blue",
+        sample_b_color="orange",
+        normalize_distributions=True,
+        log_scale=False,
+    )
+
+    assert axis.get_yscale() == "linear"
     plt.close(figure)
 
 

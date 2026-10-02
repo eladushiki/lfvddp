@@ -81,6 +81,8 @@ class PlottingConfig:
     )
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True
+    # Use a logarithmic output axis for prediction-process distributions.
+    plot__prediction_process_log_scale: bool = True
 
     # Shared layout values used by Carpenter for every plot.
     plot__run_stamp_row_height: float = 0.12
