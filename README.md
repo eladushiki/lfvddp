@@ -103,6 +103,24 @@ Important configuration choices include:
   in a region must use matching resampling and replacement settings.
 - `train__epochs`, checkpoint frequency, function-space dimensions, and
   learning-rate settings control optimization.
+
+To choose a generated signal yield from the same continuous injected-
+significance calculation used by the plotter, use the separate calibration
+entry point. It accepts the dataset generator specifications as JSON and can
+solve several target values in one invocation:
+
+```bash
+calibrate_signal_events \
+  --background-generator '{"function":"exponential_background"}' \
+  --signal-generator '{"function":"gaussian_signal","arguments":{"location":4.0,"gaussian_signal_sigma":0.16}}' \
+  --number-of-dimensions 2 \
+  --background-events 25000 \
+  --target-significance 1 2 3 4 5
+```
+
+The command prints JSON containing the mean signal event count for each target.
+The repository `signal-count-estimate-by-dataset-parameters` skill uses this calibration workflow
+when configuration files need target-significance signal amounts.
 - `train__backend` is the sole training-backend selector and defaults to
   `"lfvddp"`. `train__f` is a required function-space mapping with `family`
   and `options`; `train__nuisance` uses the same mapping or `null` when

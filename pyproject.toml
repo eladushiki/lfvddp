@@ -83,6 +83,7 @@ train = "train.single_train:main"
 submit_train = "train.submit_train:main"
 is_same_as_commit = "frame.cluster.is_same_as_commit:main"
 aggregate_train_results = "frame.aggregate_train_results:main"
+calibrate_signal_events = "data_tools.signal_calibration:main"
 
 [tool.setuptools.packages.find]
 include = ["configs*", "data_tools*", "frame*", "neural_networks*", "plot*"]

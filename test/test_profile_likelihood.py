@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 from scipy.stats import norm
@@ -6,6 +8,11 @@ from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_mean_t_significance_relative_to_background,
     calc_t_significance_relative_to_background,
+)
+from data_tools.signal_calibration import (
+    calc_n_signal_events_for_generated_signal,
+    calc_n_signal_events_for_target_injected_t_significance,
+    main as calibrate_signal_events,
 )
 
 
@@ -33,9 +40,7 @@ def test_continuous_injected_significance_handles_pdf_underflow():
         * np.log1p(n_signal_events / n_background_events)
         * (1 - np.exp(-upper_limit))
     )
-    expected_significance = np.sqrt(
-        2 * (-n_signal_events + expected_integral)
-    )
+    expected_significance = np.sqrt(2 * (-n_signal_events + expected_integral))
 
     significance = calc_injected_t_significance_by_sqrt_q0_continuous(
         background_pdf=lambda x: np.exp(-x),
@@ -46,6 +51,67 @@ def test_continuous_injected_significance_handles_pdf_underflow():
     )
 
     np.testing.assert_allclose(significance, expected_significance)
+
+
+def test_signal_event_calibration_inverts_continuous_significance():
+    target_significance = 1.5
+    n_signal_events = calc_n_signal_events_for_target_injected_t_significance(
+        background_pdf=lambda x: 1.0,
+        signal_pdf=lambda x: 1.0,
+        n_background_events=10_000,
+        target_significance=target_significance,
+        upper_limit=1.0,
+    )
+
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=lambda x: 1.0,
+        signal_pdf=lambda x: 1.0,
+        n_background_events=10_000,
+        n_signal_events=n_signal_events,
+        upper_limit=1.0,
+    )
+
+    assert n_signal_events > 0
+    np.testing.assert_allclose(significance, target_significance, rtol=1e-6)
+
+
+def test_signal_event_calibration_reuses_signal_generator_parameters():
+    n_signal_events = calc_n_signal_events_for_generated_signal(
+        background_generator={"function": "exponential_background"},
+        signal_generator={
+            "function": "gaussian_signal",
+            "arguments": {
+                "location": 3.0,
+                "gaussian_signal_sigma": 0.16,
+            },
+        },
+        number_of_dimensions=1,
+        n_background_events=10_000,
+        target_significance=1.0,
+    )
+
+    assert n_signal_events > 0
+
+
+def test_signal_calibration_entry_point_outputs_json(capsys):
+    calibrate_signal_events(
+        [
+            "--background-generator",
+            '{"function":"exponential_background"}',
+            "--signal-generator",
+            '{"function":"gaussian_signal","arguments":{"location":3.0,"gaussian_signal_sigma":0.16}}',
+            "--number-of-dimensions",
+            "1",
+            "--background-events",
+            "10000",
+            "--target-significance",
+            "1",
+        ]
+    )
+
+    result = json.loads(capsys.readouterr().out)
+    assert result[0]["target_significance"] == 1
+    assert result[0]["mean_signal_events"] > 0
 
 
 def test_continuous_injected_significance_resolves_narrow_signal_on_wide_domain():
@@ -75,9 +141,7 @@ def test_gaussian_tail_limit_preserves_significance_within_point_one_percent():
         upper_limit=6.4 + 6.0 * 0.16,
     )
 
-    relative_difference = abs(
-        finite_significance / unbounded_significance - 1
-    )
+    relative_difference = abs(finite_significance / unbounded_significance - 1)
     assert relative_difference < 0.001
 
 
@@ -85,7 +149,8 @@ def test_continuous_injected_significance_matches_1d_for_uniform_2d_pdf():
     n_background_events = 10_000
     n_signal_events = 100
     expected_significance = np.sqrt(
-        2 * (
+        2
+        * (
             -n_signal_events
             + (n_background_events + n_signal_events)
             * np.log1p(n_signal_events / n_background_events)
@@ -155,11 +220,14 @@ def test_four_dimensional_significance_vectorizes_large_event_count_pdf_calls():
         n_signal_events=n_signal_events,
         upper_limit=np.ones(4),
     )
-    expected = np.sqrt(2 * (
-        (n_background_events + n_signal_events)
-        * np.log1p(n_signal_events / n_background_events)
-        - n_signal_events
-    ))
+    expected = np.sqrt(
+        2
+        * (
+            (n_background_events + n_signal_events)
+            * np.log1p(n_signal_events / n_background_events)
+            - n_signal_events
+        )
+    )
 
     np.testing.assert_allclose(significance, expected, rtol=1e-5)
     assert batch_shapes
@@ -204,15 +272,15 @@ def test_multidimensional_significance_supports_scalar_only_pdfs():
         n_signal_events=100,
         upper_limit=np.ones(2),
     )
-    expected = np.sqrt(2 * (
-        10_100 * np.log1p(100 / 10_000) - 100
-    ))
+    expected = np.sqrt(2 * (10_100 * np.log1p(100 / 10_000) - 100))
 
     np.testing.assert_allclose(significance, expected)
 
 
 @pytest.mark.parametrize("invalid_density", [np.nan, np.inf, -np.inf])
-def test_continuous_injected_significance_rejects_nonfinite_pdf_density(invalid_density):
+def test_continuous_injected_significance_rejects_nonfinite_pdf_density(
+    invalid_density,
+):
     with pytest.raises(ValueError, match="finite scalar density"):
         calc_injected_t_significance_by_sqrt_q0_continuous(
             background_pdf=lambda coordinate: invalid_density,
