@@ -37,27 +37,19 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 ## Ordered configuration layers
 
 Resolve the ordered configuration arguments from the saved request. Legacy
-entries use the single `config_pack`. Versioned plot requests from `plots-v4`
-onward use `config_packs`, whose order is part of the request and must not be
-sorted or inferred again at submission time:
-
-For `plots-v4`, use:
-
-1. `configs/plots-v4/generic`
-2. `configs/plots-v4/dimension-dependent/<dimension>`
-3. the plot-specific pack
-
-For `plots-v5` and later, use:
+entries use the single `config_pack`. Versioned plot requests use
+`config_packs`, whose order is part of the request and must not be sorted or
+inferred again at submission time. Always use:
 
 1. `configs/plots-vN/generic`
 2. `configs/plots-vN/mandatory-optional/<dimension>/<data-source>`
 3. the plot-specific pack
 
 Dimension defaults to `1d`; select `2d` or `4d` only when explicitly indicated
-in the plot-pack name. For v5+, data source defaults to `generated`; select
+in the plot-pack name. Data source defaults to `generated`; select
 `cms_open_data` only when the plot-pack name clearly identifies CMS Open Data.
-Before submitting, verify that the saved three paths follow the applicable
-version, dimension, and source rules and that merging them in order succeeds.
+Before submitting, verify that the saved three paths follow this version,
+dimension, and source rule and that merging them in order succeeds.
 Later packs override values from earlier packs. Read `cluster__qsub_n_jobs`
 from the merged configuration, not from one directory in isolation.
 

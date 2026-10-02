@@ -48,7 +48,7 @@ submissions:
     status: requested
     config_packs:
       - configs/plots-v4/generic
-      - configs/plots-v4/dimension-dependent/1d
+      - configs/plots-v4/mandatory-optional/1d/generated
       - configs/plots-v4/plot-02-reproduction-signals/nonlocal/significance-01
     output_root: results/highlights/2026-09/plot-02
     purpose: Generate Plot 02 nonlocal significance outputs.
@@ -63,16 +63,15 @@ Required initial fields are `id`, `status`, `output_root`, `purpose`,
 single-directory form. `config_packs` is an ordered list and is required for
 versioned plot requests from `plots-v4` onward.
 
-For `plots-v4`, `config_packs` contains exactly three layers: the version's
-`generic` pack, its matching `dimension-dependent` pack, and the plot-specific
-pack. For `plots-v5` and later, it contains exactly three layers: the version's
-`generic` pack, one `mandatory-optional/<dimension>/<data-source>` choice pack,
-and the plot-specific pack. Dimension defaults to `1d`; select `2d` or `4d`
-only when explicitly indicated in the plot-pack name. For v5+, data source
-defaults to `generated`; select `cms_open_data` only when the plot-pack name
-clearly states CMS Open Data. Preserve list order because later layers
-override earlier values. Read array size and all other effective values from
-the merged list rather than duplicating them in state.
+For every versioned request, `config_packs` contains exactly three layers: the
+version's `generic` pack, one
+`mandatory-optional/<dimension>/<data-source>` choice pack, and the
+plot-specific pack. Dimension defaults to `1d`; select `2d` or `4d` only when
+explicitly indicated in the plot-pack name. Data source defaults to `generated`;
+select `cms_open_data` only when the plot-pack name clearly states CMS Open
+Data. Preserve list order because later layers override earlier values. Read
+array size and all other effective values from the merged list rather than
+duplicating them in state.
 Array size is deliberately absent: read `cluster__qsub_n_jobs` from the merged
 configuration immediately before submission.
 
