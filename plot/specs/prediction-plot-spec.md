@@ -131,6 +131,7 @@ The figure uses the global plotting configuration. The baseline configuration se
 | `plot__prediction_process_continuous_axis_points` | `1000` | Number of uniformly spaced prediction points along each selected observable. |
 | `plot__prediction_process_chunk_size` | `100000` | Maximum number of full-dimensional grid events evaluated at once. |
 | `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each A/B/background distribution and its corresponding prediction with that component's shared sample-count factor. |
+| `plot__prediction_process_log_scale` | `true` | Displays prediction-process distribution outputs on a logarithmic axis when enabled; applies to the 1D y-axis and the 2D z-axis. |
 | `plot__figure_size` | `[10, 9]` | Base figure dimensions in inches. |
 
 ## Output Contract

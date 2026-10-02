@@ -755,9 +755,10 @@ def utils__datset_histogram_sliced(
         bins: np.ndarray,
         dataset: DataSet,
         alternative_weights: Optional[np.ndarray] = None,
-        along_observables: Union[List, str, None] = None,
-        normalize_by_n_samples: bool = False,
-        **hist_kwargs,
+    along_observables: Union[List, str, None] = None,
+    normalize_by_n_samples: bool = False,
+    log_scale: bool = True,
+    **hist_kwargs,
 ):
     if along_observables is None:
         along_observables = dataset.observable_names[0]
@@ -775,9 +776,10 @@ def utils__datset_histogram_sliced(
         )
     if normalize_by_n_samples:
         weights = np.ones(dataset.n_samples) if weights is None else weights
-        weights = utils__normalize_histogram_values(
-            weights, dataset.n_samples
-        )
+        if dataset.n_samples > 0:
+            weights = utils__normalize_histogram_values(
+                weights, dataset.n_samples
+            )
 
     if len(along_observables) == 1:
         x = utils__flatten_histogram_values(
@@ -787,7 +789,7 @@ def utils__datset_histogram_sliced(
             x=x,
             bins=bins,
             weights=weights,
-            log=True,
+            log=log_scale,
             **hist_kwargs,
         )
     else:
@@ -1108,6 +1110,7 @@ def utils__plot_region_histograms_sliced(
     sample_a_color: str,
     sample_b_color: str,
     normalize_distributions: bool,
+    log_scale: bool = True,
 ) -> None:
     """Draw a complete A/B/background distribution panel for one region."""
     distribution_specs = (
@@ -1133,6 +1136,7 @@ def utils__plot_region_histograms_sliced(
             histtype=histtype,
             alpha=alpha,
             lw=linewidth,
+            log_scale=log_scale,
             normalize_by_n_samples=normalize_distributions,
         )
 
@@ -1143,6 +1147,7 @@ def utils__plot_region_histograms_sliced(
         region_name=region_name,
         normalize_distributions=normalize_distributions,
         datasets=(background, sample_a, sample_b),
+        log_scale=log_scale,
     )
 
 
@@ -1153,6 +1158,7 @@ def _configure_region_histogram_panel_sliced(
     region_name: str,
     normalize_distributions: bool,
     datasets: Tuple[DataSet, DataSet, DataSet],
+    log_scale: bool,
 ) -> None:
     if len(along_observables) == 2:
         if normalize_distributions:
@@ -1166,15 +1172,24 @@ def _configure_region_histogram_panel_sliced(
         else:
             minimum_visible_output = 0.1
             maximum_visible_output = 1.0
-        output_limits = (
-            np.log10(minimum_visible_output),
-            max(np.log10(maximum_visible_output), ax.get_zlim()[1]),
-        )
+        if log_scale:
+            output_limits = (
+                np.log10(minimum_visible_output),
+                max(np.log10(maximum_visible_output), ax.get_zlim()[1]),
+            )
+        else:
+            output_limits = (
+                0.0,
+                max(maximum_visible_output, ax.get_zlim()[1]),
+            )
         ax.set_zlim(output_limits)
-        # Axes3D formats logarithmic ticks but does not transform 3D artist
-        # coordinates. The meshes and markers are transformed explicitly.
-        ax.zaxis.set_major_locator(ticker.MaxNLocator(nbins=4, integer=True))
-        ax.zaxis.set_major_formatter(ticker.FuncFormatter(_format_log10_output_tick))
+        if log_scale:
+            # Axes3D formats logarithmic ticks but does not transform 3D artist
+            # coordinates. The meshes and markers are transformed explicitly.
+            ax.zaxis.set_major_locator(ticker.MaxNLocator(nbins=4, integer=True))
+            ax.zaxis.set_major_formatter(
+                ticker.FuncFormatter(_format_log10_output_tick)
+            )
 
     utils__set_subplot_labels_sliced(
         ax=ax,
@@ -1215,6 +1230,7 @@ def utils__plot_region_histogram_meshes_2d(
     sample_a_color: str,
     sample_b_color: str,
     normalize_distributions: bool,
+    log_scale: bool = True,
 ) -> None:
     """Draw A/B/background 2D histograms as wireframe meshes."""
     if len(along_observables) != 2:
@@ -1243,21 +1259,25 @@ def utils__plot_region_histogram_meshes_2d(
         ).reshape(dataset.n_samples, 2)
         weights = None
         if normalize_distributions:
-            weights = utils__normalize_histogram_values(
-                np.ones(dataset.n_samples), dataset.n_samples
-            )
+            weights = np.ones(dataset.n_samples)
+            if dataset.n_samples > 0:
+                weights = utils__normalize_histogram_values(
+                    weights, dataset.n_samples
+                )
         counts, _, _ = np.histogram2d(
             values[:, 0],
             values[:, 1],
             bins=bins,
             weights=weights,
         )
-        logarithmic_counts = _log10_positive_output_values(counts)
+        output_counts = (
+            _log10_positive_output_values(counts) if log_scale else counts
+        )
         _plot_bordered_wireframe(
             ax,
             mesh_x,
             mesh_y,
-            logarithmic_counts,
+            output_counts,
             color=color,
             linewidth=linewidth,
             alpha=alpha,
@@ -1271,6 +1291,7 @@ def utils__plot_region_histogram_meshes_2d(
         region_name=region_name,
         normalize_distributions=normalize_distributions,
         datasets=(background, sample_a, sample_b),
+        log_scale=log_scale,
     )
 
 
@@ -1282,6 +1303,7 @@ def utils__plot_weighted_histogram_predictions_sliced(
     bin_centers: Union[np.ndarray, List[np.ndarray]],
     along_observables: List[str],
     normalize_each_prediction: bool = False,
+    log_scale: bool = True,
 ) -> None:
     """Overlay weighted reference-distribution predictions on a histogram panel."""
     number_of_dimensions = len(along_observables)
@@ -1329,13 +1351,13 @@ def utils__plot_weighted_histogram_predictions_sliced(
             continue
 
         positive_counts = predicted_counts.ravel() > 0
-        logarithmic_counts = _log10_positive_output_values(
-            predicted_counts.ravel()[positive_counts]
-        )
+        output_counts = predicted_counts.ravel()[positive_counts]
+        if log_scale:
+            output_counts = _log10_positive_output_values(output_counts)
         ax.scatter(
             prediction_xx.ravel()[positive_counts],
             prediction_yy.ravel()[positive_counts],
-            logarithmic_counts,
+            output_counts,
             label=label,
             color=color,
             marker=marker,
@@ -1343,11 +1365,11 @@ def utils__plot_weighted_histogram_predictions_sliced(
             edgecolor="black",
             linewidth=0.4,
         )
-        if logarithmic_counts.size:
+        if output_counts.size:
             current_lower_limit, current_upper_limit = ax.get_zlim()
             ax.set_zlim(
                 current_lower_limit,
-                max(current_upper_limit, float(np.max(logarithmic_counts))),
+                max(current_upper_limit, float(np.max(output_counts))),
             )
 
 

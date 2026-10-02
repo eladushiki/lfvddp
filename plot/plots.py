@@ -1111,6 +1111,7 @@ def plot_prediction_process_1d(
     normalize_top_distributions = (
         config.plot__prediction_process_normalize_each_prediction
     )
+    log_prediction_process_output = config.plot__prediction_process_log_scale
 
     utils__plot_region_histograms_sliced(
         ax=sr_distribution_ax,
@@ -1124,6 +1125,7 @@ def plot_prediction_process_1d(
         sample_a_color=plot_colors["sample_a"],
         sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
     utils__plot_region_histograms_sliced(
         ax=cr_distribution_ax,
@@ -1137,6 +1139,7 @@ def plot_prediction_process_1d(
         sample_a_color=plot_colors["sample_a"],
         sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
 
     def weighted_distribution_predictions(
@@ -1198,6 +1201,7 @@ def plot_prediction_process_1d(
         bin_centers=bin_centers,
         along_observables=selected_observables,
         normalize_each_prediction=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
 
     cr_null_theta = utils__model_prediction_values(
@@ -1229,6 +1233,7 @@ def plot_prediction_process_1d(
         bin_centers=bin_centers,
         along_observables=selected_observables,
         normalize_each_prediction=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
 
     distribution_axes = (sr_distribution_ax, cr_distribution_ax)
@@ -1479,6 +1484,7 @@ def plot_prediction_process_2d(
     normalize_top_distributions = (
         config.plot__prediction_process_normalize_each_prediction
     )
+    log_prediction_process_output = config.plot__prediction_process_log_scale
 
     utils__plot_region_histogram_meshes_2d(
         ax=sr_distribution_ax,
@@ -1492,6 +1498,7 @@ def plot_prediction_process_2d(
         sample_a_color=plot_colors["sample_a"],
         sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
     utils__plot_region_histogram_meshes_2d(
         ax=cr_distribution_ax,
@@ -1505,6 +1512,7 @@ def plot_prediction_process_2d(
         sample_a_color=plot_colors["sample_a"],
         sample_b_color=plot_colors["sample_b"],
         normalize_distributions=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
 
     def weighted_distribution_predictions(
@@ -1566,6 +1574,7 @@ def plot_prediction_process_2d(
         bin_centers=bin_centers,
         along_observables=selected_observables,
         normalize_each_prediction=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
 
     cr_null_theta = utils__model_prediction_values(
@@ -1597,6 +1606,7 @@ def plot_prediction_process_2d(
         bin_centers=bin_centers,
         along_observables=selected_observables,
         normalize_each_prediction=normalize_top_distributions,
+        log_scale=log_prediction_process_output,
     )
 
     distribution_axes = (sr_distribution_ax, cr_distribution_ax)
