@@ -180,6 +180,19 @@ temporary archive and reports its path for recovery.
 
 ### Submission residue cleanup
 
+When a tracked job is explicitly deleted or retired, perform the same terminal
+cleanup as for a finished job during that routine: first inspect its saved
+timestamped submission directory, remove only verified empty directories, and
+archive any completed or partial artifacts that will no longer be used by a
+non-retired plot group. Use the normal `archive_submission_artifacts.py`
+procedure and retain only `context.json`, `configs/`, generated plots, and
+`array-job-artifacts.tar.gz` (plus the permitted first debug helper). Never
+delete non-empty output from a deleted job before verifying its context and
+scheduler evidence; record the exact path and outcome in state. A deleted job
+is eligible for the retired terminal-audit archive even when it did not finish,
+provided it has no live scheduler elements and no non-retired group depends on
+it. Verify each archive before removing its source files.
+
 Before running a multi-run plot, inspect the timestamped submission directories
 under `remote_multi_run_directory`. A directory is a residue candidate when any
 of these conditions is verified:
