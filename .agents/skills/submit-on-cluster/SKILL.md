@@ -41,15 +41,25 @@ entries use the single `config_pack`. Versioned plot requests from `plots-v4`
 onward use `config_packs`, whose order is part of the request and must not be
 sorted or inferred again at submission time:
 
-1. `configs/plots-vN/generic`
-2. `configs/plots-vN/dimension-dependent/<dimension>`
+For `plots-v4`, use:
+
+1. `configs/plots-v4/generic`
+2. `configs/plots-v4/dimension-dependent/<dimension>`
 3. the plot-specific pack
 
-The dimension is explicit in the plot name when it is 2D or 4D; otherwise use
-the 1D default. Before submitting, verify that the saved three paths follow
-that rule and that merging them in order succeeds. Later packs override values
-from earlier packs. Read `cluster__qsub_n_jobs` from the merged configuration,
-not from one directory in isolation.
+For `plots-v5` and later, use:
+
+1. `configs/plots-vN/generic`
+2. `configs/plots-vN/mandatory-optional/<dimension>/<data-source>`
+3. the plot-specific pack
+
+Dimension defaults to `1d`; select `2d` or `4d` only when explicitly indicated
+in the plot-pack name. For v5+, data source defaults to `generated`; select
+`cms_open_data` only when the plot-pack name clearly identifies CMS Open Data.
+Before submitting, verify that the saved three paths follow the applicable
+version, dimension, and source rules and that merging them in order succeeds.
+Later packs override values from earlier packs. Read `cluster__qsub_n_jobs`
+from the merged configuration, not from one directory in isolation.
 
 ## Priority submission
 

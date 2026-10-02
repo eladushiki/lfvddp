@@ -63,10 +63,14 @@ Required initial fields are `id`, `status`, `output_root`, `purpose`,
 single-directory form. `config_packs` is an ordered list and is required for
 versioned plot requests from `plots-v4` onward.
 
-For `plots-v4` onward, `config_packs` contains exactly three layers: the
-version's `generic` pack, its matching `dimension-dependent` pack, and the
-plot-specific pack. A plot name containing `2d` or `4d` selects that dimension;
-all other plot names select `1d`. Preserve list order because later layers
+For `plots-v4`, `config_packs` contains exactly three layers: the version's
+`generic` pack, its matching `dimension-dependent` pack, and the plot-specific
+pack. For `plots-v5` and later, it contains exactly three layers: the version's
+`generic` pack, one `mandatory-optional/<dimension>/<data-source>` choice pack,
+and the plot-specific pack. Dimension defaults to `1d`; select `2d` or `4d`
+only when explicitly indicated in the plot-pack name. For v5+, data source
+defaults to `generated`; select `cms_open_data` only when the plot-pack name
+clearly states CMS Open Data. Preserve list order because later layers
 override earlier values. Read array size and all other effective values from
 the merged list rather than duplicating them in state.
 Array size is deliberately absent: read `cluster__qsub_n_jobs` from the merged
