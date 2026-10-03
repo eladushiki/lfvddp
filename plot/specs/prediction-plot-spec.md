@@ -99,13 +99,14 @@ It does not display signal product terms, nuisance-removed terms, or detector ef
 
 - A horizontal reference line is drawn at prediction value **1.0** in 1D prediction panels.
 - Prediction values are evaluated over a spanning dataset. Every selected
-  observable uses the legacy uniform 1,000-point grid across its display range
-  by default. Unselected projected observables use the configured nuisance-grid
-  centers when available and display-bin centers otherwise. The Cartesian grid
-  is evaluated in complete projected-coordinate chunks of up to 100,000 events
-  by default, so peak memory is bounded by a chunk rather than by the full
-  multidimensional grid. Complete coordinates preserve the legacy floating-point
-  summation order.
+  observable uses a uniform 1,000-point grid across its display range by
+  default for one- and two-dimensional data, and a 100-point grid for data
+  above two dimensions. Unselected projected observables use the configured
+  nuisance-grid centers when available and display-bin centers otherwise. The
+  Cartesian grid is evaluated in complete projected-coordinate chunks of up to
+  100,000 events by default, so peak memory is bounded by a chunk rather than
+  by the full multidimensional grid. Complete coordinates preserve the legacy
+  floating-point summation order.
 - The model output is projected onto the selected observable(s) before rendering, only if there are more then 2 observables in the data.
 - Null hypothesis terms use dashed lines; signal hypothesis terms use solid lines.
 - Every subplot title is positioned inside its own panel at 90% of panel height, avoiding the suptitle and adjacent plots.
@@ -129,6 +130,7 @@ The figure uses the global plotting configuration. The baseline configuration se
 | --- | ---: | --- |
 | `plot__prediction_process_number_of_bins` | `30` | Number of display bins for the prediction-process distributions. |
 | `plot__prediction_process_continuous_axis_points` | `1000` | Number of uniformly spaced prediction points along each selected observable. |
+| `plot__prediction_process_continuous_axis_points_above_2d` | `100` | Number of uniformly spaced prediction points along each selected observable when the data has more than two observables. |
 | `plot__prediction_process_chunk_size` | `100000` | Maximum number of full-dimensional grid events evaluated at once. |
 | `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each A/B/background distribution and its corresponding prediction with that component's shared sample-count factor. |
 | `plot__prediction_process_log_scale` | `true` | Displays prediction-process distribution outputs on a logarithmic axis when enabled; applies to the 1D y-axis and the 2D z-axis. |

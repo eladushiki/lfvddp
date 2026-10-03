@@ -1248,7 +1248,9 @@ def plot_prediction_process_1d(
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
         continuous_axis_points=(
-            config.plot__prediction_process_continuous_axis_points
+            config.prediction_process_continuous_axis_points(
+                len(configured_observables)
+            )
         ),
         chunk_size=config.plot__prediction_process_chunk_size,
     )
@@ -1621,7 +1623,9 @@ def plot_prediction_process_2d(
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
         continuous_axis_points=(
-            config.plot__prediction_process_continuous_axis_points
+            config.prediction_process_continuous_axis_points(
+                len(configured_observables)
+            )
         ),
         chunk_size=config.plot__prediction_process_chunk_size,
     )
