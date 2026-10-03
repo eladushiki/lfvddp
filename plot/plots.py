@@ -60,6 +60,7 @@ from train.model_trainer import TrainLauncher
 from train.train_config import TrainConfig
 
 _PERCENTILE_PROGRESSION_Y_HEADROOM = 0.05
+_T_DISTRIBUTION_X_HEADROOM = 0.05
 
 
 def _prediction_process_suptitle(
@@ -134,6 +135,14 @@ def _percentile_progression_y_upper_limit(
     return max(
         1.0,
         float(np.max(visible_values)) * (1 + _PERCENTILE_PROGRESSION_Y_HEADROOM),
+    )
+
+
+def _t_distribution_x_axis_upper_limit(max_t_value: float) -> float:
+    """Return an x-axis upper limit with headroom beyond retained values."""
+    return max(
+        1.0,
+        max_t_value * (1 + _T_DISTRIBUTION_X_HEADROOM),
     )
 
 
@@ -287,13 +296,14 @@ def t_distribution_plot(
     # Limits
     chi2_dof = agg.chi_square_degrees_of_freedom
     xmin = min(0.0, float(np.min(t)))
-    xmax = max(0.0, float(np.max(t)))
-    if xmin == xmax:
-        xmax = xmin + max(1.0, abs(xmin) * 0.1)
+    histogram_xmax = max(0.0, float(np.max(t)))
+    if xmin == histogram_xmax:
+        histogram_xmax = xmin + max(1.0, abs(xmin) * 0.1)
+    xmax = _t_distribution_x_axis_upper_limit(histogram_xmax)
 
     # plot distribution histogram
-    histogram_bins = np.linspace(xmin, xmax, number_of_bins + 1)
-    histogram_bin_width = (xmax - xmin) / number_of_bins
+    histogram_bins = np.linspace(xmin, histogram_xmax, number_of_bins + 1)
+    histogram_bin_width = (histogram_xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
         f"mean: {str(np.around(distribution_mean, 2))} \n"
