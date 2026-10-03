@@ -51,6 +51,14 @@ def test_getitem_infers_prediction_process_dimension(
     )
 
 
+def test_prediction_process_resolution_scales_above_two_dimensions():
+    config = _plotting_config()
+
+    assert config.prediction_process_continuous_axis_points(1) == 1_000
+    assert config.prediction_process_continuous_axis_points(2) == 1_000
+    assert config.prediction_process_continuous_axis_points(3) == 100
+
+
 def test_generate_plot_uses_inferred_dimension_and_forwards_instructions(
     monkeypatch,
 ):

@@ -7,6 +7,7 @@ from frame.file_structure import PLOT_FILE_EXTENSION
 
 
 DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS = 1_000
+DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS_ABOVE_2D = 100
 DEFAULT_PREDICTION_PROCESS_CHUNK_SIZE = 100_000
 
 
@@ -76,6 +77,9 @@ class PlottingConfig:
     plot__prediction_process_continuous_axis_points: int = (
         DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS
     )
+    plot__prediction_process_continuous_axis_points_above_2d: int = (
+        DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS_ABOVE_2D
+    )
     plot__prediction_process_chunk_size: int = (
         DEFAULT_PREDICTION_PROCESS_CHUNK_SIZE
     )
@@ -97,10 +101,23 @@ class PlottingConfig:
             raise ValueError(
                 "plot__prediction_process_continuous_axis_points must be positive."
             )
+        if self.plot__prediction_process_continuous_axis_points_above_2d < 1:
+            raise ValueError(
+                "plot__prediction_process_continuous_axis_points_above_2d "
+                "must be positive."
+            )
         if self.plot__prediction_process_chunk_size < 1:
             raise ValueError(
                 "plot__prediction_process_chunk_size must be positive."
             )
+
+    def prediction_process_continuous_axis_points(
+        self, number_of_observables: int
+    ) -> int:
+        """Return the resolution appropriate for the data dimensionality."""
+        if number_of_observables > 2:
+            return self.plot__prediction_process_continuous_axis_points_above_2d
+        return self.plot__prediction_process_continuous_axis_points
 
     @property
     def plot_instructions(self) -> List[PlotInstructions]:
