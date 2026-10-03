@@ -52,6 +52,10 @@ curve and chi-square-derived significance annotation.
 
 The plot uses the configured histogram, edge, and chi-square colors, line width, and alpha. It labels the horizontal axis as the test statistic and the vertical axis as probability density, with a legend identifying the empirical and reference distributions.
 
+The histogram bins end at the largest retained `t` value. The displayed x-axis
+extends 5% beyond that value, so every non-disqualified value and its marker
+remain inside the plot frame without adding an empty tail to the histogram.
+
 ### Further Requirements
 
 - The noramlization of the bins should be set such that given that the $chi^2$ distribution accurately describes their creation, the bin heights would match its plot in any point.
@@ -83,4 +87,5 @@ The plot uses the configured histogram, edge, and chi-square colors, line width,
 - [x] The chi-square reference uses the effective hypothesis-space dimension reconstructed from the saved run context.
 - [x] Function spaces without a nonzero degree count omit the analytic reference.
 - [ ] Mean statistic, significance, and omitted-run information are readable.
+- [x] The x-axis includes all retained `t` values with 5% right-side headroom.
 - [ ] The figure is reproducible from the recorded submission results and configuration.

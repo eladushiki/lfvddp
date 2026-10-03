@@ -11,6 +11,7 @@ from plot.plotting_config import PlottingConfig
 from plot.plots import (
     _eventually_converged_histories,
     _percentile_progression_y_upper_limit,
+    _t_distribution_x_axis_upper_limit,
 )
 from plot.plot_utils import (
     _filter_t_distribution_outliers,
@@ -101,6 +102,10 @@ def test_percentile_progression_y_axis_clips_large_left_half_transients():
         percentiles,
         reference_quantiles,
     ) == pytest.approx(26.25)
+
+
+def test_t_distribution_x_axis_includes_all_retained_values_with_headroom():
+    assert _t_distribution_x_axis_upper_limit(20.0) == pytest.approx(21.0)
 
 
 def test_humanize_signal_description_replaces_generator_identifier_separators():
