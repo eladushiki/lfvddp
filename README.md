@@ -105,9 +105,9 @@ Important configuration choices include:
   learning-rate settings control optimization.
 
 To choose a generated signal yield from the same continuous injected-
-significance calculation used by the plotter, use the separate calibration
-entry point. It accepts the dataset generator specifications as JSON and can
-solve several target values in one invocation:
+significance calculation used by generated-dataset performance plots, use the
+separate calibration entry point. It accepts the dataset generator
+specifications as JSON and can solve several target values in one invocation:
 
 ```bash
 calibrate_signal_events \
@@ -146,7 +146,9 @@ when configuration files need target-significance signal amounts.
   require empirical-null calibration rather than assigning Wilks degrees of
   freedom from parameter counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
-  behavior is documented in [`plot/specs`](plot/specs).
+  behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
+  plots use analytic injected significance only for generated datasets; loaded
+  datasets are plotted against configured mean injected signal events instead.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.

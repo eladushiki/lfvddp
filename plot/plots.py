@@ -35,6 +35,7 @@ from plot.plot_utils import (
     _t_distribution_outlier_masks,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
+    utils__context_background_source_type,
     utils__datset_histogram_sliced,
     utils__flatten_histogram_values,
     utils__finalize_prediction_process_layout,
@@ -499,6 +500,22 @@ def performance_plot(
             f"No directories containing {CONTEXT_FILE_NAME} were found under "
             f"{signal_t_values_parent_directory}."
         )
+
+    source_types = {
+        utils__context_background_source_type(context)
+        for context, _ in background_contexts
+    }
+    source_types.update(
+        utils__context_background_source_type(context)
+        for signal_group in signal_groups
+        for context, _ in signal_group
+    )
+    if len(source_types) != 1:
+        raise ValueError(
+            "Mixed generated and loaded datasets are not supported in one "
+            f"performance plot; found {sorted(source_types)}."
+        )
+
     for group_index, signal_group in enumerate(signal_groups, start=1):
         utils__warn_for_context_discrepancies(
             [background_contexts[0], signal_group[0]],
@@ -516,6 +533,12 @@ def performance_plot(
             "overlaid on the same axes."
         )
     x_label = x_labels.pop()
+    show_reference_diagonal = {curve.show_reference_diagonal for curve in curves}
+    if len(show_reference_diagonal) != 1:
+        raise ValueError(
+            "Performance subgroups with different reference-diagonal semantics "
+            "cannot be overlaid on the same axes."
+        )
 
     # Framing
     c = Carpenter(context)
@@ -544,14 +567,15 @@ def performance_plot(
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
-    ax.plot(
-        (min_x, max_x),
-        (min_x, max_x),
-        color="black",
-        linewidth=1.5,
-        linestyle=":",
-        label=r"Perfect discovery (injected = measured)",
-    )
+    if show_reference_diagonal.pop():
+        ax.plot(
+            (min_x, max_x),
+            (min_x, max_x),
+            color="black",
+            linewidth=1.5,
+            linestyle=":",
+            label=r"Perfect discovery (injected = measured)",
+        )
 
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
@@ -626,7 +650,7 @@ def performance_plot(
     # Texting
     ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel("measured significance", fontsize=21)
-    ax.set_title("measured vs injected signal significance", fontsize=24)
+    ax.set_title(f"measured significance vs {x_label}", fontsize=24)
     legend = ax.legend(loc="upper left", fontsize=12, fancybox=True, frameon=False)
 
     # Styling

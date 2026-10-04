@@ -240,6 +240,7 @@ class _PerformanceCurve:
     x_values: np.ndarray
     x_errors: np.ndarray
     x_label: str
+    show_reference_diagonal: bool
     observed_significances: np.ndarray
     observed_significance_lower_bounds: np.ndarray
     observed_significance_upper_bounds: np.ndarray
@@ -253,6 +254,52 @@ def _integration_upper_limits_for_dimensions(
     if number_of_dimensions == 1:
         return np.inf
     return np.full(number_of_dimensions, np.inf)
+
+
+def utils__context_background_source_type(context: ExecutionContext) -> str:
+    """Return the unique dataset background source type used by a context."""
+    config: DatasetConfig = context.config
+    source_types = {
+        parameters.dataset__background_source_type
+        for parameters in config.dataset_parameters
+    }
+    if len(source_types) != 1:
+        raise ValueError(
+            "Mixed dataset background sources are not supported by performance "
+            f"plots; found {sorted(source_types)} in one context."
+        )
+    return source_types.pop()
+
+
+def _performance_x_value_for_signal(
+    signal_dataset_parameters,
+    signal_agg: ResultAggregator,
+    source_type: str,
+) -> Tuple[float, float, str, bool]:
+    if source_type == "generated":
+        return (
+            calc_injected_t_significance_by_sqrt_q0_continuous(
+                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+            ),
+            float(np.std(signal_agg.all_injected_significances)),
+            r"injected $\sqrt{q_0}$",
+            True,
+        )
+    if source_type == "loaded":
+        return (
+            signal_dataset_parameters.dataset__mean_number_of_signal_events,
+            0.0,
+            "mean injected signal events",
+            False,
+        )
+    raise ValueError(
+        "Unsupported dataset background source type for performance plot: "
+        f"{source_type!r}."
+    )
 
 
 def _t_distribution_outlier_masks(
@@ -329,8 +376,21 @@ def utils__calculate_performance_curve(
     signal_group: List[Tuple[ExecutionContext, Path]],
     background_t_dist: np.ndarray,
 ) -> _PerformanceCurve:
+    source_types = {
+        utils__context_background_source_type(signal_context)
+        for signal_context, _ in signal_group
+    }
+    if len(source_types) != 1:
+        raise ValueError(
+            "Mixed generated and loaded datasets are not supported in one "
+            f"performance curve; found {sorted(source_types)}."
+        )
+    source_type = source_types.pop()
+
     x_values = []
     x_errors = []
+    x_labels = []
+    show_reference_diagonal = []
     observed_significances = []
     observed_significance_lower_bounds = []
     observed_significance_upper_bounds = []
@@ -353,16 +413,15 @@ def utils__calculate_performance_curve(
                 "outlier filtering."
             )
 
-        x_values.append(
-            calc_injected_t_significance_by_sqrt_q0_continuous(
-                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
-            )
+        x_value, x_error, x_label, show_diagonal = _performance_x_value_for_signal(
+            signal_dataset_parameters,
+            signal_agg,
+            source_type,
         )
-        x_errors.append(np.std(signal_agg.all_injected_significances))
+        x_values.append(x_value)
+        x_errors.append(x_error)
+        x_labels.append(x_label)
+        show_reference_diagonal.append(show_diagonal)
 
         observed_significances.append(
             calc_mean_t_significance_relative_to_background(
@@ -391,12 +450,22 @@ def utils__calculate_performance_curve(
         )
 
     sort = np.argsort(np.asarray(x_values))
+    unique_x_labels = set(x_labels)
+    if len(unique_x_labels) != 1:
+        raise ValueError(
+            "Performance curve contains incompatible x-axis quantities: "
+            f"{sorted(unique_x_labels)}."
+        )
+    unique_diagonal_settings = set(show_reference_diagonal)
+    if len(unique_diagonal_settings) != 1:
+        raise ValueError(
+            "Performance curve contains incompatible reference diagonal settings."
+        )
     return _PerformanceCurve(
         x_values=np.asarray(x_values)[sort],
         x_errors=np.asarray(x_errors)[sort],
-        x_label=(
-            r"injected $\sqrt{q_0}$"
-        ),
+        x_label=unique_x_labels.pop(),
+        show_reference_diagonal=unique_diagonal_settings.pop(),
         observed_significances=np.asarray(observed_significances)[sort],
         observed_significance_lower_bounds=np.asarray(
             observed_significance_lower_bounds
