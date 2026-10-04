@@ -9,11 +9,11 @@
 
 ## Purpose
 
-Show the measured LFVDDP significance across compatible signal runs relative to their ideal (analytic, if known) significance. The plot uses background-only runs as a common reference distribution, as well as the theoretical $\chi^2$ limit, so readers can compare observed sensitivity among signal models and data-generation settings.
+Show the measured LFVDDP significance across compatible signal runs relative to their configured signal strength. For generated datasets, the signal-strength axis is the ideal analytic significance. For loaded datasets, the analytic background density is not known, so the signal-strength axis is the configured mean number of injected signal events. The plot uses background-only runs as a common reference distribution, as well as the theoretical $\chi^2$ limit, so readers can compare observed sensitivity among signal models and data-generation settings.
 
 A reader should be able to determine:
 
-- How measured significance changes with ideal $Z=\sqrt{q_0}$.
+- How measured significance changes with generated-data ideal $Z=\sqrt{q_0}$ or loaded-data injected signal count.
 - Which compatible signal-run groups each curve represents.
 - The uncertainty on measured significance at each sampled ideal significance.
 
@@ -31,7 +31,10 @@ The plot factory discovers and injects the two parent directories for this multi
 
 - Background-only `t` values from all discovered background contexts are aggregated into one reference distribution.
 - Signal contexts are discovered recursively and grouped by compatible dataset configuration.
-- Each signal context contributes a `t` distribution and an ideal significance derived from its configured injected signal.
+- Each signal context contributes a `t` distribution and an x-axis signal-strength value:
+  - generated datasets use the analytic injected significance derived from their generated background and signal PDFs;
+  - loaded datasets use the configured mean number of injected signal events, because they do not define an analytic background PDF.
+- Mixed generated and loaded datasets are rejected in one performance plot. They use different x-axis semantics and must not be overlaid.
 - For each signal distribution, the measured significance is the common-background percentile of that distribution's mean `t`; uncertainty is reported from mean `t` plus or minus one standard deviation.
 - Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined. If outlier filtering leaves no usable background values, the error identifies the checked directories and raw, finite, and finite-nonnegative counts. A verified `array-job-artifacts.tar.gz` created before aggregate plotting must be restored rather than misclassified as a failed residue.
 
@@ -42,11 +45,11 @@ The figure contains one axes:
 | Element | Rendering |
 | --- | --- |
 | Signal group | One labelled curve per compatible signal group. |
-| Measured significance | Marker-and-line points against ideal significance. |
+| Measured significance | Marker-and-line points against the plot's signal-strength axis. |
 | Uncertainty | Error bars on measured significance. |
-| Reference relation | The ideal-significance diagonal used to compare measured and ideal sensitivity. |
+| Reference relation | The ideal-significance diagonal is drawn only for generated datasets, where the horizontal axis is analytic significance. |
 
-The horizontal axis is ideal significance $\sqrt{q_0}$; the vertical axis is measured significance. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
+The horizontal axis is ideal significance $\sqrt{q_0}$ for generated datasets and configured mean injected signal events for loaded datasets; the vertical axis is measured significance. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
 
 ### Further requirements
 - Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
@@ -75,5 +78,7 @@ The plot has no per-curve instruction parameters in the basic configuration; its
 - [ ] Background-only contexts are aggregated into one reference distribution.
 - [ ] Signal contexts are grouped only with compatible dataset configurations.
 - [ ] Every displayed curve has a readable configuration-derived label.
-- [ ] Measured significance and its uncertainty are plotted against ideal significance.
+- [ ] Measured significance and its uncertainty are plotted against the correct signal-strength axis for the dataset source type.
+- [ ] Loaded datasets do not attempt analytic injected-significance calculation.
+- [ ] Mixed generated and loaded datasets are rejected before plotting.
 - [ ] The figure is reproducible from the recorded parent-directory runs and configurations.
