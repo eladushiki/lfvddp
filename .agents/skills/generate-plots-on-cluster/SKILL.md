@@ -121,12 +121,13 @@ record `completed_at`. Skip completed groups on later daily runs.
 
 ## Archive completed array artifacts
 
-Archive only after aggregate plotting. A completed single-submission plot is
-not enough: its final statistics remain input to the group-level significance
-plot. After a group is `analyzed`, an eligible submission may be archived only
-when every saved `plot_group` that names it as a background or signal member is
-also `analyzed`. This preserves a single source of truth for plot readiness and
-prevents an archive from appearing to be a failed or empty result directory.
+Archive every successfully analyzed submission after its required plots have
+been generated. For a submission referenced by a `plot_group`, wait until
+every saved group that names it as background or signal is `analyzed`, because
+its final statistics remain aggregate-plot inputs. A successfully analyzed
+standalone submission with no `plot_groups` has no aggregate dependency and
+must be archived in the same routine pass. Do not leave a standalone result
+merely pruned or unpacked.
 
 Archival cleanup is standing routine authorization. Retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
