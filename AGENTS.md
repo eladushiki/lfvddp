@@ -23,6 +23,14 @@ Implementing ML machinery to differentiate between similar and different pairs o
 - Open exactly one pull request per issue, from that dedicated branch to `main`.
   - If asked, answer questions inside Github threads.
   - If you solved a concern raised in a thread on Github, comment on that thread what you did to this end. Never mark as resolved yourself.
+- GitHub operations for this project must use the repository-configured GSD
+  Develop GitHub App, not the user's personal browser/session/authentication.
+  For PRs, comments, and other GitHub writes, mint/use the app installation
+  token from the local `.gsd/SECRETS.md` path and prefer `gh api` REST calls.
+  Do not use `gh pr create` as the primary PR path: its GraphQL route may fail
+  for the app even when REST PR creation is authorized. If `gh pr create` fails
+  with `Resource not accessible by integration`, retry with
+  `POST /repos/{owner}/{repo}/pulls` before reporting a blocker.
 - Finish every user-requested change by committing it, pushing its dedicated branch, and opening its pull request. The only exception is intentionally local secrets such as `.env`. Leave local worktree in a prunable state on push - important changed commited, temp files deleted, git head clean.
 - After committing and pushing a dedicated-worktree change, remove that worktree with `git worktree remove` and run `git worktree prune`; do not retain completed worktrees under `.gsd/worktrees`.
 - This cleanup preference applies equally to worktrees created by the ChatGPT app's worktree directive: after the pull request is opened, remove the completed worktree and run `git worktree prune`.
