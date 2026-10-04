@@ -25,8 +25,28 @@ DETERMINISTIC_FAMILY_OPTIONS = {
 
 
 def test_feature_counts_and_multidimensional_geometry_are_explicit():
-    spline = create_function_space(FunctionSpaceSpec("cubic_bspline", {"knots": [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]}), dtype=torch.float32)
-    polynomial = create_function_space(FunctionSpaceSpec("orthogonal_polynomial", {"basis": "legendre", "maximum_degree": 2, "domain": [[0, 1], [0, 2]]}), dtype=torch.float32)
+    spline = create_function_space(
+        FunctionSpaceSpec(
+            "cubic_bspline",
+            {
+                "knots": [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]],
+                "tensor_product_basis": False,
+            },
+        ),
+        dtype=torch.float32,
+    )
+    polynomial = create_function_space(
+        FunctionSpaceSpec(
+            "orthogonal_polynomial",
+            {
+                "basis": "legendre",
+                "maximum_degree": 2,
+                "domain": [[0, 1], [0, 2]],
+                "tensor_product_basis": False,
+            },
+        ),
+        dtype=torch.float32,
+    )
     radial = create_function_space(FunctionSpaceSpec("gaussian_radial_basis", {"centers": [[0, 0], [1, 2]], "widths": [[1, 2], [2, 1]]}), dtype=torch.float32)
     assert spline.input_dimension == 2 and spline.feature_count == 10
     assert polynomial.input_dimension == 2 and polynomial.feature_count == 6
@@ -43,7 +63,6 @@ def test_tensor_product_basis_expands_per_dimension_features():
                 "basis": "legendre",
                 "maximum_degree": 2,
                 "domain": [[0, 2], [0, 2]],
-                "tensor_product_basis": True,
             },
         ),
         dtype=torch.float32,
@@ -60,7 +79,6 @@ def test_tensor_product_basis_expands_per_dimension_features():
             "cubic_bspline",
             {
                 "knots": [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]],
-                "tensor_product_basis": True,
             },
         ),
         dtype=torch.float32,
@@ -73,7 +91,9 @@ def test_tensor_product_basis_expands_per_dimension_features():
 def test_tensor_product_basis_is_1d_equivalent_to_additive_basis():
     base_options = {"basis": "chebyshev", "maximum_degree": 3, "domain": [0, 2]}
     additive = create_function_space(
-        FunctionSpaceSpec("orthogonal_polynomial", base_options),
+        FunctionSpaceSpec(
+            "orthogonal_polynomial", {**base_options, "tensor_product_basis": False}
+        ),
         dtype=torch.float64,
     )
     tensor = create_function_space(
@@ -94,7 +114,6 @@ def test_fixed_sigmoid_tensor_product_expands_per_dimension_geometry():
             {
                 "centers": [[0.0, 1.0], [10.0, 20.0]],
                 "widths": [1.0, 2.0],
-                "tensor_product_basis": True,
             },
         ),
         dtype=torch.float32,

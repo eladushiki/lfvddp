@@ -164,12 +164,18 @@ def events_tensor(
     return tensor.to(device=device, dtype=dtype)
 
 
-def tensor_product_basis_enabled(options: Mapping[str, Any], family: str) -> bool:
+def tensor_product_basis_enabled(
+    options: Mapping[str, Any],
+    family: str,
+    *,
+    option_name: str,
+    default: bool,
+) -> bool:
     """Return the optional tensor-product basis toggle for fixed families."""
 
-    enabled = options.get("tensor_product_basis", False)
+    enabled = options[option_name] if option_name in options else default
     if not isinstance(enabled, bool):
-        raise ValueError(f"{family} tensor_product_basis must be boolean.")
+        raise ValueError(f"{family} {option_name} must be boolean.")
     return enabled
 
 
@@ -195,10 +201,14 @@ def assemble_per_dimension_features(
     if len(feature_blocks) == 1 or not tensor_product_basis:
         return torch.cat(feature_blocks, dim=1)
 
-    result = feature_blocks[0]
-    for block in feature_blocks[1:]:
-        result = (result[:, :, None] * block[:, None, :]).flatten(start_dim=1)
-    return result
+    product_features = feature_blocks[0]
+    for dimension_features in feature_blocks[1:]:
+        previous_products_by_event = product_features[:, :, None]
+        next_dimension_features_by_event = dimension_features[:, None, :]
+        product_features = (
+            previous_products_by_event * next_dimension_features_by_event
+        ).flatten(start_dim=1)
+    return product_features
 
 
 class PerEventFunctionSpace(nn.Module):

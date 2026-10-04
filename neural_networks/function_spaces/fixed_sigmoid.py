@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
 
 import torch
 
@@ -14,10 +14,17 @@ class FixedSigmoidFunction(CenteredFeatureFunction):
     """Fixed-centre sigmoid features with trainable output coefficients only."""
 
     family = "fixed_sigmoid"
+    TENSOR_PRODUCT_BASIS_OPTION: ClassVar[str] = "tensor_product_basis"
+    DEFAULT_TENSOR_PRODUCT_BASIS: ClassVar[bool] = True
 
     @classmethod
     def geometry_from_options(cls, options: Mapping[str, Any]) -> CenterGeometry:
-        if tensor_product_basis_enabled(options, cls.family):
+        if tensor_product_basis_enabled(
+            options,
+            cls.family,
+            option_name=cls.TENSOR_PRODUCT_BASIS_OPTION,
+            default=cls.DEFAULT_TENSOR_PRODUCT_BASIS,
+        ):
             return CenterGeometry.tensor_product_from_options(options, cls.family)
         return CenterGeometry.from_options(options, cls.family)
 

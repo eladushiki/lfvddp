@@ -135,7 +135,7 @@ when configuration files need target-significance signal amounts.
   normalization before evaluating per-event function spaces.
   Deterministic per-dimension bases accept `tensor_product_basis: true` in
   their `options` to train one coefficient per Cartesian product of basis
-  elements across observables. The option defaults to `false` for compatibility.
+  elements across observables. The option defaults to `true`.
   `bin_indicators` already uses Cartesian cells and accepts the option without
   changing its feature map. In tensor-product mode, `fixed_sigmoid` interprets
   nested `centers` and `widths` as per-observable lists and expands all joint

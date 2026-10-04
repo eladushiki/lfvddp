@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, ClassVar, Mapping, Optional, Sequence
 
 import numpy as np
 import torch
@@ -30,8 +30,11 @@ CUBIC_BSPLINE_DEGREE = 3
 class CubicBSplineGeometry:
     """Clamped cubic knot vectors, one immutable vector per input dimension."""
 
+    TENSOR_PRODUCT_BASIS_OPTION: ClassVar[str] = "tensor_product_basis"
+    DEFAULT_TENSOR_PRODUCT_BASIS: ClassVar[bool] = True
+
     knots: tuple[tuple[float, ...], ...]
-    tensor_product_basis: bool = False
+    tensor_product_basis: bool = DEFAULT_TENSOR_PRODUCT_BASIS
 
     def __post_init__(self) -> None:
         if not self.knots:
@@ -65,7 +68,12 @@ class CubicBSplineGeometry:
                 cls.clamped_knot_vector(knots)
                 for knots in dimensions(options["knots"], "knots")
             ),
-            tensor_product_basis_enabled(options, "cubic_bspline"),
+            tensor_product_basis_enabled(
+                options,
+                "cubic_bspline",
+                option_name=cls.TENSOR_PRODUCT_BASIS_OPTION,
+                default=cls.DEFAULT_TENSOR_PRODUCT_BASIS,
+            ),
         )
 
     @staticmethod

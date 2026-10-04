@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any, ClassVar, Mapping, Optional
 
 import numpy as np
 import torch
@@ -30,10 +30,13 @@ class PolynomialBasis(ValueEnum):
 
 @dataclass(frozen=True)
 class OrthogonalPolynomialGeometry:
+    TENSOR_PRODUCT_BASIS_OPTION: ClassVar[str] = "tensor_product_basis"
+    DEFAULT_TENSOR_PRODUCT_BASIS: ClassVar[bool] = True
+
     basis: PolynomialBasis
     maximum_degree: int
     domain: tuple[tuple[float, float], ...]
-    tensor_product_basis: bool = False
+    tensor_product_basis: bool = DEFAULT_TENSOR_PRODUCT_BASIS
 
     def __post_init__(self) -> None:
         if self.maximum_degree < 0:
@@ -70,7 +73,12 @@ class OrthogonalPolynomialGeometry:
             PolynomialBasis.parse(options["basis"]),
             int(options["maximum_degree"]),
             tuple((domain[0], domain[1]) for domain in domains),
-            tensor_product_basis_enabled(options, "orthogonal_polynomial"),
+            tensor_product_basis_enabled(
+                options,
+                "orthogonal_polynomial",
+                option_name=cls.TENSOR_PRODUCT_BASIS_OPTION,
+                default=cls.DEFAULT_TENSOR_PRODUCT_BASIS,
+            ),
         )
 
 
