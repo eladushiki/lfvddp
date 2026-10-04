@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from math import prod
 from types import MappingProxyType
 from typing import (
     Any,
@@ -163,6 +164,53 @@ def events_tensor(
     return tensor.to(device=device, dtype=dtype)
 
 
+def tensor_product_basis_enabled(
+    options: Mapping[str, Any],
+    family: str,
+    *,
+    option_name: str,
+    default: bool,
+) -> bool:
+    """Return the optional tensor-product basis toggle for fixed families."""
+
+    enabled = options[option_name] if option_name in options else default
+    if not isinstance(enabled, bool):
+        raise ValueError(f"{family} {option_name} must be boolean.")
+    return enabled
+
+
+def assembled_feature_count(feature_counts: Iterable[int], *, tensor_product_basis: bool) -> int:
+    """Return additive or tensor-product width from per-dimension widths."""
+
+    counts = tuple(int(count) for count in feature_counts)
+    if not counts or any(count <= 0 for count in counts):
+        raise ValueError("Per-dimension feature counts must be positive.")
+    return prod(counts) if tensor_product_basis else sum(counts)
+
+
+def assemble_per_dimension_features(
+    features: Iterable[torch.Tensor],
+    *,
+    tensor_product_basis: bool,
+) -> torch.Tensor:
+    """Concatenate per-axis features or form every Cartesian product column."""
+
+    feature_blocks = tuple(features)
+    if not feature_blocks:
+        raise ValueError("At least one feature block is required.")
+    if len(feature_blocks) == 1 or not tensor_product_basis:
+        return torch.cat(feature_blocks, dim=1)
+
+    product_features = feature_blocks[0]
+    for dimension_features in feature_blocks[1:]:
+        previous_products_by_event = product_features[:, :, None]
+        next_dimension_features_by_event = dimension_features[:, None, :]
+        product_features = (
+            previous_products_by_event * next_dimension_features_by_event
+        ).flatten(start_dim=1)
+    return product_features
+
+
 class PerEventFunctionSpace(nn.Module):
     """A trainable function space evaluated independently for each event."""
 
@@ -186,6 +234,7 @@ class PerEventFunctionSpace(nn.Module):
 
         del options
         return None
+
 
 class DeterministicFeatureFunction(PerEventFunctionSpace):
     """Common linear-coefficient topology for fixed feature geometries."""

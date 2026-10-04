@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import prod
-from typing import Any, Mapping, Optional
+from typing import Any, ClassVar, Mapping, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -85,6 +85,7 @@ class BinIndicatorFunction(DeterministicFeatureFunction):
     """One bounded linear coefficient per Cartesian detector-bin cell."""
 
     family = "bin_indicators"
+    TENSOR_PRODUCT_BASIS_OPTION: ClassVar[str] = "tensor_product_basis"
 
     def __init__(
         self,
@@ -112,6 +113,13 @@ class BinIndicatorFunction(DeterministicFeatureFunction):
 
     @classmethod
     def geometry_from_options(cls, options: Mapping[str, Any]) -> BinIndicatorGeometry:
+        if (
+            cls.TENSOR_PRODUCT_BASIS_OPTION in options
+            and not isinstance(options[cls.TENSOR_PRODUCT_BASIS_OPTION], bool)
+        ):
+            raise ValueError(
+                f"{cls.family} {cls.TENSOR_PRODUCT_BASIS_OPTION} must be boolean."
+            )
         return BinIndicatorGeometry.from_options(options)
 
     def _edges(self, dimension: int) -> torch.Tensor:

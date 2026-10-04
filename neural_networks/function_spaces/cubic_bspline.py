@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, ClassVar, Mapping, Optional, Sequence
 
 import numpy as np
 import torch
@@ -13,10 +13,13 @@ from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import (
     DeterministicFeatureFunction,
     EventInput,
+    assembled_feature_count,
+    assemble_per_dimension_features,
     dimensions,
     events_tensor,
     number_sequence,
     require_options,
+    tensor_product_basis_enabled,
 )
 
 
@@ -27,14 +30,22 @@ CUBIC_BSPLINE_DEGREE = 3
 class CubicBSplineGeometry:
     """Clamped cubic knot vectors, one immutable vector per input dimension."""
 
+    TENSOR_PRODUCT_BASIS_OPTION: ClassVar[str] = "tensor_product_basis"
+    DEFAULT_TENSOR_PRODUCT_BASIS: ClassVar[bool] = True
+
     knots: tuple[tuple[float, ...], ...]
+    tensor_product_basis: bool = DEFAULT_TENSOR_PRODUCT_BASIS
 
     def __post_init__(self) -> None:
         if not self.knots:
             raise ValueError("Cubic B-spline geometry requires at least one knot vector.")
         for knots in self.knots:
-            if len(knots) < 8 or any(left > right for left, right in zip(knots, knots[1:])):
-                raise ValueError("Each cubic B-spline knot vector must be nondecreasing and valid.")
+            if len(knots) < 8 or any(
+                left > right for left, right in zip(knots, knots[1:])
+            ):
+                raise ValueError(
+                    "Each cubic B-spline knot vector must be nondecreasing and valid."
+                )
             if knots[0] == knots[-1]:
                 raise ValueError("Each cubic B-spline knot vector must span a nonzero domain.")
 
@@ -44,11 +55,26 @@ class CubicBSplineGeometry:
 
     @property
     def feature_count(self) -> int:
-        return sum(self.feature_counts)
+        return assembled_feature_count(
+            self.feature_counts,
+            tensor_product_basis=self.tensor_product_basis,
+        )
 
     @classmethod
-    def from_breakpoints(cls, value: Any) -> "CubicBSplineGeometry":
-        return cls(tuple(cls.clamped_knot_vector(knots) for knots in dimensions(value, "knots")))
+    def from_options(cls, options: Mapping[str, Any]) -> "CubicBSplineGeometry":
+        require_options(options, "cubic_bspline", ("knots",))
+        return cls(
+            tuple(
+                cls.clamped_knot_vector(knots)
+                for knots in dimensions(options["knots"], "knots")
+            ),
+            tensor_product_basis_enabled(
+                options,
+                "cubic_bspline",
+                option_name=cls.TENSOR_PRODUCT_BASIS_OPTION,
+                default=cls.DEFAULT_TENSOR_PRODUCT_BASIS,
+            ),
+        )
 
     @staticmethod
     def clamped_knot_vector(knots: Sequence[float]) -> tuple[float, ...]:
@@ -56,19 +82,30 @@ class CubicBSplineGeometry:
         if len(values) >= 8 and values[0] < values[-1] and all(
             left <= right for left, right in zip(values, values[1:])
         ):
-            left_count = next((index for index, item in enumerate(values) if item != values[0]), len(values))
-            right_count = next((index for index, item in enumerate(reversed(values)) if item != values[-1]), len(values))
+            left_count = next(
+                (index for index, item in enumerate(values) if item != values[0]),
+                len(values),
+            )
+            right_count = next(
+                (
+                    index
+                    for index, item in enumerate(reversed(values))
+                    if item != values[-1]
+                ),
+                len(values),
+            )
             if left_count >= 4 and right_count >= 4:
                 return values
         if len(values) < 2 or any(left >= right for left, right in zip(values, values[1:])):
             raise ValueError(
-                "Cubic B-spline knots must be strictly increasing breakpoints or a valid full vector."
+                "Cubic B-spline knots must be strictly increasing breakpoints "
+                "or a valid full vector."
             )
         return (values[0],) * 4 + values[1:-1] + (values[-1],) * 4
 
 
 class CubicBSplineFunction(DeterministicFeatureFunction):
-    """Additive cubic B-spline features with fixed, clamped knots."""
+    """Cubic B-spline features with fixed, clamped knots."""
 
     family = "cubic_bspline"
 
@@ -91,12 +128,13 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
             options=options,
         )
         for index, knots in enumerate(geometry.knots):
-            self.register_buffer(f"_knots_{index}", torch.tensor(knots, dtype=dtype, device=device))
+            self.register_buffer(
+                f"_knots_{index}", torch.tensor(knots, dtype=dtype, device=device)
+            )
 
     @classmethod
     def geometry_from_options(cls, options: Mapping[str, Any]) -> CubicBSplineGeometry:
-        require_options(options, "cubic_bspline", ("knots",))
-        return CubicBSplineGeometry.from_breakpoints(options["knots"])
+        return CubicBSplineGeometry.from_options(options)
 
     def _knot_vector(self, dimension: int) -> torch.Tensor:
         knots = self._buffers[f"_knots_{dimension}"]
@@ -113,19 +151,25 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
         if len(observable_names) != self.input_dimension:
             raise ValueError("Function-space geometry does not match the observable dimension.")
         with torch.no_grad():
-            for dimension, (name, knots) in enumerate(zip(observable_names, self.geometry.knots)):
+            for dimension, (name, knots) in enumerate(
+                zip(observable_names, self.geometry.knots)
+            ):
                 normalized = normalization_factor.normalize_values(
                     np.asarray(knots)[:, None], (name,)
                 )[:, 0]
                 buffer = self._knot_vector(dimension)
-                buffer.copy_(torch.as_tensor(normalized, dtype=buffer.dtype, device=buffer.device))
+                buffer.copy_(
+                    torch.as_tensor(
+                        normalized, dtype=buffer.dtype, device=buffer.device
+                    )
+                )
 
     @classmethod
     def _statistical_constraint_dimension_for_geometry(
         cls, geometry: CubicBSplineGeometry
     ) -> int:
         del cls
-        return len(geometry.knots)
+        return 1 if geometry.tensor_product_basis else len(geometry.knots)
 
     @staticmethod
     def _basis(values: torch.Tensor, knots: torch.Tensor) -> torch.Tensor:
@@ -140,8 +184,18 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
             for index in range(count + CUBIC_BSPLINE_DEGREE - order):
                 left_denominator = knots[index + order] - knots[index]
                 right_denominator = knots[index + order + 1] - knots[index + 1]
-                left = torch.zeros_like(values) if left_denominator == 0 else (values - knots[index]) / left_denominator * bases[index]
-                right = torch.zeros_like(values) if right_denominator == 0 else (knots[index + order + 1] - values) / right_denominator * bases[index + 1]
+                left = (
+                    torch.zeros_like(values)
+                    if left_denominator == 0
+                    else (values - knots[index]) / left_denominator * bases[index]
+                )
+                right = (
+                    torch.zeros_like(values)
+                    if right_denominator == 0
+                    else (knots[index + order + 1] - values)
+                    / right_denominator
+                    * bases[index + 1]
+                )
                 next_bases.append(left + right)
             bases = next_bases
         result = torch.stack(bases[:count], dim=1)
@@ -163,10 +217,10 @@ class CubicBSplineFunction(DeterministicFeatureFunction):
             dtype=self.coefficients.dtype,
             device=self.coefficients.device,
         )
-        return torch.cat(
-            tuple(
+        return assemble_per_dimension_features(
+            (
                 self._basis(values[:, dimension], self._knot_vector(dimension))
                 for dimension in range(self.input_dimension)
             ),
-            dim=1,
+            tensor_product_basis=self.geometry.tensor_product_basis,
         )

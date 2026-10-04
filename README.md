@@ -133,6 +133,13 @@ when configuration files need target-significance signal amounts.
   (bin limits, spline knots, polynomial domains, centres, and widths) is given
   in physical observable units; LFVDDP applies the run's shared data
   normalization before evaluating per-event function spaces.
+  Deterministic per-dimension bases accept `tensor_product_basis: true` in
+  their `options` to train one coefficient per Cartesian product of basis
+  elements across observables. The option defaults to `true`.
+  `bin_indicators` already uses Cartesian cells and accepts the option without
+  changing its feature map. In tensor-product mode, `fixed_sigmoid` interprets
+  nested `centers` and `widths` as per-observable lists and expands all joint
+  centre-width combinations.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
   `input_dimension` and `hidden_layer_nodes`. Adaptive neural and NPLM studies

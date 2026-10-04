@@ -59,6 +59,18 @@ def test_every_catalog_family_constructs_one_normalized_event_shift():
             },
             "output_dimension",
         ),
+        (
+            {
+                "family": "orthogonal_polynomial",
+                "options": {
+                    "basis": "legendre",
+                    "maximum_degree": 2,
+                    "domain": [0, 1],
+                    "tensor_product_basis": "yes",
+                },
+            },
+            "tensor_product_basis",
+        ),
     ],
 )
 def test_family_options_fail_through_the_normal_configuration_path(spec, message):

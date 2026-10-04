@@ -187,6 +187,15 @@ def test_function_space_1d_training_matrix(
             },
             id="2d-cubic-neural",
         ),
+        pytest.param(
+            {
+                ConfigType.DATASET: _DATASET_2D,
+                ConfigType.DETECTOR: _DETECTOR_2D,
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR
+                / "two_dimensional_cubic_bspline_tensor_product_binned.json",
+            },
+            id="2d-cubic-tensor-product-binned",
+        ),
     ],
     indirect=True,
 )
