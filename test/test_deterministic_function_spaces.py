@@ -6,6 +6,7 @@ from neural_networks.function_spaces import (
     FixedSigmoidFunction,
     GaussianRadialBasisFunction,
     OrthogonalPolynomialFunction,
+    analytic_degrees_of_freedom,
     create_function_space,
 )
 from train.function_space_config import FunctionSpaceSpec
@@ -32,6 +33,105 @@ def test_feature_counts_and_multidimensional_geometry_are_explicit():
     assert radial.input_dimension == 2 and radial.feature_count == 2
     assert spline.features(torch.tensor([[0.5, 1.5]])).shape == (1, 10)
     assert radial.features(torch.tensor([[0.0, 0.0]])).shape == (1, 2)
+
+
+def test_tensor_product_basis_expands_per_dimension_features():
+    polynomial = create_function_space(
+        FunctionSpaceSpec(
+            "orthogonal_polynomial",
+            {
+                "basis": "legendre",
+                "maximum_degree": 2,
+                "domain": [[0, 2], [0, 2]],
+                "tensor_product_basis": True,
+            },
+        ),
+        dtype=torch.float32,
+    )
+    assert polynomial.feature_count == 9
+    assert torch.allclose(
+        polynomial.features(torch.tensor([[1.0, 1.0]])),
+        torch.tensor([[1.0, 0.0, -0.5, 0.0, 0.0, -0.0, -0.5, -0.0, 0.25]]),
+    )
+    assert polynomial.statistical_degrees_of_freedom() == 8
+
+    spline = create_function_space(
+        FunctionSpaceSpec(
+            "cubic_bspline",
+            {
+                "knots": [[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]],
+                "tensor_product_basis": True,
+            },
+        ),
+        dtype=torch.float32,
+    )
+    assert spline.feature_count == 25
+    assert spline.features(torch.tensor([[0.5, 1.5]])).shape == (1, 25)
+    assert spline.statistical_degrees_of_freedom() == 24
+
+
+def test_tensor_product_basis_is_1d_equivalent_to_additive_basis():
+    base_options = {"basis": "chebyshev", "maximum_degree": 3, "domain": [0, 2]}
+    additive = create_function_space(
+        FunctionSpaceSpec("orthogonal_polynomial", base_options),
+        dtype=torch.float64,
+    )
+    tensor = create_function_space(
+        FunctionSpaceSpec(
+            "orthogonal_polynomial", {**base_options, "tensor_product_basis": True}
+        ),
+        dtype=torch.float64,
+    )
+    events = torch.tensor([[0.25], [1.0], [1.75]], dtype=torch.float64)
+    assert tensor.feature_count == additive.feature_count
+    assert torch.allclose(tensor.features(events), additive.features(events))
+
+
+def test_fixed_sigmoid_tensor_product_expands_per_dimension_geometry():
+    sigmoid = create_function_space(
+        FunctionSpaceSpec(
+            "fixed_sigmoid",
+            {
+                "centers": [[0.0, 1.0], [10.0, 20.0]],
+                "widths": [1.0, 2.0],
+                "tensor_product_basis": True,
+            },
+        ),
+        dtype=torch.float32,
+    )
+    assert sigmoid.input_dimension == 2
+    assert sigmoid.feature_count == 4
+    events = torch.tensor([[0.0, 10.0]])
+    s0 = torch.sigmoid(torch.tensor(0.0))
+    s_minus_1 = torch.sigmoid(torch.tensor(-1.0))
+    s_minus_5 = torch.sigmoid(torch.tensor(-5.0))
+    expected = torch.stack(
+        (
+            s0 * s0,
+            s0 * s_minus_5,
+            s_minus_1 * s0,
+            s_minus_1 * s_minus_5,
+        )
+    )[None, :]
+    assert torch.allclose(sigmoid.features(events), expected)
+
+
+def test_binned_tensor_product_option_keeps_existing_cartesian_features():
+    options = {"minima": [0, 0], "maxima": [2, 3], "number_of_bins": [2, 3]}
+    additive = create_function_space(
+        FunctionSpaceSpec("bin_indicators", options),
+        dtype=torch.float64,
+    )
+    tensor = create_function_space(
+        FunctionSpaceSpec("bin_indicators", {**options, "tensor_product_basis": True}),
+        dtype=torch.float64,
+    )
+    events = torch.tensor([[0.25, 0.25], [1.25, 2.25]], dtype=torch.float64)
+    assert tensor.feature_count == additive.feature_count == 6
+    assert torch.equal(tensor.features(events), additive.features(events))
+    assert analytic_degrees_of_freedom(
+        FunctionSpaceSpec("bin_indicators", {**options, "tensor_product_basis": True})
+    ) == 5
 
 
 def test_spline_partition_of_unity_and_fixed_geometry_boundary_behavior():

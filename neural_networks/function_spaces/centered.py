@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import product
 from typing import Any, Mapping, Optional
 
 import numpy as np
@@ -13,6 +14,7 @@ from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import (
     DeterministicFeatureFunction,
     EventInput,
+    dimensions,
     events_tensor,
     number_sequence,
     require_options,
@@ -47,7 +49,9 @@ class CenterGeometry:
             centers = tuple(number_sequence(center, "centers") for center in raw_centers)
         else:
             raise ValueError(f"{family_name} centers must be one- or two-dimensional.")
-        if not centers or any(not all(np.isfinite(value) for value in center) for center in centers):
+        if not centers or any(
+            not all(np.isfinite(value) for value in center) for center in centers
+        ):
             raise ValueError(f"{family_name} centers must contain at least one finite value.")
         dimension = len(centers[0])
         if any(len(center) != dimension for center in centers):
@@ -69,7 +73,8 @@ class CenterGeometry:
                 width_matrix = (width_values,)
             else:
                 raise ValueError(
-                    f"{family_name} widths must be scalar, one per center, or one vector per center."
+                    f"{family_name} widths must be scalar, one per center, "
+                    "or one vector per center."
                 )
         elif width_array.ndim == 2 and len(width_array) == len(centers):
             width_matrix = tuple(number_sequence(width, "widths") for width in raw_widths)
@@ -86,6 +91,63 @@ class CenterGeometry:
                 f"{family_name} must not define duplicate centre-and-width features."
             )
         return cls(tuple(centers), tuple(width_matrix))
+
+    @classmethod
+    def tensor_product_from_options(
+        cls, options: Mapping[str, Any], family_name: str
+    ) -> "CenterGeometry":
+        """Expand per-dimension centre and width lists into joint features."""
+
+        require_options(options, family_name, ("centers", "widths"))
+        center_dimensions = dimensions(options["centers"], "centers")
+        raw_widths = options["widths"]
+        if np.isscalar(raw_widths):
+            width_dimensions = tuple(
+                (float(raw_widths),) * len(centers) for centers in center_dimensions
+            )
+        else:
+            width_dimensions = dimensions(raw_widths, "widths")
+            if len(width_dimensions) == 1 and len(center_dimensions) > 1:
+                width_values = width_dimensions[0]
+                if len(width_values) != len(center_dimensions):
+                    raise ValueError(
+                        f"{family_name} tensor-product widths must be scalar, "
+                        "one per dimension, or match centers per dimension."
+                    )
+                width_dimensions = tuple(
+                    (width,) * len(centers)
+                    for width, centers in zip(width_values, center_dimensions)
+                )
+        if len(width_dimensions) != len(center_dimensions):
+            raise ValueError(
+                f"{family_name} tensor-product widths must match center dimensionality."
+            )
+        if any(
+            len(widths) != len(centers)
+            for widths, centers in zip(width_dimensions, center_dimensions)
+        ):
+            raise ValueError(
+                f"{family_name} tensor-product widths must match centers per dimension."
+            )
+        if any(width <= 0 for widths in width_dimensions for width in widths):
+            raise ValueError(f"{family_name} widths must be strictly positive.")
+
+        features = tuple(
+            (tuple(center for center, _ in items), tuple(width for _, width in items))
+            for items in product(
+                *tuple(
+                    zip(centers, widths)
+                    for centers, widths in zip(center_dimensions, width_dimensions)
+                )
+            )
+        )
+        centers = tuple(center for center, _ in features)
+        widths = tuple(width for _, width in features)
+        if len(set(zip(centers, widths))) != len(centers):
+            raise ValueError(
+                f"{family_name} must not define duplicate centre-and-width features."
+            )
+        return cls(centers, widths)
 
 
 class CenteredFeatureFunction(DeterministicFeatureFunction):
@@ -109,8 +171,12 @@ class CenteredFeatureFunction(DeterministicFeatureFunction):
             device=device,
             options=options,
         )
-        self.register_buffer("_centers", torch.tensor(geometry.centers, dtype=dtype, device=device))
-        self.register_buffer("_widths", torch.tensor(geometry.widths, dtype=dtype, device=device))
+        self.register_buffer(
+            "_centers", torch.tensor(geometry.centers, dtype=dtype, device=device)
+        )
+        self.register_buffer(
+            "_widths", torch.tensor(geometry.widths, dtype=dtype, device=device)
+        )
 
     def centered_values(self, events: EventInput) -> torch.Tensor:
         values = events_tensor(
@@ -135,5 +201,13 @@ class CenteredFeatureFunction(DeterministicFeatureFunction):
         )
         widths = normalization_factor.scale_values(self.geometry.widths, observable_names)
         with torch.no_grad():
-            self._centers.copy_(torch.as_tensor(centers, dtype=self._centers.dtype, device=self._centers.device))
-            self._widths.copy_(torch.as_tensor(widths, dtype=self._widths.dtype, device=self._widths.device))
+            self._centers.copy_(
+                torch.as_tensor(
+                    centers, dtype=self._centers.dtype, device=self._centers.device
+                )
+            )
+            self._widths.copy_(
+                torch.as_tensor(
+                    widths, dtype=self._widths.dtype, device=self._widths.device
+                )
+            )

@@ -16,6 +16,7 @@ from neural_networks.function_spaces.base import (
     DeterministicFeatureFunction,
     EventInput,
     events_tensor,
+    tensor_product_basis_enabled,
 )
 
 
@@ -112,6 +113,7 @@ class BinIndicatorFunction(DeterministicFeatureFunction):
 
     @classmethod
     def geometry_from_options(cls, options: Mapping[str, Any]) -> BinIndicatorGeometry:
+        tensor_product_basis_enabled(options, cls.family)
         return BinIndicatorGeometry.from_options(options)
 
     def _edges(self, dimension: int) -> torch.Tensor:
