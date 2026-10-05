@@ -25,7 +25,7 @@ from data_tools.dataset_config import (
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_mean_t_significance_relative_to_background,
+    calc_median_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
     calc_t_significance_relative_to_background,
 )
@@ -482,8 +482,9 @@ def utils__calculate_performance_curve(
         show_reference_diagonal.append(signal_point.show_reference_diagonal)
         connect_points.append(signal_point.connect_points)
 
+        signal_t_dist_median = np.median(signal_t_dist)
         observed_significances.append(
-            calc_mean_t_significance_relative_to_background(
+            calc_median_t_significance_relative_to_background(
                 background_t_dist,
                 signal_t_dist,
             )
@@ -491,20 +492,20 @@ def utils__calculate_performance_curve(
         signal_t_dist_std = np.std(signal_t_dist)
         observed_significance_lower_bounds.append(
             calc_t_significance_relative_to_background(
-                np.mean(signal_t_dist) - signal_t_dist_std,
+                signal_t_dist_median - signal_t_dist_std,
                 background_t_dist,
             )
         )
         observed_significance_upper_bounds.append(
             calc_t_significance_relative_to_background(
-                np.mean(signal_t_dist) + signal_t_dist_std,
+                signal_t_dist_median + signal_t_dist_std,
                 background_t_dist,
             )
         )
         gaussian_fit_significances.append(
             calc_t_significance_by_gaussian_fit_percentile(
                 background_only_distribution=background_t_dist,
-                t_value=np.mean(signal_t_dist),
+                t_value=signal_t_dist_median,
             )
         )
 

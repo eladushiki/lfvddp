@@ -14,7 +14,7 @@ Compare the submission's empirical test-statistic distribution with its theoreti
 A reader should be able to determine:
 
 - Whether the empirical distribution is compatible with the target chi-square shape.
-- The mean test statistic and mean significance estimate.
+- The median test statistic and median-based significance estimate.
 - How many runs were omitted because they did not converge or were classified as overfitted.
 
 ## Invocation and Inputs
@@ -44,8 +44,8 @@ The figure contains one axes:
 | --- | --- |
 | Empirical test statistics | Normalized histogram with the configured number of bins. |
 | Target distribution | A chi-square probability-density curve using the effective hypothesis-space dimension reconstructed from each saved run context. |
-| Mean statistic | Marked and labelled on the distribution. |
-| Significance | Derived from the mean statistic and reported in the plot annotation. |
+| Median statistic | Marked and labelled on the distribution. |
+| Significance | Derived from the median statistic and reported in the plot annotation. |
 
 Function spaces without a nonzero analytic degree count omit the chi-square
 curve and chi-square-derived significance annotation.
@@ -86,6 +86,6 @@ remain inside the plot frame without adding an empty tail to the histogram.
 - [ ] The empirical histogram contains only the selected `t` values.
 - [x] The chi-square reference uses the effective hypothesis-space dimension reconstructed from the saved run context.
 - [x] Function spaces without a nonzero degree count omit the analytic reference.
-- [ ] Mean statistic, significance, and omitted-run information are readable.
+- [ ] Median statistic, significance, and omitted-run information are readable.
 - [x] The x-axis includes all retained `t` values with 5% right-side headroom.
 - [ ] The figure is reproducible from the recorded submission results and configuration.
