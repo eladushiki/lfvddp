@@ -18,7 +18,7 @@ _CUBATURE_ABSOLUTE_TOLERANCE = 1e-3
 _CUBATURE_RELATIVE_TOLERANCE = 5e-3
 _MULTIDIMENSIONAL_INTERVALS_PER_AXIS = 50
 _MAX_MULTIDIMENSIONAL_INTEGRATION_REGIONS = 10_000
-_TENSOR_QUADRATURE_MIN_DIMENSIONS = 4
+_TENSOR_QUADRATURE_MIN_DIMENSIONS = 2
 _TENSOR_QUADRATURE_TARGET_NODES_PER_AXIS = 24
 _TENSOR_QUADRATURE_MAX_POINTS = 500_000
 
@@ -187,16 +187,16 @@ def _multidimensional_integration_regions(
     ]
 
 
-def _high_dimensional_tensor_quadrature(
+def _tensor_quadrature(
     integrand: Callable[[np.ndarray], np.ndarray],
+    lower_limits: np.ndarray,
     upper_limits: np.ndarray,
 ) -> float:
-    """Integrate a finite high-dimensional domain with bounded tensor quadrature.
+    """Integrate a finite domain with bounded tensor quadrature.
 
-    Adaptive cubature works well for the current two-dimensional plot packs, but
-    its recursive subdivision becomes prohibitively expensive in four or more
-    dimensions. A fixed Gauss-Legendre tensor rule keeps the cost predictable and
-    lets vectorized PDFs evaluate the whole point cloud in a small number of
+    Adaptive cubature can recursively subdivide for too long during plot
+    aggregation. A fixed Gauss-Legendre tensor rule keeps the cost predictable
+    and lets vectorized PDFs evaluate each point cloud in a small number of
     large batches.
     """
     nodes_per_axis = min(
@@ -204,8 +204,12 @@ def _high_dimensional_tensor_quadrature(
         max(2, int(_TENSOR_QUADRATURE_MAX_POINTS ** (1 / upper_limits.size))),
     )
     base_nodes, base_weights = np.polynomial.legendre.leggauss(nodes_per_axis)
-    axis_nodes = [0.5 * upper_limit * (base_nodes + 1) for upper_limit in upper_limits]
-    axis_weights = [0.5 * upper_limit * base_weights for upper_limit in upper_limits]
+    widths = upper_limits - lower_limits
+    axis_nodes = [
+        lower_limit + 0.5 * width * (base_nodes + 1)
+        for lower_limit, width in zip(lower_limits, widths)
+    ]
+    axis_weights = [0.5 * width * base_weights for width in widths]
 
     coordinate_mesh = np.meshgrid(*axis_nodes, indexing="ij")
     points = np.column_stack([coordinates.ravel() for coordinates in coordinate_mesh])
@@ -218,6 +222,31 @@ def _high_dimensional_tensor_quadrature(
     if values.shape != (points.shape[0],) or not np.all(np.isfinite(values)):
         raise ValueError("Tensor quadrature integrand returned non-finite values")
     return float(np.dot(weights, values))
+
+
+def _high_dimensional_tensor_quadrature(
+    integrand: Callable[[np.ndarray], np.ndarray],
+    upper_limits: np.ndarray,
+) -> float:
+    """Integrate a high-dimensional domain with one bounded tensor rule."""
+    return _tensor_quadrature(
+        integrand,
+        np.zeros_like(upper_limits),
+        upper_limits,
+    )
+
+
+def _regioned_tensor_quadrature(
+    integrand: Callable[[np.ndarray], np.ndarray],
+    upper_limits: np.ndarray,
+) -> float:
+    """Integrate a low-dimensional domain with bounded tensor rules per region."""
+    return sum(
+        _tensor_quadrature(integrand, lower_bounds, upper_bounds)
+        for lower_bounds, upper_bounds in _multidimensional_integration_regions(
+            upper_limits
+        )
+    )
 
 
 def calc_injected_t_significance_by_sqrt_q0_continuous(
@@ -268,7 +297,9 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
                 background_rate_density,
             )
 
-        if upper_limits.size >= _TENSOR_QUADRATURE_MIN_DIMENSIONS:
+        if upper_limits.size == 2:
+            q0 = _regioned_tensor_quadrature(q0_integrand, upper_limits)
+        elif upper_limits.size >= _TENSOR_QUADRATURE_MIN_DIMENSIONS:
             q0 = _high_dimensional_tensor_quadrature(q0_integrand, upper_limits)
         else:
             results = [

@@ -202,6 +202,24 @@ def test_multidimensional_significance_resolves_narrow_signal_peak():
     assert significance > 1
 
 
+def test_two_dimensional_significance_uses_bounded_regioned_tensor_rule(monkeypatch):
+    def forbidden_cubature(*args, **kwargs):
+        raise AssertionError("2D significance should not use adaptive cubature")
+
+    monkeypatch.setattr(profile_likelihood, "cubature", forbidden_cubature)
+
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=lambda coordinates: 1.0,
+        signal_pdf=lambda coordinates: 1.0,
+        n_background_events=10_000,
+        n_signal_events=100,
+        upper_limit=np.ones(2),
+    )
+    expected = np.sqrt(2 * (10_100 * np.log1p(100 / 10_000) - 100))
+
+    np.testing.assert_allclose(significance, expected, rtol=1e-5)
+
+
 def test_four_dimensional_significance_vectorizes_large_event_count_pdf_calls():
     batch_shapes = []
 
