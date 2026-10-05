@@ -244,10 +244,22 @@ class _PerformanceCurve:
     x_errors: np.ndarray
     x_label: str
     show_reference_diagonal: bool
+    connect_points: bool
     observed_significances: np.ndarray
     observed_significance_lower_bounds: np.ndarray
     observed_significance_upper_bounds: np.ndarray
     gaussian_fit_significances: np.ndarray
+
+
+@dataclass
+class _PerformanceSignalPoint:
+    x_value: float
+    x_label: str
+    show_reference_diagonal: bool
+    connect_points: bool
+    t_value_chunks: List[np.ndarray]
+    injected_significance_chunks: List[np.ndarray]
+    directories: List[Path]
 
 
 def _integration_upper_limits_for_dimensions(
@@ -276,9 +288,8 @@ def utils__context_background_source_type(context: ExecutionContext) -> str:
 
 def _performance_x_value_for_signal(
     signal_dataset_parameters,
-    signal_agg: ResultAggregator,
     source_type: str,
-) -> Tuple[float, float, str, bool]:
+) -> Tuple[float, str, bool, bool]:
     if source_type == "generated":
         return (
             calc_injected_t_significance_by_sqrt_q0_continuous(
@@ -288,15 +299,15 @@ def _performance_x_value_for_signal(
                 n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
                 upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
             ),
-            float(np.std(signal_agg.all_injected_significances)),
             r"injected $\sqrt{q_0}$",
+            True,
             True,
         )
     if source_type == "loaded":
         return (
             signal_dataset_parameters.dataset__mean_number_of_signal_events,
-            0.0,
             "mean injected signal events",
+            False,
             False,
         )
     raise ValueError(
@@ -394,35 +405,82 @@ def utils__calculate_performance_curve(
     x_errors = []
     x_labels = []
     show_reference_diagonal = []
+    connect_points = []
     observed_significances = []
     observed_significance_lower_bounds = []
     observed_significance_upper_bounds = []
     gaussian_fit_significances = []
 
+    signal_points: Dict[float, _PerformanceSignalPoint] = {}
     for signal_context, context_path in signal_group:
         signal_t_values_dir = context_path.parent
         signal_dataset_parameters = utils__get_signal_dataset_parameters(signal_context)
         signal_agg = ResultAggregator(signal_t_values_dir)
+        x_value, x_label, show_diagonal, should_connect = (
+            _performance_x_value_for_signal(
+                signal_dataset_parameters,
+                source_type,
+            )
+        )
+        signal_strength = float(
+            signal_dataset_parameters.dataset__mean_number_of_signal_events
+        )
+        if signal_strength not in signal_points:
+            signal_points[signal_strength] = _PerformanceSignalPoint(
+                x_value=x_value,
+                x_label=x_label,
+                show_reference_diagonal=show_diagonal,
+                connect_points=should_connect,
+                t_value_chunks=[],
+                injected_significance_chunks=[],
+                directories=[],
+            )
+        signal_point = signal_points[signal_strength]
+        if (
+            signal_point.x_label != x_label
+            or signal_point.show_reference_diagonal != show_diagonal
+            or signal_point.connect_points != should_connect
+            or not np.isclose(signal_point.x_value, x_value)
+        ):
+            raise ValueError(
+                "Duplicate configured signal strengths resolved to incompatible "
+                "performance x-axis values."
+            )
+        signal_point.t_value_chunks.append(signal_agg.all_t_values)
+        if source_type == "generated":
+            signal_point.injected_significance_chunks.append(
+                signal_agg.all_injected_significances
+            )
+        signal_point.directories.append(signal_t_values_dir)
+
+    for signal_point in signal_points.values():
+        signal_t_values = np.concatenate(signal_point.t_value_chunks)
         signal_t_dist, _, _ = _filter_t_distribution_outliers(
-            signal_agg.all_t_values,
+            signal_t_values,
             cut_non_converged=True,
             cut_overfitted=True,
         )
         if signal_t_dist.size == 0:
+            checked_directories = ", ".join(
+                str(directory) for directory in signal_point.directories
+            )
             raise ValueError(
-                f"No finite t values remain for {signal_t_values_dir} after "
-                "outlier filtering."
+                "No finite t values remain after outlier filtering for "
+                f"configured signal strength {signal_point.x_value}; checked "
+                f"directories: {checked_directories}."
             )
 
-        x_value, x_error, x_label, show_diagonal = _performance_x_value_for_signal(
-            signal_dataset_parameters,
-            signal_agg,
-            source_type,
-        )
-        x_values.append(x_value)
-        x_errors.append(x_error)
-        x_labels.append(x_label)
-        show_reference_diagonal.append(show_diagonal)
+        x_values.append(signal_point.x_value)
+        if source_type == "generated":
+            injected_significances = np.concatenate(
+                signal_point.injected_significance_chunks
+            )
+            x_errors.append(float(np.std(injected_significances)))
+        else:
+            x_errors.append(0.0)
+        x_labels.append(signal_point.x_label)
+        show_reference_diagonal.append(signal_point.show_reference_diagonal)
+        connect_points.append(signal_point.connect_points)
 
         signal_t_dist_median = np.median(signal_t_dist)
         observed_significances.append(
@@ -463,11 +521,17 @@ def utils__calculate_performance_curve(
         raise ValueError(
             "Performance curve contains incompatible reference diagonal settings."
         )
+    unique_connection_settings = set(connect_points)
+    if len(unique_connection_settings) != 1:
+        raise ValueError(
+            "Performance curve contains incompatible point-connection settings."
+        )
     return _PerformanceCurve(
         x_values=np.asarray(x_values)[sort],
         x_errors=np.asarray(x_errors)[sort],
         x_label=unique_x_labels.pop(),
         show_reference_diagonal=unique_diagonal_settings.pop(),
+        connect_points=unique_connection_settings.pop(),
         observed_significances=np.asarray(observed_significances)[sort],
         observed_significance_lower_bounds=np.asarray(
             observed_significance_lower_bounds
