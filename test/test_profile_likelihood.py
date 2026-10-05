@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from scipy.stats import norm
 
+import data_tools.profile_likelihood as profile_likelihood
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_mean_t_significance_relative_to_background,
@@ -233,6 +234,24 @@ def test_four_dimensional_significance_vectorizes_large_event_count_pdf_calls():
     assert batch_shapes
     assert all(shape[1] == 4 for shape in batch_shapes)
     assert max(shape[0] for shape in batch_shapes) > 1
+
+
+def test_four_dimensional_significance_uses_bounded_tensor_rule(monkeypatch):
+    def forbidden_cubature(*args, **kwargs):
+        raise AssertionError("4D significance should not use adaptive cubature")
+
+    monkeypatch.setattr(profile_likelihood, "cubature", forbidden_cubature)
+
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=lambda coordinates: 1.0,
+        signal_pdf=lambda coordinates: 1.0,
+        n_background_events=10_000,
+        n_signal_events=100,
+        upper_limit=np.ones(4),
+    )
+    expected = np.sqrt(2 * (10_100 * np.log1p(100 / 10_000) - 100))
+
+    np.testing.assert_allclose(significance, expected, rtol=1e-5)
 
 
 def test_multidimensional_significance_resolves_localized_integrand():

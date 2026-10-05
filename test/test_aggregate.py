@@ -92,6 +92,44 @@ def test_injected_significances_use_dataset_integration_limits(
     )
 
 
+def test_injected_significances_cache_duplicate_dataset_parameters(
+    tmp_path,
+    monkeypatch,
+):
+    dataset_parameters = SimpleNamespace(
+        dataset_generated__background_pdf=lambda coordinates: 1.0,
+        dataset_generated__signal_pdf=lambda coordinates: 1.0,
+        dataset__number_of_background_events=100,
+        dataset__number_of_signal_events=10,
+        dataset_generated__integration_upper_limits=np.array([1.0, 1.0, 1.0, 1.0]),
+    )
+    contexts = [SimpleNamespace(config=SimpleNamespace()) for _ in range(3)]
+    calculation_count = 0
+
+    def fake_calculation(**arguments):
+        nonlocal calculation_count
+        calculation_count += 1
+        return 2.5
+
+    monkeypatch.setattr(
+        "frame.aggregate.ExecutionContext.discover_run_contexts",
+        lambda parent_directory: [(context, parent_directory) for context in contexts],
+    )
+    monkeypatch.setattr(
+        "frame.aggregate.utils__get_signal_dataset_parameters",
+        lambda signal_context: dataset_parameters,
+    )
+    monkeypatch.setattr(
+        "frame.aggregate.calc_injected_t_significance_by_sqrt_q0_continuous",
+        fake_calculation,
+    )
+
+    significances = ResultAggregator(tmp_path).all_injected_significances
+
+    np.testing.assert_allclose(significances, [2.5, 2.5, 2.5])
+    assert calculation_count == 1
+
+
 @pytest.mark.parametrize(
     "function_execution_context",
     [
