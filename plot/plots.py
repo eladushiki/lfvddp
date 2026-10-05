@@ -12,7 +12,9 @@ from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
-from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
+from data_tools.profile_likelihood import (
+    calc_median_t_significance_by_chi2_percentile,
+)
 from neural_networks.function_spaces import prediction_grid_edges
 from train.function_space_config import FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
@@ -64,9 +66,7 @@ _PERCENTILE_PROGRESSION_Y_HEADROOM = 0.05
 _T_DISTRIBUTION_X_HEADROOM = 0.05
 
 
-def _prediction_process_suptitle(
-    context: ExecutionContext, title: str
-) -> str:
+def _prediction_process_suptitle(context: ExecutionContext, title: str) -> str:
     """Describe the prediction process and its source run in one line."""
     return f"{title} of {context.config.config__runtag}"
 
@@ -92,6 +92,7 @@ def _prediction_process_subplot_adjustments(
         "hspace": 0.14,
         "wspace": 0.14,
     }
+
 
 # DEVELOPER NOTE: Each function here can ba called from "PlottingConfig" BY NAME.
 # Implement any new plot function here, and you will be able to call it automatically.
@@ -128,9 +129,7 @@ def _percentile_progression_y_upper_limit(
             np.ravel(reference_quantiles),
         )
     )
-    visible_values = plotted_values[
-        np.isfinite(plotted_values) & (plotted_values >= 0)
-    ]
+    visible_values = plotted_values[np.isfinite(plotted_values) & (plotted_values >= 0)]
     if visible_values.size == 0:
         return 1.0
     return max(
@@ -185,11 +184,13 @@ def t_train_percentile_progression_plot(
         values = all_history_values[sample_name][HistoryKeys.T.value]
         converged_values = _eventually_converged_histories(values)
         percentiles = np.percentile(converged_values, quantiles, axis=0)
-        for index, (quantile, percentile, color) in enumerate(zip(
-            quantiles,
-            percentiles,
-            colors,
-        )):
+        for index, (quantile, percentile, color) in enumerate(
+            zip(
+                quantiles,
+                percentiles,
+                colors,
+            )
+        ):
             (line,) = ax.plot(
                 epochs,
                 percentile,
@@ -226,7 +227,7 @@ def t_train_percentile_progression_plot(
                 color="black",
                 linestyle="--",
                 linewidth=1.5,
-                label=fr"$\chi^2_{{{chi2_dof}}}$ quantiles",
+                label=rf"$\chi^2_{{{chi2_dof}}}$ quantiles",
             )
         )
     fig.suptitle("Training percentile progression", fontsize=24)
@@ -252,7 +253,7 @@ def t_distribution_plot(
 ) -> Figure:
     """
     Plot a test-statistic sample (t) and its target chi-square distribution.
-    The mean t value determines the displayed chi-square significance estimate.
+    The median t value determines the displayed chi-square significance estimate.
     """
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(
@@ -291,7 +292,7 @@ def t_distribution_plot(
     if t.size == 0:
         raise ValueError("No finite t values remain after outlier filtering.")
 
-    distribution_mean = np.mean(t)
+    distribution_median = np.median(t)
     distribution_std = np.std(t)
 
     # Limits
@@ -307,7 +308,7 @@ def t_distribution_plot(
     histogram_bin_width = (histogram_xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
-        f"mean: {str(np.around(distribution_mean, 2))} \n"
+        f"median: {str(np.around(distribution_median, 2))} \n"
         f"std: {str(np.around(distribution_std, 2))}"
     )
 
@@ -318,16 +319,11 @@ def t_distribution_plot(
             "removed as non-converged" if cut_non_converged else "did not converge"
         )
         label += (
-            f"\n{convergence_note}: "
-            f"{did_not_converge_num / total_t_num * 100:.2f}%"
+            f"\n{convergence_note}: {did_not_converge_num / total_t_num * 100:.2f}%"
         )
     if np.any(overfitted):
-        overfitting_note = (
-            "removed as overfitted" if cut_overfitted else "overfitted"
-        )
-        label += (
-            f"\n{overfitting_note}: {overfitted.sum() / total_t_num * 100:.2f}%"
-        )
+        overfitting_note = "removed as overfitted" if cut_overfitted else "overfitted"
+        label += f"\n{overfitting_note}: {overfitted.sum() / total_t_num * 100:.2f}%"
 
     h, _, _ = ax.hist(
         t,
@@ -356,23 +352,26 @@ def t_distribution_plot(
             style["chi2_color"],
             linewidth=style["linewidth"],
             alpha=style["alpha"],
-            label=fr"$\chi^{{2}}_{{{chi2_dof}}}$",
+            label=rf"$\chi^{{2}}_{{{chi2_dof}}}$",
         )
 
-    mean_t = float(np.mean(t))
+    median_t = float(np.median(t))
     ax.axvline(
-        mean_t,
+        median_t,
         color=style["edge_color"],
         linestyle="--",
         linewidth=style["linewidth"],
     )
-    mean_label = f"mean $t={mean_t:.2f}$"
+    median_label = f"median $t={median_t:.2f}$"
     if chi2_dof is not None:
-        mean_significance = calc_t_significance_by_chi2_percentile(t, chi2_dof)
-        mean_label += f"\n$Z(\\mathrm{{mean}}\\ t)={mean_significance:.2f}$"
+        median_significance = calc_median_t_significance_by_chi2_percentile(
+            t,
+            chi2_dof,
+        )
+        median_label += f"\n$Z(\\mathrm{{median}}\\ t)={median_significance:.2f}$"
     ax.annotate(
-        mean_label,
-        xy=(mean_t, float(np.max(h)) * 0.9),
+        median_label,
+        xy=(median_t, float(np.max(h)) * 0.9),
         xytext=(6, 0),
         textcoords="offset points",
         color=style["edge_color"],
@@ -391,7 +390,7 @@ def t_distribution_plot(
                 (0, 0), 1, 1, color=style["chi2_color"], alpha=style["alpha"]
             )
         )
-        legend_labels.append(fr"$\chi^{{2}}_{{{chi2_dof}}}$")
+        legend_labels.append(rf"$\chi^{{2}}_{{{chi2_dof}}}$")
     ax.legend(
         legend_handles,
         legend_labels,
@@ -492,9 +491,7 @@ def performance_plot(
             "restore it before retrying rather than deleting it."
         )
 
-    signal_groups = utils__group_signal_contexts(
-        signal_t_values_parent_directory
-    )
+    signal_groups = utils__group_signal_contexts(signal_t_values_parent_directory)
     if not signal_groups:
         raise ValueError(
             f"No directories containing {CONTEXT_FILE_NAME} were found under "
@@ -623,10 +620,14 @@ def performance_plot(
 
     if any(
         np.any(
-            (curve.gaussian_fit_significances
-             < curve.observed_significance_lower_bounds)
-            | (curve.gaussian_fit_significances
-               > curve.observed_significance_upper_bounds)
+            (
+                curve.gaussian_fit_significances
+                < curve.observed_significance_lower_bounds
+            )
+            | (
+                curve.gaussian_fit_significances
+                > curve.observed_significance_upper_bounds
+            )
         )
         for curve in curves
     ):
@@ -893,19 +894,11 @@ class _PredictionGrid:
     def iter_projection_chunks(self):
         """Yield whole projected coordinates, preserving legacy sum order."""
         unselected_coordinates = self._unselected_coordinates
-        projections_per_chunk = max(
-            1, self.chunk_size // self.points_per_projection
-        )
-        for start in range(
-            0, self.number_of_projected_points, projections_per_chunk
-        ):
-            stop = min(
-                start + projections_per_chunk, self.number_of_projected_points
-            )
+        projections_per_chunk = max(1, self.chunk_size // self.points_per_projection)
+        for start in range(0, self.number_of_projected_points, projections_per_chunk):
+            stop = min(start + projections_per_chunk, self.number_of_projected_points)
             projected_indices = np.arange(start, stop, dtype=np.intp)
-            selected_indices = np.unravel_index(
-                projected_indices, self.selected_shape
-            )
+            selected_indices = np.unravel_index(projected_indices, self.selected_shape)
             event_columns = []
             for axis_index, axis in enumerate(self.axes):
                 if axis_index in self.selected_axis_indices:
@@ -924,10 +917,13 @@ class _PredictionGrid:
                             projected_indices.size,
                         )
                     )
-            yield DataSet(
-                data=np.column_stack(event_columns),
-                observable_names=list(self.observable_names),
-            ), projected_indices.size
+            yield (
+                DataSet(
+                    data=np.column_stack(event_columns),
+                    observable_names=list(self.observable_names),
+                ),
+                projected_indices.size,
+            )
 
 
 def _prediction_grid(
@@ -1105,12 +1101,8 @@ def plot_prediction_process_1d(
 
     c = Carpenter(context)
     fig = c.figure()
-    c.reserve_run_stamp_row(
-        fig, **_prediction_process_subplot_adjustments(ndim)
-    )
-    fig.suptitle(
-        _prediction_process_suptitle(context, title), fontsize=22, y=0.99
-    )
+    c.reserve_run_stamp_row(fig, **_prediction_process_subplot_adjustments(ndim))
+    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=22, y=0.99)
 
     plot_colors = {
         "background": "gray",
@@ -1178,9 +1170,7 @@ def plot_prediction_process_1d(
 
     def weighted_distribution_predictions(
         reference_background: DataSet,
-        prediction_specs: Tuple[
-            Tuple[np.ndarray, float, str, str, str], ...
-        ],
+        prediction_specs: Tuple[Tuple[np.ndarray, float, str, str, str], ...],
     ) -> List[Tuple[np.ndarray, str, str, str, float]]:
         return [
             (
@@ -1382,9 +1372,7 @@ def plot_prediction_process_1d(
         prediction_minimum = min(1.0, float(np.min(finite_prediction_values)))
         prediction_maximum = max(1.0, float(np.max(finite_prediction_values)))
         prediction_span = prediction_maximum - prediction_minimum
-        prediction_padding = (
-            0.05 * prediction_span if prediction_span > 0 else 0.05
-        )
+        prediction_padding = 0.05 * prediction_span if prediction_span > 0 else 0.05
         return (
             prediction_minimum - prediction_padding,
             prediction_maximum + prediction_padding,
@@ -1409,9 +1397,7 @@ def plot_prediction_process_1d(
 
     utils__plot_model_predictions_sliced(
         ax=sr_prediction_ax,
-        predictions=projected_specs(
-            sr_prediction_specs, projected_sr_predictions
-        ),
+        predictions=projected_specs(sr_prediction_specs, projected_sr_predictions),
         bins=bins,
         along_observables=selected_observables,
         prediction_limits=sr_prediction_limits,
@@ -1419,9 +1405,7 @@ def plot_prediction_process_1d(
     )
     utils__plot_model_predictions_sliced(
         ax=cr_prediction_ax,
-        predictions=projected_specs(
-            cr_prediction_specs, projected_cr_predictions
-        ),
+        predictions=projected_specs(cr_prediction_specs, projected_cr_predictions),
         bins=bins,
         along_observables=selected_observables,
         prediction_limits=cr_prediction_limits,
@@ -1433,9 +1417,7 @@ def plot_prediction_process_1d(
         number_of_dimensions=ndim,
     )
     for panel in (sr_distribution_ax, cr_distribution_ax):
-        utils__add_prediction_process_legend(
-            panel, fontsize=8, location="lower left"
-        )
+        utils__add_prediction_process_legend(panel, fontsize=8, location="lower left")
 
     return fig
 
@@ -1484,12 +1466,8 @@ def plot_prediction_process_2d(
 
     c = Carpenter(context)
     fig = c.figure()
-    c.reserve_run_stamp_row(
-        fig, **_prediction_process_subplot_adjustments(ndim)
-    )
-    fig.suptitle(
-        _prediction_process_suptitle(context, title), fontsize=22, y=0.99
-    )
+    c.reserve_run_stamp_row(fig, **_prediction_process_subplot_adjustments(ndim))
+    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=22, y=0.99)
 
     plot_colors = {
         "background": "gray",
@@ -1553,9 +1531,7 @@ def plot_prediction_process_2d(
 
     def weighted_distribution_predictions(
         reference_background: DataSet,
-        prediction_specs: Tuple[
-            Tuple[np.ndarray, float, str, str, str], ...
-        ],
+        prediction_specs: Tuple[Tuple[np.ndarray, float, str, str, str], ...],
     ) -> List[Tuple[np.ndarray, str, str, str, float]]:
         return [
             (
@@ -1768,9 +1744,7 @@ def plot_prediction_process_2d(
         prediction_minimum = min(1.0, float(np.min(finite_prediction_values)))
         prediction_maximum = max(1.0, float(np.max(finite_prediction_values)))
         prediction_span = prediction_maximum - prediction_minimum
-        prediction_padding = (
-            0.05 * prediction_span if prediction_span > 0 else 0.05
-        )
+        prediction_padding = 0.05 * prediction_span if prediction_span > 0 else 0.05
         return (
             prediction_minimum - prediction_padding,
             prediction_maximum + prediction_padding,
@@ -1795,9 +1769,7 @@ def plot_prediction_process_2d(
 
     utils__plot_model_predictions_sliced(
         ax=sr_prediction_ax,
-        predictions=projected_specs(
-            sr_prediction_specs, projected_sr_predictions
-        ),
+        predictions=projected_specs(sr_prediction_specs, projected_sr_predictions),
         bins=bins,
         along_observables=selected_observables,
         prediction_limits=sr_prediction_limits,
@@ -1805,9 +1777,7 @@ def plot_prediction_process_2d(
     )
     utils__plot_model_predictions_sliced(
         ax=cr_prediction_ax,
-        predictions=projected_specs(
-            cr_prediction_specs, projected_cr_predictions
-        ),
+        predictions=projected_specs(cr_prediction_specs, projected_cr_predictions),
         bins=bins,
         along_observables=selected_observables,
         prediction_limits=cr_prediction_limits,

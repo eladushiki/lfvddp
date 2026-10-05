@@ -10,7 +10,7 @@ from plot import plot_utils
 class _FakeAggregator:
     def __init__(self, parent_directory: Path):
         self.parent_directory = parent_directory
-        self.all_t_values = np.asarray([2.0, 3.0])
+        self.all_t_values = np.asarray([20.0, 30.0, 100.0])
 
     @property
     def all_injected_significances(self):
@@ -36,9 +36,7 @@ def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path)
     context_path = tmp_path / "signal" / "context.json"
 
     def fail_analytic_significance(**_arguments):
-        raise AssertionError(
-            "Loaded datasets do not have an analytic background PDF."
-        )
+        raise AssertionError("Loaded datasets do not have an analytic background PDF.")
 
     monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
     monkeypatch.setattr(
@@ -54,11 +52,23 @@ def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path)
 
     curve = plot_utils.utils__calculate_performance_curve(
         [(context, context_path)],
-        background_t_dist=np.asarray([0.5, 1.0, 1.5]),
+        background_t_dist=np.arange(100, dtype=float),
     )
 
     np.testing.assert_array_equal(curve.x_values, [25])
     np.testing.assert_array_equal(curve.x_errors, [0.0])
+    assert curve.observed_significances[0] == pytest.approx(
+        plot_utils.calc_t_significance_relative_to_background(
+            30.0,
+            np.arange(100, dtype=float),
+        )
+    )
+    assert curve.gaussian_fit_significances[0] == pytest.approx(
+        plot_utils.calc_t_significance_by_gaussian_fit_percentile(
+            background_only_distribution=np.arange(100, dtype=float),
+            t_value=30.0,
+        )
+    )
     assert curve.x_label == "mean injected signal events"
     assert curve.show_reference_diagonal is False
 
