@@ -36,9 +36,7 @@ def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path)
     context_path = tmp_path / "signal" / "context.json"
 
     def fail_analytic_significance(**_arguments):
-        raise AssertionError(
-            "Loaded datasets do not have an analytic background PDF."
-        )
+        raise AssertionError("Loaded datasets do not have an analytic background PDF.")
 
     monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
     monkeypatch.setattr(
@@ -61,6 +59,7 @@ def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path)
     np.testing.assert_array_equal(curve.x_errors, [0.0])
     assert curve.x_label == "mean injected signal events"
     assert curve.show_reference_diagonal is False
+    assert curve.connect_points is False
 
 
 def test_generated_performance_curve_keeps_analytic_significance(
@@ -100,6 +99,45 @@ def test_generated_performance_curve_keeps_analytic_significance(
     np.testing.assert_allclose(curve.x_errors, [np.std([3.0, 4.0, 5.0])])
     assert curve.x_label == r"injected $\sqrt{q_0}$"
     assert curve.show_reference_diagonal is True
+    assert curve.connect_points is True
+
+
+def test_performance_curve_coalesces_duplicate_signal_strengths(
+    monkeypatch,
+    tmp_path,
+):
+    context = _context_with_source("loaded", signal_events=25)
+    first_path = tmp_path / "first" / "context.json"
+    second_path = tmp_path / "second" / "context.json"
+
+    class DuplicateAggregator(_FakeAggregator):
+        def __init__(self, parent_directory: Path):
+            self.parent_directory = parent_directory
+            values_by_directory = {
+                "first": np.asarray([2.0, 3.0]),
+                "second": np.asarray([4.0, 5.0]),
+            }
+            self.all_t_values = values_by_directory[parent_directory.name]
+
+    monkeypatch.setattr(plot_utils, "ResultAggregator", DuplicateAggregator)
+    monkeypatch.setattr(
+        plot_utils,
+        "utils__get_signal_dataset_parameters",
+        lambda signal_context: signal_context.signal_parameters,
+    )
+
+    background_t_dist = np.asarray([0.5, 1.0, 1.5])
+    curve = plot_utils.utils__calculate_performance_curve(
+        [(context, first_path), (context, second_path)],
+        background_t_dist=background_t_dist,
+    )
+
+    np.testing.assert_array_equal(curve.x_values, [25])
+    expected_significance = plot_utils.calc_mean_t_significance_relative_to_background(
+        background_t_dist,
+        np.asarray([2.0, 3.0, 4.0, 5.0]),
+    )
+    np.testing.assert_allclose(curve.observed_significances, [expected_significance])
 
 
 def test_performance_curve_rejects_mixed_generated_and_loaded(tmp_path):
