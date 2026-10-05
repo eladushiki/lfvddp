@@ -145,9 +145,11 @@ def test_performance_curve_coalesces_duplicate_signal_strengths(
     )
 
     np.testing.assert_array_equal(curve.x_values, [25])
-    expected_significance = plot_utils.calc_mean_t_significance_relative_to_background(
-        background_t_dist,
-        np.asarray([2.0, 3.0, 4.0, 5.0]),
+    expected_significance = (
+        plot_utils.calc_median_t_significance_relative_to_background(
+            background_t_dist,
+            np.asarray([2.0, 3.0, 4.0, 5.0]),
+        )
     )
     np.testing.assert_allclose(curve.observed_significances, [expected_significance])
 
