@@ -85,12 +85,7 @@ def test_generated_performance_curve_keeps_analytic_significance(
     context.signal_parameters.dataset_generated__integration_upper_limits = 10.0
     context_path = tmp_path / "signal" / "context.json"
 
-    class GeneratedAggregator(_FakeAggregator):
-        @property
-        def all_injected_significances(self):
-            return np.asarray([3.0, 4.0, 5.0])
-
-    monkeypatch.setattr(plot_utils, "ResultAggregator", GeneratedAggregator)
+    monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
     monkeypatch.setattr(
         plot_utils,
         "utils__get_signal_dataset_parameters",
@@ -108,7 +103,7 @@ def test_generated_performance_curve_keeps_analytic_significance(
     )
 
     np.testing.assert_array_equal(curve.x_values, [4.5])
-    np.testing.assert_allclose(curve.x_errors, [np.std([3.0, 4.0, 5.0])])
+    np.testing.assert_allclose(curve.x_errors, [0.0])
     assert curve.x_label == r"injected $\sqrt{q_0}$"
     assert curve.show_reference_diagonal is True
     assert curve.connect_points is True

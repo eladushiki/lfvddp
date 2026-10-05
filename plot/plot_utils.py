@@ -449,7 +449,7 @@ def utils__calculate_performance_curve(
         signal_point.t_value_chunks.append(signal_agg.all_t_values)
         if source_type == "generated":
             signal_point.injected_significance_chunks.append(
-                signal_agg.all_injected_significances
+                np.asarray([x_value])
             )
         signal_point.directories.append(signal_t_values_dir)
 
