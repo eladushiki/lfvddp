@@ -7,7 +7,7 @@ from scipy.stats import norm
 import data_tools.profile_likelihood as profile_likelihood
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
-    calc_mean_t_significance_relative_to_background,
+    calc_median_t_significance_relative_to_background,
     calc_t_significance_relative_to_background,
 )
 from data_tools.signal_calibration import (
@@ -17,17 +17,17 @@ from data_tools.signal_calibration import (
 )
 
 
-def test_mean_t_significance_uses_the_signal_distribution_mean():
+def test_median_t_significance_uses_the_signal_distribution_median():
     background_t_values = np.arange(100, dtype=float)
-    signal_t_values = np.array([0.0, 0.0, 30.0])
+    signal_t_values = np.array([0.0, 30.0, 90.0])
 
-    significance = calc_mean_t_significance_relative_to_background(
+    significance = calc_median_t_significance_relative_to_background(
         background_t_values, signal_t_values
     )
 
     assert significance == pytest.approx(
         calc_t_significance_relative_to_background(
-            np.mean(signal_t_values), background_t_values
+            np.median(signal_t_values), background_t_values
         )
     )
 

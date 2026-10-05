@@ -23,7 +23,9 @@ _TENSOR_QUADRATURE_TARGET_NODES_PER_AXIS = 24
 _TENSOR_QUADRATURE_MAX_POINTS = 500_000
 
 
-def calc_t_test_statistic_NPLM(tau: Union[int, float, np.ndarray]) -> Union[int, float, np.ndarray]:
+def calc_t_test_statistic_NPLM(
+    tau: Union[int, float, np.ndarray],
+) -> Union[int, float, np.ndarray]:
     """
     Calculate the test statistic t from the tau value
     """
@@ -38,19 +40,17 @@ def calc_t_LFVDDP(
     return -2 * numerator + 2 * denominator
 
 
-def calc_t_significance_by_chi2_percentile(
-          t_distribution: np.ndarray,
-          degrees_of_freedom: int,
+def calc_median_t_significance_by_chi2_percentile(
+    t_distribution: np.ndarray,
+    degrees_of_freedom: int,
 ) -> float:
-    return norm.ppf(
-         chi2.cdf(np.mean(t_distribution), df=degrees_of_freedom)
-    )
+    return norm.ppf(chi2.cdf(np.median(t_distribution), df=degrees_of_freedom))
 
 
 def calc_t_significance_by_gaussian_fit_percentile(
-          background_only_distribution: np.ndarray,
-          t_value: np.float64,
-          n_bins: int = 100,
+    background_only_distribution: np.ndarray,
+    t_value: np.float64,
+    n_bins: int = 100,
 ) -> float:
     # Fit a gaussian to the background-only t distribution
     mu, std = norm.fit(background_only_distribution)
@@ -60,33 +60,38 @@ def calc_t_significance_by_gaussian_fit_percentile(
 
 
 def calc_t_significance_relative_to_background(
-        t_value: np.float64,
-        background_only_t_values: np.ndarray,
+    t_value: np.float64,
+    background_only_t_values: np.ndarray,
 ):
     """
     Calculate the significance (Z-score) of the observed t values
     relative to the null hypothesis t values.
-    """ 
-    num_background_lower_t_values = np.count_nonzero(background_only_t_values <= t_value)
-    fraction_lower_background_t_values = num_background_lower_t_values / len(background_only_t_values)
-    stretched_fraction_lower_background_t_values = fraction_lower_background_t_values * 2 - 1
+    """
+    num_background_lower_t_values = np.count_nonzero(
+        background_only_t_values <= t_value
+    )
+    fraction_lower_background_t_values = num_background_lower_t_values / len(
+        background_only_t_values
+    )
+    stretched_fraction_lower_background_t_values = (
+        fraction_lower_background_t_values * 2 - 1
+    )
     z_score = np.sqrt(2) * erfinv(stretched_fraction_lower_background_t_values)
     return z_score
 
 
-def calc_mean_t_significance_relative_to_background(
-        background_only_t_values: np.ndarray,
-        signal_t_values: np.ndarray,
+def calc_median_t_significance_relative_to_background(
+    background_only_t_values: np.ndarray,
+    signal_t_values: np.ndarray,
 ) -> float:
-    """Estimate signal significance from its mean t value under the null."""
+    """Estimate signal significance from its median t value under the null."""
     return calc_t_significance_relative_to_background(
-        np.mean(signal_t_values),
-        background_only_t_values
+        np.median(signal_t_values), background_only_t_values
     )
 
 
 def _normalize_integration_upper_limits(
-        upper_limit: Union[float, np.ndarray],
+    upper_limit: Union[float, np.ndarray],
 ) -> np.ndarray:
     """Return one positive upper bound for each observable dimension."""
     upper_limits = np.asarray(upper_limit, dtype=float)
@@ -100,11 +105,13 @@ def _normalize_integration_upper_limits(
 
 
 def _pdf_density_at_coordinates(
-        pdf: Callable[[Union[float, np.ndarray]], float],
-        coordinates: tuple[float, ...],
+    pdf: Callable[[Union[float, np.ndarray]], float],
+    coordinates: tuple[float, ...],
 ) -> float:
     """Evaluate a PDF at one point and validate its scalar density."""
-    evaluation_point = coordinates[0] if len(coordinates) == 1 else np.asarray(coordinates)
+    evaluation_point = (
+        coordinates[0] if len(coordinates) == 1 else np.asarray(coordinates)
+    )
     density = np.asarray(pdf(evaluation_point))
     if density.ndim != 0 or not np.isfinite(density):
         raise ValueError("PDF must return a finite scalar density")
@@ -114,8 +121,8 @@ def _pdf_density_at_coordinates(
 
 
 def _pdf_densities_at_points(
-        pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
-        points: np.ndarray,
+    pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+    points: np.ndarray,
 ) -> np.ndarray:
     """Evaluate a PDF on a batch, falling back to its scalar point contract."""
     try:
@@ -126,10 +133,9 @@ def _pdf_densities_at_points(
     if densities.ndim == 0:
         densities = np.full(points.shape[0], densities.item())
     elif densities.shape != (points.shape[0],):
-        densities = np.asarray([
-            _pdf_density_at_coordinates(pdf, tuple(point))
-            for point in points
-        ])
+        densities = np.asarray(
+            [_pdf_density_at_coordinates(pdf, tuple(point)) for point in points]
+        )
 
     if not np.all(np.isfinite(densities)):
         raise ValueError("PDF must return finite scalar densities")
@@ -139,7 +145,7 @@ def _pdf_densities_at_points(
 
 
 def _one_dimensional_integration_regions(
-        upper_limit: float,
+    upper_limit: float,
 ) -> list[list[tuple[float, float]]]:
     """Build bounded-width regions for the legacy 1D quadrature path."""
     if not np.isfinite(upper_limit):
@@ -157,7 +163,7 @@ def _one_dimensional_integration_regions(
 
 
 def _multidimensional_integration_regions(
-        upper_limits: np.ndarray,
+    upper_limits: np.ndarray,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Split a multidimensional domain into scale-relative cubature regions."""
     intervals_per_axis = min(
@@ -215,15 +221,11 @@ def _high_dimensional_tensor_quadrature(
 
 
 def calc_injected_t_significance_by_sqrt_q0_continuous(
-        background_pdf: Callable[
-            [Union[float, np.ndarray]], Union[float, np.ndarray]
-        ],
-        signal_pdf: Callable[
-            [Union[float, np.ndarray]], Union[float, np.ndarray]
-        ],
-        n_background_events: int,
-        n_signal_events: int,
-        upper_limit: Union[float, np.ndarray] = np.inf,
+    background_pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+    signal_pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+    n_background_events: int,
+    n_signal_events: int,
+    upper_limit: Union[float, np.ndarray] = np.inf,
 ):
     """Calculate formula (32) from 2024 paper, significance for distributions
     over one or more observables with known pdfs.
@@ -252,17 +254,14 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
 
     if upper_limits.size > 1:
         if not np.all(np.isfinite(upper_limits)):
-            raise ValueError(
-                "Multidimensional integration upper limits must be finite"
-            )
+            raise ValueError("Multidimensional integration upper limits must be finite")
 
         def q0_integrand(points: np.ndarray) -> np.ndarray:
             signal_rate_density = n_signal_events * _pdf_densities_at_points(
                 signal_pdf, points
             )
-            background_rate_density = (
-                n_background_events
-                * _pdf_densities_at_points(background_pdf, points)
+            background_rate_density = n_background_events * _pdf_densities_at_points(
+                background_pdf, points
             )
             return 2 * kl_div(
                 signal_rate_density + background_rate_density,
@@ -329,13 +328,16 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
 
 
 def calc_injected_t_significance_by_sqrt_q0_binned(
-        background_t_distribution: np.ndarray,
-        signal_t_distribution: np.ndarray,
-        n_signal_events: int,
-        background_fraction: float,
+    background_t_distribution: np.ndarray,
+    signal_t_distribution: np.ndarray,
+    n_signal_events: int,
+    background_fraction: float,
 ):
-        q0 = 2 * (-n_signal_events + np.sum(
-             (mu * data + (bkg * background_fraction)) * \
-                np.log(mu * data / (bkg * background_fraction) + 1)
-        ))
-        return np.sqrt(q0)
+    q0 = 2 * (
+        -n_signal_events
+        + np.sum(
+            (mu * data + (bkg * background_fraction))
+            * np.log(mu * data / (bkg * background_fraction) + 1)
+        )
+    )
+    return np.sqrt(q0)

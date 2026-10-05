@@ -12,7 +12,9 @@ from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
-from data_tools.profile_likelihood import calc_t_significance_by_chi2_percentile
+from data_tools.profile_likelihood import (
+    calc_median_t_significance_by_chi2_percentile,
+)
 from neural_networks.function_spaces import prediction_grid_edges
 from train.function_space_config import FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
@@ -251,7 +253,7 @@ def t_distribution_plot(
 ) -> Figure:
     """
     Plot a test-statistic sample (t) and its target chi-square distribution.
-    The mean t value determines the displayed chi-square significance estimate.
+    The median t value determines the displayed chi-square significance estimate.
     """
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(
@@ -290,7 +292,7 @@ def t_distribution_plot(
     if t.size == 0:
         raise ValueError("No finite t values remain after outlier filtering.")
 
-    distribution_mean = np.mean(t)
+    distribution_median = np.median(t)
     distribution_std = np.std(t)
 
     # Limits
@@ -306,7 +308,7 @@ def t_distribution_plot(
     histogram_bin_width = (histogram_xmax - xmin) / number_of_bins
     histogram_bin_centers = 0.5 * (histogram_bins[1:] + histogram_bins[:-1])
     label = (
-        f"mean: {str(np.around(distribution_mean, 2))} \n"
+        f"median: {str(np.around(distribution_median, 2))} \n"
         f"std: {str(np.around(distribution_std, 2))}"
     )
 
@@ -353,20 +355,23 @@ def t_distribution_plot(
             label=rf"$\chi^{{2}}_{{{chi2_dof}}}$",
         )
 
-    mean_t = float(np.mean(t))
+    median_t = float(np.median(t))
     ax.axvline(
-        mean_t,
+        median_t,
         color=style["edge_color"],
         linestyle="--",
         linewidth=style["linewidth"],
     )
-    mean_label = f"mean $t={mean_t:.2f}$"
+    median_label = f"median $t={median_t:.2f}$"
     if chi2_dof is not None:
-        mean_significance = calc_t_significance_by_chi2_percentile(t, chi2_dof)
-        mean_label += f"\n$Z(\\mathrm{{mean}}\\ t)={mean_significance:.2f}$"
+        median_significance = calc_median_t_significance_by_chi2_percentile(
+            t,
+            chi2_dof,
+        )
+        median_label += f"\n$Z(\\mathrm{{median}}\\ t)={median_significance:.2f}$"
     ax.annotate(
-        mean_label,
-        xy=(mean_t, float(np.max(h)) * 0.9),
+        median_label,
+        xy=(median_t, float(np.max(h)) * 0.9),
         xytext=(6, 0),
         textcoords="offset points",
         color=style["edge_color"],
