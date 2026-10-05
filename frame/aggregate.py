@@ -1,7 +1,7 @@
 from glob import glob
 from logging import warning
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -45,6 +45,41 @@ def utils__get_signal_dataset_parameters(
         raise ValueError("No signal dataset found in the configuration")
 
     return signal_dataset_parameters
+
+
+def _hashable_dataset_parameter_value(value: Any):
+    if callable(value):
+        return None
+    if isinstance(value, np.ndarray):
+        return tuple(_hashable_dataset_parameter_value(item) for item in value.tolist())
+    if isinstance(value, (list, tuple)):
+        return tuple(_hashable_dataset_parameter_value(item) for item in value)
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                (
+                    _hashable_dataset_parameter_value(key),
+                    _hashable_dataset_parameter_value(item),
+                )
+                for key, item in value.items()
+            )
+        )
+    if isinstance(value, (str, int, float, bool, type(None), np.number)):
+        return value
+    return repr(value)
+
+
+def _injected_significance_cache_key(
+    dataset_parameters: DatasetParameters,
+) -> tuple[tuple[str, Any], ...]:
+    """Return a semantic cache key for generated injected-significance inputs."""
+    return tuple(
+        sorted(
+            (name, _hashable_dataset_parameter_value(value))
+            for name, value in vars(dataset_parameters).items()
+            if name.startswith("dataset_") and not callable(value)
+        )
+    )
 
 
 class ResultAggregator:
@@ -199,18 +234,24 @@ class ResultAggregator:
 
     @property
     def all_injected_significances(self) -> NDArray[np.float64]:
-        if self._test_statistics is None:
+        if self._run_contexts is None:
             self._load_run_contexts()
 
         injected_significances = []
+        significance_cache = {}
         for context in self._run_contexts:
             signal_dataset_parameters = utils__get_signal_dataset_parameters(context)
-            injected_significances.append(calc_injected_t_significance_by_sqrt_q0_continuous(
-                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                n_background_events=signal_dataset_parameters.dataset__number_of_background_events,
-                n_signal_events=signal_dataset_parameters.dataset__number_of_signal_events,
-                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
-            ))
+            cache_key = _injected_significance_cache_key(signal_dataset_parameters)
+            if cache_key not in significance_cache:
+                significance_cache[cache_key] = (
+                    calc_injected_t_significance_by_sqrt_q0_continuous(
+                        background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                        signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                        n_background_events=signal_dataset_parameters.dataset__number_of_background_events,
+                        n_signal_events=signal_dataset_parameters.dataset__number_of_signal_events,
+                        upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                    )
+                )
+            injected_significances.append(significance_cache[cache_key])
 
         return np.array(injected_significances)
