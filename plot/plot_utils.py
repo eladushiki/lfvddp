@@ -272,55 +272,17 @@ def _integration_upper_limits_for_dimensions(
     return np.full(number_of_dimensions, np.inf)
 
 
-def _performance_bin_edges_from_bin_indicators(
-    context: ExecutionContext,
-) -> Optional[Tuple[np.ndarray, ...]]:
-    function_space_config = getattr(
-        context.config, "train__function_space_config", None
-    )
-    nuisance = getattr(function_space_config, "nuisance", None)
-    if nuisance is None or nuisance.family != "bin_indicators":
-        return None
-
-    options = nuisance.options
-    try:
-        minima = tuple(float(value) for value in options["minima"])
-        maxima = tuple(float(value) for value in options["maxima"])
-        number_of_bins = tuple(int(value) for value in options["number_of_bins"])
-    except KeyError as error:
-        raise ValueError(
-            f"Missing bin-indicator option {error.args[0]!r} for loaded "
-            "performance significance."
-        ) from error
-    except (TypeError, ValueError) as error:
-        raise ValueError(
-            "Bin-indicator minima, maxima, and number_of_bins must be numeric "
-            "sequences for loaded performance significance."
-        ) from error
-
-    expected_dimensions = len(context.config.detector__detect_observable_names)
-    if (
-        len(minima) != expected_dimensions
-        or len(maxima) != expected_dimensions
-        or len(number_of_bins) != expected_dimensions
-    ):
-        return None
-    if any(count <= 0 for count in number_of_bins):
-        raise ValueError("Bin-indicator number_of_bins must be positive.")
-    if any(minimum >= maximum for minimum, maximum in zip(minima, maxima)):
-        raise ValueError("Bin-indicator minima must be smaller than maxima.")
-    return tuple(
-        np.linspace(minimum, maximum, count + 1)
-        for minimum, maximum, count in zip(minima, maxima, number_of_bins)
-    )
-
-
 def _performance_data_driven_bin_edges(
     context: ExecutionContext,
     background_data: DataSet,
     signal_data: DataSet,
     observable_names: List[str],
 ) -> Tuple[np.ndarray, ...]:
+    if not isinstance(context.config, PlottingConfig):
+        raise ValueError(
+            f"Expected context.config to include {PlottingConfig}, got "
+            f"{type(context.config)}."
+        )
     number_of_bins = context.config.plot__prediction_process_number_of_bins
     if number_of_bins <= 0:
         raise ValueError(
@@ -383,6 +345,11 @@ def _loaded_binned_injected_significance(
     signal_context: ExecutionContext,
     signal_dataset_parameters,
 ) -> float:
+    if not isinstance(signal_context.config, DetectorConfig):
+        raise ValueError(
+            f"Expected signal_context.config to include {DetectorConfig}, got "
+            f"{type(signal_context.config)}."
+        )
     background_data, signal_data = signal_dataset_parameters.dataset__data
     observable_names = list(signal_context.config.detector__detect_observable_names)
     if not set(observable_names).issubset(background_data.observable_names):
@@ -400,14 +367,12 @@ def _loaded_binned_injected_significance(
             f"signal dataset: {missing}."
         )
 
-    bin_edges = _performance_bin_edges_from_bin_indicators(signal_context)
-    if bin_edges is None:
-        bin_edges = _performance_data_driven_bin_edges(
-            signal_context,
-            background_data,
-            signal_data,
-            observable_names,
-        )
+    bin_edges = _performance_data_driven_bin_edges(
+        signal_context,
+        background_data,
+        signal_data,
+        observable_names,
+    )
 
     background_counts = _expected_histogram_counts(
         background_data,

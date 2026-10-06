@@ -6,9 +6,19 @@ import numpy as np
 import pytest
 
 from data_tools.data_utils import DataSet
+from data_tools.detector.detector_config import DetectorConfig
 from plot import plots
 from plot import plot_utils
 from plot.plotting_config import PlottingConfig
+
+
+class _PerformanceConfig(PlottingConfig, DetectorConfig):
+    def __init__(self, dataset_parameters):
+        PlottingConfig.__init__(self, plot__plot_specifications=[])
+        DetectorConfig.__init__(self, detector__detect_observable_names=["x"])
+        self.dataset_parameters = dataset_parameters
+        self.plot__prediction_process_number_of_bins = 2
+        self.train__function_space_config = SimpleNamespace(nuisance=None)
 
 
 class _FakeAggregator:
@@ -31,12 +41,7 @@ def _context_with_source(source_type: str, signal_events: int = 7):
         dataset__mean_number_of_background_events=100,
     )
     return SimpleNamespace(
-        config=SimpleNamespace(
-            dataset_parameters=[parameters],
-            detector__detect_observable_names=["x"],
-            plot__prediction_process_number_of_bins=2,
-            train__function_space_config=SimpleNamespace(nuisance=None),
-        ),
+        config=_PerformanceConfig(dataset_parameters=[parameters]),
         signal_parameters=parameters,
     )
 
@@ -95,8 +100,9 @@ def test_loaded_performance_curve_uses_binned_evident_significance(
     assert curve.connect_points is False
 
 
-def test_loaded_performance_curve_uses_bin_indicator_edges(monkeypatch, tmp_path):
+def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_path):
     context = _context_with_source("loaded", signal_events=25)
+    context.config.plot__prediction_process_number_of_bins = 1
     context.config.train__function_space_config = SimpleNamespace(
         nuisance=SimpleNamespace(
             family="bin_indicators",
@@ -108,8 +114,8 @@ def test_loaded_performance_curve_uses_bin_indicator_edges(monkeypatch, tmp_path
         )
     )
     context.signal_parameters.dataset__data = (
-        DataSet(np.asarray([[0.25], [0.75], [1.25]]), ["x"]),
-        DataSet(np.asarray([[0.75], [1.25]]), ["x"]),
+        DataSet(np.asarray([[0.25], [0.75]]), ["x"]),
+        DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
     )
     context_path = tmp_path / "signal" / "context.json"
 
@@ -126,8 +132,8 @@ def test_loaded_performance_curve_uses_bin_indicator_edges(monkeypatch, tmp_path
     )
 
     expected_x_value = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
-        background_bin_counts=np.asarray([50.0, 50.0]),
-        signal_bin_counts=np.asarray([0.0, 25.0]),
+        background_bin_counts=np.asarray([100.0]),
+        signal_bin_counts=np.asarray([25.0]),
     )
     np.testing.assert_allclose(curve.x_values, [expected_x_value])
 
