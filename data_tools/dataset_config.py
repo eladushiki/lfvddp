@@ -109,6 +109,16 @@ class DatasetParameters(ABC):
         pass
 
     @property
+    def dataset__signal_number_of_dimensions(self) -> int:
+        """Dimension used by a generated signal overlay for this dataset."""
+        return self.dataset__number_of_dimensions
+
+    @property
+    def dataset__signal_observable_names(self) -> Optional[List[str]]:
+        """Observable names assigned to generated signal overlays, when explicit."""
+        return None
+
+    @property
     def dataset__regional_split_policy(self) -> DatasetPairSplitPolicy:
         """How this category participates in its regional A/B finalization."""
         return IdentityDatasetPairSplitPolicy()
@@ -187,12 +197,13 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
 
     @property
     def _dataset__signal_distribution(self) -> DataDistribution:
+        signal_dimensions = self.dataset__signal_number_of_dimensions
         if self.dataset__signal_generator is None:
-            return signal.NoSignal(self.dataset__number_of_dimensions)
+            return signal.NoSignal(signal_dimensions)
         return resolve_generator(
             signal,
             self.dataset__signal_generator,
-            self.dataset__number_of_dimensions,
+            signal_dimensions,
         )
 
     def _dataset__scaled_pdf(
@@ -219,7 +230,7 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
         upper_limits = self._dataset__scaled_integration_upper_limits(
             self._dataset__signal_distribution,
         )
-        if self.dataset__number_of_dimensions == 1:
+        if self.dataset__signal_number_of_dimensions == 1:
             return upper_limits.item()
         return upper_limits
 
@@ -242,7 +253,7 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
         validate_generated_dataset(
             generated_dataset,
             amount,
-            self.dataset__number_of_dimensions,
+            self.dataset__signal_number_of_dimensions,
             generator_name,
         )
         validate_generated_dataset_within_integration_domain(
@@ -304,6 +315,10 @@ class LoadedDatasetParameters(DatasetWithGeneratedSignalParameters):
     dataset_loaded__cut: Optional[str] = field(default=None)
     dataset_loaded__aliases: Optional[Dict[str, str]] = field(default=None)
 
+    # Generated signal overlays for loaded data are expressed in the detected
+    # observable space, not necessarily in every branch loaded for cuts/bookkeeping.
+    dataset_loaded__signal_observable_names: Optional[List[str]] = field(default=None)
+
     # Resampling settings
     dataset_loaded__sample_is_sample: bool = field(default=True)
     dataset_loaded__sample_is_replacement: bool = field(default=False)
@@ -331,6 +346,27 @@ class LoadedDatasetParameters(DatasetWithGeneratedSignalParameters):
         return len(self.dataset_loaded__observable_naming)
 
     @property
+    def dataset__signal_number_of_dimensions(self) -> int:
+        if self.dataset_loaded__signal_observable_names is None:
+            return self.dataset__number_of_dimensions
+        return len(self.dataset_loaded__signal_observable_names)
+
+    @property
+    def dataset__signal_observable_names(self) -> Optional[List[str]]:
+        return self.dataset_loaded__signal_observable_names
+
+    def _dataset__generate_signal(self) -> DataSet:
+        generated_signal = super()._dataset__generate_signal()
+        if (
+            self.dataset_loaded__signal_observable_names is not None
+            and not generated_signal.empty
+        ):
+            generated_signal.observable_names = (
+                self.dataset_loaded__signal_observable_names
+            )
+        return generated_signal
+
+    @property
     def dataset__data(self) -> Tuple[DataSet, DataSet]:
         """
         Load the data from the specified file, and update the internal
@@ -338,13 +374,25 @@ class LoadedDatasetParameters(DatasetWithGeneratedSignalParameters):
         """
         background = self.__load_dataset(
             self.dataset_loaded__file_name,
-            self.dataset_loaded__event_amount_load_limit
+            self.dataset_loaded__event_amount_load_limit,
         )
         signal = self._dataset__generate_signal()
         if not signal.empty:
-            signal.observable_names = background.observable_names
+            if signal.observable_names == background.observable_names:
+                return background, signal
+            if all(
+                name in background.observable_names for name in signal.observable_names
+            ):
+                background = background.filter_observable_names(signal.observable_names)
+            else:
+                raise ValueError(
+                    "Loaded generated-signal observables must match or be a subset "
+                    "of the loaded background observables; "
+                    f"signal={signal.observable_names}, "
+                    f"background={background.observable_names}."
+                )
         return background, signal
-        
+
     def __load_dataset(self, path: str, number_of_events: Optional[int] = None) -> DataSet:
         """
         Load data from the specified file.

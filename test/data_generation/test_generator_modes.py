@@ -100,6 +100,50 @@ def test_joint_repeated_and_per_dimension_generators(
     )
 
 
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/data_generation/configs/dataset/"
+                "loaded_four_observables_two_signal_observables.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_2D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/short_2D_train_config_without_nuisance.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
+def test_loaded_generated_signal_uses_detector_observable_space(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+    isolated_data_generation,
+):
+    np.save(tmp_path / "events.npy", np.arange(48, dtype=float).reshape(12, 4))
+
+    with monkeypatch.context() as temporary_working_directory:
+        temporary_working_directory.chdir(tmp_path)
+        loaded = function_execution_context.config.get_parameters(
+            DataSet.DataSetCategory.A_SR
+        )
+        background, signal = loaded.dataset__data
+        combined, _ = isolated_data_generation[DataSet.DataSetCategory.A_SR]
+
+    assert loaded.dataset__number_of_dimensions == 4
+    assert loaded.dataset__signal_number_of_dimensions == 2
+    assert loaded.dataset_loaded__signal_observable_names == ["param_0", "param_1"]
+    assert background.observable_names == ["param_0", "param_1"]
+    assert signal.observable_names == ["param_0", "param_1"]
+    assert background.events.shape == (12, 2)
+    assert signal.events.shape == (5, 2)
+    assert combined.events.shape == (8, 2)
+
+
 def test_generator_configuration_rejects_invalid_shapes():
     with pytest.raises(ValueError, match="cannot be empty"):
         normalize_generator_selection([])
