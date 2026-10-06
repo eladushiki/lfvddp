@@ -11,6 +11,7 @@ from matplotlib.lines import Line2D
 from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
+from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import (
     calc_median_t_significance_by_chi2_percentile,
@@ -18,7 +19,6 @@ from data_tools.profile_likelihood import (
 from neural_networks.function_spaces import prediction_grid_edges
 from train.function_space_config import FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
-from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME
@@ -28,13 +28,10 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
-    _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS,
-    _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
     _t_distribution_included_mask,
-    _t_distribution_outlier_masks,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__context_background_source_type,
@@ -580,14 +577,14 @@ def performance_plot(
         group_label = utils__performance_group_label(
             signal_group[0][0],
         )
+        ax.plot(
+            curve.x_values,
+            curve.gaussian_fit_significances,
+            color=color,
+            linewidth=2,
+            linestyle="--",
+        )
         if curve.connect_points:
-            ax.plot(
-                curve.x_values,
-                curve.gaussian_fit_significances,
-                color=color,
-                linewidth=2,
-                linestyle="--",
-            )
             ax.plot(
                 curve.x_values,
                 curve.observed_significances,
@@ -788,45 +785,6 @@ def plot_data_generation_sliced(
     ax.set_ylabel("number of events", fontsize=20)
     ax.legend()
     return fig
-
-
-def _display_edges_by_observable(
-    datasets: List[DataSet],
-    observable_names: List[str],
-    number_of_bins: int,
-) -> dict[str, np.ndarray]:
-    if number_of_bins <= 0:
-        raise ValueError(
-            f"Expected a positive number of display bins, got {number_of_bins}"
-        )
-
-    edges_by_observable = {}
-    for observable_name in observable_names:
-        values = np.concatenate(
-            [
-                utils__flatten_histogram_values(
-                    dataset.slice_along_observable_names(observable_name)
-                )
-                for dataset in datasets
-            ]
-        )
-        values = values[np.isfinite(values)]
-        if values.size == 0:
-            raise ValueError(
-                f"Cannot define display bins for {observable_name}: no finite values found."
-            )
-
-        minimum = float(np.min(values))
-        maximum = float(np.max(values))
-        if minimum == maximum:
-            padding = max(abs(minimum) * 0.05, 0.5)
-            minimum -= padding
-            maximum += padding
-        edges_by_observable[observable_name] = np.linspace(
-            minimum, maximum, number_of_bins + 1
-        )
-
-    return edges_by_observable
 
 
 def _bins_for_observables(
@@ -1156,13 +1114,13 @@ def plot_prediction_process_1d(
         "denominator": "--",
     }
 
-    display_edges_by_observable = _display_edges_by_observable(
+    display_edges_by_observable_for_run = display_edges_by_observable(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
     )
     bins, bin_centers = _bins_for_observables(
-        display_edges_by_observable, selected_observables
+        display_edges_by_observable_for_run, selected_observables
     )
 
     sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
@@ -1303,7 +1261,7 @@ def plot_prediction_process_1d(
         utils__add_prediction_process_legend(panel, fontsize=8)
 
     prediction_grid = _prediction_grid(
-        display_edges_by_observable=display_edges_by_observable,
+        display_edges_by_observable=display_edges_by_observable_for_run,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
@@ -1517,13 +1475,13 @@ def plot_prediction_process_2d(
         "denominator": "--",
     }
 
-    display_edges_by_observable = _display_edges_by_observable(
+    display_edges_by_observable_for_run = display_edges_by_observable(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
     )
     bins, bin_centers = _bins_for_observables(
-        display_edges_by_observable, selected_observables
+        display_edges_by_observable_for_run, selected_observables
     )
 
     sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
@@ -1664,7 +1622,7 @@ def plot_prediction_process_2d(
         utils__add_prediction_process_legend(panel, fontsize=8)
 
     prediction_grid = _prediction_grid(
-        display_edges_by_observable=display_edges_by_observable,
+        display_edges_by_observable=display_edges_by_observable_for_run,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,

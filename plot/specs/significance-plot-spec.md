@@ -33,7 +33,7 @@ The plot factory discovers and injects the two parent directories for this multi
 - Signal contexts are discovered recursively and grouped by compatible dataset configuration.
 - Each signal context contributes a `t` distribution and an x-axis signal-strength value:
   - generated datasets use the analytic injected significance derived from their generated background and signal PDFs;
-  - loaded datasets use the configured mean number of injected signal events, because they do not define an analytic background PDF.
+  - loaded datasets use an evident injected significance calculated from expected background and signal counts in detector-observable bins, because they do not define analytic background PDFs. Training saves the sampled background and signal data plus the prediction plot's exact bin edges in `data_samples.npz`; plotting reads this artifact from each signal run. A missing artifact is an error rather than a reason to draw a new random sample.
 - Mixed generated and loaded datasets are rejected in one performance plot. They use different x-axis semantics and must not be overlaid.
 - For each signal distribution, the measured significance is the common-background percentile of that distribution's median `t`; uncertainty is reported from median `t` plus or minus one standard deviation.
 - Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined. If outlier filtering leaves no usable background values, the error identifies the checked directories and raw, finite, and finite-nonnegative counts. A verified `array-job-artifacts.tar.gz` created before aggregate plotting must be restored rather than misclassified as a failed residue.
@@ -46,10 +46,11 @@ The figure contains one axes:
 | --- | --- |
 | Signal group | One labelled curve per compatible signal group. |
 | Measured significance | Marker-and-line points against the plot's signal-strength axis. |
+| Gaussian-fit significance | Dashed curve through the Gaussian-fit estimate at each sampled signal strength. |
 | Uncertainty | Error bars on measured significance. |
 | Reference relation | The ideal-significance diagonal is drawn only for generated datasets, where the horizontal axis is analytic significance. |
 
-The horizontal axis is ideal significance $\sqrt{q_0}$ for generated datasets and configured mean injected signal events for loaded datasets; the vertical axis is measured significance. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
+The horizontal axis is ideal significance $\sqrt{q_0}$ for generated datasets and evident injected significance $\sqrt{q_0}$ for loaded datasets; the vertical axis is measured significance. For loaded datasets, the evident injected significance uses the exact prediction plot display bins computed from the detected training batch and controlled by `plot__prediction_process_number_of_bins`. The bin counts are scaled to the configured mean background and signal event counts before evaluating the binned likelihood-ratio formula. Generated datasets connect measured-significance points and draw a band from the measured-significance spread. Loaded datasets keep measured-significance points unconnected while their Gaussian-fit estimates remain connected by a dashed curve. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
 
 ### Further requirements
 - Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
@@ -79,6 +80,6 @@ The plot has no per-curve instruction parameters in the basic configuration; its
 - [ ] Signal contexts are grouped only with compatible dataset configurations.
 - [ ] Every displayed curve has a readable configuration-derived label.
 - [ ] Measured significance and its uncertainty are plotted against the correct signal-strength axis for the dataset source type.
-- [ ] Loaded datasets do not attempt analytic injected-significance calculation.
+- [ ] Loaded datasets use binned evident injected significance instead of analytic PDF integration.
 - [ ] Mixed generated and loaded datasets are rejected before plotting.
 - [ ] The figure is reproducible from the recorded parent-directory runs and configurations.

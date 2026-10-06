@@ -6,15 +6,17 @@ from data_tools.data_generation import DataBatch, DataGeneration
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_effect import DetectorEffect
+from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.profile_likelihood import calc_t_LFVDDP
+from frame.aggregate import utils__get_signal_dataset_parameters
 from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import (
-    RESULTING_T_FILE_NAME,
-)
+from frame.file_structure import RESULTING_T_FILE_NAME
+from frame.file_system.data_samples import save_data_samples
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel, LFVNN_DTYPE
 from neural_networks.utils import save_training_history_outcome
+from plot.plotting_config import PlottingConfig
 from train.cpu_runtime import configure_cpu_runtime
 from train.model_trainer import (
     ParallelTrainLauncher,
@@ -65,6 +67,7 @@ def main(context: ExecutionContext) -> None:
         with resource_profiler.stage("detector simulation"):
             det = DetectorEffect(context)
             detected_batch = det.affect_batch(batch)
+            save_training_data_samples(context, gen, detected_batch)
 
         with resource_profiler.stage("training"):
             t_result = train_for_t(
@@ -81,6 +84,30 @@ def main(context: ExecutionContext) -> None:
         )
     finally:
         resource_profiler.save()
+
+
+def save_training_data_samples(
+    context: ExecutionContext, generation: DataGeneration, detected_batch: DataBatch
+) -> None:
+    """Persist sampled components and the prediction plot's exact bin edges."""
+    config = context.config
+    if not config.dataset__has_signal:
+        return
+    signal_parameters = utils__get_signal_dataset_parameters(context)
+    if signal_parameters.dataset__background_source_type != "loaded":
+        return
+    if not isinstance(config, PlottingConfig):
+        raise TypeError(f"Expected PlottingConfig, got {type(config)}")
+    background, signal = generation.sampled_components(signal_parameters.category)
+    observable_names = list(config.detector__detect_observable_names)
+    edges = display_edges_by_observable(
+        datasets=[detected_batch.unified_data],
+        observable_names=observable_names,
+        number_of_bins=config.plot__prediction_process_number_of_bins,
+    )
+    save_data_samples(
+        context.unique_out_dir, background, signal, observable_names, edges
+    )
 
 
 def select_train_launcher_class(
