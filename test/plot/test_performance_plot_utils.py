@@ -166,6 +166,38 @@ def test_loaded_significance_uses_training_sample(monkeypatch, tmp_path):
     np.testing.assert_allclose(curve.x_values, [expected])
 
 
+def test_loaded_significance_uses_saved_two_dimensional_edges(monkeypatch, tmp_path):
+    context = _context_with_source("loaded", signal_events=25)
+    context.config.detector__detect_observable_names = ["x", "y"]
+    context_path = tmp_path / "signal" / "context.json"
+    context_path.parent.mkdir()
+    save_data_samples(
+        context_path.parent,
+        DataSet(np.asarray([[0.25, 0.25], [0.75, 0.75]]), ["x", "y"]),
+        DataSet(np.asarray([[0.75, 0.75]]), ["x", "y"]),
+        ["x", "y"],
+        {
+            "x": np.asarray([0.0, 0.5, 1.0]),
+            "y": np.asarray([-1.0, 1.0, 3.0]),
+        },
+    )
+    monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
+    monkeypatch.setattr(
+        plot_utils,
+        "utils__get_signal_dataset_parameters",
+        lambda _context: context.signal_parameters,
+    )
+
+    curve = plot_utils.utils__calculate_performance_curve(
+        [(context, context_path)], np.arange(100, dtype=float)
+    )
+    expected = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
+        np.asarray([[50.0, 0.0], [50.0, 0.0]]),
+        np.asarray([[0.0, 0.0], [25.0, 0.0]]),
+    )
+    np.testing.assert_allclose(curve.x_values, [expected])
+
+
 def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_path):
     context = _context_with_source("loaded", signal_events=25)
     context.config.plot__prediction_process_number_of_bins = 1
