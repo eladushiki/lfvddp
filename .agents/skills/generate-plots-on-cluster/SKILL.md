@@ -131,13 +131,14 @@ merely pruned or unpacked.
 
 Archival cleanup is standing routine authorization. Retain the submission's
 `context.json`, `configs/`, generated plot directories,
-`prediction_process_plots/`, and one `array-job-artifacts.tar.gz`. The helper
-keeps all prediction-process PNGs from one worker in that directory, including
-when rerun on a submission archived before this rule existed. The archive must
-include every remaining `single_train.py` directory. Histories already pruned
-after their progression plot are intentionally absent. Use the saved submission
-`output_root` as `--results-root`; run the helper first with `--dry-run`, then
-without it:
+`prediction_process_plots/` when needed, and one `array-job-artifacts.tar.gz`.
+The helper keeps all prediction-process PNGs from one worker in that directory,
+including when rerun on a submission archived before this rule existed. When a
+retained debug helper already has visible plots, it does not make extra copies.
+The archive must include every remaining `single_train.py` directory. Histories
+already pruned after their progression plot are intentionally absent. Use the
+saved submission `output_root` as `--results-root`; run the helper first with
+`--dry-run`, then without it:
 
 ```sh
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \

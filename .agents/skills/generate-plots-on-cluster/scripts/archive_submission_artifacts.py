@@ -98,9 +98,19 @@ def write_retained_plot(destination: Path, source: BinaryIO) -> None:
 
 
 def retain_prediction_process_plots(
-    submission: Path, sources: list[Path], archive: Path, *, dry_run: bool
+    submission: Path,
+    sources: list[Path],
+    archive: Path,
+    debug_helper: Path | None,
+    *,
+    dry_run: bool,
 ) -> None:
     """Keep one worker's prediction plots visible, including from old archives."""
+    if debug_helper is not None and any(
+        plot.is_file() for plot in debug_helper.rglob(PREDICTION_PLOT_GLOB)
+    ):
+        print(f"prediction plots already visible: {debug_helper.name}")
+        return
     retained = submission / PREDICTION_PLOTS_DIR_NAME
     workers = sorted(
         source
@@ -271,8 +281,10 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    retain_prediction_process_plots(submission, sources, archive, dry_run=dry_run)
     debug_helper = debug_helper_source(submission, sources)
+    retain_prediction_process_plots(
+        submission, sources, archive, debug_helper, dry_run=dry_run
+    )
     archive_sources = [source for source in sources if source != debug_helper]
     training_outcomes = training_outcome_directories(archive_sources)
     if not archive_sources:

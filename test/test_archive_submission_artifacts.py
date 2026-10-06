@@ -62,6 +62,7 @@ def test_cli_archives_debug_submission_and_retains_one_worker(tmp_path, monkeypa
     (submission / CONTEXT_FILE_NAME).write_text('{"is_debug_mode": true}')
     (submission / CONFIGS_DIR_NAME).mkdir()
     retained_worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 2)
+    (retained_worker / "dataset_process_plot.png").write_bytes(b"visible plot")
     archived_worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 3)
     artifact = submission / "artifact.txt"
     artifact.write_text("artifact")
@@ -81,6 +82,9 @@ def test_cli_archives_debug_submission_and_retains_one_worker(tmp_path, monkeypa
     assert retained_worker.is_dir()
     assert not archived_worker.exists()
     assert not artifact.exists()
+    assert not (
+        submission / archive_submission_artifacts.PREDICTION_PLOTS_DIR_NAME
+    ).exists()
 
 
 def test_archive_retains_one_workers_prediction_plots(tmp_path):
