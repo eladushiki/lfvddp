@@ -132,9 +132,10 @@ merely pruned or unpacked.
 Archival cleanup is standing routine authorization. Retain only the submission's
 `context.json`, `configs/`, generated plot directories, and one
 `array-job-artifacts.tar.gz`. The archive must include every remaining
-`single_train.py` directory. Histories already pruned after their progression
-plot are intentionally absent. Use the saved submission `output_root` as
-`--results-root`; run the helper first with `--dry-run`, then without it:
+`single_train.py` directory except the retained worker. Histories already
+pruned after their progression plot are intentionally absent. Use the saved
+submission `output_root` as `--results-root`; run the helper first with
+`--dry-run`, then without it:
 
 ```sh
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
@@ -162,10 +163,10 @@ it does not classify the work as successful. Record it as
 or partial-completion evidence. Before removal in either mode, verify that
 every remaining `training_outcomes` path is present in the archive.
 
-For a submission whose `context.json` records `is_debug_mode: true`, retain the
-first lexicographic per-array output directory in place as a debug helper. Do
-not include or delete that helper; archive and remove every other eligible
-array artifact. Report the retained path so later inspection is reproducible.
+For every submission, retain the first lexicographic per-array output directory
+in place. Do not include or delete that worker; archive and remove every other
+eligible array artifact. Report the retained path so later inspection is
+reproducible.
 
 If an archive was created before its aggregate plot, restore it before retrying
 the group rather than treating it as a failure residue or deleting it. Run the
@@ -187,7 +188,7 @@ timestamped submission directory, remove only verified empty directories, and
 archive any completed or partial artifacts that will no longer be used by a
 non-retired plot group. Use the normal `archive_submission_artifacts.py`
 procedure and retain only `context.json`, `configs/`, generated plots, and
-`array-job-artifacts.tar.gz` (plus the permitted first debug helper). Never
+`array-job-artifacts.tar.gz` (plus the retained first worker). Never
 delete non-empty output from a deleted job before verifying its context and
 scheduler evidence; record the exact path and outcome in state. A deleted job
 is eligible for the retired terminal-audit archive even when it did not finish,

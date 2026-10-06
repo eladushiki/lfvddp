@@ -41,23 +41,18 @@ def test_helper_uses_project_run_descriptors_for_directory_selection(tmp_path):
     removable = archive_submission_artifacts.removable_children(submission)
 
     assert removable == [arbitrary_artifact, training]
-    assert (
-        archive_submission_artifacts.debug_helper_source(submission, removable)
-        == training
-    )
+    assert archive_submission_artifacts.retained_worker_source(removable) == training
     (submission / CONTEXT_FILE_NAME).write_text("{}")
-    assert (
-        archive_submission_artifacts.debug_helper_source(submission, removable) is None
-    )
+    assert archive_submission_artifacts.retained_worker_source(removable) == training
     assert archive_submission_artifacts.all_submission_directories(tmp_path) == [
         submission
     ]
     assert plot not in removable
 
 
-def test_cli_archives_debug_submission_and_retains_one_worker(tmp_path, monkeypatch):
+def test_cli_archives_submission_and_retains_one_worker(tmp_path, monkeypatch):
     submission = _run_directory(tmp_path, SUBMIT_TRAIN_SCRIPT_NAME, 1)
-    (submission / CONTEXT_FILE_NAME).write_text('{"is_debug_mode": true}')
+    (submission / CONTEXT_FILE_NAME).write_text("{}")
     (submission / CONFIGS_DIR_NAME).mkdir()
     retained_worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 2)
     archived_worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 3)

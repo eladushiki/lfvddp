@@ -62,11 +62,8 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
-def debug_helper_source(submission: Path, sources: list[Path]) -> Path | None:
-    """Keep one array-worker directory in place for debug submissions."""
-    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
-    if context.get("is_debug_mode") is not True:
-        return None
+def retained_worker_source(sources: list[Path]) -> Path | None:
+    """Keep one array-worker directory in place."""
     return next(
         (
             source
@@ -192,20 +189,20 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    debug_helper = debug_helper_source(submission, sources)
-    archive_sources = [source for source in sources if source != debug_helper]
+    retained_worker = retained_worker_source(sources)
+    archive_sources = [source for source in sources if source != retained_worker]
     training_outcomes = training_outcome_directories(archive_sources)
     if not archive_sources:
         print(f"unchanged: {submission}")
-        if debug_helper is not None:
-            print(f"retained debug helper: {debug_helper.name}")
+        if retained_worker is not None:
+            print(f"retained worker: {retained_worker.name}")
         return
 
     print(f"archive: {archive}")
     for source in archive_sources:
         print(f"  {source.name}")
-    if debug_helper is not None:
-        print(f"retain debug helper: {debug_helper.name}")
+    if retained_worker is not None:
+        print(f"retain worker: {retained_worker.name}")
     if dry_run:
         return
 
@@ -250,8 +247,8 @@ def archive_submission(
             temporary_archive.unlink(missing_ok=True)
         raise
     print(f"archived and removed {len(archive_sources)} items: {submission}")
-    if debug_helper is not None:
-        print(f"retained debug helper: {debug_helper.name}")
+    if retained_worker is not None:
+        print(f"retained worker: {retained_worker.name}")
 
 
 def restore_submission(submission: Path, *, dry_run: bool) -> None:
