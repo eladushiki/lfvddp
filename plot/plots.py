@@ -11,6 +11,7 @@ from matplotlib.lines import Line2D
 from scipy.stats import chi2
 
 from data_tools.data_utils import DataSet
+from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import (
     calc_median_t_significance_by_chi2_percentile,
@@ -786,45 +787,6 @@ def plot_data_generation_sliced(
     return fig
 
 
-def _display_edges_by_observable(
-    datasets: List[DataSet],
-    observable_names: List[str],
-    number_of_bins: int,
-) -> dict[str, np.ndarray]:
-    if number_of_bins <= 0:
-        raise ValueError(
-            f"Expected a positive number of display bins, got {number_of_bins}"
-        )
-
-    edges_by_observable = {}
-    for observable_name in observable_names:
-        values = np.concatenate(
-            [
-                utils__flatten_histogram_values(
-                    dataset.slice_along_observable_names(observable_name)
-                )
-                for dataset in datasets
-            ]
-        )
-        values = values[np.isfinite(values)]
-        if values.size == 0:
-            raise ValueError(
-                f"Cannot define display bins for {observable_name}: no finite values found."
-            )
-
-        minimum = float(np.min(values))
-        maximum = float(np.max(values))
-        if minimum == maximum:
-            padding = max(abs(minimum) * 0.05, 0.5)
-            minimum -= padding
-            maximum += padding
-        edges_by_observable[observable_name] = np.linspace(
-            minimum, maximum, number_of_bins + 1
-        )
-
-    return edges_by_observable
-
-
 def _bins_for_observables(
     edges_by_observable: dict[str, np.ndarray],
     observable_names: List[str],
@@ -1152,13 +1114,13 @@ def plot_prediction_process_1d(
         "denominator": "--",
     }
 
-    display_edges_by_observable = _display_edges_by_observable(
+    display_edges_by_observable_for_run = display_edges_by_observable(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
     )
     bins, bin_centers = _bins_for_observables(
-        display_edges_by_observable, selected_observables
+        display_edges_by_observable_for_run, selected_observables
     )
 
     sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
@@ -1299,7 +1261,7 @@ def plot_prediction_process_1d(
         utils__add_prediction_process_legend(panel, fontsize=8)
 
     prediction_grid = _prediction_grid(
-        display_edges_by_observable=display_edges_by_observable,
+        display_edges_by_observable=display_edges_by_observable_for_run,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
@@ -1513,13 +1475,13 @@ def plot_prediction_process_2d(
         "denominator": "--",
     }
 
-    display_edges_by_observable = _display_edges_by_observable(
+    display_edges_by_observable_for_run = display_edges_by_observable(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
     )
     bins, bin_centers = _bins_for_observables(
-        display_edges_by_observable, selected_observables
+        display_edges_by_observable_for_run, selected_observables
     )
 
     sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
@@ -1660,7 +1622,7 @@ def plot_prediction_process_2d(
         utils__add_prediction_process_legend(panel, fontsize=8)
 
     prediction_grid = _prediction_grid(
-        display_edges_by_observable=display_edges_by_observable,
+        display_edges_by_observable=display_edges_by_observable_for_run,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,

@@ -37,7 +37,7 @@ from frame.file_structure import (
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
-from frame.file_system.performance_components import load_performance_components
+from frame.file_system.data_samples import load_data_samples
 from frame.file_system.training_history import HistoryKeys
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
@@ -273,50 +273,6 @@ def _integration_upper_limits_for_dimensions(
     return np.full(number_of_dimensions, np.inf)
 
 
-def _performance_data_driven_bin_edges(
-    context: ExecutionContext,
-    background_data: DataSet,
-    signal_data: DataSet,
-    observable_names: List[str],
-) -> Tuple[np.ndarray, ...]:
-    if not isinstance(context.config, PlottingConfig):
-        raise ValueError(
-            f"Expected context.config to include {PlottingConfig}, got "
-            f"{type(context.config)}."
-        )
-    number_of_bins = context.config.plot__prediction_process_number_of_bins
-    if number_of_bins <= 0:
-        raise ValueError(
-            f"Expected a positive number of performance bins, got {number_of_bins}."
-        )
-
-    edges = []
-    for observable_name in observable_names:
-        values = np.concatenate(
-            [
-                utils__flatten_histogram_values(
-                    dataset.slice_along_observable_names(observable_name)
-                )
-                for dataset in (background_data, signal_data)
-                if not dataset.empty
-            ]
-        )
-        values = values[np.isfinite(values)]
-        if values.size == 0:
-            raise ValueError(
-                f"Cannot define performance bins for {observable_name}: "
-                "no finite values found."
-            )
-        minimum = float(np.min(values))
-        maximum = float(np.max(values))
-        if minimum == maximum:
-            padding = max(abs(minimum) * 0.05, 0.5)
-            minimum -= padding
-            maximum += padding
-        edges.append(np.linspace(minimum, maximum, number_of_bins + 1))
-    return tuple(edges)
-
-
 def _expected_histogram_counts(
     dataset: DataSet,
     observable_names: List[str],
@@ -352,7 +308,8 @@ def _loaded_binned_injected_significance(
             f"Expected signal_context.config to include {DetectorConfig}, got "
             f"{type(signal_context.config)}."
         )
-    background_data, signal_data = load_performance_components(context_path.parent)
+    samples = load_data_samples(context_path.parent)
+    background_data, signal_data = samples.background, samples.signal
     observable_names = list(signal_context.config.detector__detect_observable_names)
     if not set(observable_names).issubset(background_data.observable_names):
         missing = sorted(set(observable_names) - set(background_data.observable_names))
@@ -369,11 +326,8 @@ def _loaded_binned_injected_significance(
             f"signal dataset: {missing}."
         )
 
-    bin_edges = _performance_data_driven_bin_edges(
-        signal_context,
-        background_data,
-        signal_data,
-        observable_names,
+    bin_edges = tuple(
+        samples.bin_edges_by_observable[name] for name in observable_names
     )
 
     background_counts = _expected_histogram_counts(

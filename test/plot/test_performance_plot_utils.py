@@ -7,11 +7,12 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
-from frame.file_system.performance_components import save_performance_components
+from data_tools.histogram_binning import display_edges_by_observable
+from frame.file_system.data_samples import load_data_samples, save_data_samples
 from plot import plots
 from plot import plot_utils
 from plot.plotting_config import PlottingConfig
-from train.single_train import save_training_performance_components
+from train.single_train import save_training_data_samples
 
 
 class _PerformanceConfig(PlottingConfig, DetectorConfig):
@@ -48,13 +49,18 @@ def _context_with_source(source_type: str, signal_events: int = 7):
     )
 
 
-def _save_sample(path, background, signal):
+def _save_sample(path, background, signal, number_of_bins=2):
     path.parent.mkdir(parents=True, exist_ok=True)
-    save_performance_components(
+    background_data = DataSet(np.asarray(background), ["x"])
+    signal_data = DataSet(np.asarray(signal), ["x"])
+    save_data_samples(
         path.parent,
-        DataSet(np.asarray(background), ["x"]),
-        DataSet(np.asarray(signal), ["x"]),
+        background_data,
+        signal_data,
         ["x"],
+        display_edges_by_observable(
+            [background_data, signal_data], ["x"], number_of_bins
+        ),
     )
 
 
@@ -132,7 +138,14 @@ def test_loaded_significance_uses_training_sample(monkeypatch, tmp_path):
                 DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
             )
 
-    save_training_performance_components(context, SampledGeneration())
+    detected_batch = SimpleNamespace(
+        unified_data=DataSet(np.asarray([[-1.0], [3.0]]), ["x"])
+    )
+    save_training_data_samples(context, SampledGeneration(), detected_batch)
+    samples = load_data_samples(context.unique_out_dir)
+    np.testing.assert_array_equal(
+        samples.bin_edges_by_observable["x"], [-1.0, 1.0, 3.0]
+    )
     context.signal_parameters.dataset__data = (
         DataSet(np.asarray([[0.25], [0.25]]), ["x"]),
         DataSet(np.asarray([[0.25], [0.25]]), ["x"]),
@@ -148,7 +161,7 @@ def test_loaded_significance_uses_training_sample(monkeypatch, tmp_path):
         [(context, context_path)], np.arange(100, dtype=float)
     )
     expected = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
-        np.asarray([50.0, 50.0]), np.asarray([0.0, 25.0])
+        np.asarray([100.0, 0.0]), np.asarray([25.0, 0.0])
     )
     np.testing.assert_allclose(curve.x_values, [expected])
 
@@ -171,7 +184,7 @@ def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_pat
         DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
     )
     context_path = tmp_path / "signal" / "context.json"
-    _save_sample(context_path, [[0.25], [0.75]], [[0.75], [0.75]])
+    _save_sample(context_path, [[0.25], [0.75]], [[0.75], [0.75]], number_of_bins=1)
 
     monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
     monkeypatch.setattr(

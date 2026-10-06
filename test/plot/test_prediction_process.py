@@ -5,11 +5,13 @@ import numpy as np
 import pytest
 
 from data_tools.data_utils import DataSet
+from data_tools.histogram_binning import (
+    display_edges_by_observable as calculate_display_edges_by_observable,
+)
 from neural_networks.differentiating_model import DifferentiatingModel
 from plot.plot_factory import PlotFactory
 from plot.plot_utils import utils__project_prediction_values_sliced
 from plot.plots import (
-    _display_edges_by_observable,
     _evaluate_prediction_grid,
     _prediction_grid,
     _spanning_dataset_from_observable_values,
@@ -133,7 +135,7 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
     denominator_model._prepare_training_data(detected_batch)
 
     configured_observables = list(detector_effect.observable_names)
-    display_edges_by_observable = _display_edges_by_observable(
+    display_edges_by_observable = calculate_display_edges_by_observable(
         datasets=[detected_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=(
