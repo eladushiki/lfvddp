@@ -177,6 +177,8 @@ class DataGeneration:
         complete_ds.category = dataset_parameters.category
         return complete_ds
 
-    def sampled_components(self, category: DataSet.DataSetCategory) -> Tuple[DataSet, DataSet]:
+    def sampled_components(
+        self, category: DataSet.DataSetCategory
+    ) -> Tuple[DataSet, DataSet]:
         """Return the loaded components drawn for the current training batch."""
         return self._sampled_components[category]

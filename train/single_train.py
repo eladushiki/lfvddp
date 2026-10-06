@@ -9,8 +9,8 @@ from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import calc_t_LFVDDP
 from frame.command_line.handle_args import context_controlled_execution
-from frame.context.execution_context import ExecutionContext
 from frame.aggregate import utils__get_signal_dataset_parameters
+from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
     PERFORMANCE_COMPONENTS_FILE_NAME,
     RESULTING_T_FILE_NAME,
@@ -87,7 +87,9 @@ def main(context: ExecutionContext) -> None:
         resource_profiler.save()
 
 
-def save_performance_components(context: ExecutionContext, generation: DataGeneration) -> None:
+def save_performance_components(
+    context: ExecutionContext, generation: DataGeneration
+) -> None:
     """Persist the components actually drawn for a loaded training run."""
     config = context.config
     if not config.dataset__has_signal:
