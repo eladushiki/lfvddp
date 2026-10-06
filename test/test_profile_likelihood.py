@@ -6,6 +6,7 @@ from scipy.stats import norm
 
 import data_tools.profile_likelihood as profile_likelihood
 from data_tools.profile_likelihood import (
+    calc_injected_t_significance_by_sqrt_q0_binned,
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
     calc_t_significance_relative_to_background,
@@ -52,6 +53,27 @@ def test_continuous_injected_significance_handles_pdf_underflow():
     )
 
     np.testing.assert_allclose(significance, expected_significance)
+
+
+def test_binned_injected_significance_matches_evident_formula():
+    background_bin_counts = np.asarray([50.0, 50.0])
+    signal_bin_counts = np.asarray([0.0, 25.0])
+    expected_significance = np.sqrt(2 * (-25.0 + 75.0 * np.log(75.0 / 50.0)))
+
+    significance = calc_injected_t_significance_by_sqrt_q0_binned(
+        background_bin_counts,
+        signal_bin_counts,
+    )
+
+    np.testing.assert_allclose(significance, expected_significance)
+
+
+def test_binned_injected_significance_rejects_signal_without_background():
+    with pytest.raises(ValueError, match="zero expected background"):
+        calc_injected_t_significance_by_sqrt_q0_binned(
+            background_bin_counts=np.asarray([0.0]),
+            signal_bin_counts=np.asarray([1.0]),
+        )
 
 
 def test_signal_event_calibration_inverts_continuous_significance():
@@ -185,11 +207,14 @@ def test_continuous_injected_significance_matches_1d_for_uniform_2d_pdf():
 
 
 def test_multidimensional_significance_resolves_narrow_signal_peak():
-    signal = lambda coordinates: np.prod(
-        norm.pdf(coordinates, loc=4.0, scale=0.004),
-        axis=-1,
-    )
-    background = lambda coordinates: np.exp(-np.sum(coordinates, axis=-1))
+    def signal(coordinates):
+        return np.prod(
+            norm.pdf(coordinates, loc=4.0, scale=0.004),
+            axis=-1,
+        )
+
+    def background(coordinates):
+        return np.exp(-np.sum(coordinates, axis=-1))
 
     significance = calc_injected_t_significance_by_sqrt_q0_continuous(
         background_pdf=background,

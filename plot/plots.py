@@ -18,7 +18,6 @@ from data_tools.profile_likelihood import (
 from neural_networks.function_spaces import prediction_grid_edges
 from train.function_space_config import FunctionSpaceSpec
 from data_tools.detector.detector_config import DetectorConfig
-from data_tools.detector.detector_effect import DetectorEffect
 from frame.aggregate import ResultAggregator
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import CONTEXT_FILE_NAME
@@ -28,13 +27,10 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
-    _T_DISTRIBUTION_OUTLIER_STANDARD_DEVIATIONS,
-    _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
     _t_distribution_included_mask,
-    _t_distribution_outlier_masks,
     utils__aggregate_context_t_values,
     utils__calculate_performance_curve,
     utils__context_background_source_type,
@@ -580,14 +576,14 @@ def performance_plot(
         group_label = utils__performance_group_label(
             signal_group[0][0],
         )
+        ax.plot(
+            curve.x_values,
+            curve.gaussian_fit_significances,
+            color=color,
+            linewidth=2,
+            linestyle="--",
+        )
         if curve.connect_points:
-            ax.plot(
-                curve.x_values,
-                curve.gaussian_fit_significances,
-                color=color,
-                linewidth=2,
-                linestyle="--",
-            )
             ax.plot(
                 curve.x_values,
                 curve.observed_significances,

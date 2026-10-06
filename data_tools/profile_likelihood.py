@@ -414,16 +414,49 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
 
 
 def calc_injected_t_significance_by_sqrt_q0_binned(
-    background_t_distribution: np.ndarray,
-    signal_t_distribution: np.ndarray,
-    n_signal_events: int,
-    background_fraction: float,
-):
+    background_bin_counts: np.ndarray,
+    signal_bin_counts: np.ndarray,
+) -> float:
+    """Calculate injected significance from expected background and signal bins.
+
+    ``background_bin_counts`` contains expected background counts per bin
+    :math:`N_{b,i}` and ``signal_bin_counts`` contains expected signal counts
+    per bin :math:`N_{s,i}`. The returned value is
+    :math:`Z=\\sqrt{q_0}`, with
+    :math:`q_0=2[-N_s + \\sum_i (N_{b,i}+N_{s,i})\\log((N_{b,i}+N_{s,i})/N_{b,i})]`
+    and :math:`N_s=\\sum_i N_{s,i}`.
+    """
+    background_bin_counts = np.asarray(background_bin_counts, dtype=float)
+    signal_bin_counts = np.asarray(signal_bin_counts, dtype=float)
+    if background_bin_counts.shape != signal_bin_counts.shape:
+        raise ValueError(
+            "Background and signal bin counts must have the same shape; got "
+            f"{background_bin_counts.shape} and {signal_bin_counts.shape}."
+        )
+    if np.any(~np.isfinite(background_bin_counts)) or np.any(
+        ~np.isfinite(signal_bin_counts)
+    ):
+        raise ValueError("Binned significance counts must be finite.")
+    if np.any(background_bin_counts < 0) or np.any(signal_bin_counts < 0):
+        raise ValueError("Binned significance counts must be non-negative.")
+
+    n_signal_events = float(np.sum(signal_bin_counts))
+    if n_signal_events <= 0:
+        return 0.0
+    if np.any((background_bin_counts <= 0) & (signal_bin_counts > 0)):
+        raise ValueError(
+            "Cannot calculate finite binned significance where signal occupies "
+            "a bin with zero expected background."
+        )
+
+    populated = background_bin_counts > 0
     q0 = 2 * (
         -n_signal_events
         + np.sum(
-            (mu * data + (bkg * background_fraction))
-            * np.log(mu * data / (bkg * background_fraction) + 1)
+            (background_bin_counts[populated] + signal_bin_counts[populated])
+            * np.log1p(signal_bin_counts[populated] / background_bin_counts[populated])
         )
     )
-    return np.sqrt(q0)
+    if not np.isfinite(q0):
+        raise ValueError("Binned significance was non-finite.")
+    return np.sqrt(max(q0, 0.0))

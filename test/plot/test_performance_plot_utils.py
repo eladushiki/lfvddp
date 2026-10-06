@@ -1,10 +1,14 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
+from data_tools.data_utils import DataSet
+from plot import plots
 from plot import plot_utils
+from plot.plotting_config import PlottingConfig
 
 
 class _FakeAggregator:
@@ -24,15 +28,28 @@ def _context_with_source(source_type: str, signal_events: int = 7):
     parameters = SimpleNamespace(
         dataset__background_source_type=source_type,
         dataset__mean_number_of_signal_events=signal_events,
+        dataset__mean_number_of_background_events=100,
     )
     return SimpleNamespace(
-        config=SimpleNamespace(dataset_parameters=[parameters]),
+        config=SimpleNamespace(
+            dataset_parameters=[parameters],
+            detector__detect_observable_names=["x"],
+            plot__prediction_process_number_of_bins=2,
+            train__function_space_config=SimpleNamespace(nuisance=None),
+        ),
         signal_parameters=parameters,
     )
 
 
-def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path):
+def test_loaded_performance_curve_uses_binned_evident_significance(
+    monkeypatch,
+    tmp_path,
+):
     context = _context_with_source("loaded", signal_events=25)
+    context.signal_parameters.dataset__data = (
+        DataSet(np.asarray([[0.25], [0.75]]), ["x"]),
+        DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
+    )
     context_path = tmp_path / "signal" / "context.json"
 
     def fail_analytic_significance(**_arguments):
@@ -55,7 +72,11 @@ def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path)
         background_t_dist=np.arange(100, dtype=float),
     )
 
-    np.testing.assert_array_equal(curve.x_values, [25])
+    expected_x_value = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
+        background_bin_counts=np.asarray([50.0, 50.0]),
+        signal_bin_counts=np.asarray([0.0, 25.0]),
+    )
+    np.testing.assert_allclose(curve.x_values, [expected_x_value])
     np.testing.assert_array_equal(curve.x_errors, [0.0])
     assert curve.observed_significances[0] == pytest.approx(
         plot_utils.calc_t_significance_relative_to_background(
@@ -69,9 +90,134 @@ def test_loaded_performance_curve_uses_signal_events_axis(monkeypatch, tmp_path)
             t_value=30.0,
         )
     )
-    assert curve.x_label == "mean injected signal events"
+    assert curve.x_label == r"evident injected $\sqrt{q_0}$"
     assert curve.show_reference_diagonal is False
     assert curve.connect_points is False
+
+
+def test_loaded_performance_curve_uses_bin_indicator_edges(monkeypatch, tmp_path):
+    context = _context_with_source("loaded", signal_events=25)
+    context.config.train__function_space_config = SimpleNamespace(
+        nuisance=SimpleNamespace(
+            family="bin_indicators",
+            options={
+                "minima": [0.0],
+                "maxima": [1.0],
+                "number_of_bins": [2],
+            },
+        )
+    )
+    context.signal_parameters.dataset__data = (
+        DataSet(np.asarray([[0.25], [0.75], [1.25]]), ["x"]),
+        DataSet(np.asarray([[0.75], [1.25]]), ["x"]),
+    )
+    context_path = tmp_path / "signal" / "context.json"
+
+    monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
+    monkeypatch.setattr(
+        plot_utils,
+        "utils__get_signal_dataset_parameters",
+        lambda signal_context: signal_context.signal_parameters,
+    )
+
+    curve = plot_utils.utils__calculate_performance_curve(
+        [(context, context_path)],
+        background_t_dist=np.arange(100, dtype=float),
+    )
+
+    expected_x_value = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
+        background_bin_counts=np.asarray([50.0, 50.0]),
+        signal_bin_counts=np.asarray([0.0, 25.0]),
+    )
+    np.testing.assert_allclose(curve.x_values, [expected_x_value])
+
+
+def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
+    monkeypatch,
+    tmp_path,
+):
+    context = SimpleNamespace(
+        config=PlottingConfig(plot__plot_specifications=[]),
+        run_hash=123,
+    )
+    background_context = SimpleNamespace(
+        config=SimpleNamespace(
+            dataset_parameters=[
+                SimpleNamespace(dataset__has_signal=False),
+            ],
+        ),
+    )
+    signal_context = SimpleNamespace()
+    curve = plot_utils._PerformanceCurve(
+        x_values=np.asarray([10.0, 20.0, 30.0]),
+        x_errors=np.asarray([0.0, 0.0, 0.0]),
+        x_label="mean injected signal events",
+        show_reference_diagonal=False,
+        connect_points=False,
+        observed_significances=np.asarray([1.0, 1.5, 2.0]),
+        observed_significance_lower_bounds=np.asarray([0.8, 1.2, 1.7]),
+        observed_significance_upper_bounds=np.asarray([1.2, 1.8, 2.3]),
+        gaussian_fit_significances=np.asarray([0.9, 1.4, 1.9]),
+    )
+
+    monkeypatch.setattr(
+        plots,
+        "utils__discover_performance_contexts",
+        lambda _directory: [(background_context, tmp_path / "bkg" / "context.json")],
+    )
+    monkeypatch.setattr(
+        plots,
+        "utils__warn_for_context_discrepancies",
+        lambda *_, **__: None,
+    )
+    monkeypatch.setattr(
+        plots,
+        "utils__aggregate_context_t_values",
+        lambda _contexts: np.asarray([0.0, 1.0, 2.0]),
+    )
+    monkeypatch.setattr(
+        plots,
+        "utils__group_signal_contexts",
+        lambda _directory: [[(signal_context, tmp_path / "signal" / "context.json")]],
+    )
+    monkeypatch.setattr(
+        plots,
+        "utils__context_background_source_type",
+        lambda _context: "loaded",
+    )
+    monkeypatch.setattr(
+        plots,
+        "utils__calculate_performance_curve",
+        lambda _signal_group, _background_t_dist: curve,
+    )
+    monkeypatch.setattr(
+        plots,
+        "utils__performance_group_label",
+        lambda _context: "signal",
+    )
+
+    figure = plots.performance_plot(
+        context,
+        background_only_t_values_parent_directory=str(tmp_path / "bkg"),
+        signal_t_values_parent_directory=str(tmp_path / "signal"),
+    )
+
+    dashed_lines = [
+        line for line in figure.axes[0].lines if line.get_linestyle() == "--"
+    ]
+    assert len(dashed_lines) == 1
+    np.testing.assert_array_equal(dashed_lines[0].get_xdata(), curve.x_values)
+    np.testing.assert_array_equal(
+        dashed_lines[0].get_ydata(),
+        curve.gaussian_fit_significances,
+    )
+    assert not any(
+        line.get_linestyle() == "-"
+        and np.array_equal(line.get_xdata(), curve.x_values)
+        and np.array_equal(line.get_ydata(), curve.observed_significances)
+        for line in figure.axes[0].lines
+    )
+    plt.close(figure)
 
 
 def test_generated_performance_curve_keeps_analytic_significance(
@@ -114,6 +260,10 @@ def test_performance_curve_coalesces_duplicate_signal_strengths(
     tmp_path,
 ):
     context = _context_with_source("loaded", signal_events=25)
+    context.signal_parameters.dataset__data = (
+        DataSet(np.asarray([[0.25], [0.75]]), ["x"]),
+        DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
+    )
     first_path = tmp_path / "first" / "context.json"
     second_path = tmp_path / "second" / "context.json"
 
@@ -139,7 +289,11 @@ def test_performance_curve_coalesces_duplicate_signal_strengths(
         background_t_dist=background_t_dist,
     )
 
-    np.testing.assert_array_equal(curve.x_values, [25])
+    expected_x_value = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
+        background_bin_counts=np.asarray([50.0, 50.0]),
+        signal_bin_counts=np.asarray([0.0, 25.0]),
+    )
+    np.testing.assert_allclose(curve.x_values, [expected_x_value])
     expected_significance = (
         plot_utils.calc_median_t_significance_relative_to_background(
             background_t_dist,

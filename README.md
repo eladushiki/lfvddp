@@ -147,8 +147,9 @@ when configuration files need target-significance signal amounts.
   freedom from parameter counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
-  plots use analytic injected significance only for generated datasets; loaded
-  datasets are plotted against configured mean injected signal events instead.
+  plots use analytic injected significance for generated datasets; loaded
+  datasets use a binned evident injected significance from expected background
+  and signal counts in detector-observable bins.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.

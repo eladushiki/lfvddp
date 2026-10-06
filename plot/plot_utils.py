@@ -24,6 +24,7 @@ from data_tools.dataset_config import (
 )
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
+    calc_injected_t_significance_by_sqrt_q0_binned,
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
@@ -271,6 +272,161 @@ def _integration_upper_limits_for_dimensions(
     return np.full(number_of_dimensions, np.inf)
 
 
+def _performance_bin_edges_from_bin_indicators(
+    context: ExecutionContext,
+) -> Optional[Tuple[np.ndarray, ...]]:
+    function_space_config = getattr(
+        context.config, "train__function_space_config", None
+    )
+    nuisance = getattr(function_space_config, "nuisance", None)
+    if nuisance is None or nuisance.family != "bin_indicators":
+        return None
+
+    options = nuisance.options
+    try:
+        minima = tuple(float(value) for value in options["minima"])
+        maxima = tuple(float(value) for value in options["maxima"])
+        number_of_bins = tuple(int(value) for value in options["number_of_bins"])
+    except KeyError as error:
+        raise ValueError(
+            f"Missing bin-indicator option {error.args[0]!r} for loaded "
+            "performance significance."
+        ) from error
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "Bin-indicator minima, maxima, and number_of_bins must be numeric "
+            "sequences for loaded performance significance."
+        ) from error
+
+    expected_dimensions = len(context.config.detector__detect_observable_names)
+    if (
+        len(minima) != expected_dimensions
+        or len(maxima) != expected_dimensions
+        or len(number_of_bins) != expected_dimensions
+    ):
+        return None
+    if any(count <= 0 for count in number_of_bins):
+        raise ValueError("Bin-indicator number_of_bins must be positive.")
+    if any(minimum >= maximum for minimum, maximum in zip(minima, maxima)):
+        raise ValueError("Bin-indicator minima must be smaller than maxima.")
+    return tuple(
+        np.linspace(minimum, maximum, count + 1)
+        for minimum, maximum, count in zip(minima, maxima, number_of_bins)
+    )
+
+
+def _performance_data_driven_bin_edges(
+    context: ExecutionContext,
+    background_data: DataSet,
+    signal_data: DataSet,
+    observable_names: List[str],
+) -> Tuple[np.ndarray, ...]:
+    number_of_bins = context.config.plot__prediction_process_number_of_bins
+    if number_of_bins <= 0:
+        raise ValueError(
+            f"Expected a positive number of performance bins, got {number_of_bins}."
+        )
+
+    edges = []
+    for observable_name in observable_names:
+        values = np.concatenate(
+            [
+                utils__flatten_histogram_values(
+                    dataset.slice_along_observable_names(observable_name)
+                )
+                for dataset in (background_data, signal_data)
+                if not dataset.empty
+            ]
+        )
+        values = values[np.isfinite(values)]
+        if values.size == 0:
+            raise ValueError(
+                f"Cannot define performance bins for {observable_name}: "
+                "no finite values found."
+            )
+        minimum = float(np.min(values))
+        maximum = float(np.max(values))
+        if minimum == maximum:
+            padding = max(abs(minimum) * 0.05, 0.5)
+            minimum -= padding
+            maximum += padding
+        edges.append(np.linspace(minimum, maximum, number_of_bins + 1))
+    return tuple(edges)
+
+
+def _expected_histogram_counts(
+    dataset: DataSet,
+    observable_names: List[str],
+    bin_edges: Tuple[np.ndarray, ...],
+    expected_events: float,
+) -> np.ndarray:
+    if expected_events <= 0:
+        return np.zeros(tuple(len(edges) - 1 for edges in bin_edges), dtype=float)
+    if dataset.empty:
+        raise ValueError(
+            "Cannot estimate loaded performance significance with positive "
+            "expected events from an empty dataset."
+        )
+    counts, _ = np.histogramdd(
+        dataset.filter_observable_names(observable_names).events,
+        bins=bin_edges,
+    )
+    counted_events = float(np.sum(counts))
+    if counted_events <= 0:
+        raise ValueError(
+            "No loaded performance events fell inside the configured bin edges."
+        )
+    return counts * (expected_events / counted_events)
+
+
+def _loaded_binned_injected_significance(
+    signal_context: ExecutionContext,
+    signal_dataset_parameters,
+) -> float:
+    background_data, signal_data = signal_dataset_parameters.dataset__data
+    observable_names = list(signal_context.config.detector__detect_observable_names)
+    if not set(observable_names).issubset(background_data.observable_names):
+        missing = sorted(set(observable_names) - set(background_data.observable_names))
+        raise ValueError(
+            "Loaded performance significance observables are missing from the "
+            f"background dataset: {missing}."
+        )
+    if not signal_data.empty and not set(observable_names).issubset(
+        signal_data.observable_names
+    ):
+        missing = sorted(set(observable_names) - set(signal_data.observable_names))
+        raise ValueError(
+            "Loaded performance significance observables are missing from the "
+            f"signal dataset: {missing}."
+        )
+
+    bin_edges = _performance_bin_edges_from_bin_indicators(signal_context)
+    if bin_edges is None:
+        bin_edges = _performance_data_driven_bin_edges(
+            signal_context,
+            background_data,
+            signal_data,
+            observable_names,
+        )
+
+    background_counts = _expected_histogram_counts(
+        background_data,
+        observable_names,
+        bin_edges,
+        signal_dataset_parameters.dataset__mean_number_of_background_events,
+    )
+    signal_counts = _expected_histogram_counts(
+        signal_data,
+        observable_names,
+        bin_edges,
+        signal_dataset_parameters.dataset__mean_number_of_signal_events,
+    )
+    return calc_injected_t_significance_by_sqrt_q0_binned(
+        background_counts,
+        signal_counts,
+    )
+
+
 def utils__context_background_source_type(context: ExecutionContext) -> str:
     """Return the unique dataset background source type used by a context."""
     config: DatasetConfig = context.config
@@ -287,6 +443,7 @@ def utils__context_background_source_type(context: ExecutionContext) -> str:
 
 
 def _performance_x_value_for_signal(
+    signal_context: ExecutionContext,
     signal_dataset_parameters,
     source_type: str,
 ) -> Tuple[float, str, bool, bool]:
@@ -305,8 +462,11 @@ def _performance_x_value_for_signal(
         )
     if source_type == "loaded":
         return (
-            signal_dataset_parameters.dataset__mean_number_of_signal_events,
-            "mean injected signal events",
+            _loaded_binned_injected_significance(
+                signal_context,
+                signal_dataset_parameters,
+            ),
+            r"evident injected $\sqrt{q_0}$",
             False,
             False,
         )
@@ -418,6 +578,7 @@ def utils__calculate_performance_curve(
         signal_agg = ResultAggregator(signal_t_values_dir)
         x_value, x_label, show_diagonal, should_connect = (
             _performance_x_value_for_signal(
+                signal_context,
                 signal_dataset_parameters,
                 source_type,
             )
@@ -440,17 +601,13 @@ def utils__calculate_performance_curve(
             signal_point.x_label != x_label
             or signal_point.show_reference_diagonal != show_diagonal
             or signal_point.connect_points != should_connect
-            or not np.isclose(signal_point.x_value, x_value)
         ):
             raise ValueError(
                 "Duplicate configured signal strengths resolved to incompatible "
                 "performance x-axis values."
             )
         signal_point.t_value_chunks.append(signal_agg.all_t_values)
-        if source_type == "generated":
-            signal_point.injected_significance_chunks.append(
-                np.asarray([x_value])
-            )
+        signal_point.injected_significance_chunks.append(np.asarray([x_value]))
         signal_point.directories.append(signal_t_values_dir)
 
     for signal_point in signal_points.values():
@@ -470,14 +627,11 @@ def utils__calculate_performance_curve(
                 f"directories: {checked_directories}."
             )
 
-        x_values.append(signal_point.x_value)
-        if source_type == "generated":
-            injected_significances = np.concatenate(
-                signal_point.injected_significance_chunks
-            )
-            x_errors.append(float(np.std(injected_significances)))
-        else:
-            x_errors.append(0.0)
+        injected_significances = np.concatenate(
+            signal_point.injected_significance_chunks
+        )
+        x_values.append(float(np.mean(injected_significances)))
+        x_errors.append(float(np.std(injected_significances)))
         x_labels.append(signal_point.x_label)
         show_reference_diagonal.append(signal_point.show_reference_diagonal)
         connect_points.append(signal_point.connect_points)
