@@ -13,6 +13,15 @@ Skip submissions with status `retired`. Their saved result directories must be
 outside active `remote_multi_run_directory` trees so recursive plot discovery
 cannot reintroduce retired signal points.
 
+Treat v4 and earlier plot/result trees as frozen historical output. During the
+daily routine, do not generate or retry plots, archive artifacts, prune
+intermediates, delete residues, restore archives, or otherwise mutate tracked
+submissions or groups whose saved config/output/result paths are under
+`configs/plots-v4`, `configs/plots-v3`, `configs/plots-v2`,
+`configs/plots-v1`, `results/highlights/2026-09/plots-v4`, or older
+versioned plot trees. Report their existing state if relevant, but leave them
+alone unless the user explicitly authorizes work on v4 or prior for that turn.
+
 Read [the submission-state schema](../../submission-state.schema.md) before
 changing state. This skill assumes `ssh-to-cluster` has already opened one
 shared shell at the remote project root. Do not run `ssh`, `scp`, or open a

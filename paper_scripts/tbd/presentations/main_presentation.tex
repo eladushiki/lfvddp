@@ -181,7 +181,7 @@
 \begin{frame}{Statistical Fluctuations}
     \begin{itemize}
         \item Consider doing the same experiment twice - same process, same outcomes, same duration
-        \item We still expect the resulting samples to differ - due to statistical fluctuations
+        \item We still expect the resulting samples to differ due to statistical fluctuations
         \item This means that every histogram bar would be of different height, like the total number of events
         \item But we still claim, in this case, that the datasets are produced by symmetric physical processes
     \end{itemize}
@@ -320,23 +320,71 @@
 \end{frame}
 
 \begin{frame}{Underlying Probability Distributions}
+    \begin{figure}
+        \includegraphics[height=0.35\textheight, trim= 0 346 358 30, clip]{
+            figures/distributions-overlay.png
+        }
+    \end{figure}
     \begin{itemize}
-        \item \TODO{overlay distributions e,u,refdist}
         \item Looking at pairs of datasets, we express $\pdf$'s relatively to a common reference distribution and a series of shifts:
     \end{itemize}
     \begin{equation}
     \begin{aligned}
         \label{eq:parametrized_distribution}
-        \parampdf(\anyevent)^\dataset{A} = e^{\paramf(\anyevent)}(1 + \nparam(\anyevent)) \refdist \\
-        \parampdf(\anyevent)^\dataset{B} = e^{\paramg(\anyevent)}(1 - \nparam(\anyevent)) \refdist
+        \parampdf(\anyevent)^\dataset{A} = (1 + \paramf(\anyevent))(1 + \nparam(\anyevent)) \refdist \\
+        \parampdf(\anyevent)^\dataset{B} = (1 - \paramf(\anyevent))(1 - \nparam(\anyevent)) \refdist
     \end{aligned}
     \end{equation}
     \begin{itemize}
         \item the reference distribution, $\refdist$, is composed of the combined datasets
         \item $(1 \pm \nparam(\anyevent))$ represent shifts due to nuisance parameters of the system - in our case, detector effects
-        \item $e^{\paramf}, e^{\paramg}$ represent shifts due to potential signal
-        \item \TODO{we implement with CR}
+        \item $(1 \pm \paramf(\anyevent))$ represents shifts due to potential signal
     \end{itemize}
+\end{frame}
+
+\begin{frame}{Data Regions}
+    \begin{itemize}
+        \item To study the nature of our system, we normally define a control region (CR) within the data
+        \item We assume there is no apparent new physics in the CR
+        \item The data from which we study the new physics is then called the Signal Region (SR)
+        \item The datasets we use are summed in the table:
+        \end{itemize}
+    \begin{table}[ht]%[H] add [H] placement to break table across pages
+        \caption{\label{table:division_of_data}}
+        \begin{tabular}{| l | c | c |}
+            & $\dataset{A}$ & $\dataset{B}$ \\
+            \hline
+            SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
+            CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
+            \end{tabular}
+        \caption{Datasets used in our method}
+    \end{table}
+\end{frame}
+
+\begin{frame}{Hypotheses}
+    \begin{itemize}
+        \item We expand our postulates to the new regions as follows:
+    \end{itemize}
+    \begin{equation}
+    \label{eq:hypothsis-formulation}
+    \begin{aligned}
+        \nullhypothesis |_{SR} &: \quad
+        \begin{cases}
+            {\srdist{\dataset{A}}^0} = N_\dataset{A}^{SR} (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\dataset{B}}^0} = N_\dataset{B}^{SR} (1 - {\nparam(\anyevent)}) \srrefdist
+        \end{cases} \\
+        \hypothesis{1} |_{SR} &: \quad
+        \begin{cases}
+            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} (1 + f(\anyevent)) (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} (1 - f(\anyevent)) (1 - {\nparam(\anyevent)}) \srrefdist
+        \end{cases} \\
+        \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
+        \begin{cases}
+            \crdist{\dataset{A}}^i = N_\dataset{A}^{CR} (1 + {\nparam(\anyevent)}) \crrefdist \\
+            \crdist{\dataset{B}}^i = N_\dataset{B}^{CR} (1 - {\nparam(\anyevent)}) \crrefdist
+        \end{cases}
+    \end{aligned}
+    \end{equation}
 \end{frame}
 
 \begin{frame}{Distribution Likelihood}
@@ -367,51 +415,6 @@
     \end{equation}
 \end{frame}
 
-\begin{frame}{Data Regions}
-    \begin{itemize}
-        \item To study the nature of our system, we normally define a control region (CR) within the data
-        \item We assume there is no apparent new physics in the CR
-        \item The data from which we study the new physics is then called the Signal Region (SR)
-        \item The datasets we use are summed in the table:
-        \end{itemize}
-    \begin{table}[ht]%[H] add [H] placement to break table across pages
-        \caption{\label{table:division_of_data}}
-        \begin{tabular}{| l | c | c |}
-            & $\dataset{A}$ & $\dataset{B}$ \\
-            \hline
-            SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
-            CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
-            \end{tabular}
-        \caption{Datasets used in our method}
-    \end{table}
-\end{frame}
-
-\begin{frame}{Hypotheses}
-    \begin{itemize}
-        \item We postulate two new hypotheses as follows:
-    \end{itemize}
-    \begin{equation}
-    \label{eq:hypothsis-formulation}
-    \begin{aligned}
-        \nullhypothesis |_{SR} &: \quad
-        \begin{cases}
-            {\srdist{\dataset{A}}^0} = N_\dataset{A}^{SR} (1 + {\nparam(\anyevent)}) \srrefdist \\
-            {\srdist{\dataset{B}}^0} = N_\dataset{B}^{SR} (1 - {\nparam(\anyevent)}) \srrefdist
-        \end{cases} \\
-        \hypothesis{1} |_{SR} &: \quad
-        \begin{cases}
-            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
-            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
-        \end{cases} \\
-        \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
-        \begin{cases}
-            \crdist{\dataset{A}}^i = N_\dataset{A}^{CR} (1 + {\nparam(\anyevent)}) \crrefdist \\
-            \crdist{\dataset{B}}^i = N_\dataset{B}^{CR} (1 - {\nparam(\anyevent)}) \crrefdist
-        \end{cases}
-    \end{aligned}
-    \end{equation}
-\end{frame}
-
 \begin{frame}{Likelihood and Test Statistics}
     \begin{itemize}
         \item To calculate the log likelihood ratio test statistic
@@ -430,7 +433,7 @@
     \begin{aligned}
         t &= 2 \log \left(
             \frac{
-                \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}(\param, \nparam)|\dataset{A}, \dataset{B}))
+                \max\limits_{f, \nparam} (\likelihood(\hypothesis{1}(\param, \nparam)|\dataset{A}, \dataset{B}))
             }{
                 \max\limits_{\nparam} (\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}))
         }\right)
@@ -440,7 +443,7 @@
 
 \begin{frame}{Minimization by Loss Function}
     \begin{itemize}
-        \item \TODO{reference the italian paper and why it's good - generic, parameterized}
+        \item D'Angelo et. al. proposed the machinery of neural networks as a generic and highly configurable way to minimize any expression within a parameter space
         \item To estimate $t$ we need to deal with two maximization operation
         \item For that, we define two loss functions
     \end{itemize}
@@ -448,29 +451,29 @@
     \begin{equation}
     \begin{aligned}
         L^\text{numerator}[f, g, \nparam]
-            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \paramg, \nparam) \\
-            &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr) \\
+            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \nparam)
+            \Bigm| \dataset{A}, \dataset{B}\Bigr) \\
         L^\text{denominator}[\nparam]
-            &= -\likelihood\Bigl(\nullhypothesis(\nparam) \\
-            &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr),
+            &= -\likelihood\Bigl(\nullhypothesis(\nparam)
+            \Bigm| \dataset{A}, \dataset{B}\Bigr),
     \end{aligned}
     \end{equation}
     }
     \begin{itemize}
-        \item and optimize for each using a simple machine learning model
+        \item and minimize for each
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Parameterization by Neural Networks}
     \begin{itemize}
-        \item Since $\paramf, \paramg$ should be as generic and as expressive as possible, we realize them as neural network outputs:
+        \item Since $\paramf$ should be as generic and as expressive as possible, we realize them as neural network outputs:
     \end{itemize}
     \addsizedpic{0.5}{
         figures/nn-illustration.png
     }
     \begin{itemize}
         \item This implementation lets us easily control the number of degrees of freedom of our hypothesis space, by controlling the number of neurons in the middle layer
-        \item $\nparam$ implementation is left for the methodology section, as it's arbitrary and would be furhter manipulated in the future
+        \item $\nparam$ is implemented similarly, with a possibly different number of degrees of freedom
     \end{itemize}
 \end{frame}
 
@@ -483,7 +486,7 @@
         with $r$ the number of degrees of freedom of the signal hypothesis minus those of the null one.
     \end{theorem}
     \begin{itemize}
-        \item in calssical analysis f, g has assumptions on the size of a signal
+        \item in a calssical analysis f has assumptions on the size of a signal
     \end{itemize}
 \end{frame}
 
@@ -504,208 +507,187 @@
     \end{itemize}
     \begin{adjustbox}{width=\textwidth}
     \begin{tikzpicture}[
-        font=\small,
-        >=Latex,
-        vector/.style={
-            draw,
-            rounded corners,
-            minimum width=18mm,
-            minimum height=11mm,
-            align=center,
-            fill=blue!8
+    font=\small,
+    >=Latex,
+    vector/.style={
+        draw,
+        rounded corners,
+        minimum width=18mm,
+        minimum height=11mm,
+        align=center,
+        fill=blue!8
+    },
+    splitpart/.style={
+        draw,
+        rounded corners,
+        minimum width=22mm,
+        minimum height=12mm,
+        align=center,
+        fill=orange!12
+    },
+    layer/.style={
+        draw,
+        rounded corners,
+        minimum width=16mm,
+        minimum height=10mm,
+        align=center,
+        fill=green!10
+    },
+    output/.style={
+        draw,
+        rounded corners,
+        minimum width=20mm,
+        minimum height=12mm,
+        align=center,
+        fill=purple!10
+    },
+    combine/.style={
+        draw,
+        circle,
+        minimum size=15mm,
+        align=center,
+        fill=yellow!18
+    },
+    group/.style={
+        draw,
+        dashed,
+        rounded corners,
+        inner sep=1mm
+    },
+    arrow/.style={
+        ->,
+        thick
+    }
+    ]
+    \tikzset{
+    stacked/.style={
+        draw,
+        fill=green!10,
+        minimum width=16mm,
+        minimum height=10mm,
+        rounded corners,
+        align=center,
+        preaction={
+        draw,
+        fill=green!10,
+        transform canvas={xshift=-3mm,yshift=3mm}
         },
-        splitpart/.style={
-            draw,
-            rounded corners,
-            minimum width=22mm,
-            minimum height=12mm,
-            align=center,
-            fill=orange!12
+        preaction={
+        draw,
+        fill=green!10,
+        transform canvas={xshift=-2mm,yshift=2mm}
         },
-        layer/.style={
-            draw,
-            rounded corners,
-            minimum width=16mm,
-            minimum height=10mm,
-            align=center,
-            fill=green!10
-        },
-        output/.style={
-            draw,
-            rounded corners,
-            minimum width=20mm,
-            minimum height=12mm,
-            align=center,
-            fill=purple!10
-        },
-        combine/.style={
-            draw,
-            circle,
-            minimum size=15mm,
-            align=center,
-            fill=yellow!18
-        },
-        group/.style={
-            draw,
-            dashed,
-            rounded corners,
-            inner sep=1mm
-        },
-        arrow/.style={
-            ->,
-            thick
+        preaction={
+        draw,
+        fill=green!10,
+        transform canvas={xshift=-1mm,yshift=1mm}
         }
-        ]
-        \tikzset{
-        stacked/.style={
-            draw,
-            fill=green!10,
-            minimum width=16mm,
-            minimum height=10mm,
-            rounded corners,
-            align=center,
-            preaction={
-            draw,
-            fill=green!10,
-            transform canvas={xshift=-3mm,yshift=3mm}
-            },
-            preaction={
-            draw,
-            fill=green!10,
-            transform canvas={xshift=-2mm,yshift=2mm}
-            },
-            preaction={
-            draw,
-            fill=green!10,
-            transform canvas={xshift=-1mm,yshift=1mm}
-            }
-        }
-        }
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % grid constants
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \def\fNNy{2.0}
-        \def\gNNy{0.0}
-        \def\nparamy{-2.0}
-        \def\spx{1.1}
-        \def\nninx{\spx + 3.7}
-        \def\nnmidx{\nninx + 4}
-        \def\nnoutx{\nnmidx + 3.5}
-        \def\arithmeticx{\nnoutx + 4}
-        \def\combx{\arithmeticx + 2.7}
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Coordinates (edit these!)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % input
-        \node[vector] (x) at (0,\gNNy) {
-        split
-        };
-        % split
-        \coordinate (split-point) at (\spx,\gNNy);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % NN 1 (upper)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (fin) at (\nninx,\fNNy) {$F_{in}$};
-        \node[stacked] (fmid) at (\nnmidx,\fNNy) {$F_{mid}$};
-        \node[layer] (fout) at (\nnoutx,\fNNy) {$F_{out}$};
-        \node[output] (expf) at (\arithmeticx,\fNNy) {
-        $e^{\{\}}$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % NN 2 (middle)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (gin) at (\nninx,\gNNy) {$g_{in}$};
-        \node[stacked] (gmid) at (\nnmidx,\gNNy) {$g_{mid}$};
-        \node[layer] (gout) at (\nnoutx,\gNNy) {$g_{out}$};
-        \node[output] (expg) at (\arithmeticx,\gNNy) {
-        $e^{\{\}}$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % One-layer NN
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (nparam) at (\nnmidx,\nparamy) {
-        $\nparam$
-        };
-        \node[output] (pmnparam) at (\arithmeticx,\nparamy) {
-        $(1 \pm \{\})$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Combiner
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[combine] (comb) at (\combx,\gNNy) {
-        $\odot$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Connections
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % incoming arrow
-        \draw[->] (-2.2,0) -- node[above] {
-        $N_{tot} \times k$
-        } (x.west);
-        % split
-        \draw (x.east) -- (split-point);
-        \draw[->] (split-point) |- node[above, pos=0.7]{
-        $\text{SR}, N^{SR} \times k$
-        }(fin.west);
-        \draw[->] (split-point) |- node[above, pos=0.7]{
-        $\text{SR}, N^{SR} \times k$
-        }(gin.west);
-        \draw[->] (split-point) |- node[above, pos=0.7]{
-        $\text{tot}, N_{tot} \times k$
-        }(nparam.west);
-        % f NN
-        \draw[->] (fin.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(fmid.west);
-        \draw[->] (fmid.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(fout.west);
-        \draw[->] (fout.east) -- node[above]{
-        $f(\anyevent), N^{SR} \times 1$
-        }(expf.west);
-        % g NN
-        \draw[->] (gin.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(gmid.west);
-        \draw[->] (gmid.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(gout.west);
-        \draw[->] (gout.east) -- node[above]{
-        $g(\anyevent), N^{SR} \times 1$
-        }(expg.west);
-        % nparam
-        \draw[->] (nparam.east) -- node[above]{
-        $\nparam(\anyevent), N_{tot} \times 1$
-        }(pmnparam.west);
-        % combine
-        \draw[->] (expf.east) -| node[above, pos=0.3]{
-        $e^{f(\anyevent)}$
-        }(comb.north);
-        \draw[->] (expg.east) -| node[above, pos=0.3]{
-        $e^{g(\anyevent)}$
-        }(comb.west);
-        \draw[->] (pmnparam.east) -| node[above, pos=0.3]{
-        $1 \pm \nparam(\anyevent)$
-        }(comb.south);
-        % outgoing arrow
-        \draw[->] (comb.east) -- node[above] {
-        $L[f, g, \nparam]$
-        } (\combx + 2,\gNNy);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % groups
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
-        \node[group, fit=(gin)(gmid)(expg)(expg)] (g) {};
-        \node[group, fit=(nparam)(pmnparam)] (nparam) {};
-        \node at ($(f.north)+(0,0.25)$) {\scriptsize f NN};
-        \node at ($(g.north)+(0,0.25)$) {\scriptsize g NN};
-        \node at ($(nparam.north)+(0,0.25)$) {\scriptsize $\nparam$ prediction};
+    }
+    }
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % grid constants
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \def\fNNy{1.0}
+    \def\zeroy{0.0}
+    \def\etay{-1.0}
+    \def\spx{1.1}
+    \def\nninx{\spx + 3.7}
+    \def\nnmidx{\nninx + 4}
+    \def\nnoutx{\nnmidx + 3.5}
+    \def\arithmeticx{\nnoutx + 4}
+    \def\combx{\arithmeticx + 2.7}
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Coordinates (edit these!)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % input
+    \node[vector] (x) at (0,\zeroy) {
+    split
+    };
+    % split
+    \coordinate (split-point) at (\spx,\zeroy);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % NN
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[layer] (fin) at (\nninx,\fNNy) {$F_{in}$};
+    \node[stacked] (fmid) at (\nnmidx,\fNNy) {$F_{mid}$};
+    \node[layer] (fout) at (\nnoutx,\fNNy) {$F_{out}$};
+    \node[output] (expf) at (\arithmeticx,\fNNy) {
+    $(1 \pm {})$
+    };
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % One-layer NN
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[layer] (etain) at (\nninx,\etay) {$\eta_{in}$};
+    \node[stacked] (etamid) at (\nnmidx,\etay) {$\eta_{mid}$};
+    \node[layer] (etaout) at (\nnoutx,\etay) {$\eta_{out}$};
+    \node[output] (pmeta) at (\arithmeticx,\etay) {
+    $(1 \pm \{\})$
+    };
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Combiner
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[combine] (comb) at (\combx,\zeroy) {
+    $\odot$
+    };
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Connections
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % incoming arrow
+    \draw[->] (-2.2,0) -- node[above] {
+    $N_{tot} \times k$
+    } (x.west);
+    % split
+    \draw (x.east) -- (split-point);
+    \draw[->] (split-point) |- node[above, pos=0.7]{
+    $\text{SR}, N^{SR} \times k$
+    }(fin.west);
+    \draw[->] (split-point) |- node[above, pos=0.7]{
+    $\text{tot}, N_{tot} \times k$
+    }(etain.west);
+    % f NN
+    \draw[->] (fin.east) -- node[above]{
+    $N^{SR} \times k$
+    }(fmid.west);
+    \draw[->] (fmid.east) -- node[above]{
+    $N^{SR} \times N_{neurons}$
+    }(fout.west);
+    \draw[->] (fout.east) -- node[above]{
+    $f(x), N^{SR} \times 1$
+    }(expf.west);
+    % g NN
+    % eta
+    \draw[->] (etain.east) -- node[above]{
+    $N_{tot} \times k$
+    }(etamid.west);
+    \draw[->] (etamid.east) -- node[above]{
+    $N_{tot} \times N_{neurons}$
+    }(etaout.west);
+    \draw[->] (etaout.east) -- node[above]{
+    $\eta(x), N_{tot} \times 1$
+    }(pmeta.west);
+    % combine
+    \draw[->] (expf.east) -| node[above, pos=0.3]{
+    $(1 \pm f(\anyevent))$
+    }(comb.north);
+    \draw[->] (pmeta.east) -| node[above, pos=0.3]{
+    $(1 \pm \eta(\anyevent))$
+    }(comb.south);
+    % outgoing arrow
+    \draw[->] (comb.east) -- node[above] {
+    $L[f, g, \eta]$
+    } (\combx + 2,\zeroy);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % groups
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
+    \node[group, fit=(etain)(etamid)(etaout)(pmeta)] (eta) {};
+    \node at ($(f.north)+(0,0.25)$) {\scriptsize $f(\anyevent)$ NN};
+    \node at ($(eta.north)+(0,0.25)$) {\scriptsize $\eta(\anyevent)$ NN};
     \end{tikzpicture}
     \end{adjustbox}
 \end{frame}
 
 \begin{frame}{t Value Calculation}
-    \TODO{possibly illustrate}
     \begin{algorithm}[H]
     \footnotesize
     \caption{Single $t$ value stochastic calculation}
