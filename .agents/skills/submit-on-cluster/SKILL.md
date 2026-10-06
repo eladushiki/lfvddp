@@ -25,14 +25,26 @@ remote project root. Do not run `ssh`, `scp`, or open a second connection.
 - Existing untracked jobs are not added to state, but their scheduler rows
   are included in scheduler reporting.
 - Never pull, checkout, reset, merge, rebase, or replace the checkout while any
-  jobs are queued or running. This is not a submission gate: record the current
-  branch and commit, then submit more jobs from the same checkout when quota
-  permits. The targeted walltime correction defined by
+  jobs are queued or running. For requests without a required Git update,
+  record the current branch and commit, then submit more jobs from the same
+  checkout when quota permits. The targeted walltime correction defined by
   `generate-plots-on-cluster` is allowed because active jobs use staged config
   copies.
-- When queued and running counts are both zero, a clean `main` checkout may be
-  fast-forwarded to `origin/main`. Record the observed checkout either way; a
-  Git update is not required before submission.
+- When queued and running counts are both zero, a `main` checkout with no
+  tracked changes may be fast-forwarded to `origin/main`. Record the observed
+  checkout either way; a Git update is not required for other submissions.
+- For a requested CMS Open Data plot (the saved second `config_packs` layer is
+  `mandatory-optional/<dimension>/cms_open_data`), require a fresh
+  `git pull --ff-only origin main` on `main` with no tracked changes before the
+  first such submission in each routine. Do this only after all scheduler jobs
+  have left active states. Verify `HEAD` equals `origin/main` and record that
+  commit and check time. The verified checkout covers later CMS Open Data
+  submissions in the same routine while it remains unchanged; do not pull again
+  after those submissions make the queue active. If the queue is already active
+  before the pull, or the pull or verification fails, leave the CMS request
+  `requested` and stop at its saved priority. Do not submit lower-priority
+  requests past it.
+  An earlier routine's `latest_main_checked_at` does not satisfy this check.
 
 ## Ordered configuration layers
 
