@@ -1,0 +1,50 @@
+{
+  "dataset__definitions": [
+    {
+      "name": "loaded-with-two-dimensional-generated-signal",
+      "type": "loaded",
+      "category": "a_sr",
+      "dataset_loaded__file_name": "events.npy",
+      "dataset_loaded__observable_naming": {
+        "param_0": "count_a",
+        "param_1": "param_0",
+        "param_2": "count_b",
+        "param_3": "param_1"
+      },
+      "dataset__number_of_background_events": 3,
+      "dataset__signal_generator": {
+        "function": "multivariate_gaussian_signal",
+        "arguments": {
+          "mean": [2.0, 3.0],
+          "covariance": [[0.1, 0.0], [0.0, 0.1]]
+        }
+      },
+      "dataset__number_of_signal_events": 5,
+      "dataset__signal_number_of_events_to_generate": 5
+    },
+    {
+      "name": "loaded-b-sr",
+      "type": "loaded",
+      "category": "b_sr",
+      "dataset_loaded__file_name": "events.npy",
+      "dataset_loaded__observable_naming": {"param_1": "param_0", "param_3": "param_1"},
+      "dataset__number_of_background_events": 3
+    },
+    {
+      "name": "loaded-a-cr",
+      "type": "loaded",
+      "category": "a_cr",
+      "dataset_loaded__file_name": "events.npy",
+      "dataset_loaded__observable_naming": {"param_1": "param_0", "param_3": "param_1"},
+      "dataset__number_of_background_events": 3
+    },
+    {
+      "name": "loaded-b-cr",
+      "type": "loaded",
+      "category": "b_cr",
+      "dataset_loaded__file_name": "events.npy",
+      "dataset_loaded__observable_naming": {"param_1": "param_0", "param_3": "param_1"},
+      "dataset__number_of_background_events": 3
+    }
+  ]
+}
