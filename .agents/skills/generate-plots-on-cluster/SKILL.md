@@ -129,12 +129,15 @@ standalone submission with no `plot_groups` has no aggregate dependency and
 must be archived in the same routine pass. Do not leave a standalone result
 merely pruned or unpacked.
 
-Archival cleanup is standing routine authorization. Retain only the submission's
-`context.json`, `configs/`, generated plot directories, and one
-`array-job-artifacts.tar.gz`. The archive must include every remaining
-`single_train.py` directory. Histories already pruned after their progression
-plot are intentionally absent. Use the saved submission `output_root` as
-`--results-root`; run the helper first with `--dry-run`, then without it:
+Archival cleanup is standing routine authorization. Retain the submission's
+`context.json`, `configs/`, generated plot directories,
+`prediction_process_plots/`, and one `array-job-artifacts.tar.gz`. The helper
+keeps all prediction-process PNGs from one worker in that directory, including
+when rerun on a submission archived before this rule existed. The archive must
+include every remaining `single_train.py` directory. Histories already pruned
+after their progression plot are intentionally absent. Use the saved submission
+`output_root` as `--results-root`; run the helper first with `--dry-run`, then
+without it:
 
 ```sh
 python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
@@ -186,8 +189,9 @@ cleanup as for a finished job during that routine: first inspect its saved
 timestamped submission directory, remove only verified empty directories, and
 archive any completed or partial artifacts that will no longer be used by a
 non-retired plot group. Use the normal `archive_submission_artifacts.py`
-procedure and retain only `context.json`, `configs/`, generated plots, and
-`array-job-artifacts.tar.gz` (plus the permitted first debug helper). Never
+procedure and retain `context.json`, `configs/`, generated plots,
+`prediction_process_plots/`, and `array-job-artifacts.tar.gz` (plus the
+permitted first debug helper). Never
 delete non-empty output from a deleted job before verifying its context and
 scheduler evidence; record the exact path and outcome in state. A deleted job
 is eligible for the retired terminal-audit archive even when it did not finish,

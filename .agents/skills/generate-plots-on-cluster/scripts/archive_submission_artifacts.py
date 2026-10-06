@@ -9,7 +9,8 @@ import shutil
 import sys
 import tarfile
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import BinaryIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
@@ -25,6 +26,8 @@ from frame.file_structure import (
 
 ARCHIVE_NAME = "array-job-artifacts.tar.gz"
 PROGRESSION_PLOT_NAME = "t_train_percentile_progression_plot"
+PREDICTION_PLOTS_DIR_NAME = "prediction_process_plots"
+PREDICTION_PLOT_GLOB = "dataset_process_plot*.png"
 
 
 def checked_submission(path_arg: str, results_root: Path) -> Path:
@@ -53,7 +56,12 @@ def is_run_directory_for_entrypoint(directory: Path, entrypoint: str) -> bool:
 
 
 def removable_children(submission: Path) -> list[Path]:
-    retained = {CONTEXT_FILE_NAME, CONFIGS_DIR_NAME, ARCHIVE_NAME}
+    retained = {
+        CONTEXT_FILE_NAME,
+        CONFIGS_DIR_NAME,
+        ARCHIVE_NAME,
+        PREDICTION_PLOTS_DIR_NAME,
+    }
     return sorted(
         child
         for child in submission.iterdir()
@@ -76,6 +84,77 @@ def debug_helper_source(submission: Path, sources: list[Path]) -> Path | None:
         ),
         None,
     )
+
+
+def write_retained_plot(destination: Path, source: BinaryIO) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with temporary.open("wb") as output:
+            shutil.copyfileobj(source, output)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def retain_prediction_process_plots(
+    submission: Path, sources: list[Path], archive: Path, *, dry_run: bool
+) -> None:
+    """Keep one worker's prediction plots visible, including from old archives."""
+    retained = submission / PREDICTION_PLOTS_DIR_NAME
+    workers = sorted(
+        source
+        for source in sources
+        if source.is_dir()
+        and is_run_directory_for_entrypoint(source, SINGLE_TRAIN_SCRIPT_NAME)
+    )
+    for worker in workers:
+        plots = sorted(
+            path for path in worker.rglob(PREDICTION_PLOT_GLOB) if path.is_file()
+        )
+        if plots:
+            for plot in plots:
+                destination = retained / plot.relative_to(worker)
+                if destination.exists():
+                    continue
+                print(f"retain prediction plot: {destination.relative_to(submission)}")
+                if not dry_run:
+                    with plot.open("rb") as source:
+                        write_retained_plot(destination, source)
+            return
+
+    if not archive.is_file():
+        return
+    with tarfile.open(archive, "r:gz") as tar:
+        plots_by_worker: dict[str, list[tarfile.TarInfo]] = {}
+        for member in tar:
+            path = PurePosixPath(member.name)
+            if (
+                member.isfile()
+                and len(path.parts) > 1
+                and ".." not in path.parts
+                and path.match(f"**/{PREDICTION_PLOT_GLOB}")
+                and is_run_directory_for_entrypoint(
+                    Path(path.parts[0]), SINGLE_TRAIN_SCRIPT_NAME
+                )
+            ):
+                plots_by_worker.setdefault(path.parts[0], []).append(member)
+        if not plots_by_worker:
+            return
+        for member in sorted(
+            plots_by_worker[min(plots_by_worker)], key=lambda item: item.name
+        ):
+            relative = Path(*PurePosixPath(member.name).parts[1:])
+            destination = retained / relative
+            if destination.exists():
+                continue
+            print(f"recover prediction plot: {destination.relative_to(submission)}")
+            if not dry_run:
+                source = tar.extractfile(member)
+                if source is None:
+                    raise ValueError(f"archive plot has no content: {member.name}")
+                with source:
+                    write_retained_plot(destination, source)
 
 
 def training_outcome_directories(sources: list[Path]) -> list[Path]:
@@ -192,6 +271,7 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
+    retain_prediction_process_plots(submission, sources, archive, dry_run=dry_run)
     debug_helper = debug_helper_source(submission, sources)
     archive_sources = [source for source in sources if source != debug_helper]
     training_outcomes = training_outcome_directories(archive_sources)
