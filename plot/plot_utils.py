@@ -34,6 +34,7 @@ from frame.aggregate import ResultAggregator, utils__get_signal_dataset_paramete
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
     CONFIGS_DIR_NAME,
+    PERFORMANCE_COMPONENTS_FILE_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
@@ -344,13 +345,23 @@ def _expected_histogram_counts(
 def _loaded_binned_injected_significance(
     signal_context: ExecutionContext,
     signal_dataset_parameters,
+    context_path: Path,
 ) -> float:
     if not isinstance(signal_context.config, DetectorConfig):
         raise ValueError(
             f"Expected signal_context.config to include {DetectorConfig}, got "
             f"{type(signal_context.config)}."
         )
-    background_data, signal_data = signal_dataset_parameters.dataset__data
+    components_path = context_path.parent / PERFORMANCE_COMPONENTS_FILE_NAME
+    if not components_path.is_file():
+        raise FileNotFoundError(
+            f"Loaded performance significance needs training sample {components_path}. "
+            "This training run predates saved performance components."
+        )
+    with np.load(components_path, allow_pickle=False) as components:
+        saved_names = list(components["observable_names"])
+        background_data = DataSet(components["background"], saved_names)
+        signal_data = DataSet(components["signal"], saved_names)
     observable_names = list(signal_context.config.detector__detect_observable_names)
     if not set(observable_names).issubset(background_data.observable_names):
         missing = sorted(set(observable_names) - set(background_data.observable_names))
@@ -411,6 +422,7 @@ def _performance_x_value_for_signal(
     signal_context: ExecutionContext,
     signal_dataset_parameters,
     source_type: str,
+    context_path: Path,
 ) -> Tuple[float, str, bool, bool]:
     if source_type == "generated":
         return (
@@ -430,6 +442,7 @@ def _performance_x_value_for_signal(
             _loaded_binned_injected_significance(
                 signal_context,
                 signal_dataset_parameters,
+                context_path,
             ),
             r"evident injected $\sqrt{q_0}$",
             False,
@@ -546,6 +559,7 @@ def utils__calculate_performance_curve(
                 signal_context,
                 signal_dataset_parameters,
                 source_type,
+                context_path,
             )
         )
         signal_strength = float(

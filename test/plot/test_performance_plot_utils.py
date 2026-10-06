@@ -7,9 +7,11 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
+from frame.file_structure import PERFORMANCE_COMPONENTS_FILE_NAME
 from plot import plots
 from plot import plot_utils
 from plot.plotting_config import PlottingConfig
+from train.single_train import save_performance_components
 
 
 class _PerformanceConfig(PlottingConfig, DetectorConfig):
@@ -46,6 +48,16 @@ def _context_with_source(source_type: str, signal_events: int = 7):
     )
 
 
+def _save_sample(path, background, signal):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path.parent / PERFORMANCE_COMPONENTS_FILE_NAME,
+        background=background,
+        signal=signal,
+        observable_names=np.asarray(["x"]),
+    )
+
+
 def test_loaded_performance_curve_uses_binned_evident_significance(
     monkeypatch,
     tmp_path,
@@ -56,6 +68,8 @@ def test_loaded_performance_curve_uses_binned_evident_significance(
         DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
     )
     context_path = tmp_path / "signal" / "context.json"
+    _save_sample(context_path, [[0.25], [0.75]], [[0.75], [0.75]])
+    context.signal_parameters.dataset__data = None
 
     def fail_analytic_significance(**_arguments):
         raise AssertionError("Loaded datasets do not have an analytic background PDF.")
@@ -100,6 +114,45 @@ def test_loaded_performance_curve_uses_binned_evident_significance(
     assert curve.connect_points is False
 
 
+def test_loaded_significance_uses_training_sample(monkeypatch, tmp_path):
+    context = _context_with_source("loaded", signal_events=25)
+    context.signal_parameters.category = DataSet.DataSetCategory.B_SR
+    context.signal_parameters.dataset__has_signal = True
+    context.config.dataset__has_signal = True
+    context.config.get_parameters = lambda category: context.signal_parameters
+    context.unique_out_dir = tmp_path / "signal"
+    context.unique_out_dir.mkdir()
+    context_path = context.unique_out_dir / "context.json"
+
+    class SampledGeneration:
+        def sampled_components(self, category):
+            assert category == DataSet.DataSetCategory.B_SR
+            return (
+                DataSet(np.asarray([[0.25], [0.75]]), ["x"]),
+                DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
+            )
+
+    save_performance_components(context, SampledGeneration())
+    context.signal_parameters.dataset__data = (
+        DataSet(np.asarray([[0.25], [0.25]]), ["x"]),
+        DataSet(np.asarray([[0.25], [0.25]]), ["x"]),
+    )
+    monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
+    monkeypatch.setattr(
+        plot_utils,
+        "utils__get_signal_dataset_parameters",
+        lambda _context: context.signal_parameters,
+    )
+
+    curve = plot_utils.utils__calculate_performance_curve(
+        [(context, context_path)], np.arange(100, dtype=float)
+    )
+    expected = plot_utils.calc_injected_t_significance_by_sqrt_q0_binned(
+        np.asarray([50.0, 50.0]), np.asarray([0.0, 25.0])
+    )
+    np.testing.assert_allclose(curve.x_values, [expected])
+
+
 def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_path):
     context = _context_with_source("loaded", signal_events=25)
     context.config.plot__prediction_process_number_of_bins = 1
@@ -118,6 +171,7 @@ def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_pat
         DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
     )
     context_path = tmp_path / "signal" / "context.json"
+    _save_sample(context_path, [[0.25], [0.75]], [[0.75], [0.75]])
 
     monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
     monkeypatch.setattr(
@@ -272,6 +326,8 @@ def test_performance_curve_coalesces_duplicate_signal_strengths(
     )
     first_path = tmp_path / "first" / "context.json"
     second_path = tmp_path / "second" / "context.json"
+    _save_sample(first_path, [[0.25], [0.75]], [[0.75], [0.75]])
+    _save_sample(second_path, [[0.25], [0.75]], [[0.75], [0.75]])
 
     class DuplicateAggregator(_FakeAggregator):
         def __init__(self, parent_directory: Path):

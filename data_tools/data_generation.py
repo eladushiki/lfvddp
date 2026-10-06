@@ -79,6 +79,7 @@ class DataGeneration:
         self._config: DatasetConfig = context.config
 
     def get_batch(self) -> DataBatch:
+        self._sampled_components = {}
         sr = self.__retrieve_regional_pair(DATASET_REGIONS.sr)
         cr = self.__retrieve_regional_pair(DATASET_REGIONS.cr)
         return DataBatch(
@@ -160,6 +161,10 @@ class DataGeneration:
                 is_random=dataset_parameters.dataset_loaded__sample_is_sample,
                 replacement=dataset_parameters.dataset_loaded__sample_is_replacement,
             )
+            self._sampled_components[dataset_parameters.category] = (
+                background_data,
+                signal_data,
+            )
             self._loaded_datasets[dataset_parameters.category] = (
                 background_remainder,
                 signal_remainder,
@@ -171,3 +176,7 @@ class DataGeneration:
         complete_ds = background_data + signal_data
         complete_ds.category = dataset_parameters.category
         return complete_ds
+
+    def sampled_components(self, category: DataSet.DataSetCategory) -> Tuple[DataSet, DataSet]:
+        """Return the loaded components drawn for the current training batch."""
+        return self._sampled_components[category]

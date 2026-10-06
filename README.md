@@ -149,7 +149,9 @@ when configuration files need target-significance signal amounts.
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
   plots use analytic injected significance for generated datasets; loaded
   datasets use a binned evident injected significance from expected background
-  and signal counts in detector-observable bins.
+  and signal counts in detector-observable bins. Training saves its sampled
+  components in `performance_components.npz`; older runs without this artifact
+  must be rerun to plot evident injected significance.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.

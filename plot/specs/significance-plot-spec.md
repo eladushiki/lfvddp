@@ -33,7 +33,7 @@ The plot factory discovers and injects the two parent directories for this multi
 - Signal contexts are discovered recursively and grouped by compatible dataset configuration.
 - Each signal context contributes a `t` distribution and an x-axis signal-strength value:
   - generated datasets use the analytic injected significance derived from their generated background and signal PDFs;
-  - loaded datasets use an evident injected significance calculated from expected background and signal counts in detector-observable bins, because they do not define analytic background PDFs.
+  - loaded datasets use an evident injected significance calculated from expected background and signal counts in detector-observable bins, because they do not define analytic background PDFs. Training saves the sampled background and signal components in `performance_components.npz`; plotting reads this artifact from each signal run. A missing artifact is an error rather than a reason to draw a new random sample.
 - Mixed generated and loaded datasets are rejected in one performance plot. They use different x-axis semantics and must not be overlaid.
 - For each signal distribution, the measured significance is the common-background percentile of that distribution's median `t`; uncertainty is reported from median `t` plus or minus one standard deviation.
 - Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined. If outlier filtering leaves no usable background values, the error identifies the checked directories and raw, finite, and finite-nonnegative counts. A verified `array-job-artifacts.tar.gz` created before aggregate plotting must be restored rather than misclassified as a failed residue.
