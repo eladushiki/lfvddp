@@ -34,10 +34,10 @@ from frame.aggregate import ResultAggregator, utils__get_signal_dataset_paramete
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
     CONFIGS_DIR_NAME,
-    PERFORMANCE_COMPONENTS_FILE_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
+from frame.file_system.performance_components import load_performance_components
 from frame.file_system.training_history import HistoryKeys
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
@@ -352,16 +352,7 @@ def _loaded_binned_injected_significance(
             f"Expected signal_context.config to include {DetectorConfig}, got "
             f"{type(signal_context.config)}."
         )
-    components_path = context_path.parent / PERFORMANCE_COMPONENTS_FILE_NAME
-    if not components_path.is_file():
-        raise FileNotFoundError(
-            f"Loaded performance significance needs training sample {components_path}. "
-            "This training run predates saved performance components."
-        )
-    with np.load(components_path, allow_pickle=False) as components:
-        saved_names = list(components["observable_names"])
-        background_data = DataSet(components["background"], saved_names)
-        signal_data = DataSet(components["signal"], saved_names)
+    background_data, signal_data = load_performance_components(context_path.parent)
     observable_names = list(signal_context.config.detector__detect_observable_names)
     if not set(observable_names).issubset(background_data.observable_names):
         missing = sorted(set(observable_names) - set(background_data.observable_names))

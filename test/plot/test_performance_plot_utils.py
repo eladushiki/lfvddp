@@ -7,11 +7,11 @@ import pytest
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
-from frame.file_structure import PERFORMANCE_COMPONENTS_FILE_NAME
+from frame.file_system.performance_components import save_performance_components
 from plot import plots
 from plot import plot_utils
 from plot.plotting_config import PlottingConfig
-from train.single_train import save_performance_components
+from train.single_train import save_training_performance_components
 
 
 class _PerformanceConfig(PlottingConfig, DetectorConfig):
@@ -50,11 +50,11 @@ def _context_with_source(source_type: str, signal_events: int = 7):
 
 def _save_sample(path, background, signal):
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        path.parent / PERFORMANCE_COMPONENTS_FILE_NAME,
-        background=background,
-        signal=signal,
-        observable_names=np.asarray(["x"]),
+    save_performance_components(
+        path.parent,
+        DataSet(np.asarray(background), ["x"]),
+        DataSet(np.asarray(signal), ["x"]),
+        ["x"],
     )
 
 
@@ -132,7 +132,7 @@ def test_loaded_significance_uses_training_sample(monkeypatch, tmp_path):
                 DataSet(np.asarray([[0.75], [0.75]]), ["x"]),
             )
 
-    save_performance_components(context, SampledGeneration())
+    save_training_performance_components(context, SampledGeneration())
     context.signal_parameters.dataset__data = (
         DataSet(np.asarray([[0.25], [0.25]]), ["x"]),
         DataSet(np.asarray([[0.25], [0.25]]), ["x"]),

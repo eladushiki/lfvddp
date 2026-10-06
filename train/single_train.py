@@ -1,6 +1,5 @@
 from typing import Optional
 
-import numpy as np
 import torch
 
 from data_tools.data_generation import DataBatch, DataGeneration
@@ -8,13 +7,11 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.detector.detector_effect import DetectorEffect
 from data_tools.profile_likelihood import calc_t_LFVDDP
-from frame.command_line.handle_args import context_controlled_execution
 from frame.aggregate import utils__get_signal_dataset_parameters
+from frame.command_line.handle_args import context_controlled_execution
 from frame.context.execution_context import ExecutionContext
-from frame.file_structure import (
-    PERFORMANCE_COMPONENTS_FILE_NAME,
-    RESULTING_T_FILE_NAME,
-)
+from frame.file_structure import RESULTING_T_FILE_NAME
+from frame.file_system.performance_components import save_performance_components
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel, LFVNN_DTYPE
 from neural_networks.utils import save_training_history_outcome
@@ -64,7 +61,7 @@ def main(context: ExecutionContext) -> None:
         with resource_profiler.stage("data generation"):
             gen = DataGeneration(context)
             batch = gen.get_batch()
-            save_performance_components(context, gen)
+            save_training_performance_components(context, gen)
 
         with resource_profiler.stage("detector simulation"):
             det = DetectorEffect(context)
@@ -87,7 +84,7 @@ def main(context: ExecutionContext) -> None:
         resource_profiler.save()
 
 
-def save_performance_components(
+def save_training_performance_components(
     context: ExecutionContext, generation: DataGeneration
 ) -> None:
     """Persist the components actually drawn for a loaded training run."""
@@ -99,15 +96,8 @@ def save_performance_components(
         return
     background, signal = generation.sampled_components(signal_parameters.category)
     observable_names = list(config.detector__detect_observable_names)
-    np.savez_compressed(
-        context.unique_out_dir / PERFORMANCE_COMPONENTS_FILE_NAME,
-        background=background.filter_observable_names(observable_names).events,
-        signal=(
-            signal.filter_observable_names(observable_names).events
-            if not signal.empty
-            else np.empty((0, len(observable_names)))
-        ),
-        observable_names=np.asarray(observable_names),
+    save_performance_components(
+        context.unique_out_dir, background, signal, observable_names
     )
 
 
