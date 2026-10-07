@@ -161,3 +161,41 @@ def test_aggregate_derives_hypothesis_dof_from_run_context(
     )
 
     assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 3
+
+
+@pytest.mark.parametrize(
+    ("function_execution_context", "expected_dof"),
+    [
+        pytest.param(
+            {
+                ConfigType.DATASET: Path(
+                    f"test/configs/dataset/disjoint_{dimension}D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(
+                    f"test/configs/detector/basic_{dimension}D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(f"test/configs/train/{fixture}.json"),
+            },
+            expected_dof,
+            id=fixture,
+        )
+        for fixture, dimension, expected_dof in [
+            ("short_1D_train_config_with_neural_nuisance", 1, 12),
+            ("short_1D_train_config_without_nuisance_like_nplm", 1, 13),
+            ("two_dimensional_adaptive_neural_binned", 2, 16),
+        ]
+    ],
+    indirect=["function_execution_context"],
+)
+def test_aggregate_derives_adaptive_dof_from_run_context(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+    expected_dof,
+):
+    monkeypatch.setattr(
+        "frame.aggregate.ExecutionContext.discover_run_contexts",
+        lambda parent_directory: [(function_execution_context, parent_directory)],
+    )
+
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == expected_dof

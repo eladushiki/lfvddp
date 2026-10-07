@@ -170,10 +170,8 @@ def t_train_percentile_progression_plot(
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
     chi2_dof = agg.chi_square_degrees_of_freedom
-    reference_quantiles = (
-        np.asarray([chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles])
-        if chi2_dof is not None
-        else np.empty(0)
+    reference_quantiles = np.asarray(
+        [chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles]
     )
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
@@ -181,12 +179,11 @@ def t_train_percentile_progression_plot(
         values = all_history_values[sample_name][HistoryKeys.T.value]
         converged_values = _eventually_converged_histories(values)
         percentiles = np.percentile(converged_values, quantiles, axis=0)
-        for index, (quantile, percentile, color) in enumerate(
-            zip(
-                quantiles,
-                percentiles,
-                colors,
-            )
+        for quantile, percentile, reference_quantile, color in zip(
+            quantiles,
+            percentiles,
+            reference_quantiles,
+            colors,
         ):
             (line,) = ax.plot(
                 epochs,
@@ -197,13 +194,12 @@ def t_train_percentile_progression_plot(
             )
             if row == 0:
                 legend_handles.append(line)
-            if chi2_dof is not None:
-                ax.axhline(
-                    reference_quantiles[index],
-                    color=color,
-                    linestyle="--",
-                    linewidth=1.5,
-                )
+            ax.axhline(
+                reference_quantile,
+                color=color,
+                linestyle="--",
+                linewidth=1.5,
+            )
         ax.set_ylabel(HistoryKeys.T.value)
         ax.set_ylim(
             0,
@@ -216,17 +212,16 @@ def t_train_percentile_progression_plot(
         if row == len(sample_names) - 1:
             ax.set_xlabel("Training epochs")
 
-    if chi2_dof is not None:
-        legend_handles.append(
-            Line2D(
-                [],
-                [],
-                color="black",
-                linestyle="--",
-                linewidth=1.5,
-                label=rf"$\chi^2_{{{chi2_dof}}}$ quantiles",
-            )
+    legend_handles.append(
+        Line2D(
+            [],
+            [],
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label=rf"$\chi^2_{{{chi2_dof}}}$ quantiles",
         )
+    )
     fig.suptitle("Training percentile progression", fontsize=24)
     fig.legend(
         handles=legend_handles,
@@ -341,16 +336,15 @@ def t_distribution_plot(
         ls="",
     )
 
-    if chi2_dof is not None:
-        chi2_bin_centers = np.linspace(0, chi2.ppf(0.9999, chi2_dof), 1000)
-        ax.plot(
-            chi2_bin_centers,
-            chi2.pdf(chi2_bin_centers, chi2_dof),
-            style["chi2_color"],
-            linewidth=style["linewidth"],
-            alpha=style["alpha"],
-            label=rf"$\chi^{{2}}_{{{chi2_dof}}}$",
-        )
+    chi2_bin_centers = np.linspace(0, chi2.ppf(0.9999, chi2_dof), 1000)
+    ax.plot(
+        chi2_bin_centers,
+        chi2.pdf(chi2_bin_centers, chi2_dof),
+        style["chi2_color"],
+        linewidth=style["linewidth"],
+        alpha=style["alpha"],
+        label=rf"$\chi^{{2}}_{{{chi2_dof}}}$",
+    )
 
     median_t = float(np.median(t))
     ax.axvline(
@@ -360,12 +354,11 @@ def t_distribution_plot(
         linewidth=style["linewidth"],
     )
     median_label = f"median $t={median_t:.2f}$"
-    if chi2_dof is not None:
-        median_significance = calc_median_t_significance_by_chi2_percentile(
-            t,
-            chi2_dof,
-        )
-        median_label += f"\n$Z(\\mathrm{{median}}\\ t)={median_significance:.2f}$"
+    median_significance = calc_median_t_significance_by_chi2_percentile(
+        t,
+        chi2_dof,
+    )
+    median_label += f"\n$Z(\\mathrm{{median}}\\ t)={median_significance:.2f}$"
     ax.annotate(
         median_label,
         xy=(median_t, float(np.max(h)) * 0.9),
@@ -381,13 +374,10 @@ def t_distribution_plot(
     )
     legend_handles = [circ]
     legend_labels = [label]
-    if chi2_dof is not None:
-        legend_handles.append(
-            patches.Rectangle(
-                (0, 0), 1, 1, color=style["chi2_color"], alpha=style["alpha"]
-            )
-        )
-        legend_labels.append(rf"$\chi^{{2}}_{{{chi2_dof}}}$")
+    legend_handles.append(
+        patches.Rectangle((0, 0), 1, 1, color=style["chi2_color"], alpha=style["alpha"])
+    )
+    legend_labels.append(rf"$\chi^{{2}}_{{{chi2_dof}}}$")
     ax.legend(
         legend_handles,
         legend_labels,
