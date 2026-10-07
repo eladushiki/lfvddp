@@ -22,7 +22,9 @@ from torch import nn
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
 
-from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
+from neural_networks.likelihood_parameterization import (
+    smoothly_bounded_likelihood_shift,
+)
 
 
 EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
@@ -36,19 +38,16 @@ class FunctionSpace(Protocol):
     options: Mapping[str, Any]
     feature_count: int
 
-    def forward(self, events: EventInput) -> torch.Tensor:
-        ...
+    def forward(self, events: EventInput) -> torch.Tensor: ...
 
-    def initialize_parameters(self, gain: float) -> None:
-        ...
+    def initialize_parameters(self, gain: float) -> None: ...
 
     @classmethod
     def from_options(
         cls,
         options: Mapping[str, Any],
         **construction: Any,
-    ) -> "FunctionSpace":
-        ...
+    ) -> "FunctionSpace": ...
 
     @classmethod
     def validate_options(cls, options: Mapping[str, Any]) -> None:
@@ -64,7 +63,7 @@ class FunctionSpace(Protocol):
         ...
 
     def statistical_degrees_of_freedom(self) -> int | None:
-        """Return the fixed hypothesis-space dimension, when defined."""
+        """Return the family-owned diagnostic degree count, when defined."""
         ...
 
 
@@ -84,7 +83,9 @@ def immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
 
     def freeze(value: Any) -> Any:
         if isinstance(value, Mapping):
-            return MappingProxyType({deepcopy(key): freeze(item) for key, item in value.items()})
+            return MappingProxyType(
+                {deepcopy(key): freeze(item) for key, item in value.items()}
+            )
         if isinstance(value, (list, tuple)):
             return tuple(freeze(item) for item in value)
         return deepcopy(value)
@@ -92,7 +93,9 @@ def immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
     return MappingProxyType({key: freeze(value) for key, value in options.items()})
 
 
-def require_options(options: Mapping[str, Any], family: str, names: Iterable[str]) -> None:
+def require_options(
+    options: Mapping[str, Any], family: str, names: Iterable[str]
+) -> None:
     """Reject incomplete geometry with a family-specific error."""
 
     missing = [name for name in names if name not in options]
@@ -115,7 +118,11 @@ def number_sequence(value: Any, name: str) -> tuple[float, ...]:
     if isinstance(value, (str, bytes)):
         raise ValueError(f"{name} must be a numeric sequence.")
     try:
-        values = tuple(float(item) for item in value) if not np.isscalar(value) else (float(value),)
+        values = (
+            tuple(float(item) for item in value)
+            if not np.isscalar(value)
+            else (float(value),)
+        )
     except (TypeError, ValueError) as error:
         raise ValueError(f"{name} must be a numeric sequence.") from error
     if not values or not all(np.isfinite(item) for item in values):
@@ -179,7 +186,9 @@ def tensor_product_basis_enabled(
     return enabled
 
 
-def assembled_feature_count(feature_counts: Iterable[int], *, tensor_product_basis: bool) -> int:
+def assembled_feature_count(
+    feature_counts: Iterable[int], *, tensor_product_basis: bool
+) -> int:
     """Return additive or tensor-product width from per-dimension widths."""
 
     counts = tuple(int(count) for count in feature_counts)
@@ -288,7 +297,9 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         scalar_output_dimension(options, cls.family)
 
     @classmethod
-    def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "FunctionSpace":
+    def from_options(
+        cls, options: Mapping[str, Any], **construction: Any
+    ) -> "FunctionSpace":
         """Build any fixed feature family through its common construction path."""
 
         return cls(
@@ -308,14 +319,18 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
     ) -> None:
         super().__init__()
         if feature_count <= 0:
-            raise ValueError("A deterministic function space must have at least one feature.")
+            raise ValueError(
+                "A deterministic function space must have at least one feature."
+            )
         if output_dimension != 1:
             raise ValueError("Function-space output_dimension must equal 1.")
         self.feature_count = int(feature_count)
         self.output_dimension = int(output_dimension)
         self.options = immutable_options(options or {})
         self.coefficients = nn.Parameter(
-            torch.zeros(self.feature_count, self.output_dimension, dtype=dtype, device=device)
+            torch.zeros(
+                self.feature_count, self.output_dimension, dtype=dtype, device=device
+            )
         )
 
     @property

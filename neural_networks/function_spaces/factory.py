@@ -78,6 +78,6 @@ def prediction_grid_edges(
 
 
 def analytic_degrees_of_freedom(spec: FunctionSpaceSpec) -> int | None:
-    """Return a family-owned fixed dimension without allocating tensors."""
+    """Return a family-owned configured diagnostic count without allocating tensors."""
 
     return _registered_family(spec).analytic_degrees_of_freedom(spec.options)

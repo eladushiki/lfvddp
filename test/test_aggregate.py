@@ -180,9 +180,8 @@ def test_aggregate_derives_hypothesis_dof_from_run_context(
             id=fixture,
         )
         for fixture, dimension, expected_dof in [
-            ("short_1D_train_config_with_neural_nuisance", 1, 12),
-            ("short_1D_train_config_without_nuisance_like_nplm", 1, 13),
-            ("two_dimensional_adaptive_neural_binned", 2, 16),
+            ("short_1D_train_config_with_neural_nuisance", 1, 13),
+            ("two_dimensional_adaptive_neural_binned", 2, 17),
         ]
     ],
     indirect=["function_execution_context"],
@@ -199,3 +198,23 @@ def test_aggregate_derives_adaptive_dof_from_run_context(
     )
 
     assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == expected_dof
+
+
+def test_aggregate_keeps_nplm_raw_count_without_importing_backend(
+    tmp_path, monkeypatch
+):
+    from frame.command_line.handle_args import create_config_from_paths
+    from test.environment import DEFAULT_CONFIG_PATHS
+
+    paths = {
+        **DEFAULT_CONFIG_PATHS,
+        ConfigType.TRAIN: Path(
+            "test/configs/train/short_1D_train_config_without_nuisance_like_nplm.json"
+        ),
+    }
+    context = SimpleNamespace(config=create_config_from_paths(list(paths.values())))
+    monkeypatch.setattr(
+        "frame.aggregate.ExecutionContext.discover_run_contexts",
+        lambda _: [(context, tmp_path)],
+    )
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 13

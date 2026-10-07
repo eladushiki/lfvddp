@@ -140,18 +140,29 @@ when configuration files need target-significance signal amounts.
   changing its feature map. In tensor-product mode, `fixed_sigmoid` interprets
   nested `centers` and `widths` as per-observable lists and expands all joint
   centre-width combinations.
+- LFVDDP `adaptive_neural` options use `hidden_layer_nodes: 4` for one hidden
+  layer, `[4, 3]` for successive hidden layers, or `[]` for no hidden layers.
+  This applies independently to `train__f` and `train__nuisance`. Every hidden
+  layer is fully connected with sigmoid activation. `input_dimension` must
+  equal the number of detector observables; the output always has one node
+  with the existing smooth likelihood bound. Initialization uses the configured
+  Xavier gain and the existing bias range at every depth. Integer configurations
+  retain their single-layer checkpoint layout.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
-  `input_dimension` and `hidden_layer_nodes`. Adaptive neural and NPLM studies
+  `input_dimension` and integer `hidden_layer_nodes`; list architectures are
+  supported only by LFVDDP. Adaptive neural and NPLM studies
   require empirical-null calibration rather than assigning Wilks degrees of
   freedom from parameter counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
   significance is calibrated against background runs. Single-submission
   distribution and percentile-progression plots always show diagnostic
-  chi-square references: adaptive LFVDDP uses signal-network parameters minus
-  one (12 for a 1-4-1 network), NPLM uses the raw count, and fixed families use
-  their constrained dimension. Multi-run performance
+  chi-square references: adaptive LFVDDP counts all signal-network weights and
+  biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed families use
+  their constrained dimension. Shared nuisance parameters do not contribute to
+  this reference. Parameter counting alone does not establish Wilks validity.
+  Multi-run performance
   plots use analytic injected significance for generated datasets; loaded
   datasets use a binned evident injected significance from expected background
   and signal counts in detector-observable bins. Training saves its sampled

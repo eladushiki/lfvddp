@@ -33,10 +33,11 @@ contains empirical 2.5%, 25%, 50%, 75%, and 97.5% percentile curves. For
 all positive diagnostic degree counts, dashed horizontal lines and their legend
 entry are always shown. The result aggregator reconstructs the count from saved
 run contexts using the existing statistical-calibration function, shared with the t-distribution plot:
-adaptive LFVDDP uses trainable signal-network parameters minus one, NPLM uses
+adaptive LFVDDP counts all signal-network weights and biases at any depth, NPLM uses
 the raw signal-network parameter count, and fixed families use their constrained
 dimension. Zero-dimensional spaces raise an explicit error. This diagnostic
-reference is independent of multi-run significance calibration.
+reference excludes shared nuisance parameters and is independent of multi-run
+significance calibration. Parameter counting alone does not establish Wilks validity.
 
 The horizontal axis is the configured training epoch and uses scientific
 notation when appropriate. The vertical axis starts at zero. Its upper limit is

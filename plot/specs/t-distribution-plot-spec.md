@@ -47,12 +47,13 @@ The figure contains one axes:
 | Median statistic | Marked and labelled on the distribution. |
 | Significance | Derived from the median statistic and reported in the plot annotation. |
 
-Adaptive LFVDDP networks use their trainable signal-network parameter count
-minus one for the observed-count constraint; a 1-4-1 network therefore uses 12.
+Adaptive LFVDDP networks use the raw count of all signal-network weights and
+biases at any depth, including no hidden layers; a 1-4-1 network therefore uses 13.
 NPLM uses the raw signal-network parameter count, preserving its historical
 reference. Fixed families use their family-owned constrained dimension. Shared
 nuisance parameters do not contribute to this reference. A zero-dimensional
 space raises an explicit error because it has no chi-square density curve.
+Parameter counting alone does not establish Wilks validity.
 These diagnostic references and annotations are independent of the empirical
 background calibration used by the multi-run significance plot.
 
