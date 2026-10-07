@@ -147,6 +147,11 @@ when configuration files need target-significance signal amounts.
   freedom from parameter counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
+  significance is calibrated against background runs. Single-submission
+  distribution and percentile-progression plots always show diagnostic
+  chi-square references: adaptive LFVDDP uses signal-network parameters minus
+  one (12 for a 1-4-1 network), NPLM uses the raw count, and fixed families use
+  their constrained dimension. Multi-run performance
   plots use analytic injected significance for generated datasets; loaded
   datasets use a binned evident injected significance from expected background
   and signal counts in detector-observable bins. Training saves its sampled

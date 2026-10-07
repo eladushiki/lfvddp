@@ -43,12 +43,18 @@ The figure contains one axes:
 | Element | Rendering |
 | --- | --- |
 | Empirical test statistics | Normalized histogram with the configured number of bins. |
-| Target distribution | A chi-square probability-density curve using the effective hypothesis-space dimension reconstructed from each saved run context. |
+| Target distribution | Always show a chi-square probability-density curve using the configured diagnostic degree count. |
 | Median statistic | Marked and labelled on the distribution. |
 | Significance | Derived from the median statistic and reported in the plot annotation. |
 
-Function spaces without a nonzero analytic degree count omit the chi-square
-curve and chi-square-derived significance annotation.
+Adaptive LFVDDP networks use their trainable signal-network parameter count
+minus one for the observed-count constraint; a 1-4-1 network therefore uses 12.
+NPLM uses the raw signal-network parameter count, preserving its historical
+reference. Fixed families use their family-owned constrained dimension. Shared
+nuisance parameters do not contribute to this reference. A zero-dimensional
+space raises an explicit error because it has no chi-square density curve.
+These diagnostic references and annotations are independent of the empirical
+background calibration used by the multi-run significance plot.
 
 The plot uses the configured histogram, edge, and chi-square colors, line width, and alpha. It labels the horizontal axis as the test statistic and the vertical axis as probability density, with a legend identifying the empirical and reference distributions.
 
@@ -84,8 +90,8 @@ remain inside the plot frame without adding an empty tail to the histogram.
 
 - [ ] The input configuration type and required plot instruction are validated.
 - [ ] The empirical histogram contains only the selected `t` values.
-- [x] The chi-square reference uses the effective hypothesis-space dimension reconstructed from the saved run context.
-- [x] Function spaces without a nonzero degree count omit the analytic reference.
+- [x] The chi-square reference uses the configured diagnostic degree count, including adaptive networks and NPLM.
+- [x] The curve, legend entry, and median-based significance annotation are always shown for positive degree counts.
 - [ ] Median statistic, significance, and omitted-run information are readable.
 - [x] The x-axis includes all retained `t` values with 5% right-side headroom.
 - [ ] The figure is reproducible from the recorded submission results and configuration.
