@@ -43,7 +43,7 @@ The figure contains one axes:
 | Element | Rendering |
 | --- | --- |
 | Empirical test statistics | Normalized histogram with the configured number of bins. |
-| Target distribution | Always show a chi-square probability-density curve using the configured diagnostic degree count. |
+| Target distribution | Always show a chi-square probability-density curve using the shared diagnostic degree count reconstructed by the result aggregator from saved run contexts. |
 | Median statistic | Marked and labelled on the distribution. |
 | Significance | Derived from the median statistic and reported in the plot annotation. |
 

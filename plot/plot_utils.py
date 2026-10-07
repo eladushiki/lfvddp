@@ -39,7 +39,6 @@ from frame.file_structure import (
 )
 from frame.file_system.data_samples import load_data_samples
 from frame.file_system.training_history import HistoryKeys
-from neural_networks.function_spaces import analytic_degrees_of_freedom
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
 
@@ -51,27 +50,6 @@ _T_DISTRIBUTION_REFERENCE_TAIL_PERCENTILE = 5
 _PREDICTION_PROCESS_SUBPLOT_TITLE_Y = 0.90
 _TITLE_PROTECTED_SEGMENT_PATTERN = re.compile(r"(\\?\[[^\]]*\\?\]|\$[^$]*\$)")
 _TITLE_ACRONYMS = frozenset({"CR", "LFVDDP", "NPLM", "SR"})
-
-
-def _diagnostic_chi_square_degrees_of_freedom(config: TrainConfig) -> int:
-    """Return the historical chi-square reference count for training diagnostics."""
-
-    degrees_of_freedom = analytic_degrees_of_freedom(
-        config.train__function_space_config.f
-    )
-    if degrees_of_freedom is None:
-        architecture = config.train__adaptive_architecture
-        parameter_count = sum(
-            (input_width + 1) * output_width
-            for input_width, output_width in zip(architecture, architecture[1:])
-        )
-        # LFVDDP removes the observed-count direction; NPLM used the raw count.
-        degrees_of_freedom = parameter_count - int(not config.train__is_nplm)
-    if degrees_of_freedom <= 0:
-        raise ValueError(
-            "A diagnostic chi-square reference requires positive degrees of freedom."
-        )
-    return degrees_of_freedom
 
 
 def utils__sentence_case_title(title: str) -> str:

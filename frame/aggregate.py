@@ -185,8 +185,8 @@ class ResultAggregator:
         self._epochs = epochs
 
     @property
-    def chi_square_degrees_of_freedom(self) -> int | None:
-        """Return the shared configured hypothesis-space dimension."""
+    def chi_square_degrees_of_freedom(self) -> int:
+        """Return the shared diagnostic degree count from saved run contexts."""
 
         contexts = ExecutionContext.discover_run_contexts(self._parent_directory)
         if not contexts:
@@ -201,10 +201,6 @@ class ResultAggregator:
                 "of freedom in one chi-square plot."
         )
         (degrees_of_freedom,) = degrees_of_freedom
-        if degrees_of_freedom is None:
-            return None
-        if not isinstance(degrees_of_freedom, int) or degrees_of_freedom < 0:
-            raise ValueError("Hypothesis-space dof must be a non-negative integer.")
         return degrees_of_freedom
 
     @property

@@ -31,7 +31,8 @@ flatten the valid curves.
 Each sample has one vertically stacked panel sharing the epoch axis. Every panel
 contains empirical 2.5%, 25%, 50%, 75%, and 97.5% percentile curves. For
 all positive diagnostic degree counts, dashed horizontal lines and their legend
-entry are always shown. The count is shared with the t-distribution plot:
+entry are always shown. The result aggregator reconstructs the count from saved
+run contexts using the existing statistical-calibration function, shared with the t-distribution plot:
 adaptive LFVDDP uses trainable signal-network parameters minus one, NPLM uses
 the raw signal-network parameter count, and fixed families use their constrained
 dimension. Zero-dimensional spaces raise an explicit error. This diagnostic

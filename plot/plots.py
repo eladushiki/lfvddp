@@ -28,7 +28,6 @@ from plot.carpenter import Carpenter
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
-    _diagnostic_chi_square_degrees_of_freedom,
     utils__add_prediction_process_legend,
     utils__add_subplot_sliced,
     _filter_t_distribution_outliers,
@@ -170,7 +169,7 @@ def t_train_percentile_progression_plot(
 
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
-    chi2_dof = _diagnostic_chi_square_degrees_of_freedom(config)
+    chi2_dof = agg.chi_square_degrees_of_freedom
     reference_quantiles = np.asarray(
         [chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles]
     )
@@ -289,7 +288,7 @@ def t_distribution_plot(
     distribution_std = np.std(t)
 
     # Limits
-    chi2_dof = _diagnostic_chi_square_degrees_of_freedom(config)
+    chi2_dof = agg.chi_square_degrees_of_freedom
     xmin = min(0.0, float(np.min(t)))
     histogram_xmax = max(0.0, float(np.max(t)))
     if xmin == histogram_xmax:
