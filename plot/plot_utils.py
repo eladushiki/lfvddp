@@ -22,6 +22,7 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
 )
+from data_tools.detector.analytic_efficiency import generated_detector_efficiency
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_binned,
@@ -379,6 +380,9 @@ def _performance_x_values_for_signal(
                         n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
                         n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
                         upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                        detector_efficiency=generated_detector_efficiency(
+                            signal_context, signal_dataset_parameters
+                        ),
                     )
                 ]
             ),

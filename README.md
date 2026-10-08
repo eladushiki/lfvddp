@@ -104,9 +104,9 @@ Important configuration choices include:
 - `train__epochs`, checkpoint frequency, function-space dimensions, and
   learning-rate settings control optimization.
 
-To choose a generated signal yield from the same continuous injected-
-significance calculation used by generated-dataset performance plots, use the
-separate calibration entry point. It accepts the dataset generator
+To choose a generated signal yield for a generated-level continuous injected
+significance target (before detector efficiency), use the separate calibration
+entry point. It accepts the dataset generator
 specifications as JSON and can solve several target values in one invocation:
 
 ```bash
@@ -152,7 +152,12 @@ when configuration files need target-significance signal amounts.
   chi-square references: adaptive LFVDDP uses signal-network parameters minus
   one (12 for a 1-4-1 network), NPLM uses the raw count, and fixed families use
   their constrained dimension. Multi-run performance
-  plots use analytic injected significance for generated datasets; loaded
+  plots use analytic injected significance for generated datasets, with the
+  configured nominal detector efficiency multiplying both signal and background
+  densities without renormalizing accepted event counts. This efficiency-only
+  benchmark excludes efficiency uncertainty, measurement smearing, and nuisance
+  profiling. The standalone signal-yield calibration CLI retains its generated-
+  level target. Loaded
   datasets use a binned evident injected significance from expected background
   and signal counts in detector-observable bins. Training saves its sampled
   data and exact prediction-plot bin edges in `data_samples.npz`. For array

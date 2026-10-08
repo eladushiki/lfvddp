@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from data_tools.dataset_config import DatasetConfig, DatasetParameters
+from data_tools.detector.analytic_efficiency import generated_detector_efficiency
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
@@ -71,13 +72,21 @@ def _hashable_dataset_parameter_value(value: Any):
 
 def _injected_significance_cache_key(
     dataset_parameters: DatasetParameters,
+    config,
 ) -> tuple[tuple[str, Any], ...]:
     """Return a semantic cache key for generated injected-significance inputs."""
     return tuple(
         sorted(
             (name, _hashable_dataset_parameter_value(value))
-            for name, value in vars(dataset_parameters).items()
-            if name.startswith("dataset_") and not callable(value)
+            for name, value in (
+                vars(dataset_parameters)
+                | {
+                    name: value
+                    for name, value in vars(config).items()
+                    if name.startswith("detector__")
+                }
+            ).items()
+            if name.startswith(("dataset_", "detector__")) and not callable(value)
         )
     )
 
@@ -237,7 +246,9 @@ class ResultAggregator:
         significance_cache = {}
         for context in self._run_contexts:
             signal_dataset_parameters = utils__get_signal_dataset_parameters(context)
-            cache_key = _injected_significance_cache_key(signal_dataset_parameters)
+            cache_key = _injected_significance_cache_key(
+                signal_dataset_parameters, context.config
+            )
             if cache_key not in significance_cache:
                 significance_cache[cache_key] = (
                     calc_injected_t_significance_by_sqrt_q0_continuous(
@@ -246,6 +257,9 @@ class ResultAggregator:
                         n_background_events=signal_dataset_parameters.dataset__number_of_background_events,
                         n_signal_events=signal_dataset_parameters.dataset__number_of_signal_events,
                         upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                        detector_efficiency=generated_detector_efficiency(
+                            context, signal_dataset_parameters
+                        ),
                     )
                 )
             injected_significances.append(significance_cache[cache_key])

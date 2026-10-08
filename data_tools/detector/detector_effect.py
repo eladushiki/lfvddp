@@ -99,14 +99,17 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         """Names of the observables selected for detection."""
         return tuple(self._observable_names)
 
-    def efficiency_values(self, dataset: DataSet) -> np.ndarray:
-        """Return the detector efficiency at each dataset point without sampling."""
+    def efficiency_values(
+        self, dataset: DataSet, *, nominal: bool = False
+    ) -> np.ndarray:
+        """Evaluate acceptance; nominal=True bypasses efficiency uncertainty."""
         if self.detection_parameters is None:
             raise RuntimeError(
                 "Detector efficiency cannot be evaluated before detection "
                 "parameters are set."
             )
-        return np.asarray(self._uncertain_efficiency(dataset._data))
+        efficiency = self._true_efficiency if nominal else self._uncertain_efficiency
+        return np.asarray(efficiency(dataset._data))
 
     def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
         """
