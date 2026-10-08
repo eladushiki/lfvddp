@@ -44,3 +44,11 @@ Implementing ML machinery to differentiate between similar and different pairs o
 ## Skills and Specs
 - Skills can be found in `.agents/skills` directory
 - Plot are designed according to specs, that appear in `plots/specs`. If a spec is updated, the plots should too. If a plot is updated, its spec should too.
+
+## Shared cluster submission state
+- Before any cluster queue or submission-state work, read
+  [.agents/submission-state.schema.md](.agents/submission-state.schema.md).
+  The only authoritative YAML is on the cluster at the configured remote
+  project root. Every change requires the shared lock helper; hold the lock
+  from the decision-making read through side effects and the atomic save.
+  Local snapshots must never drive submissions or overwrite remote state.

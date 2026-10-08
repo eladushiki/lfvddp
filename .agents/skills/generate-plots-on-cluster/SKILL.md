@@ -5,7 +5,12 @@ description: "Detect completed tracked ATLAS submissions and generate their sing
 
 # Generate Plots on Cluster
 
-Process only submissions recorded in `.agents/submission-state.yaml`. Ignore
+Run this skill inside the shared lock transaction defined in
+[the submission-state schema](../../submission-state.schema.md#shared-access-and-locking).
+Read and save `$SUBMISSION_STATE_PATH` there; hold the lock through every
+action and its state update. Never use a local YAML copy or nest lock acquisition.
+
+Process only submissions recorded in the canonical cluster submission state. Ignore
 untracked jobs when deciding what to plot; include them only in scheduler-count
 reporting.
 

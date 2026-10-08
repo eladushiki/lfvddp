@@ -29,7 +29,7 @@ quoted_root=$(shell_quote "$remote_project_root")
 bootstrap_command='set +eu; export COMPILER="${COMPILER:-gcc}"; export CXX="${CXX:-}"; export MANPATH="${MANPATH:-}"; export PATH="/opt/pbs/bin:$PATH"; if [ -f .venv/bin/activate ]; then source scripts/activate_python_environment.sh || exit $?; else source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh || exit $?; fi'
 
 if [ "$#" -eq 0 ]; then
-    interactive_command="$bootstrap_command; exec /bin/bash --noprofile --norc -i"
+    interactive_command="export WIS_CLUSTER_REMOTE_PROJECT_ROOT=$quoted_root; $bootstrap_command; exec /bin/bash --noprofile --norc -i"
     quoted_interactive_command=$(shell_quote "$interactive_command")
     remote_command="cd $quoted_root && exec /bin/bash --noprofile --norc -ic $quoted_interactive_command"
     if [ -n "$identity_file" ]; then
@@ -39,7 +39,7 @@ if [ "$#" -eq 0 ]; then
 fi
 
 command_text=$*
-run_command="$bootstrap_command; $command_text"
+run_command="export WIS_CLUSTER_REMOTE_PROJECT_ROOT=$quoted_root; $bootstrap_command; $command_text"
 quoted_run_command=$(shell_quote "$run_command")
 remote_command="cd $quoted_root && exec /bin/bash --noprofile --norc -c $quoted_run_command"
 

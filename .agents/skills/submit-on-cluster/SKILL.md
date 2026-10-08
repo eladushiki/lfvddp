@@ -5,7 +5,12 @@ description: "Submit explicitly requested ATLAS array jobs in saved priority ord
 
 # Submit on Cluster
 
-Submit only explicit `requested` entries in `.agents/submission-state.yaml`, in
+Run this skill inside the shared lock transaction defined in
+[the submission-state schema](../../submission-state.schema.md#shared-access-and-locking).
+Read and save `$SUBMISSION_STATE_PATH` there; hold the lock through every
+action and its state update. Never use a local YAML copy or nest lock acquisition.
+
+Submit only explicit `requested` entries in the canonical cluster submission state, in
 file order. Never submit `retired` entries or invent requests. Read
 [the submission-state schema](../../submission-state.schema.md) before changing
 state.
