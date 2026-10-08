@@ -170,7 +170,10 @@ when configuration files need target-significance signal amounts.
   plots use analytic injected significance for generated datasets; loaded
   datasets use a binned evident injected significance from expected background
   and signal counts in detector-observable bins. Training saves its sampled
-  data and exact prediction-plot bin edges in `data_samples.npz`; older runs
+  data and exact prediction-plot bin edges in `data_samples.npz`. For array
+  submissions, plotting reads each successful worker's artifact rather than
+  looking in the submission directory, and reports the mean and spread of
+  their evident injected significances. Older runs
   without this artifact must be rerun to plot evident injected significance.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back

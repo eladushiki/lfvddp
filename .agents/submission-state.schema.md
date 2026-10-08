@@ -1,9 +1,66 @@
 # Cluster submission state
 
-`.agents/submission-state.yaml` is the ignored, local source of truth for the
-daily cluster routine. List order is the saved priority order. A routine may
+`$WIS_CLUSTER_REMOTE_PROJECT_ROOT/.agents/submission-state.yaml` on the cluster
+is the sole, ignored source of truth for all agents and the daily cluster routine.
+The root is configured in local `.gsd/SECRETS.md` and exported by `ssh-to-cluster`.
+Local copies and copies in other remote worktrees are never authoritative. List order is the saved priority order. A routine may
 update existing entries, but it must never add a new request unless the user
 explicitly asks.
+
+## Shared access and locking
+
+Every agent must read this section before using state. In the shared cluster
+SSH shell, run a transaction using the committed helper from any checkout:
+
+```sh
+python /path/to/repo/.agents/scripts/with_submission_state_lock.py -- bash
+# Inside this child shell:
+cat "$SUBMISSION_STATE_PATH"
+# Perform authorized actions and atomically save the updated state here.
+exit
+```
+
+When the active cluster checkout predates this helper, its deployed copy is
+`$WIS_CLUSTER_REMOTE_PROJECT_ROOT/.agents/submission-state-tools/with_submission_state_lock.py`.
+This ignored runtime copy is installed from the committed helper without changing
+the active checkout; use it until the checkout can obtain the committed version.
+
+The helper resolves the configured canonical project root, changes to it,
+exports `SUBMISSION_STATE_PATH`, and atomically creates the adjacent
+`.agents/submission-state.lock/` directory. Directory creation coordinates
+agents across cluster hosts on the shared filesystem. Lock contention returns
+exit code 75 without running the command; defer work and reread state after a
+later successful acquisition. No local lock or copied YAML can substitute.
+
+- Acquire the lock **before reading state for any decision that can change
+  state or produce side effects**. Hold it through submission, continuation,
+  plotting, cleanup, and the immediate corresponding state save. This avoids
+  duplicate actions as well as lost updates. A complete routine may hold one
+  lock; individual transactions must reread state after each acquisition.
+- Every state edit, including adding user-authorized requests, retirement,
+  branch migrations, and scheduler observations, requires this same lock.
+  Call downstream skills within the held transaction; do not acquire it again.
+- Save via a temporary file in the canonical `.agents` directory, validate the
+  YAML, then use `os.replace` to publish it atomically. Never replace state from
+  a snapshot read before acquiring the lock. Read-only reporting may read the
+  atomically published file without a lock, but cannot act on that snapshot.
+- The helper records host, PID, acquisition time, and command in
+  `submission-state.lock/owner.json`, and releases the lock when the command
+  exits, including a nonzero exit. Keep all child work in the foreground; do
+  not detach writers or side effects beyond the command lifetime.
+- An abrupt process/host death can leave a lock. Never steal it based on age.
+  Inspect its owner on the recorded host and verify both the holder and its
+  children have stopped before manually removing `owner.json` and the empty
+  lock directory. If ownership or liveness is uncertain, stop and report it.
+  Reconcile scheduler/output evidence before repeating an interrupted action:
+  a crash between `qsub` and the save may have already submitted jobs.
+- Missing state is an error. Do not recreate an empty queue or fall back to a
+  local copy. Migration must acquire this lock, refuse to overwrite existing
+  remote state, validate and atomically install the source, verify its checksum,
+  then replace the old local file with a pointer to the canonical cluster path.
+
+This is a cooperative protocol: all agents and scripts must use the helper;
+filesystem permissions alone cannot enforce it for processes sharing one user.
 
 ## Top-level structure
 
