@@ -34,6 +34,7 @@ from frame.aggregate import ResultAggregator, utils__get_signal_dataset_paramete
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
     CONFIGS_DIR_NAME,
+    SINGLE_TRAIN_SCRIPT_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
@@ -255,7 +256,6 @@ class _PerformanceCurve:
 
 @dataclass
 class _PerformanceSignalPoint:
-    x_value: float
     x_label: str
     show_reference_diagonal: bool
     connect_points: bool
@@ -363,31 +363,59 @@ def utils__context_background_source_type(context: ExecutionContext) -> str:
     return source_types.pop()
 
 
-def _performance_x_value_for_signal(
+def _performance_x_values_for_signal(
     signal_context: ExecutionContext,
     signal_dataset_parameters,
     source_type: str,
     context_path: Path,
-) -> Tuple[float, str, bool, bool]:
+) -> Tuple[np.ndarray, str, bool, bool]:
     if source_type == "generated":
         return (
-            calc_injected_t_significance_by_sqrt_q0_continuous(
-                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+            np.asarray(
+                [
+                    calc_injected_t_significance_by_sqrt_q0_continuous(
+                        background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                        signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                        n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                        n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                        upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                    )
+                ]
             ),
             r"injected $\sqrt{q_0}$",
             True,
             True,
         )
     if source_type == "loaded":
+        # Performance grouping uses submission contexts, but training samples
+        # belong to individual workers. Do not load or duplicate the parent.
+        training_contexts = ExecutionContext.discover_run_contexts(
+            context_path.parent, entrypoint=SINGLE_TRAIN_SCRIPT_NAME
+        )
+        if training_contexts:
+            training_contexts = [
+                (context, path)
+                for context, path in training_contexts
+                if context.run_successful
+            ]
+            if not training_contexts:
+                raise ValueError(
+                    "Loaded performance significance has no successful training "
+                    f"workers in {context_path.parent}."
+                )
+        else:
+            # Standalone/legacy contexts can own their samples directly.
+            training_contexts = [(signal_context, context_path)]
         return (
-            _loaded_binned_injected_significance(
-                signal_context,
-                signal_dataset_parameters,
-                context_path,
+            np.asarray(
+                [
+                    _loaded_binned_injected_significance(
+                        context,
+                        utils__get_signal_dataset_parameters(context),
+                        path,
+                    )
+                    for context, path in training_contexts
+                ]
             ),
             r"evident injected $\sqrt{q_0}$",
             False,
@@ -499,8 +527,8 @@ def utils__calculate_performance_curve(
         signal_t_values_dir = context_path.parent
         signal_dataset_parameters = utils__get_signal_dataset_parameters(signal_context)
         signal_agg = ResultAggregator(signal_t_values_dir)
-        x_value, x_label, show_diagonal, should_connect = (
-            _performance_x_value_for_signal(
+        injected_significances, x_label, show_diagonal, should_connect = (
+            _performance_x_values_for_signal(
                 signal_context,
                 signal_dataset_parameters,
                 source_type,
@@ -512,7 +540,6 @@ def utils__calculate_performance_curve(
         )
         if signal_strength not in signal_points:
             signal_points[signal_strength] = _PerformanceSignalPoint(
-                x_value=x_value,
                 x_label=x_label,
                 show_reference_diagonal=show_diagonal,
                 connect_points=should_connect,
@@ -531,7 +558,7 @@ def utils__calculate_performance_curve(
                 "performance x-axis values."
             )
         signal_point.t_value_chunks.append(signal_agg.all_t_values)
-        signal_point.injected_significance_chunks.append(np.asarray([x_value]))
+        signal_point.injected_significance_chunks.append(injected_significances)
         signal_point.directories.append(signal_t_values_dir)
 
     for signal_point in signal_points.values():
