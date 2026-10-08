@@ -28,7 +28,7 @@ NEURAL_DEPTH_CONFIGS = [
 ]
 
 FUNCTION_SPACE_OPTIONS = {
-    "adaptive_neural": {"input_dimension": 1, "hidden_layer_nodes": 2},
+    "adaptive_neural": {"hidden_layer_nodes": 2},
     "bin_indicators": {"minima": [0.0], "maxima": [3.0], "number_of_bins": [3]},
     "cubic_bspline": {"knots": [0.0, 1.0, 2.0, 3.0]},
     "orthogonal_polynomial": {

@@ -217,4 +217,4 @@ def test_aggregate_keeps_nplm_raw_count_without_importing_backend(
         "frame.aggregate.ExecutionContext.discover_run_contexts",
         lambda _: [(context, tmp_path)],
     )
-    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 13
+    assert ResultAggregator(tmp_path).chi_square_degrees_of_freedom == 17

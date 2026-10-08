@@ -67,7 +67,8 @@ class TrainConfig:
 
         return list(
             AdaptiveNeuralFunction.architecture_from_options(
-                self.train__function_space_config.f.options
+                self.train__function_space_config.f.options,
+                observable_count=self.detector__number_of_dimensions,
             )
         )
 

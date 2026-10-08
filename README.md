@@ -143,14 +143,18 @@ when configuration files need target-significance signal amounts.
 - LFVDDP `adaptive_neural` options use `hidden_layer_nodes: 4` for one hidden
   layer, `[4, 3]` for successive hidden layers, or `[]` for no hidden layers.
   This applies independently to `train__f` and `train__nuisance`. Every hidden
-  layer is fully connected with sigmoid activation. `input_dimension` must
-  equal the number of detector observables; the output always has one node
+  layer is fully connected with sigmoid activation. The input width is inferred
+  from detector observables, and the output always has one node
   with the existing smooth likelihood bound. Initialization uses the configured
   Xavier gain and the existing bias range at every depth. Integer configurations
-  retain their single-layer checkpoint layout.
+  retain their single-layer checkpoint layout. Neither `input_dimension` nor
+  `output_dimension` is a neural configuration option. Obsolete dimension hints
+  in saved neural configurations are discarded during resolution; they cannot
+  override the observable count or scalar output.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
-  `input_dimension` and integer `hidden_layer_nodes`; list architectures are
+  integer `hidden_layer_nodes`; input width is inferred from observables and
+  output width is fixed to one. List architectures are
   supported only by LFVDDP. Adaptive neural and NPLM studies
   require empirical-null calibration rather than assigning Wilks degrees of
   freedom from parameter counts.

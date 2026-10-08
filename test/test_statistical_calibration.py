@@ -77,5 +77,5 @@ def test_nplm_configuration_keeps_its_raw_count_without_importing_backend():
         ),
     }
     config = create_config_from_paths(list(paths.values()))
-    assert config.train__adaptive_architecture == [1, 4, 1]
-    assert effective_test_statistic_degrees_of_freedom(config) == 13
+    assert config.train__adaptive_architecture == [2, 4, 1]
+    assert effective_test_statistic_degrees_of_freedom(config) == 17

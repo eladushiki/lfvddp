@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 
 from frame.value_enum import ValueEnum
 
@@ -66,7 +67,9 @@ def _spec_from_mapping(value: Mapping[str, Any], role: str) -> FunctionSpaceSpec
     if options is None:
         options = {}
     if not isinstance(options, Mapping):
-        raise ValueError(f"{role}.options must be a mapping, got {type(options).__name__}.")
+        raise ValueError(
+            f"{role}.options must be a mapping, got {type(options).__name__}."
+        )
     return FunctionSpaceSpec(family=value["family"], options=options)
 
 
@@ -81,10 +84,25 @@ def _coerce_spec(
             raise ValueError(f"{role} function-space config is required.")
         return None
     if isinstance(value, FunctionSpaceSpec):
-        return FunctionSpaceSpec(value.family, value.options)
-    if not isinstance(value, Mapping):
-        raise ValueError(f"{role} function-space config must be a mapping or FunctionSpaceSpec.")
-    return _spec_from_mapping(value, role)
+        spec = FunctionSpaceSpec(value.family, value.options)
+    elif isinstance(value, Mapping):
+        spec = _spec_from_mapping(value, role)
+    else:
+        raise ValueError(
+            f"{role} function-space config must be a mapping or FunctionSpaceSpec."
+        )
+    if spec.family == "adaptive_neural":
+        # Discard obsolete hints from saved configurations: the detector owns
+        # the input width, and the output is unconditionally scalar.
+        return FunctionSpaceSpec(
+            spec.family,
+            {
+                key: item
+                for key, item in spec.options.items()
+                if key not in {"input_dimension", "output_dimension"}
+            },
+        )
+    return spec
 
 
 @dataclass(frozen=True)
@@ -104,7 +122,9 @@ def resolve_dual_role_config(
 ) -> ResolvedFunctionSpaceConfig:
     """Resolve structural configuration without importing evaluator implementations."""
 
-    resolved_backend = TrainingBackend.LFVDDP if backend is None else TrainingBackend.parse(backend)
+    resolved_backend = (
+        TrainingBackend.LFVDDP if backend is None else TrainingBackend.parse(backend)
+    )
     resolved_f = _coerce_spec(f, "f", required=True)
     assert resolved_f is not None
     resolved_nuisance = _coerce_spec(nuisance, "nuisance", required=False)

@@ -49,6 +49,8 @@ The figure contains one axes:
 
 Adaptive LFVDDP networks use the raw count of all signal-network weights and
 biases at any depth, including no hidden layers; a 1-4-1 network therefore uses 13.
+The input width is inferred from the saved detector observables, hidden widths
+come from the neural options, and the output width is the scalar constant one.
 NPLM uses the raw signal-network parameter count, preserving its historical
 reference. Fixed families use their family-owned constrained dimension. Shared
 nuisance parameters do not contribute to this reference. A zero-dimensional

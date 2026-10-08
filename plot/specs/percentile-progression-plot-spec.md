@@ -38,6 +38,8 @@ the raw signal-network parameter count, and fixed families use their constrained
 dimension. Zero-dimensional spaces raise an explicit error. This diagnostic
 reference excludes shared nuisance parameters and is independent of multi-run
 significance calibration. Parameter counting alone does not establish Wilks validity.
+Neural input width comes from saved detector observables, and output width is
+always one; only the hidden widths are configurable.
 
 The horizontal axis is the configured training epoch and uses scientific
 notation when appropriate. The vertical axis starts at zero. Its upper limit is

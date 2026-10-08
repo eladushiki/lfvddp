@@ -47,19 +47,6 @@ def cross_validate(
     | TrainConfig
     | UserConfig,
 ):
-    if not config.train__is_nplm:
-        from neural_networks.function_spaces.neural_architecture import (
-            validate_neural_input_dimension,
-        )
-
-        resolved = config.train__function_space_config
-        for spec in (resolved.f, resolved.nuisance):
-            if spec is not None and spec.family == "adaptive_neural":
-                validate_neural_input_dimension(
-                    spec.options["input_dimension"],
-                    config.detector__number_of_dimensions,
-                )
-
     if config.cluster__qsub_needs_continuation and config.train__is_nplm:
         raise NotImplementedError(
             "Long-walltime continuation is only implemented for LFVNN/PyTorch training."

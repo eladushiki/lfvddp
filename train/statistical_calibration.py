@@ -19,7 +19,10 @@ def effective_test_statistic_degrees_of_freedom(
     """
 
     resolved_config = config.train__function_space_config
-    degrees_of_freedom = analytic_degrees_of_freedom(resolved_config.f)
+    degrees_of_freedom = analytic_degrees_of_freedom(
+        resolved_config.f,
+        observable_count=getattr(config, "detector__number_of_dimensions", None),
+    )
     if degrees_of_freedom is None or degrees_of_freedom <= 0:
         raise ValueError(
             "A diagnostic chi-square reference requires positive degrees of freedom."

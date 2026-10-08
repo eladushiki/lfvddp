@@ -12,7 +12,10 @@ from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
 from test.function_space_cases import NEURAL_DEPTH_CONFIGS
-from train.checkpoint_metadata import build_checkpoint_metadata
+from train.checkpoint_metadata import (
+    build_checkpoint_metadata,
+    validate_checkpoint_metadata,
+)
 from train.checkpoints import (
     CHECKPOINT_METADATA_KEY,
     _torch_load,
@@ -360,3 +363,42 @@ def test_checkpoint_without_embedded_metadata_is_rejected(tmp_path):
 
     with pytest.raises(RuntimeError, match="no metadata"):
         load_checkpoint_metadata(checkpoint_path)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context", [NEURAL_DEPTH_CONFIGS[0]], indirect=True
+)
+def test_legacy_checkpoint_dimensions_remain_structural_metadata(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    differentiating_model_factory,
+):
+    import json
+
+    legacy_path = Path("test/configs/checkpoints/legacy_neural_widths.json")
+    actual = json.loads(legacy_path.read_text())
+    batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    model = differentiating_model_factory(
+        function_execution_context, detector_effect, name="legacy_widths"
+    )
+    model._prepare_training_data(batch)
+    expected = _metadata(model)
+    assert expected["f"]["options"]["input_dimension"] == 1
+    assert "input_dimension" not in model._function_space_config.f.options
+    validate_checkpoint_metadata(
+        checkpoint_path=legacy_path,
+        model_name=model._name,
+        expected=expected,
+        actual=actual,
+    )
+    for role in ("f", "nuisance"):
+        incompatible = json.loads(legacy_path.read_text())
+        incompatible[role]["options"]["input_dimension"] = 2
+        with pytest.raises(RuntimeError, match=f"incompatible.*{role}"):
+            validate_checkpoint_metadata(
+                checkpoint_path=legacy_path,
+                model_name=model._name,
+                expected=expected,
+                actual=incompatible,
+            )

@@ -54,7 +54,6 @@ def test_adaptive_nuisance_function_smoothly_bounds_output_without_zeroing_gradi
     estimator = AdaptiveNeuralFunction(
         input_dimension=2,
         hidden_size=2,
-        output_dimension=1,
         dtype=torch.float64,
     )
     with torch.no_grad():
@@ -583,7 +582,6 @@ def test_signal_region_shift_estimator_smoothly_bounds_result(input_dimension):
     estimator = AdaptiveNeuralFunction(
         input_dimension=input_dimension,
         hidden_size=4,
-        output_dimension=1,
         dtype=torch.float64,
     )
     with torch.no_grad():

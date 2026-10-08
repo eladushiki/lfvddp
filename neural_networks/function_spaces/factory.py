@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, Optional
+from collections.abc import Iterable
+from typing import Any
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.bin_indicators import BinIndicatorGeometry
@@ -43,17 +44,20 @@ def create_function_space(
     *,
     dtype,
     device=None,
-    normalization_factor: Optional[ShiftAndNormalizationFactor] = None,
-    observable_names: Optional[Iterable[str]] = None,
+    normalization_factor: ShiftAndNormalizationFactor | None = None,
+    observable_names: Iterable[str] | None = None,
     **construction: Any,
 ):
     """Build one normalized-event likelihood shift from its canonical spec."""
 
-    if (normalization_factor is None) != (observable_names is None):
+    if normalization_factor is not None and observable_names is None:
         raise ValueError(
             "Function-space construction requires both normalization and observables."
         )
     validate_function_space_options(spec)
+    observable_names = None if observable_names is None else tuple(observable_names)
+    if spec.family == "adaptive_neural":
+        construction["observable_names"] = observable_names
     function_space = _registered_family(spec).from_options(
         spec.options,
         dtype=dtype,
@@ -77,7 +81,18 @@ def prediction_grid_edges(
     return BinIndicatorGeometry.from_options(spec.options).edges
 
 
-def analytic_degrees_of_freedom(spec: FunctionSpaceSpec) -> int | None:
+def analytic_degrees_of_freedom(
+    spec: FunctionSpaceSpec, *, observable_count: int | None = None
+) -> int | None:
     """Return a family-owned configured diagnostic count without allocating tensors."""
 
-    return _registered_family(spec).analytic_degrees_of_freedom(spec.options)
+    family = _registered_family(spec)
+    if spec.family == "adaptive_neural":
+        if observable_count is None:
+            raise ValueError(
+                "adaptive_neural requires the observable count for parameter counting."
+            )
+        return family.analytic_degrees_of_freedom(
+            spec.options, observable_count=observable_count
+        )
+    return family.analytic_degrees_of_freedom(spec.options)

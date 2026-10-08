@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 import torch
 from torch import nn
 
-from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import (
+    SCALAR_OUTPUT_DIMENSION,
     PerEventFunctionSpace,
     immutable_options,
+    scalar_output_dimension,
     unexpected_construction_options,
 )
 from neural_networks.function_spaces.neural_architecture import (
+    hidden_layer_widths,
     neural_architecture,
     neural_parameter_count,
-    validate_neural_input_dimension,
 )
 from neural_networks.likelihood_parameterization import (
     smoothly_bounded_likelihood_shift,
@@ -33,21 +34,18 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
         self,
         input_dimension: int,
         hidden_size: int | list[int] | tuple[int, ...],
-        output_dimension: int,
         dtype: torch.dtype,
         device: torch.device | None = None,
         options: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        self.architecture = neural_architecture(
-            input_dimension, hidden_size, output_dimension
-        )
+        self.architecture = neural_architecture(input_dimension, hidden_size)
         self.options = immutable_options(options or {})
         self.input_dimension = input_dimension
         self.hidden_size = (
             hidden_size if type(hidden_size) is int else tuple(hidden_size)
         )
-        self.output_dimension = output_dimension
+        self.output_dimension = SCALAR_OUTPUT_DIMENSION
         # Retain historical state_dict keys and random initialization order.
         self.hidden = (
             nn.Linear(input_dimension, self.architecture[1], dtype=dtype, device=device)
@@ -62,22 +60,28 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
             )
         )
         self.output = nn.Linear(
-            self.architecture[-2], output_dimension, dtype=dtype, device=device
+            self.architecture[-2], SCALAR_OUTPUT_DIMENSION, dtype=dtype, device=device
         )
 
     @classmethod
-    def architecture_from_options(cls, options: Mapping[str, Any]) -> tuple[int, ...]:
+    def architecture_from_options(
+        cls, options: Mapping[str, Any], *, observable_count: int
+    ) -> tuple[int, ...]:
         """Resolve the same validated architecture for construction and counting."""
 
         return neural_architecture(
-            options.get("input_dimension"),
+            observable_count,
             options.get("hidden_layer_nodes"),
-            options.get("output_dimension", 1),
         )
 
     @classmethod
     def validate_options(cls, options: Mapping[str, Any]) -> None:
-        cls.architecture_from_options(options)
+        if "input_dimension" in options:
+            raise ValueError(
+                "adaptive_neural input_dimension is inferred from observables and is not configurable."
+            )
+        scalar_output_dimension(options, cls.family)
+        hidden_layer_widths(options.get("hidden_layer_nodes"))
 
     @classmethod
     def from_options(
@@ -87,16 +91,19 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
     ) -> AdaptiveNeuralFunction:
         """Construct the adaptive family from its configuration envelope."""
 
-        input_dimension = options["input_dimension"]
         hidden_size = options["hidden_layer_nodes"]
-        output_dimension = options.get("output_dimension", 1)
+        observable_names = construction.pop("observable_names", None)
+        if observable_names is None:
+            raise ValueError(
+                "adaptive_neural requires observable_names to infer its input width."
+            )
+        input_dimension = len(tuple(observable_names))
         dtype = construction.pop("dtype", torch.get_default_dtype())
         device = construction.pop("device", None)
         unexpected_construction_options(cls.family, construction)
         return cls(
             input_dimension=input_dimension,
             hidden_size=hidden_size,
-            output_dimension=output_dimension,
             dtype=dtype,
             device=device,
             options=options,
@@ -119,25 +126,17 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
             nn.init.xavier_uniform_(layer.weight, gain=gain)
             nn.init.uniform_(layer.bias, a=-0.3, b=0.3)
 
-    def normalize_input_geometry(
-        self,
-        normalization_factor: ShiftAndNormalizationFactor,
-        observable_names: Iterable[str],
-    ) -> None:
-        """Require one network input for each normalized detector observable."""
-
-        del normalization_factor
-        validate_neural_input_dimension(
-            self.input_dimension, len(tuple(observable_names))
-        )
-
     def statistical_degrees_of_freedom(self) -> int:
         """Return the raw parameter count used for diagnostic chi-square references."""
 
         return neural_parameter_count(self.architecture)
 
     @classmethod
-    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int:
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int
+    ) -> int:
         """Count configured parameters without allocating a network."""
 
-        return neural_parameter_count(cls.architecture_from_options(options))
+        return neural_parameter_count(
+            cls.architecture_from_options(options, observable_count=observable_count)
+        )

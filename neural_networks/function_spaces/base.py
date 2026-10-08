@@ -7,6 +7,7 @@ from math import prod
 from types import MappingProxyType
 from typing import (
     Any,
+    Final,
     Iterable,
     Mapping,
     Optional,
@@ -28,6 +29,7 @@ from neural_networks.likelihood_parameterization import (
 
 
 EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
+SCALAR_OUTPUT_DIMENSION: Final = 1
 
 
 @runtime_checkable
@@ -106,10 +108,11 @@ def require_options(
 def scalar_output_dimension(options: Mapping[str, Any], family: str) -> int:
     """Enforce the scalar likelihood-shift contract for every family."""
 
-    output_dimension = options.get("output_dimension", 1)
-    if output_dimension != 1:
-        raise ValueError(f"{family} must have output_dimension equal to 1.")
-    return 1
+    if "output_dimension" in options:
+        raise ValueError(
+            f"{family} output_dimension is not configurable; the output is always scalar."
+        )
+    return SCALAR_OUTPUT_DIMENSION
 
 
 def number_sequence(value: Any, name: str) -> tuple[float, ...]:
@@ -348,9 +351,7 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
     def statistical_degrees_of_freedom(self) -> int:
         """Return this family's independent, constrained coefficient count."""
 
-        return self.analytic_degrees_of_freedom(
-            {**self.options, "output_dimension": self.output_dimension}
-        )
+        return self.analytic_degrees_of_freedom(self.options)
 
     def _statistical_constraint_dimension(self) -> int:
         """Return fixed dependencies and observed-count constraints in this family."""

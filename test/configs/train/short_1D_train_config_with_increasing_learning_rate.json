@@ -8,7 +8,6 @@
   "train__f": {
     "family": "adaptive_neural",
     "options": {
-      "input_dimension": 1,
       "hidden_layer_nodes": 4
     }
   }

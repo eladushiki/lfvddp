@@ -3,16 +3,27 @@
 from itertools import pairwise
 from typing import Any
 
+from neural_networks.function_spaces.base import SCALAR_OUTPUT_DIMENSION
+
 
 def neural_architecture(
     input_dimension: Any,
     hidden_layer_nodes: Any,
-    output_dimension: Any = 1,
 ) -> tuple[int, ...]:
     """Validate widths and expand the integer shorthand into a full architecture."""
 
     if type(input_dimension) is not int or input_dimension <= 0:
         raise ValueError("adaptive_neural requires a positive input_dimension.")
+    return (
+        input_dimension,
+        *hidden_layer_widths(hidden_layer_nodes),
+        SCALAR_OUTPUT_DIMENSION,
+    )
+
+
+def hidden_layer_widths(hidden_layer_nodes: Any) -> tuple[int, ...]:
+    """Validate the only configurable layer widths."""
+
     if type(hidden_layer_nodes) is int:
         hidden_widths = (hidden_layer_nodes,)
     elif isinstance(hidden_layer_nodes, (list, tuple)):
@@ -26,9 +37,7 @@ def neural_architecture(
         raise ValueError(
             "adaptive_neural hidden_layer_nodes must contain positive integers."
         )
-    if type(output_dimension) is not int or output_dimension != 1:
-        raise ValueError("adaptive_neural must have output_dimension equal to 1.")
-    return (input_dimension, *hidden_widths, output_dimension)
+    return hidden_widths
 
 
 def neural_parameter_count(architecture: tuple[int, ...]) -> int:
@@ -38,14 +47,3 @@ def neural_parameter_count(architecture: tuple[int, ...]) -> int:
         (source_width + 1) * destination_width
         for source_width, destination_width in pairwise(architecture)
     )
-
-
-def validate_neural_input_dimension(
-    input_dimension: int, observable_count: int
-) -> None:
-    """Check the input width against the detector's observable count."""
-
-    if input_dimension != observable_count:
-        raise ValueError(
-            "adaptive_neural input_dimension must equal the number of detector observables."
-        )

@@ -10,12 +10,16 @@ from torch import nn
 from data_tools.data_utils import DataSet
 from frame.aggregate import ResultAggregator
 from frame.command_line.handle_args import create_config_from_paths
-from neural_networks.function_spaces import create_function_space
+from neural_networks.function_spaces import (
+    analytic_degrees_of_freedom,
+    create_function_space,
+)
 from neural_networks.likelihood_parameterization import (
     smoothly_bounded_likelihood_shift,
 )
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
 from test.function_space_cases import NEURAL_DEPTH_CASES, NEURAL_DEPTH_CONFIGS
+from train.function_space_config import FunctionSpaceSpec
 from train.train_config import TrainConfig
 
 
@@ -36,13 +40,26 @@ def test_neural_topology_initialization_gradients_and_count(
 ):
     config = function_execution_context.config
     spec = config.train__function_space_config.f
-    space = create_function_space(spec, dtype=dtype, device=torch.device("cpu"))
+    space = create_function_space(
+        spec,
+        dtype=dtype,
+        device=torch.device("cpu"),
+        observable_names=config.detector__detect_observable_names,
+    )
     assert space.architecture == architecture
     assert config.train__adaptive_architecture == list(architecture)
     assert isinstance(space.activation, nn.Sigmoid)
     assert len(space.hidden_layers) == len(architecture) - 2
     assert space.statistical_degrees_of_freedom() == parameter_count
-    assert space.analytic_degrees_of_freedom(spec.options) == parameter_count
+    assert (
+        space.analytic_degrees_of_freedom(
+            spec.options, observable_count=config.detector__number_of_dimensions
+        )
+        == parameter_count
+    )
+    assert (
+        "input_dimension" not in spec.options and "output_dimension" not in spec.options
+    )
     assert sum(parameter.numel() for parameter in space.parameters()) == parameter_count
 
     gain = 0.7
@@ -119,7 +136,9 @@ def test_integer_and_single_list_preserve_legacy_state_and_random_order():
         parameters = load_config_params_from_paths([config[ConfigType.TRAIN]])
         spec = FunctionSpaceSpec(**parameters["train__f"])
         torch.manual_seed(812)
-        space = create_function_space(spec, dtype=torch.float64)
+        space = create_function_space(
+            spec, dtype=torch.float64, observable_names=("param_0",)
+        )
         space.initialize_parameters(gain=0.7)
         spaces.append(space)
     integer_space, list_space = spaces
@@ -165,7 +184,7 @@ def test_invalid_hidden_widths_fail_configuration_validation(widths):
             train__number_of_epochs_for_checkpoint=1,
             train__f={
                 "family": "adaptive_neural",
-                "options": {"input_dimension": 1, "hidden_layer_nodes": widths},
+                "options": {"hidden_layer_nodes": widths},
             },
         )
 
@@ -181,22 +200,24 @@ def test_invalid_hidden_widths_fail_configuration_validation(widths):
         ("output_dimension", 1.0),
     ],
 )
-def test_invalid_input_and_output_dimensions_fail_configuration_validation(
-    field, value
-):
-    with pytest.raises(ValueError, match=field):
-        TrainConfig(
-            train__epochs=3,
-            train__number_of_epochs_for_checkpoint=1,
-            train__f={
-                "family": "adaptive_neural",
-                "options": {
-                    "input_dimension": 1,
-                    "hidden_layer_nodes": 4,
-                    field: value,
-                },
+def test_obsolete_dimensions_cannot_override_inferred_widths(field, value):
+    config = TrainConfig(
+        train__epochs=3,
+        train__number_of_epochs_for_checkpoint=1,
+        train__f={
+            "family": "adaptive_neural",
+            "options": {
+                "hidden_layer_nodes": 4,
+                field: value,
             },
-        )
+        },
+    )
+    spec = config.train__function_space_config.f
+    assert field not in spec.options
+    space = create_function_space(
+        spec, dtype=torch.float64, observable_names=("x", "y")
+    )
+    assert space.architecture == (2, 4, 1)
 
 
 @pytest.mark.parametrize("widths", [[4], [4, 3], []])
@@ -208,7 +229,7 @@ def test_nplm_rejects_list_architectures(widths):
             train__backend="nplm",
             train__f={
                 "family": "adaptive_neural",
-                "options": {"input_dimension": 1, "hidden_layer_nodes": widths},
+                "options": {"hidden_layer_nodes": widths},
             },
         )
 
@@ -219,8 +240,47 @@ def test_network_input_must_match_detector_observables():
         **NEURAL_DEPTH_CONFIGS[0],
         ConfigType.TRAIN: NEURAL_DEPTH_CONFIGS[4][ConfigType.TRAIN],
     }
-    with pytest.raises(ValueError, match="number of detector observables"):
-        create_config_from_paths(list(paths.values()))
+    config = create_config_from_paths(list(paths.values()))
+    assert config.train__adaptive_architecture == [1, 4, 3, 2, 1]
+    for spec in (
+        config.train__function_space_config.f,
+        config.train__function_space_config.nuisance,
+    ):
+        space = create_function_space(
+            spec,
+            dtype=torch.float64,
+            observable_names=config.detector__detect_observable_names,
+        )
+        assert space.input_dimension == 1 and space.output_dimension == 1
+
+
+def test_neural_construction_and_count_require_observables():
+    spec = FunctionSpaceSpec("adaptive_neural", {"hidden_layer_nodes": [4, 3]})
+    with pytest.raises(ValueError, match="observable_names"):
+        create_function_space(spec, dtype=torch.float64)
+    with pytest.raises(ValueError, match="observable count"):
+        analytic_degrees_of_freedom(spec)
+    with pytest.raises(ValueError, match="positive input_dimension"):
+        create_function_space(spec, dtype=torch.float64, observable_names=())
+
+
+def test_neural_factory_consumes_observables_once_and_disallows_width_override():
+    spec = FunctionSpaceSpec("adaptive_neural", {"hidden_layer_nodes": []})
+    space = create_function_space(
+        spec, dtype=torch.float64, observable_names=iter(("x", "y"))
+    )
+    assert space.architecture == (2, 1)
+    with pytest.raises(TypeError, match="input_dimension"):
+        create_function_space(
+            spec, dtype=torch.float64, observable_names=("x", "y"), input_dimension=99
+        )
+
+
+@pytest.mark.parametrize("field", ["input_dimension", "output_dimension"])
+def test_canonical_neural_factory_has_no_configurable_endpoint_width(field):
+    spec = FunctionSpaceSpec("adaptive_neural", {"hidden_layer_nodes": 4, field: 1})
+    with pytest.raises(ValueError, match="not configurable"):
+        create_function_space(spec, dtype=torch.float64, observable_names=("x", "y"))
 
 
 @pytest.mark.parametrize(
