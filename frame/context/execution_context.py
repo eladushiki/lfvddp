@@ -261,9 +261,7 @@ class ExecutionContext:
             raise TypeError(
                 f"Expected ClusterConfig, got {self.config.__class__.__name__}"
             )
-        return self.config.next_walltime_chunk(
-            self.qsub_submitted_walltime_seconds
-        )
+        return self.config.next_walltime_chunk(self.qsub_submitted_walltime_seconds)
 
     def add_qsub_walltime(self, extra_walltime: str) -> None:
         """Extend the total cluster walltime budget."""
@@ -287,13 +285,15 @@ class ExecutionContext:
     def record_qsub_submission(
         self, walltime: str, job_id: str, submit_run_dir: Path
     ) -> None:
-        self.qsub_submissions.append({
-            "chunk_index": self.qsub_submitted_chunk_count + 1,
-            "walltime": walltime,
-            "job_id": job_id,
-            "submitted_at": get_time_and_date_string(),
-            "submit_run_dir": str(submit_run_dir),
-        })
+        self.qsub_submissions.append(
+            {
+                "chunk_index": self.qsub_submitted_chunk_count + 1,
+                "walltime": walltime,
+                "job_id": job_id,
+                "submitted_at": get_time_and_date_string(),
+                "submit_run_dir": str(submit_run_dir),
+            }
+        )
         self.qsub_walltime_chunk = None
 
     @classmethod
@@ -314,6 +314,7 @@ class ExecutionContext:
         dirsafe_runtag: Optional[str] = None,
         require_continuation: bool = False,
         outermost_only: bool = False,
+        array_indices: set[int | None] | None = None,
     ) -> List[Tuple["ExecutionContext", Path]]:
         """Load matching contexts, optionally stopping below the first in each branch."""
         parent_directory = Path(parent_directory)
@@ -337,7 +338,19 @@ class ExecutionContext:
 
         contexts = []
         for context_path in context_paths:
-            context = cls.naive_load_from_file(context_path)
+            data = load_dict_from_json(context_path)
+            if data.get("run_descriptor") is not None and not run_descriptor_matches(
+                data.get("run_descriptor"),
+                entrypoint=entrypoint,
+                dirsafe_runtag=dirsafe_runtag,
+            ):
+                continue
+            if (
+                array_indices is not None
+                and data.get("array_index") not in array_indices
+            ):
+                continue
+            context = cls._from_saved_data(data)
             if not run_descriptor_matches(
                 context.run_descriptor,
                 entrypoint=entrypoint,
@@ -387,8 +400,8 @@ class ExecutionContext:
         ignored_dataset_fields: Iterable[str] = (),
     ) -> Dict[str, Any]:
         """Return loaded scientific settings suitable for context comparison."""
-        ignored_dataset_fields = (
-            DatasetConfig.RUN_VARIATION_FIELDS | set(ignored_dataset_fields)
+        ignored_dataset_fields = DatasetConfig.RUN_VARIATION_FIELDS | set(
+            ignored_dataset_fields
         )
         comparable_values: Dict[str, Any] = {"commit_hash": self.commit_hash}
 
@@ -427,8 +440,7 @@ class ExecutionContext:
     ) -> List[str]:
         """List differing loaded scientific attributes across contexts."""
         context_values = [
-            context.comparison_values(ignored_dataset_fields)
-            for context in contexts
+            context.comparison_values(ignored_dataset_fields) for context in contexts
         ]
         if len(context_values) < 2:
             return []
@@ -438,8 +450,7 @@ class ExecutionContext:
         return sorted(
             path
             for path in all_paths
-            if len({repr(values.get(path, missing)) for values in context_values})
-            > 1
+            if len({repr(values.get(path, missing)) for values in context_values}) > 1
         )
 
     @classmethod
@@ -504,6 +515,11 @@ class ExecutionContext:
         parameters.
         """
         data = load_dict_from_json(file_path)
+        return cls._from_saved_data(data)
+
+    @classmethod
+    def _from_saved_data(cls, data: dict) -> "ExecutionContext":
+        """Reconstruct only a selected context, not every sibling worker."""
         random_seed = data.pop("random_seed")
         data["config"] = create_config_from_paramters(data["config"])
         data["config_paths"] = [Path(path) for path in data.get("config_paths", [])]
@@ -527,6 +543,7 @@ class ExecutionContext:
         for candidate, context_path in cls.discover_run_contexts(
             parent_directory,
             entrypoint=entrypoint,
+            array_indices={array_index},
         ):
             if candidate.array_index == array_index:
                 candidates.append((candidate, context_path))
@@ -569,7 +586,9 @@ def version_controlled_execution_context(
         )
         context = None
         if context_path.exists():
-            directly_loaded_context = ExecutionContext.naive_load_from_file(context_path)
+            directly_loaded_context = ExecutionContext.naive_load_from_file(
+                context_path
+            )
             if (
                 directly_loaded_context.array_index == array_index
                 and run_descriptor_matches(

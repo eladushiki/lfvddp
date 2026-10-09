@@ -5,10 +5,8 @@ from typing import Any, Iterable, Mapping, Optional
 import torch
 
 from frame.context.execution_context import ExecutionContext
-from frame.context.run_descriptor import run_descriptor_matches
 from frame.file_structure import (
     CHECKPOINTS_DIR_NAME,
-    CONTEXT_FILE_NAME,
     SINGLE_TRAIN_SCRIPT_NAME,
     TRAINING_CHECKPOINT_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
@@ -72,17 +70,12 @@ def _single_train_checkpoint_paths(
     dirsafe_runtag = getattr(
         getattr(context, "config", None), "config__dirsafe_runtag", None
     )
-    for child_context_path in continue_from.glob(f"*/{CONTEXT_FILE_NAME}"):
-        child_context = ExecutionContext.load_from_run_dir(child_context_path.parent)
-        if child_context.array_index != context.array_index:
-            continue
-        if not run_descriptor_matches(
-            child_context.run_descriptor,
-            entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
-            dirsafe_runtag=dirsafe_runtag,
-        ):
-            continue
-
+    for _, child_context_path in ExecutionContext.discover_run_contexts(
+        continue_from,
+        entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
+        dirsafe_runtag=dirsafe_runtag,
+        array_indices={context.array_index},
+    ):
         checkpoint_path = (
             child_context_path.parent
             / TRAINING_OUTCOMES_DIR_NAME
