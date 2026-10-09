@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from itertools import product
 from math import fsum
 from typing import Callable, Union
@@ -417,6 +418,23 @@ def calc_injected_t_significance_by_sqrt_q0_binned(
     background_bin_counts: np.ndarray,
     signal_bin_counts: np.ndarray,
 ) -> float:
+    """Return binned significance, excluding bins without expected background."""
+    return calc_binned_injected_significance(
+        background_bin_counts, signal_bin_counts
+    ).significance
+
+
+@dataclass(frozen=True)
+class BinnedInjectedSignificance:
+    significance: float
+    ignored_signal_events: float
+    ignored_bins: int
+
+
+def calc_binned_injected_significance(
+    background_bin_counts: np.ndarray,
+    signal_bin_counts: np.ndarray,
+) -> BinnedInjectedSignificance:
     """Calculate injected significance from expected background and signal bins.
 
     ``background_bin_counts`` contains expected background counts per bin
@@ -424,7 +442,10 @@ def calc_injected_t_significance_by_sqrt_q0_binned(
     per bin :math:`N_{s,i}`. The returned value is
     :math:`Z=\\sqrt{q_0}`, with
     :math:`q_0=2[-N_s + \\sum_i (N_{b,i}+N_{s,i})\\log((N_{b,i}+N_{s,i})/N_{b,i})]`
-    and :math:`N_s=\\sum_i N_{s,i}`.
+    and :math:`N_s=\\sum_i N_{s,i}`. Both sums include only bins with
+    positive expected background. Diagnostics report excluded expected signal
+    events, not raw histogram sample counts. This is a restricted-bin estimate,
+    not the full significance when excluded signal is nonzero.
     """
     background_bin_counts = np.asarray(background_bin_counts, dtype=float)
     signal_bin_counts = np.asarray(signal_bin_counts, dtype=float)
@@ -440,16 +461,13 @@ def calc_injected_t_significance_by_sqrt_q0_binned(
     if np.any(background_bin_counts < 0) or np.any(signal_bin_counts < 0):
         raise ValueError("Binned significance counts must be non-negative.")
 
-    n_signal_events = float(np.sum(signal_bin_counts))
-    if n_signal_events <= 0:
-        return 0.0
-    if np.any((background_bin_counts <= 0) & (signal_bin_counts > 0)):
-        raise ValueError(
-            "Cannot calculate finite binned significance where signal occupies "
-            "a bin with zero expected background."
-        )
-
     populated = background_bin_counts > 0
+    ignored_signal_events = float(np.sum(signal_bin_counts[~populated]))
+    ignored_bins = int(np.count_nonzero(~populated & (signal_bin_counts > 0)))
+    n_signal_events = float(np.sum(signal_bin_counts[populated]))
+    if n_signal_events <= 0:
+        return BinnedInjectedSignificance(0.0, ignored_signal_events, ignored_bins)
+
     q0 = 2 * (
         -n_signal_events
         + np.sum(
@@ -459,4 +477,6 @@ def calc_injected_t_significance_by_sqrt_q0_binned(
     )
     if not np.isfinite(q0):
         raise ValueError("Binned significance was non-finite.")
-    return np.sqrt(max(q0, 0.0))
+    return BinnedInjectedSignificance(
+        float(np.sqrt(max(q0, 0.0))), ignored_signal_events, ignored_bins
+    )

@@ -160,6 +160,10 @@ when configuration files need target-significance signal amounts.
   looking in the submission directory, and reports the mean and spread of
   their evident injected significances. Older runs
   without this artifact must be rerun to plot evident injected significance.
+  Loaded significance excludes zero-background bins from both likelihood terms.
+  When signal is excluded, the graph visibly labels each affected point with
+  the mean and maximum ignored **expected signal events per worker**. This is
+  a restricted-bin estimate, not evidence that the physical background is zero.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.
