@@ -23,9 +23,8 @@ def generated_detector_efficiency(
     error are not part of this efficiency-only analytic benchmark.
     """
     config = context if isinstance(context, DetectorConfig) else context.config
-    if not any(
-        getattr(config, field, "")
-        for field in ("detector__effect_a_efficiency", "detector__effect_b_efficiency")
+    if not (
+        config.detector__effect_a_efficiency or config.detector__effect_b_efficiency
     ):
         return None
 
