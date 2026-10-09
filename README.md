@@ -281,6 +281,15 @@ Git commit, seed, submission history, completion state, and produced files.
 Training histories, checkpoints, model weights, worker output, results, and
 plots are stored alongside that context as applicable.
 
+JSON outputs, including worker contexts, are published atomically from a unique
+temporary file in the same directory. Concurrent continuation readers therefore
+see a complete old or new document, never a truncated intermediate. Reads retry
+briefly for older workers that still write in place; persistent malformed JSON
+remains an error with its file path. Continuation and checkpoint discovery filter
+worker identities before reconstructing their configurations, without silently
+discarding corrupt contexts. Atomic publication prevents partial reads, not
+conflicting logical updates: only one training process should own a worker run.
+
 The `results/`, `data/`, and local configuration directories are intentionally
 ignored by Git. Back up important run directories and external datasets
 separately.
