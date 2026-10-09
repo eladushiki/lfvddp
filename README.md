@@ -175,7 +175,9 @@ when configuration files need target-significance signal amounts.
   data and exact prediction-plot bin edges in `data_samples.npz`. For array
   submissions, plotting reads each successful worker's artifact rather than
   looking in the submission directory, and reports the mean and spread of
-  their evident injected significances. Older runs
+  their evident injected significances. Workers with zero sampled signal
+  events contribute zero injected significance, even with a positive configured
+  mean signal count. Older runs
   without this artifact must be rerun to plot evident injected significance.
   Loaded significance excludes zero-background bins from both likelihood terms.
   When signal is excluded, the graph visibly labels each affected point with
