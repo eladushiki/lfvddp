@@ -1,0 +1,5 @@
+{
+  "detector__detect_observable_names": ["param_0"],
+  "detector__effect_a_efficiency": "detector_efficiency_tanh",
+  "detector__effect_b_efficiency": "detector_efficiency_10_percent_constant_diminish"
+}
