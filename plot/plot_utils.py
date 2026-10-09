@@ -316,6 +316,10 @@ def _loaded_binned_injected_significance(
         )
     samples = load_data_samples(context_path.parent)
     background_data, signal_data = samples.background, samples.signal
+    if signal_data.empty:
+        if ignored_signal_events is not None:
+            ignored_signal_events.append(0.0)
+        return 0.0
     observable_names = list(signal_context.config.detector__detect_observable_names)
     if not set(observable_names).issubset(background_data.observable_names):
         missing = sorted(set(observable_names) - set(background_data.observable_names))
