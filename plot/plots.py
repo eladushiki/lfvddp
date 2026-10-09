@@ -672,6 +672,43 @@ def performance_plot(
         )
 
     # Texting
+    if any(np.any(curve.ignored_signal_events_max > 0) for curve in curves):
+        largest_mean = max(
+            float(np.max(curve.ignored_signal_events)) for curve in curves
+        )
+        largest_maximum = max(
+            float(np.max(curve.ignored_signal_events_max)) for curve in curves
+        )
+        ax.text(
+            0.99,
+            0.99,
+            "WARNING: zero-background bins excluded from injected significance.\n"
+            "Ignored expected signal events per worker (mean; max).\n"
+            f"Largest point mean: {largest_mean:.3g}; worker maximum: {largest_maximum:.3g}.",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            color="darkred",
+            fontsize=10,
+            bbox={"facecolor": "white", "edgecolor": "darkred", "alpha": 0.95},
+        )
+        for curve in curves:
+            for x, y, mean, maximum in zip(
+                curve.x_values,
+                curve.observed_significances,
+                curve.ignored_signal_events,
+                curve.ignored_signal_events_max,
+            ):
+                if maximum > 0:
+                    ax.annotate(
+                        f"{mean:.3g}; {maximum:.3g}",
+                        (x, y),
+                        xytext=(6, 8),
+                        textcoords="offset points",
+                        color="darkred",
+                        fontsize=10,
+                        bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+                    )
     ax.set_xlabel(x_label, fontsize=21)
     ax.set_ylabel("measured significance", fontsize=21)
     ax.set_title(f"measured significance vs {x_label}", fontsize=24)
