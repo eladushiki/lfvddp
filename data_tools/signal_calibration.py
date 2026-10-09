@@ -2,11 +2,13 @@
 
 import argparse
 import json
-from typing import Callable, Union
+from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 from scipy.optimize import brentq
 
+from data_tools.detector.analytic_efficiency import generated_detector_efficiency
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import (
     GeneratorSelectionConfig,
@@ -16,15 +18,20 @@ from data_tools.event_generation.distribution import (
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
+from data_tools.signal_calibration_config import (
+    SignalCalibrationConfig,
+    load_signal_calibration_config,
+)
 
 
 def calc_n_signal_events_for_target_injected_t_significance(
-    background_pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
-    signal_pdf: Callable[[Union[float, np.ndarray]], Union[float, np.ndarray]],
+    background_pdf: Callable[[float | np.ndarray], float | np.ndarray],
+    signal_pdf: Callable[[float | np.ndarray], float | np.ndarray],
     n_background_events: int,
     target_significance: float,
-    upper_limit: Union[float, np.ndarray] = np.inf,
+    upper_limit: float | np.ndarray = np.inf,
     max_n_signal_events: float = 1e9,
+    detector_efficiency: Callable | None = None,
 ) -> float:
     """Solve the continuous injected-significance equation for signal yield.
 
@@ -33,8 +40,9 @@ def calc_n_signal_events_for_target_injected_t_significance(
 
     ``calc_injected_t_significance_by_sqrt_q0_continuous(...) == target_significance``.
 
-    The PDFs, background yield, and integration limits are passed unchanged to
-    the forward calculation used by the plotting code.
+    The PDFs, background yield, integration limits, and optional detector
+    efficiency are passed unchanged to the forward calculation used by the
+    plotting code.
     """
     if n_background_events <= 0:
         raise ValueError("n_background_events must be positive")
@@ -54,6 +62,7 @@ def calc_n_signal_events_for_target_injected_t_significance(
             n_background_events=n_background_events,
             n_signal_events=n_signal_events,
             upper_limit=upper_limit,
+            detector_efficiency=detector_efficiency,
         )
         return significance**2 - target_q0
 
@@ -75,14 +84,16 @@ def calc_n_signal_events_for_generated_signal(
     number_of_dimensions: int,
     n_background_events: int,
     target_significance: float,
-    upper_limit: Union[float, np.ndarray, None] = None,
+    upper_limit: float | np.ndarray | None = None,
     max_n_signal_events: float = 1e9,
+    detector_efficiency: Callable | None = None,
 ) -> float:
     """Calibrate dataset generator specifications to a target significance.
 
     The generator specifications use the same ``function`` and ``arguments``
     objects as dataset configuration. If ``upper_limit`` is omitted, the
     component-wise maximum of the two generator integration limits is used.
+    Without an efficiency callable, this explicit-PDF mode is generated-level.
     """
     background_distribution = resolve_generator(
         background,
@@ -109,6 +120,30 @@ def calc_n_signal_events_for_generated_signal(
         target_significance=target_significance,
         upper_limit=upper_limit,
         max_n_signal_events=max_n_signal_events,
+        detector_efficiency=detector_efficiency,
+    )
+
+
+def calc_n_signal_events_for_config(
+    config: SignalCalibrationConfig,
+    target_significance: float,
+    upper_limit: float | np.ndarray | None = None,
+    max_n_signal_events: float = 1e9,
+) -> float:
+    """Invert the plotter's detector-level significance using configured inputs."""
+    parameters = config.signal_dataset_parameters
+    return calc_n_signal_events_for_target_injected_t_significance(
+        background_pdf=parameters.dataset_generated__background_pdf,
+        signal_pdf=parameters.dataset_generated__signal_pdf,
+        n_background_events=parameters.dataset__mean_number_of_background_events,
+        target_significance=target_significance,
+        upper_limit=(
+            parameters.dataset_generated__integration_upper_limits
+            if upper_limit is None
+            else upper_limit
+        ),
+        max_n_signal_events=max_n_signal_events,
+        detector_efficiency=generated_detector_efficiency(config, parameters),
     )
 
 
@@ -149,20 +184,25 @@ def main(argv: list[str] | None = None) -> None:
             "mean signal event count used in a generated configuration."
         )
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--configs",
+        type=Path,
+        nargs="+",
+        help="Ordered generated-dataset and detector configurations; includes nominal detector acceptance.",
+    )
+    mode.add_argument(
         "--background-generator",
-        required=True,
         type=_parse_generator,
         help="JSON generator specification used for the background PDF.",
     )
     parser.add_argument(
         "--signal-generator",
-        required=True,
         type=_parse_generator,
         help="JSON generator specification used for the signal PDF.",
     )
-    parser.add_argument("--number-of-dimensions", required=True, type=int)
-    parser.add_argument("--background-events", required=True, type=int)
+    parser.add_argument("--number-of-dimensions", type=int)
+    parser.add_argument("--background-events", type=int)
     parser.add_argument(
         "--target-significance",
         required=True,
@@ -179,25 +219,47 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--max-signal-events", type=float, default=1e9)
     arguments = parser.parse_args(argv)
 
-    upper_limit = _parse_upper_limit(
-        arguments.upper_limit,
+    manual_fields = (
+        arguments.signal_generator,
         arguments.number_of_dimensions,
+        arguments.background_events,
     )
-    results = [
-        {
-            "target_significance": target_significance,
-            "mean_signal_events": calc_n_signal_events_for_generated_signal(
+    if arguments.configs:
+        if any(value is not None for value in manual_fields):
+            parser.error(
+                "--configs cannot be combined with explicit generator dimensions or yields"
+            )
+        config = load_signal_calibration_config(arguments.configs)
+        dimensions = (
+            config.signal_dataset_parameters.dataset_generated__number_of_dimensions
+        )
+    else:
+        if any(value is None for value in manual_fields):
+            parser.error(
+                "Explicit mode requires --signal-generator, --number-of-dimensions, and --background-events"
+            )
+        dimensions = arguments.number_of_dimensions
+    upper_limit = _parse_upper_limit(arguments.upper_limit, dimensions)
+
+    results = []
+    for target_significance in arguments.target_significance:
+        if arguments.configs:
+            count = calc_n_signal_events_for_config(
+                config, target_significance, upper_limit, arguments.max_signal_events
+            )
+        else:
+            count = calc_n_signal_events_for_generated_signal(
                 background_generator=arguments.background_generator,
                 signal_generator=arguments.signal_generator,
-                number_of_dimensions=arguments.number_of_dimensions,
+                number_of_dimensions=dimensions,
                 n_background_events=arguments.background_events,
                 target_significance=target_significance,
                 upper_limit=upper_limit,
                 max_n_signal_events=arguments.max_signal_events,
-            ),
-        }
-        for target_significance in arguments.target_significance
-    ]
+            )
+        results.append(
+            {"target_significance": target_significance, "mean_signal_events": count}
+        )
     print(json.dumps(results, indent=2))
 
 

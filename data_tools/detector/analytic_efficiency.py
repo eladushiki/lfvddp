@@ -7,6 +7,7 @@ import numpy as np
 
 from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetParameters
+from data_tools.detector.detector_config import DetectorConfig
 from data_tools.detector.detector_effect import DetectorEffect
 
 if TYPE_CHECKING:
@@ -14,21 +15,21 @@ if TYPE_CHECKING:
 
 
 def generated_detector_efficiency(
-    context: "ExecutionContext", dataset_parameters: DatasetParameters
+    context: "ExecutionContext | DetectorConfig", dataset_parameters: DatasetParameters
 ) -> Callable | None:
     """Return the signal dataset's nominal acceptance without sampling events.
 
     Perfect detectors need no adapter. Efficiency uncertainty and measurement
     error are not part of this efficiency-only analytic benchmark.
     """
-    config = context.config
+    config = context if isinstance(context, DetectorConfig) else context.config
     if not any(
         getattr(config, field, "")
         for field in ("detector__effect_a_efficiency", "detector__effect_b_efficiency")
     ):
         return None
 
-    detector = DetectorEffect(context)
+    detector = DetectorEffect(config)
     detector.detection_parameters = dataset_parameters
 
     def efficiency(coordinates):

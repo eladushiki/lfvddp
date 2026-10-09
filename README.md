@@ -104,10 +104,21 @@ Important configuration choices include:
 - `train__epochs`, checkpoint frequency, function-space dimensions, and
   learning-rate settings control optimization.
 
-To choose a generated signal yield for a generated-level continuous injected
-significance target (before detector efficiency), use the separate calibration
-entry point. It accepts the dataset generator
-specifications as JSON and can solve several target values in one invocation:
+To choose a generated signal yield for a detector-level injected significance
+target, give the calibration entry point the dataset and detector configuration
+files (or directories), in the same merge order as the run:
+
+```bash
+calibrate_signal_events \
+  --configs path/to/dataset_config.yaml path/to/detector_config.yaml \
+  --target-significance 1.6 3.2 4.8 6.4 8
+```
+
+This mode reads the signal dataset's PDFs, mean background yield, integration
+domain, and nominal A/B efficiency. It accepts generated datasets only and
+does not require a training model. Without detector configuration, the explicit
+generator mode below retains a generated-level target. Both modes can solve
+several targets in one invocation:
 
 ```bash
 calibrate_signal_events \
@@ -156,8 +167,9 @@ when configuration files need target-significance signal amounts.
   configured nominal detector efficiency multiplying both signal and background
   densities without renormalizing accepted event counts. This efficiency-only
   benchmark excludes efficiency uncertainty, measurement smearing, and nuisance
-  profiling. The standalone signal-yield calibration CLI retains its generated-
-  level target. Loaded
+  profiling. The signal-yield calibration CLI includes nominal efficiency
+  when called with `--configs`; explicit generator mode defaults to generated
+  level. Loaded
   datasets use a binned evident injected significance from expected background
   and signal counts in detector-observable bins. Training saves its sampled
   data and exact prediction-plot bin edges in `data_samples.npz`. For array

@@ -24,13 +24,16 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
     Applies detector efficiency and measurement error effects to datasets.
     """
     def __init__(
-            self,
-            context: ExecutionContext,
-        ):
-        self._context = context
-        if not isinstance(self._context.config, DetectorConfig):
-            raise TypeError(f"Expected DetectorConfig, got {self._context.config.__class__.__name__}")
-        self._config = self._context.config
+        self,
+        context: ExecutionContext | DetectorConfig,
+    ):
+        self._config = (
+            context if isinstance(context, DetectorConfig) else context.config
+        )
+        if not isinstance(self._config, DetectorConfig):
+            raise TypeError(
+                f"Expected DetectorConfig, got {self._config.__class__.__name__}"
+            )
         self.__dataset_parameters_for_detection = None
         self._observable_names = list(self._config.detector__detect_observable_names)
 

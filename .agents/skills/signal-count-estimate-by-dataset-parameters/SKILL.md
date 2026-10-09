@@ -16,6 +16,11 @@ datasets, training, or significance plots.
   `data_tools.signal_calibration.calc_n_signal_events_for_generated_signal`).
   It solves the same continuous injected-significance calculation used by the
   plotter, using the full signal and background PDFs over the configured domain.
+  Prefer `calibrate_signal_events --configs <ordered dataset/detector files or directories>`
+  or `calc_n_signal_events_for_config`: these automatically apply the signal
+  dataset's nominal A/B efficiency through the shared detector adapter. Explicit
+  generator/PDF APIs accept a `detector_efficiency` callable; omitting it gives
+  a generated-level target and must not be used for detector-affected runs.
 - Pass the actual background count for the region and the complete signal
   specification, including location and width. Do not estimate the yield from
   a local PDF maximum or a fixed cell width.
