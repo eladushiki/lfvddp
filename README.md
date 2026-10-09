@@ -175,6 +175,10 @@ when configuration files need target-significance signal amounts.
   looking in the submission directory, and reports the mean and spread of
   their evident injected significances. Older runs
   without this artifact must be rerun to plot evident injected significance.
+  Loaded significance excludes zero-background bins from both likelihood terms.
+  When signal is excluded, the graph visibly labels each affected point with
+  the mean and maximum ignored **expected signal events per worker**. This is
+  a restricted-bin estimate, not evidence that the physical background is zero.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.
@@ -295,6 +299,15 @@ Runs are written below `config__out_dir` in a unique directory containing
 Git commit, seed, submission history, completion state, and produced files.
 Training histories, checkpoints, model weights, worker output, results, and
 plots are stored alongside that context as applicable.
+
+JSON outputs, including worker contexts, are published atomically from a unique
+temporary file in the same directory. Concurrent continuation readers therefore
+see a complete old or new document, never a truncated intermediate. Reads retry
+briefly for older workers that still write in place; persistent malformed JSON
+remains an error with its file path. Continuation and checkpoint discovery filter
+worker identities before reconstructing their configurations, without silently
+discarding corrupt contexts. Atomic publication prevents partial reads, not
+conflicting logical updates: only one training process should own a worker run.
 
 The `results/`, `data/`, and local configuration directories are intentionally
 ignored by Git. Back up important run directories and external datasets

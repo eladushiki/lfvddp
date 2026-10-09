@@ -6,6 +6,7 @@ from scipy.stats import norm
 
 import data_tools.profile_likelihood as profile_likelihood
 from data_tools.profile_likelihood import (
+    calc_binned_injected_significance,
     calc_injected_t_significance_by_sqrt_q0_binned,
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
@@ -68,12 +69,35 @@ def test_binned_injected_significance_matches_evident_formula():
     np.testing.assert_allclose(significance, expected_significance)
 
 
-def test_binned_injected_significance_rejects_signal_without_background():
-    with pytest.raises(ValueError, match="zero expected background"):
-        calc_injected_t_significance_by_sqrt_q0_binned(
-            background_bin_counts=np.asarray([0.0]),
-            signal_bin_counts=np.asarray([1.0]),
-        )
+@pytest.mark.parametrize("shape", [(4,), (2, 2)])
+def test_binned_injected_significance_excludes_zero_background_bins(shape):
+    background = np.asarray([0.0, 50.0, 0.0, 50.0]).reshape(shape)
+    signal = np.asarray([12.5, 25.0, 0.0, 0.0]).reshape(shape)
+    result = calc_binned_injected_significance(background, signal)
+    expected = np.sqrt(2 * (-25.0 + 75.0 * np.log1p(25.0 / 50.0)))
+    assert result.significance == pytest.approx(expected)
+    assert result.ignored_signal_events == 12.5
+    assert result.ignored_bins == 1
+    assert (
+        calc_injected_t_significance_by_sqrt_q0_binned(background, signal)
+        == result.significance
+    )
+
+
+def test_binned_injected_significance_all_signal_excluded():
+    result = calc_binned_injected_significance([0.0], [1.25])
+    assert result.significance == 0
+    assert result.ignored_signal_events == 1.25
+    assert result.ignored_bins == 1
+
+
+@pytest.mark.parametrize(
+    "background,signal",
+    [([1], [1, 2]), ([-1], [1]), ([0], [-1]), ([np.nan], [1]), ([0], [np.inf])],
+)
+def test_binned_injected_significance_still_rejects_invalid_counts(background, signal):
+    with pytest.raises(ValueError):
+        calc_binned_injected_significance(background, signal)
 
 
 def test_signal_event_calibration_inverts_continuous_significance():

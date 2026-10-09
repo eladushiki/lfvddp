@@ -9,15 +9,30 @@
 
 ## Purpose
 
-Show the measured LFVDDP significance across compatible signal runs relative to their configured signal strength. For generated datasets, the signal-strength axis is the ideal analytic significance. For loaded datasets, the analytic background density is not known, so the signal-strength axis is the configured mean number of injected signal events. The plot uses background-only runs as a common reference distribution, as well as the theoretical $\chi^2$ limit, so readers can compare observed sensitivity among signal models and data-generation settings.
+Show the measured LFVDDP significance across compatible signal runs relative to their configured signal strength. For generated datasets, the signal-strength axis is the ideal analytic significance. For loaded datasets, the analytic background density is not known, so the signal-strength axis is the binned evident injected significance estimated from saved samples. The plot uses background-only runs as a common reference distribution so readers can compare observed sensitivity among signal models and data-generation settings.
 
 A reader should be able to determine:
 
-- How measured significance changes with generated-data ideal $Z=\sqrt{q_0}$ or loaded-data injected signal count.
+- How measured significance changes with generated-data ideal or loaded-data evident significance $Z=\sqrt{q_0}$, where $Z$ is injected significance and $q_0$ is the expected null-versus-signal likelihood-ratio statistic.
 - Which compatible signal-run groups each curve represents.
 - The uncertainty on measured significance at each sampled ideal significance.
 
 ## Invocation and Inputs
+
+### Empty empirical background bins
+
+For loaded datasets, exclude every zero-background bin from both terms of the
+binned injected-significance sum, including its negative signal contribution.
+This policy is shared by 1D and multidimensional performance plots. If any
+worker excludes positive signal, show a red warning on the figure and label
+each affected point with the mean and maximum ignored expected signal events
+per worker. Counts are histogram weights scaled to the configured mean signal
+yield, not raw sampled events or a sum across repeated experiments. Means and
+maxima include all workers contributing to that point, including zero exclusions.
+An all-excluded signal has zero restricted-bin significance, not infinite
+significance. No pseudocount or replacement background model is introduced.
+The displayed injected significance is restricted to the retained bins; measured
+significance remains the result of the original training experiment.
 
 | Input | Current behavior |
 | --- | --- |

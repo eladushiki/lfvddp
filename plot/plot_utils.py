@@ -1,6 +1,6 @@
 import re
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from glob import glob
 from os.path import exists
 from pathlib import Path
@@ -24,7 +24,8 @@ from data_tools.dataset_config import (
 )
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
-    calc_injected_t_significance_by_sqrt_q0_binned,
+    calc_binned_injected_significance,
+    calc_injected_t_significance_by_sqrt_q0_binned as calc_injected_t_significance_by_sqrt_q0_binned,
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
@@ -252,6 +253,8 @@ class _PerformanceCurve:
     observed_significance_lower_bounds: np.ndarray
     observed_significance_upper_bounds: np.ndarray
     gaussian_fit_significances: np.ndarray
+    ignored_signal_events: np.ndarray = field(default_factory=lambda: np.empty(0))
+    ignored_signal_events_max: np.ndarray = field(default_factory=lambda: np.empty(0))
 
 
 @dataclass
@@ -262,6 +265,7 @@ class _PerformanceSignalPoint:
     t_value_chunks: List[np.ndarray]
     injected_significance_chunks: List[np.ndarray]
     directories: List[Path]
+    ignored_signal_event_chunks: List[np.ndarray]
 
 
 def _integration_upper_limits_for_dimensions(
@@ -302,6 +306,7 @@ def _loaded_binned_injected_significance(
     signal_context: ExecutionContext,
     signal_dataset_parameters,
     context_path: Path,
+    ignored_signal_events: Optional[List[float]] = None,
 ) -> float:
     if not isinstance(signal_context.config, DetectorConfig):
         raise ValueError(
@@ -342,10 +347,13 @@ def _loaded_binned_injected_significance(
         bin_edges,
         signal_dataset_parameters.dataset__mean_number_of_signal_events,
     )
-    return calc_injected_t_significance_by_sqrt_q0_binned(
+    result = calc_binned_injected_significance(
         background_counts,
         signal_counts,
     )
+    if ignored_signal_events is not None:
+        ignored_signal_events.append(result.ignored_signal_events)
+    return result.significance
 
 
 def utils__context_background_source_type(context: ExecutionContext) -> str:
@@ -368,6 +376,7 @@ def _performance_x_values_for_signal(
     signal_dataset_parameters,
     source_type: str,
     context_path: Path,
+    ignored_signal_events: Optional[List[float]] = None,
 ) -> Tuple[np.ndarray, str, bool, bool]:
     if source_type == "generated":
         return (
@@ -413,6 +422,7 @@ def _performance_x_values_for_signal(
                         context,
                         utils__get_signal_dataset_parameters(context),
                         path,
+                        ignored_signal_events,
                     )
                     for context, path in training_contexts
                 ]
@@ -521,18 +531,22 @@ def utils__calculate_performance_curve(
     observed_significance_lower_bounds = []
     observed_significance_upper_bounds = []
     gaussian_fit_significances = []
+    ignored_means = []
+    ignored_maxima = []
 
     signal_points: Dict[float, _PerformanceSignalPoint] = {}
     for signal_context, context_path in signal_group:
         signal_t_values_dir = context_path.parent
         signal_dataset_parameters = utils__get_signal_dataset_parameters(signal_context)
         signal_agg = ResultAggregator(signal_t_values_dir)
+        ignored_signal_events = []
         injected_significances, x_label, show_diagonal, should_connect = (
             _performance_x_values_for_signal(
                 signal_context,
                 signal_dataset_parameters,
                 source_type,
                 context_path,
+                ignored_signal_events,
             )
         )
         signal_strength = float(
@@ -546,6 +560,7 @@ def utils__calculate_performance_curve(
                 t_value_chunks=[],
                 injected_significance_chunks=[],
                 directories=[],
+                ignored_signal_event_chunks=[],
             )
         signal_point = signal_points[signal_strength]
         if (
@@ -560,6 +575,9 @@ def utils__calculate_performance_curve(
         signal_point.t_value_chunks.append(signal_agg.all_t_values)
         signal_point.injected_significance_chunks.append(injected_significances)
         signal_point.directories.append(signal_t_values_dir)
+        signal_point.ignored_signal_event_chunks.append(
+            np.asarray(ignored_signal_events or [0.0])
+        )
 
     for signal_point in signal_points.values():
         signal_t_values = np.concatenate(signal_point.t_value_chunks)
@@ -583,6 +601,9 @@ def utils__calculate_performance_curve(
         )
         x_values.append(float(np.mean(injected_significances)))
         x_errors.append(float(np.std(injected_significances)))
+        ignored_events = np.concatenate(signal_point.ignored_signal_event_chunks)
+        ignored_means.append(float(np.mean(ignored_events)))
+        ignored_maxima.append(float(np.max(ignored_events)))
         x_labels.append(signal_point.x_label)
         show_reference_diagonal.append(signal_point.show_reference_diagonal)
         connect_points.append(signal_point.connect_points)
@@ -645,6 +666,8 @@ def utils__calculate_performance_curve(
             observed_significance_upper_bounds
         )[sort],
         gaussian_fit_significances=np.asarray(gaussian_fit_significances)[sort],
+        ignored_signal_events=np.asarray(ignored_means)[sort],
+        ignored_signal_events_max=np.asarray(ignored_maxima)[sort],
     )
 
 
