@@ -11,6 +11,7 @@ from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
+from test.function_space_cases import ADAPTIVE_DIMENSION_CASES
 from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import (
     CHECKPOINT_METADATA_KEY,
@@ -27,6 +28,7 @@ _TRAIN_CONFIG_DIR = Path("test/configs/train")
 
 
 _FUNCTION_SPACE_CASES = [
+    *ADAPTIVE_DIMENSION_CASES,
     pytest.param(
         {
             ConfigType.DATASET: _DATASET,

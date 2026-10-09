@@ -17,6 +17,21 @@ class TrainingBackend(ValueEnum):
     NPLM = "nplm"
 
 
+def adaptive_hidden_layer_sizes(value: Any) -> tuple[int, ...]:
+    """Normalize one width or an ordered sequence of positive hidden widths."""
+    sizes = (value,) if isinstance(value, int) else value
+    if (
+        not isinstance(sizes, (list, tuple))
+        or not sizes
+        or any(type(size) is not int or size <= 0 for size in sizes)
+    ):
+        raise ValueError(
+            "adaptive_neural requires hidden_layer_nodes to be a positive integer "
+            "or a non-empty list of positive integers."
+        )
+    return tuple(sizes)
+
+
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
         return MappingProxyType(
@@ -66,7 +81,9 @@ def _spec_from_mapping(value: Mapping[str, Any], role: str) -> FunctionSpaceSpec
     if options is None:
         options = {}
     if not isinstance(options, Mapping):
-        raise ValueError(f"{role}.options must be a mapping, got {type(options).__name__}.")
+        raise ValueError(
+            f"{role}.options must be a mapping, got {type(options).__name__}."
+        )
     return FunctionSpaceSpec(family=value["family"], options=options)
 
 
@@ -83,7 +100,9 @@ def _coerce_spec(
     if isinstance(value, FunctionSpaceSpec):
         return FunctionSpaceSpec(value.family, value.options)
     if not isinstance(value, Mapping):
-        raise ValueError(f"{role} function-space config must be a mapping or FunctionSpaceSpec.")
+        raise ValueError(
+            f"{role} function-space config must be a mapping or FunctionSpaceSpec."
+        )
     return _spec_from_mapping(value, role)
 
 
@@ -104,7 +123,9 @@ def resolve_dual_role_config(
 ) -> ResolvedFunctionSpaceConfig:
     """Resolve structural configuration without importing evaluator implementations."""
 
-    resolved_backend = TrainingBackend.LFVDDP if backend is None else TrainingBackend.parse(backend)
+    resolved_backend = (
+        TrainingBackend.LFVDDP if backend is None else TrainingBackend.parse(backend)
+    )
     resolved_f = _coerce_spec(f, "f", required=True)
     assert resolved_f is not None
     resolved_nuisance = _coerce_spec(nuisance, "nuisance", required=False)

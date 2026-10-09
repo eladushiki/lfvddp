@@ -10,9 +10,9 @@ import torch
 from data_tools.data_utils import DataSet
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
+from test.function_space_cases import ADAPTIVE_DIMENSION_CASES
 from train.checkpoint_metadata import build_checkpoint_metadata
 from train.checkpoints import _torch_load, save_training_checkpoint
-
 
 _DATASET = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR = Path("test/configs/detector/basic_1D_detector_config.json")
@@ -23,17 +23,31 @@ _TRAIN = Path("test/configs/train")
     "function_execution_context",
     [
         pytest.param(
-            {ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _TRAIN / "baseline_1D_omitted_f_disabled_nuisance.json"},
+            {
+                ConfigType.DATASET: _DATASET,
+                ConfigType.DETECTOR: _DETECTOR,
+                ConfigType.TRAIN: _TRAIN
+                / "baseline_1D_omitted_f_disabled_nuisance.json",
+            },
             id="adaptive-disabled-nuisance",
         ),
         pytest.param(
-            {ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _TRAIN / "baseline_1D_omitted_f_neural_nuisance.json"},
+            {
+                ConfigType.DATASET: _DATASET,
+                ConfigType.DETECTOR: _DETECTOR,
+                ConfigType.TRAIN: _TRAIN / "baseline_1D_omitted_f_neural_nuisance.json",
+            },
             id="adaptive-neural-nuisance",
         ),
         pytest.param(
-            {ConfigType.DATASET: _DATASET, ConfigType.DETECTOR: _DETECTOR, ConfigType.TRAIN: _TRAIN / "baseline_1D_omitted_f_binned_nuisance.json"},
+            {
+                ConfigType.DATASET: _DATASET,
+                ConfigType.DETECTOR: _DETECTOR,
+                ConfigType.TRAIN: _TRAIN / "baseline_1D_omitted_f_binned_nuisance.json",
+            },
             id="adaptive-binned-nuisance",
         ),
+        *ADAPTIVE_DIMENSION_CASES,
     ],
     indirect=True,
 )
@@ -65,7 +79,9 @@ def test_canonical_adaptive_model_public_contract(
         model.predict_secondary(prediction_data),
         model.predict_theta(prediction_data),
     )
-    assert all(prediction.shape == (prediction_data.n_samples, 1) for prediction in predictions)
+    assert all(
+        prediction.shape == (prediction_data.n_samples, 1) for prediction in predictions
+    )
     assert all(np.isfinite(prediction).all() for prediction in predictions)
 
     checkpoint_path = save_training_checkpoint(
@@ -95,5 +111,7 @@ def test_canonical_adaptive_model_public_contract(
     )
     restored._norm_factor = model._norm_factor
     restored._prepare_training_data(batch)
-    restored.load_state_dict(_torch_load(checkpoint_path)["model_state_dict"], strict=True)
+    restored.load_state_dict(
+        _torch_load(checkpoint_path)["model_state_dict"], strict=True
+    )
     np.testing.assert_allclose(restored.predict(prediction_data), predictions[0])

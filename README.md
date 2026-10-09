@@ -142,7 +142,11 @@ when configuration files need target-significance signal amounts.
   centre-width combinations.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
-  `input_dimension` and `hidden_layer_nodes`. Adaptive neural and NPLM studies
+  `input_dimension` and `hidden_layer_nodes`. Hidden layers accept one positive
+  integer or a list of positive integers: `4` gives a single hidden layer,
+  while `[4, 2]` gives two hidden layers, in that order. Existing single-layer
+  configurations and checkpoint parameter names remain compatible.
+  Adaptive neural and NPLM studies
   require empirical-null calibration rather than assigning Wilks degrees of
   freedom from parameter counts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot

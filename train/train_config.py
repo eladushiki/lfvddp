@@ -6,6 +6,7 @@ from train.function_space_config import (
     FunctionSpaceSpec,
     ResolvedFunctionSpaceConfig,
     TrainingBackend,
+    adaptive_hidden_layer_sizes,
     resolve_dual_role_config,
 )
 
@@ -66,8 +67,7 @@ class TrainConfig:
         input_dimension = options["input_dimension"]
         hidden_size = options["hidden_layer_nodes"]
         assert isinstance(input_dimension, int)
-        assert isinstance(hidden_size, int)
-        return [input_dimension, hidden_size, 1]
+        return [input_dimension, *adaptive_hidden_layer_sizes(hidden_size), 1]
 
     def validate(self) -> None:
         resolved = self.resolve_function_space_config()
@@ -80,7 +80,9 @@ class TrainConfig:
         if self.train__profiling_active_epochs < 1:
             raise ValueError("Profiling active epochs must be positive.")
         if self.train__profiling_enabled and self.train__is_nplm:
-            raise ValueError("Training profiling is only supported for LFVDDP training.")
+            raise ValueError(
+                "Training profiling is only supported for LFVDDP training."
+            )
 
         required_epochs = 100_000 if self.train__is_nplm else 500_000
         if self.train__epochs < required_epochs:

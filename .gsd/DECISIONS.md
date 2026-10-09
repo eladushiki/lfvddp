@@ -23,3 +23,13 @@
 | D017 | PR #188 review | degree-count ownership | Remove the plot-specific count helper and centralize diagnostic counts in the existing effective_test_statistic_degrees_of_freedom function. | Both diagnostic plots use ResultAggregator to derive the common count from saved run contexts. This preserves one implementation and detects incompatible submissions; multi-run significance remains empirically calibrated. Supersedes D016's helper ownership. | Yes | human |
 
 | D018 | 2026-10-08 | Cluster coordination | Keep submission state only in the configured canonical cluster checkout; serialize read/action/save transactions with an atomic directory lock. | All agents use the committed lock helper and atomically publish YAML while holding the lock; abandoned locks require verified manual recovery. | Shared state avoids divergent local queues; locking the side effect as well as the write prevents duplicate submissions. Directory creation works across shared-filesystem clients without relying on local advisory-lock settings. | Yes | human + agent |
+
+
+## V7 dimension-specific signal networks (2026-10-09)
+
+V7 uses hidden widths 4 in 1D, [4, 2] in 2D, and [8, 2] in 4D for
+`train__f`. The cluster-local run pack retains its existing nuisance network
+widths. Adaptive neural options accept an integer or an ordered list of positive
+integers; normalization is shared with the NPLM architecture and plot diagnostic
+parameter count. Keep the existing first-hidden and output state keys so older
+single-layer checkpoints continue to load strictly.

@@ -13,18 +13,21 @@ from neural_networks.function_spaces.base import (
     scalar_output_dimension,
     unexpected_construction_options,
 )
-from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
+from neural_networks.likelihood_parameterization import (
+    smoothly_bounded_likelihood_shift,
+)
+from train.function_space_config import adaptive_hidden_layer_sizes
 
 
 class AdaptiveNeuralFunction(PerEventFunctionSpace):
-    """One-hidden-layer bounded sigmoid network used by both learned roles."""
+    """Bounded sigmoid network with configurable hidden layers for either role."""
 
     family = "adaptive_neural"
 
     def __init__(
         self,
         input_dimension: int,
-        hidden_size: int,
+        hidden_size: int | list[int] | tuple[int, ...],
         output_dimension: int,
         dtype: torch.dtype,
         device: Optional[torch.device] = None,
@@ -35,9 +38,16 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
         self.input_dimension = input_dimension
         self.hidden_size = hidden_size
         self.output_dimension = output_dimension
-        self.hidden = nn.Linear(input_dimension, hidden_size, dtype=dtype, device=device)
+        widths = adaptive_hidden_layer_sizes(hidden_size)
+        self.hidden = nn.Linear(input_dimension, widths[0], dtype=dtype, device=device)
+        self.additional_hidden = nn.ModuleList(
+            nn.Linear(previous, following, dtype=dtype, device=device)
+            for previous, following in zip(widths, widths[1:])
+        )
         self.activation = nn.Sigmoid()
-        self.output = nn.Linear(hidden_size, output_dimension, dtype=dtype, device=device)
+        self.output = nn.Linear(
+            widths[-1], output_dimension, dtype=dtype, device=device
+        )
 
     @classmethod
     def validate_options(cls, options: Mapping[str, Any]) -> None:
@@ -45,10 +55,7 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
         hidden_size = options.get("hidden_layer_nodes")
         if not isinstance(input_dimension, int) or input_dimension <= 0:
             raise ValueError("adaptive_neural requires a positive input_dimension.")
-        if not isinstance(hidden_size, int) or hidden_size <= 0:
-            raise ValueError(
-                "adaptive_neural requires a positive hidden_layer_nodes."
-            )
+        adaptive_hidden_layer_sizes(hidden_size)
         scalar_output_dimension(options, cls.family)
 
     @classmethod
@@ -75,12 +82,12 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
         )
 
     def forward(self, events: torch.Tensor) -> torch.Tensor:
-        return smoothly_bounded_likelihood_shift(
-            self.output(self.activation(self.hidden(events)))
-        )
+        values = self.activation(self.hidden(events))
+        for layer in self.additional_hidden:
+            values = self.activation(layer(values))
+        return smoothly_bounded_likelihood_shift(self.output(values))
 
     def initialize_parameters(self, gain: float) -> None:
-        nn.init.xavier_uniform_(self.hidden.weight, gain=gain)
-        nn.init.uniform_(self.hidden.bias, a=-0.3, b=0.3)
-        nn.init.xavier_uniform_(self.output.weight, gain=gain)
-        nn.init.uniform_(self.output.bias, a=-0.3, b=0.3)
+        for layer in (self.hidden, *self.additional_hidden, self.output):
+            nn.init.xavier_uniform_(layer.weight, gain=gain)
+            nn.init.uniform_(layer.bias, a=-0.3, b=0.3)

@@ -99,3 +99,54 @@ def test_adaptive_neural_requires_explicit_canonical_dimensions():
             },
             train__nuisance=None,
         )
+
+
+@pytest.mark.parametrize(
+    "widths", [None, [], 0, -1, True, [4, 0], [4, -2], [4, 2.5], [False], "4"]
+)
+def test_adaptive_hidden_widths_reject_invalid_values(widths):
+    with pytest.raises(ValueError, match="hidden_layer_nodes"):
+        create_function_space(
+            FunctionSpaceSpec(
+                "adaptive_neural",
+                {
+                    "input_dimension": 2,
+                    "hidden_layer_nodes": widths,
+                },
+            ),
+            dtype=torch.float64,
+        )
+
+
+@pytest.mark.parametrize("widths", [4, [4], [4, 2], (8, 2)])
+def test_adaptive_hidden_widths_build_all_layers_and_nplm_architecture(widths):
+    config = TrainConfig(
+        train__epochs=100000,
+        train__number_of_epochs_for_checkpoint=10000,
+        train__backend="nplm",
+        train__f={
+            "family": "adaptive_neural",
+            "options": {
+                "input_dimension": 2,
+                "hidden_layer_nodes": widths,
+            },
+        },
+    )
+    space = create_function_space(
+        config.train__function_space_config.f, dtype=torch.float64
+    )
+    architecture = config.train__adaptive_architecture
+    layers = [space.hidden, *space.additional_hidden, space.output]
+    assert [(layer.in_features, layer.out_features) for layer in layers] == list(
+        zip(architecture, architecture[1:])
+    )
+    space.initialize_parameters(1.0)
+    assert all(torch.all(layer.bias.abs() <= 0.3) for layer in layers)
+    assert space(torch.zeros((3, 2), dtype=torch.float64)).shape == (3, 1)
+    if architecture == [2, 4, 1]:
+        assert set(space.state_dict()) == {
+            "hidden.weight",
+            "hidden.bias",
+            "output.weight",
+            "output.bias",
+        }
