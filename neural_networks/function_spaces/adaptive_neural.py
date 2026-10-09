@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import torch
@@ -87,12 +87,13 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
     def from_options(
         cls,
         options: Mapping[str, Any],
+        *,
+        observable_names: Iterable[str] | None = None,
         **construction: Any,
     ) -> AdaptiveNeuralFunction:
         """Construct the adaptive family from its configuration envelope."""
 
         hidden_size = options["hidden_layer_nodes"]
-        observable_names = construction.pop("observable_names", None)
         if observable_names is None:
             raise ValueError(
                 "adaptive_neural requires observable_names to infer its input width."
@@ -133,10 +134,14 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
 
     @classmethod
     def analytic_degrees_of_freedom(
-        cls, options: Mapping[str, Any], *, observable_count: int
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
     ) -> int:
         """Count configured parameters without allocating a network."""
 
+        if observable_count is None:
+            raise ValueError(
+                "adaptive_neural requires the observable count for parameter counting."
+            )
         return neural_parameter_count(
             cls.architecture_from_options(options, observable_count=observable_count)
         )

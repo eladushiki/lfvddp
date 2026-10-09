@@ -3,7 +3,10 @@
 import pytest
 import torch
 
-from neural_networks.function_spaces import create_function_space
+from neural_networks.function_spaces import (
+    analytic_degrees_of_freedom,
+    create_function_space,
+)
 from neural_networks.function_spaces.registry import FUNCTION_SPACE_REGISTRY
 from test.function_space_cases import FUNCTION_SPACE_OPTIONS
 from train.function_space_config import FunctionSpaceSpec
@@ -20,6 +23,17 @@ def test_every_catalog_family_constructs_one_normalized_event_shift():
             observable_names=("param_0",),
         )
         assert space(events).shape == (2, 1)
+        assert (
+            analytic_degrees_of_freedom(
+                FunctionSpaceSpec(family, options), observable_count=1
+            )
+            == space.statistical_degrees_of_freedom()
+        )
+        if family != "adaptive_neural":
+            assert (
+                analytic_degrees_of_freedom(FunctionSpaceSpec(family, options))
+                == space.statistical_degrees_of_freedom()
+            )
 
 
 @pytest.mark.parametrize(

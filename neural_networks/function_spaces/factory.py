@@ -56,12 +56,11 @@ def create_function_space(
         )
     validate_function_space_options(spec)
     observable_names = None if observable_names is None else tuple(observable_names)
-    if spec.family == "adaptive_neural":
-        construction["observable_names"] = observable_names
     function_space = _registered_family(spec).from_options(
         spec.options,
         dtype=dtype,
         device=device,
+        observable_names=observable_names,
         **construction,
     )
     if normalization_factor is not None:
@@ -86,13 +85,6 @@ def analytic_degrees_of_freedom(
 ) -> int | None:
     """Return a family-owned configured diagnostic count without allocating tensors."""
 
-    family = _registered_family(spec)
-    if spec.family == "adaptive_neural":
-        if observable_count is None:
-            raise ValueError(
-                "adaptive_neural requires the observable count for parameter counting."
-            )
-        return family.analytic_degrees_of_freedom(
-            spec.options, observable_count=observable_count
-        )
-    return family.analytic_degrees_of_freedom(spec.options)
+    return _registered_family(spec).analytic_degrees_of_freedom(
+        spec.options, observable_count=observable_count
+    )

@@ -11,6 +11,7 @@ from data_tools.data_utils import DataSet
 from frame.aggregate import ResultAggregator
 from frame.command_line.handle_args import create_config_from_paths
 from neural_networks.function_spaces import (
+    AdaptiveNeuralFunction,
     analytic_degrees_of_freedom,
     create_function_space,
 )
@@ -262,6 +263,10 @@ def test_neural_construction_and_count_require_observables():
         analytic_degrees_of_freedom(spec)
     with pytest.raises(ValueError, match="positive input_dimension"):
         create_function_space(spec, dtype=torch.float64, observable_names=())
+    with pytest.raises(ValueError, match="observable_names"):
+        AdaptiveNeuralFunction.from_options(spec.options, dtype=torch.float64)
+    with pytest.raises(ValueError, match="observable count"):
+        AdaptiveNeuralFunction.analytic_degrees_of_freedom(spec.options)
 
 
 def test_neural_factory_consumes_observables_once_and_disallows_width_override():

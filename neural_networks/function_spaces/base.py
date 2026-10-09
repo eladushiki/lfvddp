@@ -48,12 +48,21 @@ class FunctionSpace(Protocol):
     def from_options(
         cls,
         options: Mapping[str, Any],
+        *,
+        observable_names: Iterable[str] | None = None,
         **construction: Any,
     ) -> "FunctionSpace": ...
 
     @classmethod
     def validate_options(cls, options: Mapping[str, Any]) -> None:
         """Validate this family's configuration-owned geometry."""
+        ...
+
+    @classmethod
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
+    ) -> int | None:
+        """Return this family's configured diagnostic count using detector context."""
         ...
 
     def normalize_input_geometry(
@@ -241,10 +250,12 @@ class PerEventFunctionSpace(nn.Module):
         return None
 
     @classmethod
-    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int | None:
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
+    ) -> int | None:
         """Return the configured fixed-space dimension without constructing a module."""
 
-        del options
+        del options, observable_count
         return None
 
 
@@ -281,7 +292,10 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         return 0
 
     @classmethod
-    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int:
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
+    ) -> int:
+        del observable_count
         geometry = cls.geometry_from_options(options)
         output_dimension = scalar_output_dimension(options, cls.family)
         degrees_of_freedom = (
@@ -301,10 +315,15 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
 
     @classmethod
     def from_options(
-        cls, options: Mapping[str, Any], **construction: Any
+        cls,
+        options: Mapping[str, Any],
+        *,
+        observable_names: Iterable[str] | None = None,
+        **construction: Any,
     ) -> "FunctionSpace":
         """Build any fixed feature family through its common construction path."""
 
+        del observable_names
         return cls(
             cls.geometry_from_options(options),
             options=options,
