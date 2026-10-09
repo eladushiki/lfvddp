@@ -190,6 +190,12 @@ Use `--out-dir <directory>` to override `config__out_dir` for a fresh run.
 
 ## Submit to the WIS ATLAS cluster
 
+Shared submission-state transactions use a fail-fast lock and a two-hour
+default timeout. For longer authorized routines, pass `--timeout-seconds`
+before `-- <command>` to `.agents/scripts/with_submission_state_lock.py`.
+Timeouts stop the transaction's child process group before releasing its lock;
+reconcile scheduler/output evidence before retrying interrupted work.
+
 Run the submission command from a configured cluster login environment:
 
 ```bash

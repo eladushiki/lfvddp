@@ -48,6 +48,16 @@ later successful acquisition. No local lock or copied YAML can substitute.
   `submission-state.lock/owner.json`, and releases the lock when the command
   exits, including a nonzero exit. Keep all child work in the foreground; do
   not detach writers or side effects beyond the command lifetime.
+- Transactions have a default two-hour lifetime (not an acquisition wait).
+  Override it explicitly with `--timeout-seconds <positive-seconds>` before
+  `-- <command>`. On timeout (exit 124), or HUP/INT/TERM, the helper terminates
+  the child process group, waits up to ten seconds, then sends KILL if needed.
+  It verifies that no live group members remain before releasing the lock;
+  uncertain termination retains the lock. Even a normally exiting command has
+  remaining group children stopped. This bounds abandoned SSH child shells
+  without stealing another owner's lock by age. SIGKILL or host loss still
+  requires the owner-liveness inspection below. Reconcile scheduler/output
+  evidence after every interrupted transaction before repeating any action.
 - An abrupt process/host death can leave a lock. Never steal it based on age.
   Inspect its owner on the recorded host and verify both the holder and its
   children have stopped before manually removing `owner.json` and the empty
