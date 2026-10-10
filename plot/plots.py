@@ -16,6 +16,7 @@ from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import (
     calc_background_significance_summary,
+    calc_t_significance_by_gaussian_fit_percentile,
     calc_median_t_significance_by_chi2_percentile,
 )
 from neural_networks.function_spaces import prediction_grid_edges
@@ -530,6 +531,11 @@ def performance_plot(
         background_t_dist
     )
 
+    background_gaussian_fit = calc_t_significance_by_gaussian_fit_percentile(
+        background_only_distribution=background_t_dist,
+        t_value=np.median(background_t_dist),
+    )
+
     # Framing
     c = Carpenter(context)
     fig = c.figure()
@@ -559,7 +565,7 @@ def performance_plot(
     )
     max_x = max(all_x_values) + graph_border
     min_x = -0.05 * max_x
-    min_y = min(clean_y_significances) - graph_border
+    min_y = 0.0
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
@@ -592,17 +598,27 @@ def performance_plot(
             utils__performance_group_label(signal_group[0][0]),
             width=70,
         )
+        connected_x = np.r_[0.0, curve.x_values]
+        connected_observed = np.r_[background_median, curve.observed_significances]
+        connected_lower = np.r_[
+            background_median - background_std,
+            curve.observed_significance_lower_bounds,
+        ]
+        connected_upper = np.r_[
+            background_median + background_std,
+            curve.observed_significance_upper_bounds,
+        ]
         ax.plot(
-            curve.x_values,
-            curve.gaussian_fit_significances,
+            connected_x,
+            np.r_[background_gaussian_fit, curve.gaussian_fit_significances],
             color=color,
             linewidth=2,
             linestyle="--",
         )
         if curve.connect_points:
             ax.plot(
-                curve.x_values,
-                curve.observed_significances,
+                connected_x,
+                connected_observed,
                 color=color,
                 label=group_label,
                 marker="o",
@@ -610,14 +626,14 @@ def performance_plot(
                 linewidth=2,
             )
             ax.fill_between(
-                curve.x_values,
+                connected_x,
                 np.clip(
-                    curve.observed_significance_lower_bounds,
+                    connected_lower,
                     a_min=min_y,
                     a_max=max_y,
                 ),
                 np.clip(
-                    curve.observed_significance_upper_bounds,
+                    connected_upper,
                     a_min=min_y,
                     a_max=max_y,
                 ),
@@ -748,7 +764,7 @@ def performance_plot(
     legend.get_frame().set_linewidth(0.0)
     ax.tick_params(labelsize=20)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     c.standardize_plot_borders(fig)
 
     return fig

@@ -113,6 +113,12 @@ center is the median of the background's calibrated significance scores; its
 symmetric error bar is their population standard deviation, not a standard
 error. Scores use normal inverse-CDF values of average-rank empirical step
 midpoints, so finite samples have finite endpoints and ties have equal scores.
-Show the full vertical bar, including negative significance, and keep zero
-visible on the horizontal axis. Signal spreads can also extend below zero.
-This common point is not duplicated or attached to a particular signal model.
+Keep zero visible on both axes. The measured-significance axis starts at exactly
+zero; clip the negative portions of all curves, bands, and the background bar.
+Each measured curve connects to the common background median, and its shaded
+band connects to the same background median plus/minus one standard deviation.
+The dashed Gaussian-fit curve connects to the estimate from the background
+median using the same Gaussian fit as its signal points; do not force that
+estimate to zero when the background median differs from its mean. This curve
+is a Gaussian-fit estimate, not a chi-square reference. The background marker
+is displayed once above the colored endpoints.

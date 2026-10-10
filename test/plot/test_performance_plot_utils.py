@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
+from matplotlib.collections import PolyCollection
 import numpy as np
 import pytest
 from scipy.stats import norm
@@ -239,10 +240,15 @@ def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_pat
 
 
 @pytest.mark.parametrize("source_type", ["loaded", "generated"])
+@pytest.mark.parametrize(
+    "background_t_values",
+    [np.arange(100, dtype=float), np.arange(100, dtype=float) ** 2],
+)
 def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     monkeypatch,
     tmp_path,
     source_type,
+    background_t_values,
 ):
     context = SimpleNamespace(
         config=PlottingConfig(plot__plot_specifications=[]),
@@ -261,7 +267,7 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
         x_errors=np.asarray([0.0, 0.0, 0.0]),
         x_label="mean injected signal events",
         show_reference_diagonal=False,
-        connect_points=False,
+        connect_points=True,
         observed_significances=np.asarray([1.0, 1.5, 2.0]),
         observed_significance_lower_bounds=np.asarray([0.8, 1.2, 1.7]),
         observed_significance_upper_bounds=np.asarray([1.2, 1.8, 2.3]),
@@ -281,7 +287,7 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     monkeypatch.setattr(
         plots,
         "utils__aggregate_context_t_values",
-        lambda _contexts: np.arange(100, dtype=float),
+        lambda _contexts: background_t_values,
     )
     monkeypatch.setattr(
         plots,
@@ -321,23 +327,38 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     segments = background.lines[2][0].get_segments()
     np.testing.assert_allclose(segments, [[[0.0, -spread], [0.0, spread]]])
     assert figure.axes[0].get_xlim()[0] < 0
-    assert figure.axes[0].get_ylim()[0] < -spread
+    assert figure.axes[0].get_ylim()[0] == 0.0
 
     dashed_lines = [
         line for line in figure.axes[0].lines if line.get_linestyle() == "--"
     ]
     assert len(dashed_lines) == 1
-    np.testing.assert_array_equal(dashed_lines[0].get_xdata(), curve.x_values)
+    np.testing.assert_array_equal(
+        dashed_lines[0].get_xdata(), np.r_[0.0, curve.x_values]
+    )
     np.testing.assert_array_equal(
         dashed_lines[0].get_ydata(),
-        curve.gaussian_fit_significances,
+        np.r_[
+            (np.median(background_t_values) - np.mean(background_t_values))
+            / np.std(background_t_values),
+            curve.gaussian_fit_significances,
+        ],
     )
-    assert not any(
-        line.get_linestyle() == "-"
-        and np.array_equal(line.get_xdata(), curve.x_values)
-        and np.array_equal(line.get_ydata(), curve.observed_significances)
-        for line in figure.axes[0].lines
+    measured = next(
+        line for line in figure.axes[0].lines if line.get_label() == "signal"
     )
+    np.testing.assert_array_equal(measured.get_xdata(), np.r_[0.0, curve.x_values])
+    np.testing.assert_allclose(
+        measured.get_ydata(), np.r_[0.0, curve.observed_significances]
+    )
+    band = next(
+        collection
+        for collection in figure.axes[0].collections
+        if isinstance(collection, PolyCollection)
+    )
+    vertices = band.get_paths()[0].vertices
+    at_zero = vertices[vertices[:, 0] == 0.0, 1]
+    np.testing.assert_allclose(np.unique(at_zero), [0.0, spread])
     plt.close(figure)
 
 
