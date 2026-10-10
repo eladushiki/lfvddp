@@ -103,3 +103,16 @@ The plot has no per-curve instruction parameters in the basic configuration; its
 The generated-data efficiency adapter and likelihood integration are shared by 1D and n-dimensional plots and by saved-run significance aggregation. Aggregation caches include detector configuration so otherwise identical runs with different efficiencies cannot share a cached significance.
 
 Appearance reference: the Plot 02 run recorded commit `b8691aa22880fdb353a4812dfa11318380b2153b`. Its connected curves and translucent spread are also used for CMS data, independently of the source used to compute the horizontal coordinate. Red point annotations retain the mean and maximum excluded signal-event counts; they are not point coordinates.
+
+### Background-only point
+
+Draw the common background once as a black point at exactly zero injected
+significance for both loaded and generated datasets. It requires no sample-bin
+or PDF integration calculation and has no horizontal uncertainty. Its vertical
+center is the median of the background's calibrated significance scores; its
+symmetric error bar is their population standard deviation, not a standard
+error. Scores use normal inverse-CDF values of average-rank empirical step
+midpoints, so finite samples have finite endpoints and ties have equal scores.
+Show the full vertical bar, including negative significance, and keep zero
+visible on the horizontal axis. Signal spreads can also extend below zero.
+This common point is not duplicated or attached to a particular signal model.

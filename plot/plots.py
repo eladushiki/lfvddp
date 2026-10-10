@@ -15,6 +15,7 @@ from data_tools.data_utils import DataSet
 from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import (
+    calc_background_significance_summary,
     calc_median_t_significance_by_chi2_percentile,
 )
 from neural_networks.function_spaces import prediction_grid_edges
@@ -525,6 +526,10 @@ def performance_plot(
             "cannot be overlaid on the same axes."
         )
 
+    background_median, background_std = calc_background_significance_summary(
+        background_t_dist
+    )
+
     # Framing
     c = Carpenter(context)
     fig = c.figure()
@@ -532,7 +537,9 @@ def performance_plot(
 
     # Borders
     graph_border = 1
-    all_x_values = np.concatenate([curve.x_values for curve in curves])
+    all_x_values = np.concatenate(
+        [np.asarray([0.0]), *[curve.x_values for curve in curves]]
+    )
     clean_y_significances = np.concatenate(
         [
             values[np.isfinite(values)]
@@ -546,9 +553,13 @@ def performance_plot(
         ]
     )
 
-    min_x = max(min(all_x_values) - graph_border, 0)
+    clean_y_significances = np.append(
+        clean_y_significances,
+        [background_median - background_std, background_median + background_std],
+    )
     max_x = max(all_x_values) + graph_border
-    min_y = max(min(clean_y_significances) - graph_border, 0)
+    min_x = -0.05 * max_x
+    min_y = min(clean_y_significances) - graph_border
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
@@ -561,6 +572,18 @@ def performance_plot(
             linestyle=":",
             label=r"Perfect discovery (injected = measured)",
         )
+
+    ax.errorbar(
+        0.0,
+        background_median,
+        yerr=background_std,
+        color="black",
+        marker="o",
+        linestyle="none",
+        capsize=4,
+        label="Background only (one standard deviation)",
+        zorder=5,
+    )
 
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
@@ -590,12 +613,12 @@ def performance_plot(
                 curve.x_values,
                 np.clip(
                     curve.observed_significance_lower_bounds,
-                    a_min=0,
+                    a_min=min_y,
                     a_max=max_y,
                 ),
                 np.clip(
                     curve.observed_significance_upper_bounds,
-                    a_min=0,
+                    a_min=min_y,
                     a_max=max_y,
                 ),
                 color=color,
@@ -724,7 +747,7 @@ def performance_plot(
     legend.get_frame().set_alpha(1)
     legend.get_frame().set_linewidth(0.0)
     ax.tick_params(labelsize=20)
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
     c.standardize_plot_borders(fig)
 

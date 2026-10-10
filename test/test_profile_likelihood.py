@@ -397,3 +397,28 @@ def test_continuous_injected_significance_rejects_infinite_multidimensional_limi
             n_signal_events=1,
             upper_limit=np.array([1.0, np.inf]),
         )
+
+
+@pytest.mark.parametrize(
+    "values, expected_probabilities",
+    [
+        ([10.0, 20.0, 30.0, 40.0], [0.125, 0.375, 0.625, 0.875]),
+        ([10.0, 10.0, 30.0, 40.0], [0.25, 0.25, 0.625, 0.875]),
+        ([7.0, 7.0, 7.0], [0.5, 0.5, 0.5]),
+        ([7.0], [0.5]),
+    ],
+)
+def test_background_significance_summary(values, expected_probabilities):
+    median, spread = profile_likelihood.calc_background_significance_summary(
+        np.asarray(values)
+    )
+    scores = norm.ppf(expected_probabilities)
+    assert median == pytest.approx(np.median(scores))
+    assert spread == pytest.approx(np.std(scores))
+    assert np.isfinite(spread)
+
+
+@pytest.mark.parametrize("values", [[], [np.inf], [np.nan], [[1.0, 2.0]]])
+def test_background_significance_summary_rejects_invalid_values(values):
+    with pytest.raises(ValueError, match="nonempty finite 1D"):
+        profile_likelihood.calc_background_significance_summary(np.asarray(values))

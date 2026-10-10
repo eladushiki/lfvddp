@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from scipy.stats import norm
 
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
@@ -237,9 +238,11 @@ def test_loaded_performance_curve_uses_prediction_plot_bins(monkeypatch, tmp_pat
     np.testing.assert_allclose(curve.x_values, [expected_x_value])
 
 
+@pytest.mark.parametrize("source_type", ["loaded", "generated"])
 def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     monkeypatch,
     tmp_path,
+    source_type,
 ):
     context = SimpleNamespace(
         config=PlottingConfig(plot__plot_specifications=[]),
@@ -278,7 +281,7 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     monkeypatch.setattr(
         plots,
         "utils__aggregate_context_t_values",
-        lambda _contexts: np.asarray([0.0, 1.0, 2.0]),
+        lambda _contexts: np.arange(100, dtype=float),
     )
     monkeypatch.setattr(
         plots,
@@ -288,7 +291,7 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     monkeypatch.setattr(
         plots,
         "utils__context_background_source_type",
-        lambda _context: "loaded",
+        lambda _context: source_type,
     )
     monkeypatch.setattr(
         plots,
@@ -306,6 +309,19 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
         background_only_t_values_parent_directory=str(tmp_path / "bkg"),
         signal_t_values_parent_directory=str(tmp_path / "signal"),
     )
+
+    background = next(
+        container
+        for container in figure.axes[0].containers
+        if container.get_label() == "Background only (one standard deviation)"
+    )
+    np.testing.assert_array_equal(background.lines[0].get_xdata(orig=False), [0.0])
+    np.testing.assert_allclose(background.lines[0].get_ydata(orig=False), [0.0])
+    spread = np.std(norm.ppf((np.arange(100) + 0.5) / 100))
+    segments = background.lines[2][0].get_segments()
+    np.testing.assert_allclose(segments, [[[0.0, -spread], [0.0, spread]]])
+    assert figure.axes[0].get_xlim()[0] < 0
+    assert figure.axes[0].get_ylim()[0] < -spread
 
     dashed_lines = [
         line for line in figure.axes[0].lines if line.get_linestyle() == "--"

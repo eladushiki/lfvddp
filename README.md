@@ -179,6 +179,9 @@ when configuration files need target-significance signal amounts.
   events contribute zero injected significance, even with a positive configured
   mean signal count. Older runs
   without this artifact must be rerun to plot evident injected significance.
+  The common background-only point has exactly zero injected significance
+  and a vertical bar showing the population spread in calibrated significance
+  units, including its negative side.
   Both data sources use connected measured-significance curves and shaded
   uncertainty bands. Loaded-data plots retain horizontal sample-spread error
   bars and show the exclusion warning above the axes, clear of the legend.
