@@ -3,7 +3,10 @@
 import pytest
 import torch
 
-from neural_networks.function_spaces import create_function_space
+from neural_networks.function_spaces import (
+    analytic_degrees_of_freedom,
+    create_function_space,
+)
 from neural_networks.function_spaces.registry import FUNCTION_SPACE_REGISTRY
 from test.function_space_cases import FUNCTION_SPACE_OPTIONS
 from train.function_space_config import FunctionSpaceSpec
@@ -15,9 +18,22 @@ def test_every_catalog_family_constructs_one_normalized_event_shift():
     events = torch.tensor([[0.5], [1.5]], dtype=torch.float64)
     for family, options in FUNCTION_SPACE_OPTIONS.items():
         space = create_function_space(
-            FunctionSpaceSpec(family, options), dtype=torch.float64
+            FunctionSpaceSpec(family, options),
+            dtype=torch.float64,
+            observable_names=("param_0",),
         )
         assert space(events).shape == (2, 1)
+        assert (
+            analytic_degrees_of_freedom(
+                FunctionSpaceSpec(family, options), observable_count=1
+            )
+            == space.statistical_degrees_of_freedom()
+        )
+        if family != "adaptive_neural":
+            assert (
+                analytic_degrees_of_freedom(FunctionSpaceSpec(family, options))
+                == space.statistical_degrees_of_freedom()
+            )
 
 
 @pytest.mark.parametrize(
@@ -83,10 +99,10 @@ def test_family_options_fail_through_the_normal_configuration_path(spec, message
         )
 
 
-def test_adaptive_neural_requires_explicit_canonical_dimensions():
+def test_adaptive_neural_requires_hidden_layer_configuration():
     with pytest.raises(ValueError, match="hidden_layer_nodes"):
         create_function_space(
-            FunctionSpaceSpec("adaptive_neural", {"input_dimension": 1}),
+            FunctionSpaceSpec("adaptive_neural", {}),
             dtype=torch.float64,
         )
     with pytest.raises(ValueError, match="hidden_layer_nodes"):
@@ -95,7 +111,7 @@ def test_adaptive_neural_requires_explicit_canonical_dimensions():
             train__number_of_epochs_for_checkpoint=10,
             train__f={
                 "family": "adaptive_neural",
-                "options": {"input_dimension": 1, "hidden_size": 2},
+                "options": {"hidden_size": 2},
             },
             train__nuisance=None,
         )

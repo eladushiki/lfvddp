@@ -145,7 +145,6 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         """
         Create newly initialized weights matching the training strategy.
         This is the single source of truth for weight initialization.
-        Assumes 2-layer network (1 hidden layer).
         """
         # Use Xavier uniform with configurable gain for weight initialization
         gain = self._config.train__function_space_xavier_gain

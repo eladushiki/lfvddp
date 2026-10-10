@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
+from neural_networks.function_spaces.base import SCALAR_OUTPUT_DIMENSION
 from train.function_space_config import ResolvedFunctionSpaceConfig
 
 
@@ -26,12 +28,20 @@ def checkpoint_value(value: Any) -> Any:
     raise TypeError(f"Unsupported checkpoint metadata value {type(value).__name__}.")
 
 
+def _compatibility_fingerprint(compatibility: Mapping[str, Any]) -> str:
+    """Hash the canonical structural portion of checkpoint metadata."""
+
+    return hashlib.sha256(
+        json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
 def build_checkpoint_metadata(
     *,
     model_name: str,
     is_numerator: bool,
     resolved_config: ResolvedFunctionSpaceConfig,
-    normalization_factor: Optional[ShiftAndNormalizationFactor],
+    normalization_factor: ShiftAndNormalizationFactor | None,
 ) -> dict[str, Any]:
     """Build the sidecar payload without inspecting model internals."""
 
@@ -52,9 +62,17 @@ def build_checkpoint_metadata(
             }
         ),
     }
-    fingerprint = hashlib.sha256(
-        json.dumps(compatibility, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    for role in ("f", "nuisance"):
+        spec = compatibility[role]
+        if (
+            spec is not None
+            and spec["family"] == "adaptive_neural"
+            and normalization_factor is not None
+        ):
+            # Preserve the historical fingerprint's structural input width,
+            # now derived from the pooled observable map rather than options.
+            spec["options"]["input_dimension"] = normalization_factor.n_dim
+    fingerprint = _compatibility_fingerprint(compatibility)
     return {
         "format_version": 3,
         **compatibility,
@@ -79,9 +97,28 @@ def validate_checkpoint_metadata(
     expected_compatibility = {
         key: value for key, value in expected.items() if key != "normalization_factor"
     }
-    actual_compatibility = {
-        key: actual.get(key) for key in expected_compatibility
-    }
+    actual_compatibility = {key: actual.get(key) for key in expected_compatibility}
+    # Old checkpoints could explicitly record the already-scalar output.
+    # Canonicalize that redundant hint without relaxing input-width checks.
+    actual_compatibility = checkpoint_value(actual_compatibility)
+    removed_output_hint = False
+    for role in ("f", "nuisance"):
+        spec = actual_compatibility.get(role)
+        if isinstance(spec, dict) and spec.get("family") == "adaptive_neural":
+            options = spec.get("options", {})
+            if (
+                isinstance(options, dict)
+                and options.get("output_dimension") == SCALAR_OUTPUT_DIMENSION
+            ):
+                options.pop("output_dimension")
+                removed_output_hint = True
+    if removed_output_hint:
+        actual_compatibility["config_fingerprint"] = _compatibility_fingerprint(
+            {
+                key: actual_compatibility[key]
+                for key in ("model_name", "is_numerator", "backend", "f", "nuisance")
+            }
+        )
     if actual_compatibility == expected_compatibility:
         return
     differences = [
@@ -99,7 +136,7 @@ def validate_checkpoint_metadata(
 def normalization_from_checkpoint_metadata(
     checkpoint_path: Path,
     metadata: Mapping[str, Any],
-) -> Optional[ShiftAndNormalizationFactor]:
+) -> ShiftAndNormalizationFactor | None:
     """Restore validated normalization data from an optional checkpoint sidecar."""
 
     normalization = metadata.get("normalization_factor")

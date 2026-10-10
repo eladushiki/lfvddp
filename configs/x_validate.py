@@ -1,5 +1,3 @@
-from typing import Union
-
 from data_tools.dataset_config import (
     DatasetConfig,
     GeneratedDatasetParameters,
@@ -12,14 +10,14 @@ from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
 
 
-def cross_configure(config: Union[
-    ClusterConfig,
-    DatasetConfig,
-    DetectorConfig,
-    PlottingConfig,
-    TrainConfig,
-    UserConfig,
-]) -> None:
+def cross_configure(
+    config: ClusterConfig
+    | DatasetConfig
+    | DetectorConfig
+    | PlottingConfig
+    | TrainConfig
+    | UserConfig,
+) -> None:
     """Fill defaults that depend on the fully merged configuration."""
     detector_dimension = config.detector__number_of_dimensions
     generated_type = GeneratedDatasetParameters.DATASET_PARAMETER_TYPE_NAME()
@@ -41,22 +39,20 @@ def cross_configure(config: Union[
             )
 
 
-def cross_validate(config: Union[
-    ClusterConfig,
-    DatasetConfig,
-    DetectorConfig,
-    PlottingConfig,
-    TrainConfig,
-    UserConfig,
-]):
+def cross_validate(
+    config: ClusterConfig
+    | DatasetConfig
+    | DetectorConfig
+    | PlottingConfig
+    | TrainConfig
+    | UserConfig,
+):
     if config.cluster__qsub_needs_continuation and config.train__is_nplm:
         raise NotImplementedError(
-            "Long-walltime continuation is only implemented for LFVNN/PyTorch "
-            "training."
+            "Long-walltime continuation is only implemented for LFVNN/PyTorch training."
         )
 
     if config.train__final_learning_rate is not None:
-        assert (
-            config.train__final_learning_rate <= config.train__learning_rate
-        ), \
+        assert config.train__final_learning_rate <= config.train__learning_rate, (
             "Final learning rate must not exceed the initial learning rate."
+        )

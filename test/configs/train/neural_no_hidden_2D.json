@@ -1,6 +1,6 @@
 {
   "random_seed": 18018,
-  "train__epochs": 1,
+  "train__epochs": 3,
   "train__number_of_epochs_for_checkpoint": 1,
   "train__enable_progress_bar": false,
   "train__learning_rate": 0.01,
@@ -8,8 +8,16 @@
   "train__f": {
     "family": "adaptive_neural",
     "options": {
-      "hidden_layer_nodes": 4
+      "hidden_layer_nodes": []
     }
   },
-  "train__nuisance": null
+  "train__nuisance": {
+    "family": "adaptive_neural",
+    "options": {
+      "hidden_layer_nodes": [
+        2,
+        1
+      ]
+    }
+  }
 }

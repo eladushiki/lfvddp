@@ -11,7 +11,11 @@ from data_tools.data_utils import DataSet
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
-from train.checkpoint_metadata import build_checkpoint_metadata
+from test.function_space_cases import NEURAL_DEPTH_CONFIGS
+from train.checkpoint_metadata import (
+    build_checkpoint_metadata,
+    validate_checkpoint_metadata,
+)
 from train.checkpoints import (
     CHECKPOINT_METADATA_KEY,
     _torch_load,
@@ -20,13 +24,16 @@ from train.checkpoints import (
     save_training_checkpoint,
 )
 
-
 _DATASET = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR = Path("test/configs/detector/basic_1D_detector_config.json")
 _TRAIN_CONFIG_DIR = Path("test/configs/train")
 
 
 _FUNCTION_SPACE_CASES = [
+    *[
+        pytest.param(config, id=config[ConfigType.TRAIN].stem)
+        for config in NEURAL_DEPTH_CONFIGS
+    ],
     pytest.param(
         {
             ConfigType.DATASET: _DATASET,
@@ -127,15 +134,23 @@ def _take_one_step(model, data_batch):
 @pytest.mark.parametrize(
     "function_execution_context", _FUNCTION_SPACE_CASES, indirect=True
 )
+@pytest.mark.parametrize("is_numerator", [True, False])
 def test_checkpoint_round_trip_preserves_all_function_space_state(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
     tmp_path,
+    differentiating_model_factory,
+    is_numerator,
 ):
     context = function_execution_context
     data_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
-    model = _make_model(context, detector_effect, "checkpoint_round_trip")
+    model = differentiating_model_factory(
+        context,
+        detector_effect,
+        name="checkpoint_round_trip",
+        is_numerator=is_numerator,
+    )
     optimizer = _take_one_step(model, data_batch)
 
     checkpoint_path = save_training_checkpoint(
@@ -182,7 +197,12 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     )
     assert metadata["normalization_factor"] == model._norm_factor.to_mapping()
 
-    restored = _make_model(context, detector_effect, "checkpoint_round_trip")
+    restored = differentiating_model_factory(
+        context,
+        detector_effect,
+        name="checkpoint_round_trip",
+        is_numerator=is_numerator,
+    )
     restored._norm_factor = model._norm_factor
     restored._prepare_training_data(data_batch)
     incompatible = restored.load_state_dict(checkpoint["model_state_dict"], strict=True)
@@ -216,23 +236,34 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
         restored.predict_secondary(prediction_data),
         model.predict_secondary(prediction_data),
     )
+    np.testing.assert_array_equal(
+        restored.predict_theta(prediction_data), model.predict_theta(prediction_data)
+    )
 
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [pytest.param(_CONTINUATION_CONFIG, id="explicit-adaptive-neural")],
+    [
+        pytest.param(config, id=config[ConfigType.TRAIN].stem)
+        for config in NEURAL_DEPTH_CONFIGS
+    ],
     indirect=True,
 )
+@pytest.mark.parametrize("is_numerator", [True, False])
 def test_continuation_restores_normalization_and_resumes_history(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
     tmp_path,
     monkeypatch,
+    differentiating_model_factory,
+    is_numerator,
 ):
     context = function_execution_context
     data_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
-    model = _make_model(context, detector_effect, "continuation")
+    model = differentiating_model_factory(
+        context, detector_effect, name="continuation", is_numerator=is_numerator
+    )
     optimizer = _take_one_step(model, data_batch)
     checkpoint_path = save_training_checkpoint(
         context=_checkpoint_context(tmp_path, context),
@@ -245,7 +276,9 @@ def test_continuation_restores_normalization_and_resumes_history(
     )
     checkpoint = _torch_load(checkpoint_path)
 
-    restored = _make_model(context, detector_effect, "continuation")
+    restored = differentiating_model_factory(
+        context, detector_effect, name="continuation", is_numerator=is_numerator
+    )
     monkeypatch.setattr(
         "neural_networks.differentiating_model.find_latest_training_checkpoint",
         lambda *_args, **_kwargs: (checkpoint_path, checkpoint),
@@ -330,3 +363,42 @@ def test_checkpoint_without_embedded_metadata_is_rejected(tmp_path):
 
     with pytest.raises(RuntimeError, match="no metadata"):
         load_checkpoint_metadata(checkpoint_path)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context", [NEURAL_DEPTH_CONFIGS[0]], indirect=True
+)
+def test_legacy_checkpoint_dimensions_remain_structural_metadata(
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    differentiating_model_factory,
+):
+    import json
+
+    legacy_path = Path("test/configs/checkpoints/legacy_neural_widths.json")
+    actual = json.loads(legacy_path.read_text())
+    batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    model = differentiating_model_factory(
+        function_execution_context, detector_effect, name="legacy_widths"
+    )
+    model._prepare_training_data(batch)
+    expected = _metadata(model)
+    assert expected["f"]["options"]["input_dimension"] == 1
+    assert "input_dimension" not in model._function_space_config.f.options
+    validate_checkpoint_metadata(
+        checkpoint_path=legacy_path,
+        model_name=model._name,
+        expected=expected,
+        actual=actual,
+    )
+    for role in ("f", "nuisance"):
+        incompatible = json.loads(legacy_path.read_text())
+        incompatible[role]["options"]["input_dimension"] = 2
+        with pytest.raises(RuntimeError, match=f"incompatible.*{role}"):
+            validate_checkpoint_metadata(
+                checkpoint_path=legacy_path,
+                model_name=model._name,
+                expected=expected,
+                actual=incompatible,
+            )

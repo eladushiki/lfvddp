@@ -1,6 +1,7 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from logging import warning
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from train.function_space_config import (
     FunctionSpaceSpec,
@@ -17,7 +18,7 @@ class TrainConfig:
     train__epochs: int
     train__number_of_epochs_for_checkpoint: int
     train__learning_rate: float = 0.03
-    train__final_learning_rate: Optional[float] = None
+    train__final_learning_rate: float | None = None
     train__enable_progress_bar: bool = True
     train__profiling_enabled: bool = False
     train__profiling_warmup_epochs: int = 5
@@ -60,14 +61,16 @@ class TrainConfig:
 
     @property
     def train__adaptive_architecture(self) -> list[int]:
-        """Return the explicit adaptive architecture required by the NPLM backend."""
+        """Return the canonical adaptive architecture, also used by the NPLM adapter."""
 
-        options = self.train__function_space_config.f.options
-        input_dimension = options["input_dimension"]
-        hidden_size = options["hidden_layer_nodes"]
-        assert isinstance(input_dimension, int)
-        assert isinstance(hidden_size, int)
-        return [input_dimension, hidden_size, 1]
+        from neural_networks.function_spaces import AdaptiveNeuralFunction
+
+        return list(
+            AdaptiveNeuralFunction.architecture_from_options(
+                self.train__function_space_config.f.options,
+                observable_count=self.detector__number_of_dimensions,
+            )
+        )
 
     def validate(self) -> None:
         resolved = self.resolve_function_space_config()
@@ -75,12 +78,22 @@ class TrainConfig:
 
         validate_function_space_specs(resolved.f, resolved.nuisance)
 
+        if (
+            self.train__is_nplm
+            and type(resolved.f.options["hidden_layer_nodes"]) is not int
+        ):
+            raise ValueError(
+                "NPLM requires integer hidden_layer_nodes; list architectures are supported only by LFVDDP."
+            )
+
         if self.train__profiling_warmup_epochs < 0:
             raise ValueError("Profiling warmup epochs cannot be negative.")
         if self.train__profiling_active_epochs < 1:
             raise ValueError("Profiling active epochs must be positive.")
         if self.train__profiling_enabled and self.train__is_nplm:
-            raise ValueError("Training profiling is only supported for LFVDDP training.")
+            raise ValueError(
+                "Training profiling is only supported for LFVDDP training."
+            )
 
         required_epochs = 100_000 if self.train__is_nplm else 500_000
         if self.train__epochs < required_epochs:
