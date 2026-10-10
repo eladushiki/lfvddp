@@ -3,6 +3,8 @@ Pytest configuration and shared fixtures for all tests.
 This file is automatically discovered by pytest.
 """
 from argparse import Namespace
+from contextlib import ExitStack
+from pathlib import Path
 
 import pytest
 from pytest import fixture
@@ -161,3 +163,42 @@ def pytest_runtest_setup(item):
     if "long" in item.keywords:
         # Disable timeout for tests marked as 'long'
         item.timeout = 60 * 15
+
+
+@fixture
+def detector_comparison_contexts(session_execution_context):
+    """Load committed perfect/shape detector configs for cache comparisons."""
+    args = Namespace(
+        debug=True,
+        build_container=False,
+        only_train=False,
+        out_dir=session_execution_context.unique_out_dir,
+        continue_from=None,
+    )
+    with ExitStack() as stack:
+        contexts = []
+        for detector_path in [
+            "test/configs/detector/basic_2D_detector_config.json",
+            "test/configs/detector/analytic_efficiency_2D.json",
+        ]:
+            paths = DEFAULT_CONFIG_PATHS | {
+                ConfigType.DATASET: Path(
+                    "test/configs/dataset/disjoint_2D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(detector_path),
+            }
+            config = create_config_from_paths(
+                config_paths=list(paths.values()),
+                out_dir=session_execution_context.unique_out_dir,
+            )
+            contexts.append(
+                stack.enter_context(
+                    version_controlled_execution_context(
+                        config=config,
+                        config_paths=list(paths.values()),
+                        command_line_args=wrap_with_command_line_args(paths),
+                        args=args,
+                    )
+                )
+            )
+        yield contexts

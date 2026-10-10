@@ -311,9 +311,14 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
     n_background_events: int,
     n_signal_events: int,
     upper_limit: Union[float, np.ndarray] = np.inf,
+    detector_efficiency: Callable | None = None,
 ):
     """Calculate formula (32) from 2024 paper, significance for distributions
     over one or more observables with known pdfs.
+
+    ``detector_efficiency`` accepts the same coordinates as the PDFs and
+    multiplies both event densities. Accepted densities are not renormalized;
+    the likelihood contribution includes the accepted signal subtraction.
 
     A scalar ``upper_limit`` defines the existing one-dimensional domain
     ``[0, upper_limit]``. A one-dimensional array supplies one upper bound per
@@ -332,7 +337,14 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_rate_density = n_background_events * _pdf_density_at_coordinates(
             background_pdf, coordinates
         )
-        return rel_entr(  # = a * log(a/b)
+        acceptance = (
+            1.0
+            if detector_efficiency is None
+            else _pdf_density_at_coordinates(detector_efficiency, coordinates)
+        )
+        signal_rate_density *= acceptance
+        background_rate_density *= acceptance
+        return rel_entr(
             signal_rate_density + background_rate_density,
             background_rate_density,
         )
@@ -348,6 +360,10 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
             background_rate_density = n_background_events * _pdf_densities_at_points(
                 background_pdf, points
             )
+            if detector_efficiency is not None:
+                acceptance = _pdf_densities_at_points(detector_efficiency, points)
+                signal_rate_density *= acceptance
+                background_rate_density *= acceptance
             return 2 * kl_div(
                 signal_rate_density + background_rate_density,
                 background_rate_density,
@@ -388,29 +404,44 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         if not np.isfinite(q0):
             raise ValueError("Multidimensional significance integration was non-finite")
     else:
-        try:
-            with catch_warnings():
-                simplefilter("error", IntegrationWarning)
-                integral = fsum(
-                    nquad(
-                        integrand,
-                        interval_bounds,
-                        opts={
-                            "limit": _QUADRATURE_SUBDIVISION_LIMIT,
-                            "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
-                            "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
-                        },
-                    )[0]
-                    for interval_bounds in _one_dimensional_integration_regions(
-                        upper_limits.item()
-                    )
-                )
-        except IntegrationWarning as warning:
-            raise ValueError(
-                f"Integration unsuccessful up to upper limit {upper_limit}"
-            ) from warning
 
-        q0 = 2 * (-n_signal_events + integral)
+        def integrate_density(density):
+            try:
+                with catch_warnings():
+                    simplefilter("error", IntegrationWarning)
+                    return fsum(
+                        nquad(
+                            density,
+                            interval_bounds,
+                            opts={
+                                "limit": _QUADRATURE_SUBDIVISION_LIMIT,
+                                "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
+                                "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
+                            },
+                        )[0]
+                        for interval_bounds in _one_dimensional_integration_regions(
+                            upper_limits.item()
+                        )
+                    )
+            except IntegrationWarning as warning:
+                raise ValueError(
+                    f"Integration unsuccessful up to upper limit {upper_limit}"
+                ) from warning
+
+        def accepted_signal_density(*coordinates):
+            acceptance = (
+                1.0
+                if detector_efficiency is None
+                else _pdf_density_at_coordinates(detector_efficiency, coordinates)
+            )
+            return (
+                n_signal_events
+                * _pdf_density_at_coordinates(signal_pdf, coordinates)
+                * acceptance
+            )
+
+        accepted_signal_events = integrate_density(accepted_signal_density)
+        q0 = 2 * (integrate_density(integrand) - accepted_signal_events)
     return np.sqrt(q0)
 
 

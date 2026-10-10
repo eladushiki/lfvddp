@@ -104,10 +104,21 @@ Important configuration choices include:
 - `train__epochs`, checkpoint frequency, function-space dimensions, and
   learning-rate settings control optimization.
 
-To choose a generated signal yield from the same continuous injected-
-significance calculation used by generated-dataset performance plots, use the
-separate calibration entry point. It accepts the dataset generator
-specifications as JSON and can solve several target values in one invocation:
+To choose a generated signal yield for a detector-level injected significance
+target, give the calibration entry point the dataset and detector configuration
+files (or directories), in the same merge order as the run:
+
+```bash
+calibrate_signal_events \
+  --configs path/to/dataset_config.yaml path/to/detector_config.yaml \
+  --target-significance 1.6 3.2 4.8 6.4 8
+```
+
+This mode reads the signal dataset's PDFs, mean background yield, integration
+domain, and nominal A/B efficiency. It accepts generated datasets only and
+does not require a training model. Without detector configuration, the explicit
+generator mode below retains a generated-level target. Both modes can solve
+several targets in one invocation:
 
 ```bash
 calibrate_signal_events \
@@ -163,17 +174,24 @@ when configuration files need target-significance signal amounts.
   significance is calibrated against background runs. Single-submission
   distribution and percentile-progression plots always show diagnostic
   chi-square references: adaptive LFVDDP counts all signal-network weights and
-  biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed families use
-  their constrained dimension. Shared nuisance parameters do not contribute to
-  this reference. Parameter counting alone does not establish Wilks validity.
-  Multi-run performance
-  plots use analytic injected significance for generated datasets; loaded
+  biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed
+  families use their constrained dimension. Shared nuisance parameters do not
+  contribute to this reference. Parameter counting alone does not establish
+  Wilks validity. Multi-run performance plots use analytic injected significance
+  for generated datasets, with the configured nominal detector efficiency
+  multiplying both signal and background densities without renormalizing
+  accepted event counts. This efficiency-only benchmark excludes efficiency
+  uncertainty, measurement smearing, and nuisance profiling. The signal-yield
+  calibration CLI includes nominal efficiency when called with `--configs`;
+  explicit generator mode defaults to generated level. Loaded
   datasets use a binned evident injected significance from expected background
   and signal counts in detector-observable bins. Training saves its sampled
   data and exact prediction-plot bin edges in `data_samples.npz`. For array
   submissions, plotting reads each successful worker's artifact rather than
   looking in the submission directory, and reports the mean and spread of
-  their evident injected significances. Older runs
+  their evident injected significances. Workers with zero sampled signal
+  events contribute zero injected significance, even with a positive configured
+  mean signal count. Older runs
   without this artifact must be rerun to plot evident injected significance.
   Loaded significance excludes zero-background bins from both likelihood terms.
   When signal is excluded, the graph visibly labels each affected point with
@@ -204,6 +222,12 @@ python train/single_train.py --configs configs/my-study --debug
 Use `--out-dir <directory>` to override `config__out_dir` for a fresh run.
 
 ## Submit to the WIS ATLAS cluster
+
+Shared submission-state transactions use a fail-fast lock and a two-hour
+default timeout. For longer authorized routines, pass `--timeout-seconds`
+before `-- <command>` to `.agents/scripts/with_submission_state_lock.py`.
+Timeouts stop the transaction's child process group before releasing its lock;
+reconcile scheduler/output evidence before retrying interrupted work.
 
 Run the submission command from a configured cluster login environment:
 

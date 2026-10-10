@@ -55,7 +55,9 @@ def test_result_aggregator_keeps_each_paired_history_and_sums_t(tmp_path):
     np.testing.assert_allclose(np.sort(aggregator.all_t_values), [6, 10])
 
 
+@pytest.mark.parametrize("function_execution_context", [{}], indirect=True)
 def test_injected_significances_use_dataset_integration_limits(
+    function_execution_context,
     tmp_path,
     monkeypatch,
 ):
@@ -67,7 +69,7 @@ def test_injected_significances_use_dataset_integration_limits(
         dataset__number_of_signal_events=10,
         dataset_generated__integration_upper_limits=integration_limits,
     )
-    context = SimpleNamespace(config=SimpleNamespace())
+    context = function_execution_context
     calculation_arguments = {}
 
     monkeypatch.setattr(
@@ -92,7 +94,9 @@ def test_injected_significances_use_dataset_integration_limits(
     )
 
 
+@pytest.mark.parametrize("function_execution_context", [{}], indirect=True)
 def test_injected_significances_cache_duplicate_dataset_parameters(
+    function_execution_context,
     tmp_path,
     monkeypatch,
 ):
@@ -103,7 +107,7 @@ def test_injected_significances_cache_duplicate_dataset_parameters(
         dataset__number_of_signal_events=10,
         dataset_generated__integration_upper_limits=np.array([1.0, 1.0, 1.0, 1.0]),
     )
-    contexts = [SimpleNamespace(config=SimpleNamespace()) for _ in range(3)]
+    contexts = [function_execution_context] * 3
     calculation_count = 0
 
     def fake_calculation(**arguments):

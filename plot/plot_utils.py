@@ -22,6 +22,7 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
 )
+from data_tools.detector.analytic_efficiency import generated_detector_efficiency
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
     calc_binned_injected_significance,
@@ -315,6 +316,10 @@ def _loaded_binned_injected_significance(
         )
     samples = load_data_samples(context_path.parent)
     background_data, signal_data = samples.background, samples.signal
+    if signal_data.empty:
+        if ignored_signal_events is not None:
+            ignored_signal_events.append(0.0)
+        return 0.0
     observable_names = list(signal_context.config.detector__detect_observable_names)
     if not set(observable_names).issubset(background_data.observable_names):
         missing = sorted(set(observable_names) - set(background_data.observable_names))
@@ -388,6 +393,9 @@ def _performance_x_values_for_signal(
                         n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
                         n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
                         upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                        detector_efficiency=generated_detector_efficiency(
+                            signal_context, signal_dataset_parameters
+                        ),
                     )
                 ]
             ),
