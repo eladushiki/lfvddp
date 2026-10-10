@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from textwrap import fill
 from typing import Callable, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,8 @@ from data_tools.data_utils import DataSet
 from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import (
+    calc_background_significance_summary,
+    calc_t_significance_by_gaussian_fit_percentile,
     calc_median_t_significance_by_chi2_percentile,
 )
 from neural_networks.function_spaces import prediction_grid_edges
@@ -524,6 +527,15 @@ def performance_plot(
             "cannot be overlaid on the same axes."
         )
 
+    background_median, background_std = calc_background_significance_summary(
+        background_t_dist
+    )
+
+    background_gaussian_fit = calc_t_significance_by_gaussian_fit_percentile(
+        background_only_distribution=background_t_dist,
+        t_value=np.median(background_t_dist),
+    )
+
     # Framing
     c = Carpenter(context)
     fig = c.figure()
@@ -531,7 +543,9 @@ def performance_plot(
 
     # Borders
     graph_border = 1
-    all_x_values = np.concatenate([curve.x_values for curve in curves])
+    all_x_values = np.concatenate(
+        [np.asarray([0.0]), *[curve.x_values for curve in curves]]
+    )
     clean_y_significances = np.concatenate(
         [
             values[np.isfinite(values)]
@@ -545,9 +559,13 @@ def performance_plot(
         ]
     )
 
-    min_x = max(min(all_x_values) - graph_border, 0)
+    clean_y_significances = np.append(
+        clean_y_significances,
+        [background_median - background_std, background_median + background_std],
+    )
     max_x = max(all_x_values) + graph_border
-    min_y = max(min(clean_y_significances) - graph_border, 0)
+    min_x = -0.05 * max_x
+    min_y = 0.0
     max_y = max(clean_y_significances) + graph_border
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
@@ -561,37 +579,62 @@ def performance_plot(
             label=r"Perfect discovery (injected = measured)",
         )
 
+    ax.errorbar(
+        0.0,
+        background_median,
+        yerr=background_std,
+        color="black",
+        marker="o",
+        linestyle="none",
+        capsize=4,
+        label="Background only (one standard deviation)",
+        zorder=5,
+    )
+
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
     for signal_group, curve, color in zip(signal_groups, curves, colors):
-        group_label = utils__performance_group_label(
-            signal_group[0][0],
+        group_label = fill(
+            utils__performance_group_label(signal_group[0][0]),
+            width=70,
         )
+        connected_x = np.r_[0.0, curve.x_values]
+        connected_observed = np.r_[background_median, curve.observed_significances]
+        connected_lower = np.r_[
+            background_median - background_std,
+            curve.observed_significance_lower_bounds,
+        ]
+        connected_upper = np.r_[
+            background_median + background_std,
+            curve.observed_significance_upper_bounds,
+        ]
         ax.plot(
-            curve.x_values,
-            curve.gaussian_fit_significances,
+            connected_x,
+            np.r_[background_gaussian_fit, curve.gaussian_fit_significances],
             color=color,
             linewidth=2,
             linestyle="--",
         )
         if curve.connect_points:
             ax.plot(
-                curve.x_values,
-                curve.observed_significances,
+                connected_x,
+                connected_observed,
                 color=color,
                 label=group_label,
+                marker="o",
+                markersize=4,
                 linewidth=2,
             )
             ax.fill_between(
-                curve.x_values,
+                connected_x,
                 np.clip(
-                    curve.observed_significance_lower_bounds,
-                    a_min=0,
+                    connected_lower,
+                    a_min=min_y,
                     a_max=max_y,
                 ),
                 np.clip(
-                    curve.observed_significance_upper_bounds,
-                    a_min=0,
+                    connected_upper,
+                    a_min=min_y,
                     a_max=max_y,
                 ),
                 color=color,
@@ -672,36 +715,36 @@ def performance_plot(
         )
 
     # Texting
-    if any(np.any(curve.ignored_signal_events_max > 0) for curve in curves):
+    if any(np.any(curve.ignored_signal_percentages_max > 0) for curve in curves):
         largest_mean = max(
-            float(np.max(curve.ignored_signal_events)) for curve in curves
+            float(np.max(curve.ignored_signal_percentages)) for curve in curves
         )
         largest_maximum = max(
-            float(np.max(curve.ignored_signal_events_max)) for curve in curves
+            float(np.max(curve.ignored_signal_percentages_max)) for curve in curves
         )
         ax.text(
-            0.99,
-            0.99,
+            0.0,
+            1.02,
             "WARNING: zero-background bins excluded from injected significance.\n"
-            "Ignored expected signal events per worker (mean; max).\n"
-            f"Largest point mean: {largest_mean:.3g}; worker maximum: {largest_maximum:.3g}.",
+            "Missing signal per run (% of intended mean signal count).\n"
+            f"Largest point mean: {largest_mean:.3g}%; maximum in one run: {largest_maximum:.3g}%.",
             transform=ax.transAxes,
-            ha="right",
-            va="top",
+            ha="left",
+            va="bottom",
             color="darkred",
-            fontsize=10,
+            fontsize=9,
             bbox={"facecolor": "white", "edgecolor": "darkred", "alpha": 0.95},
         )
         for curve in curves:
             for x, y, mean, maximum in zip(
                 curve.x_values,
                 curve.observed_significances,
-                curve.ignored_signal_events,
-                curve.ignored_signal_events_max,
+                curve.ignored_signal_percentages,
+                curve.ignored_signal_percentages_max,
             ):
                 if maximum > 0:
                     ax.annotate(
-                        f"{mean:.3g}; {maximum:.3g}",
+                        f"{mean:.3g}%; {maximum:.3g}%",
                         (x, y),
                         xytext=(6, 8),
                         textcoords="offset points",
@@ -720,8 +763,8 @@ def performance_plot(
     legend.get_frame().set_alpha(1)
     legend.get_frame().set_linewidth(0.0)
     ax.tick_params(labelsize=20)
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True, prune="lower"))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     c.standardize_plot_borders(fig)
 
     return fig

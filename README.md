@@ -193,9 +193,17 @@ when configuration files need target-significance signal amounts.
   events contribute zero injected significance, even with a positive configured
   mean signal count. Older runs
   without this artifact must be rerun to plot evident injected significance.
+  The common background-only point has exactly zero injected significance
+  and a vertical bar showing the population spread in calibrated significance
+  units. Curves and uncertainty bands connect to this common point; the measured
+  significance axis starts at zero, clipping all negative values.
+  Both data sources use connected measured-significance curves and shaded
+  uncertainty bands. Loaded-data plots retain horizontal sample-spread error
+  bars and show the exclusion warning above the axes, clear of the legend.
   Loaded significance excludes zero-background bins from both likelihood terms.
   When signal is excluded, the graph visibly labels each affected point with
-  the mean and maximum ignored **expected signal events per worker**. This is
+  the mean and maximum **missing-signal percentages per run**, relative to
+  each run's intended mean signal count. One worker is one independent run. This is
   a restricted-bin estimate, not evidence that the physical background is zero.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back

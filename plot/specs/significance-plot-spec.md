@@ -24,11 +24,14 @@ A reader should be able to determine:
 For loaded datasets, exclude every zero-background bin from both terms of the
 binned injected-significance sum, including its negative signal contribution.
 This policy is shared by 1D and multidimensional performance plots. If any
-worker excludes positive signal, show a red warning on the figure and label
-each affected point with the mean and maximum ignored expected signal events
-per worker. Counts are histogram weights scaled to the configured mean signal
-yield, not raw sampled events or a sum across repeated experiments. Means and
-maxima include all workers contributing to that point, including zero exclusions.
+worker excludes positive signal, show a red warning above the axes, clear of the legend, and label
+each affected point with the mean and maximum missing-signal percentages per
+run. One worker is one independent training run. For each run, divide the
+excluded expected signal-event weight by that run's configured intended mean
+signal count and multiply by 100; there is no separate minimum-count parameter.
+Normalize before aggregating the mean and maximum across runs. Include runs
+with zero exclusions. A zero intended signal count reports zero percent. The
+warning and red point labels explicitly display percent signs.
 An all-excluded signal has zero restricted-bin significance, not infinite
 significance. No pseudocount or replacement background model is introduced.
 The displayed injected significance is restricted to the retained bins; measured
@@ -63,15 +66,15 @@ The figure contains one axes:
 | Signal group | One labelled curve per compatible signal group. |
 | Measured significance | Marker-and-line points against the plot's signal-strength axis. |
 | Gaussian-fit significance | Dashed curve through the Gaussian-fit estimate at each sampled signal strength. |
-| Uncertainty | Error bars on measured significance. |
+| Uncertainty | Shaded measured-significance spread and horizontal injected-significance error bars. |
 | Reference relation | The ideal-significance diagonal is drawn only for generated datasets, where the horizontal axis is analytic significance. |
 
-The horizontal axis is detector-level ideal significance $\sqrt{q_0}$ for generated datasets and evident injected significance $\sqrt{q_0}$ for loaded datasets; the vertical axis is measured significance. For loaded datasets, the evident injected significance uses the exact prediction plot display bins computed from the detected training batch and controlled by `plot__prediction_process_number_of_bins`. The bin counts are scaled to the configured mean background and signal event counts before evaluating the binned likelihood-ratio formula. Generated datasets connect measured-significance points and draw a band from the measured-significance spread. Loaded datasets keep measured-significance points unconnected while their Gaussian-fit estimates remain connected by a dashed curve. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
+The horizontal axis is detector-level ideal significance $\sqrt{q_0}$ for generated datasets and evident injected significance $\sqrt{q_0}$ for loaded datasets; the vertical axis is measured significance. For loaded datasets, the evident injected significance uses the exact prediction plot display bins computed from the detected training batch and controlled by `plot__prediction_process_number_of_bins`. The bin counts are scaled to the configured mean background and signal event counts before evaluating the binned likelihood-ratio formula. Generated datasets connect measured-significance points and draw a band from the measured-significance spread. Loaded datasets use the same connected measured-significance curve and shaded spread as generated datasets, with horizontal worker-level standard-deviation error bars. Small dots mark sampled points for both sources; Gaussian-fit estimates remain dashed. The loaded-data axis quantity and absence of an analytic reference diagonal are unchanged. Labels are constructed from the group dataset configuration so the compared signal settings remain identifiable.
 
 ### Further requirements
 - Every Carpenter figure reserves the same 12% bottom row for hash stamping, so that row can be cropped without hiding plot content.
 - This one-panel plot uses Carpenter's standard left, right, top, and bottom borders, shared with the percentile-progression and t-distribution plots.
-- Convert the snake case signal names in legend to english with parameters in latex equations if needed.
+- Convert the snake case signal names in legend to english with parameters in latex equations if needed. Wrap long group descriptions so the legend stays inside the axes.
 
 ## Configuration Contract
 
@@ -101,3 +104,24 @@ The plot has no per-curve instruction parameters in the basic configuration; its
 - [ ] The figure is reproducible from the recorded parent-directory runs and configurations.
 
 The generated-data efficiency adapter and likelihood integration are shared by 1D and n-dimensional plots and by saved-run significance aggregation. Aggregation caches include detector configuration so otherwise identical runs with different efficiencies cannot share a cached significance.
+
+Appearance reference: the Plot 02 run recorded commit `b8691aa22880fdb353a4812dfa11318380b2153b`. Its connected curves and translucent spread are also used for CMS data, independently of the source used to compute the horizontal coordinate. Red point annotations report mean and maximum missing-signal percentages per run relative to the intended mean count; they are not point coordinates.
+
+### Background-only point
+
+Draw the common background once as a black point at exactly zero injected
+significance for both loaded and generated datasets. It requires no sample-bin
+or PDF integration calculation and has no horizontal uncertainty. Its vertical
+center is the median of the background's calibrated significance scores; its
+symmetric error bar is their population standard deviation, not a standard
+error. Scores use normal inverse-CDF values of average-rank empirical step
+midpoints, so finite samples have finite endpoints and ties have equal scores.
+Keep zero visible on both axes. The measured-significance axis starts at exactly
+zero; clip the negative portions of all curves, bands, and the background bar.
+Each measured curve connects to the common background median, and its shaded
+band connects to the same background median plus/minus one standard deviation.
+The dashed Gaussian-fit curve connects to the estimate from the background
+median using the same Gaussian fit as its signal points; do not force that
+estimate to zero when the background median differs from its mean. This curve
+is a Gaussian-fit estimate, not a chi-square reference. The background marker
+is displayed once above the colored endpoints.

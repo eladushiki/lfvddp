@@ -5,7 +5,7 @@ from typing import Callable, Union
 import numpy as np
 from scipy.integrate import IntegrationWarning, cubature, nquad
 from scipy.special import erfinv, kl_div, rel_entr
-from scipy.stats import norm, chi2
+from scipy.stats import norm, chi2, rankdata
 from warnings import catch_warnings, simplefilter, warn
 
 
@@ -90,6 +90,23 @@ def calc_median_t_significance_relative_to_background(
     return calc_t_significance_relative_to_background(
         np.median(signal_t_values), background_only_t_values
     )
+
+
+def calc_background_significance_summary(
+    background_only_t_values: np.ndarray,
+) -> tuple[float, float]:
+    """Return the background median and population spread in significance units.
+
+    Average ranks assign tied statistics the same percentile. Midpoints of
+    empirical probability steps avoid infinite scores at the sample endpoints.
+    This is the spread of experiments, not the standard error of their median.
+    """
+    values = np.asarray(background_only_t_values, dtype=float)
+    if values.ndim != 1 or values.size == 0 or not np.all(np.isfinite(values)):
+        raise ValueError("Background statistics must be a nonempty finite 1D array.")
+    probabilities = (rankdata(values, method="average") - 0.5) / values.size
+    significances = norm.ppf(probabilities)
+    return float(np.median(significances)), float(np.std(significances))
 
 
 def _normalize_integration_upper_limits(
