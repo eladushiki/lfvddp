@@ -715,19 +715,19 @@ def performance_plot(
         )
 
     # Texting
-    if any(np.any(curve.ignored_signal_events_max > 0) for curve in curves):
+    if any(np.any(curve.ignored_signal_percentages_max > 0) for curve in curves):
         largest_mean = max(
-            float(np.max(curve.ignored_signal_events)) for curve in curves
+            float(np.max(curve.ignored_signal_percentages)) for curve in curves
         )
         largest_maximum = max(
-            float(np.max(curve.ignored_signal_events_max)) for curve in curves
+            float(np.max(curve.ignored_signal_percentages_max)) for curve in curves
         )
         ax.text(
             0.0,
             1.02,
             "WARNING: zero-background bins excluded from injected significance.\n"
-            "Ignored expected signal events per worker (mean; max).\n"
-            f"Largest point mean: {largest_mean:.3g}; worker maximum: {largest_maximum:.3g}.",
+            "Missing signal per run (% of intended mean signal count).\n"
+            f"Largest point mean: {largest_mean:.3g}%; maximum in one run: {largest_maximum:.3g}%.",
             transform=ax.transAxes,
             ha="left",
             va="bottom",
@@ -739,12 +739,12 @@ def performance_plot(
             for x, y, mean, maximum in zip(
                 curve.x_values,
                 curve.observed_significances,
-                curve.ignored_signal_events,
-                curve.ignored_signal_events_max,
+                curve.ignored_signal_percentages,
+                curve.ignored_signal_percentages_max,
             ):
                 if maximum > 0:
                     ax.annotate(
-                        f"{mean:.3g}; {maximum:.3g}",
+                        f"{mean:.3g}%; {maximum:.3g}%",
                         (x, y),
                         xytext=(6, 8),
                         textcoords="offset points",

@@ -272,6 +272,8 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
         observed_significance_lower_bounds=np.asarray([0.8, 1.2, 1.7]),
         observed_significance_upper_bounds=np.asarray([1.2, 1.8, 2.3]),
         gaussian_fit_significances=np.asarray([0.9, 1.4, 1.9]),
+        ignored_signal_percentages=np.asarray([0.0, 25.0, 50.0]),
+        ignored_signal_percentages_max=np.asarray([0.0, 50.0, 75.0]),
     )
 
     monkeypatch.setattr(
@@ -359,6 +361,16 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     vertices = band.get_paths()[0].vertices
     at_zero = vertices[vertices[:, 0] == 0.0, 1]
     np.testing.assert_allclose(np.unique(at_zero), [0.0, spread])
+    texts = [text.get_text() for text in figure.axes[0].texts]
+    assert any(
+        "Missing signal per run (% of intended mean signal count)" in text
+        for text in texts
+    )
+    assert any(
+        "Largest point mean: 50%; maximum in one run: 75%" in text for text in texts
+    )
+    assert "25%; 50%" in texts
+    assert not any("worker" in text for text in texts)
     plt.close(figure)
 
 
@@ -462,3 +474,62 @@ def test_performance_curve_rejects_mixed_generated_and_loaded(tmp_path):
             ],
             background_t_dist=np.asarray([0.5, 1.0, 1.5]),
         )
+
+
+@pytest.mark.parametrize("observable_names", [["x"], ["x", "y"]])
+@pytest.mark.parametrize("intended_count", [0, 25, 100])
+@pytest.mark.parametrize("empty_signal", [False, True])
+def test_missing_signal_percent_uses_intended_mean(
+    tmp_path, observable_names, intended_count, empty_signal
+):
+    dimensions = len(observable_names)
+    context = _context_with_source("loaded", signal_events=intended_count)
+    context.config.detector__detect_observable_names = observable_names
+    context_path = tmp_path / "signal" / "context.json"
+    context_path.parent.mkdir()
+    signal = (
+        np.empty((0, dimensions))
+        if empty_signal
+        else np.asarray([[0.25] * dimensions, [0.75] * dimensions])
+    )
+    save_data_samples(
+        context_path.parent,
+        DataSet(
+            np.asarray([[0.25] * dimensions, [0.25] * dimensions]), observable_names
+        ),
+        DataSet(signal, observable_names),
+        observable_names,
+        {name: np.asarray([0.0, 0.5, 1.0]) for name in observable_names},
+    )
+    percentages = []
+    plot_utils._loaded_binned_injected_significance(
+        context, context.signal_parameters, context_path, percentages
+    )
+    assert percentages == [50.0 if intended_count > 0 and not empty_signal else 0.0]
+
+
+def test_missing_signal_percent_aggregates_all_runs(monkeypatch, tmp_path):
+    contexts = []
+    for index, signal in enumerate([[[0.25], [0.75]], [[0.25], [0.25]]]):
+        context = _context_with_source("loaded", signal_events=25)
+        path = tmp_path / str(index) / "context.json"
+        path.parent.mkdir()
+        save_data_samples(
+            path.parent,
+            DataSet(np.asarray([[0.25], [0.25]]), ["x"]),
+            DataSet(np.asarray(signal), ["x"]),
+            ["x"],
+            {"x": np.asarray([0.0, 0.5, 1.0])},
+        )
+        contexts.append((context, path))
+    monkeypatch.setattr(plot_utils, "ResultAggregator", _FakeAggregator)
+    monkeypatch.setattr(
+        plot_utils,
+        "utils__get_signal_dataset_parameters",
+        lambda context: context.signal_parameters,
+    )
+    curve = plot_utils.utils__calculate_performance_curve(
+        contexts, np.arange(100, dtype=float)
+    )
+    np.testing.assert_allclose(curve.ignored_signal_percentages, [25.0])
+    np.testing.assert_allclose(curve.ignored_signal_percentages_max, [50.0])

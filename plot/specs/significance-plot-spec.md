@@ -25,10 +25,13 @@ For loaded datasets, exclude every zero-background bin from both terms of the
 binned injected-significance sum, including its negative signal contribution.
 This policy is shared by 1D and multidimensional performance plots. If any
 worker excludes positive signal, show a red warning above the axes, clear of the legend, and label
-each affected point with the mean and maximum ignored expected signal events
-per worker. Counts are histogram weights scaled to the configured mean signal
-yield, not raw sampled events or a sum across repeated experiments. Means and
-maxima include all workers contributing to that point, including zero exclusions.
+each affected point with the mean and maximum missing-signal percentages per
+run. One worker is one independent training run. For each run, divide the
+excluded expected signal-event weight by that run's configured intended mean
+signal count and multiply by 100; there is no separate minimum-count parameter.
+Normalize before aggregating the mean and maximum across runs. Include runs
+with zero exclusions. A zero intended signal count reports zero percent. The
+warning and red point labels explicitly display percent signs.
 An all-excluded signal has zero restricted-bin significance, not infinite
 significance. No pseudocount or replacement background model is introduced.
 The displayed injected significance is restricted to the retained bins; measured
@@ -102,7 +105,7 @@ The plot has no per-curve instruction parameters in the basic configuration; its
 
 The generated-data efficiency adapter and likelihood integration are shared by 1D and n-dimensional plots and by saved-run significance aggregation. Aggregation caches include detector configuration so otherwise identical runs with different efficiencies cannot share a cached significance.
 
-Appearance reference: the Plot 02 run recorded commit `b8691aa22880fdb353a4812dfa11318380b2153b`. Its connected curves and translucent spread are also used for CMS data, independently of the source used to compute the horizontal coordinate. Red point annotations retain the mean and maximum excluded signal-event counts; they are not point coordinates.
+Appearance reference: the Plot 02 run recorded commit `b8691aa22880fdb353a4812dfa11318380b2153b`. Its connected curves and translucent spread are also used for CMS data, independently of the source used to compute the horizontal coordinate. Red point annotations report mean and maximum missing-signal percentages per run relative to the intended mean count; they are not point coordinates.
 
 ### Background-only point
 
