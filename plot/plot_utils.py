@@ -437,7 +437,7 @@ def _performance_x_values_for_signal(
             ),
             r"evident injected $\sqrt{q_0}$",
             False,
-            False,
+            True,
         )
     raise ValueError(
         "Unsupported dataset background source type for performance plot: "

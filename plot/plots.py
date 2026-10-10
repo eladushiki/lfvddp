@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from textwrap import fill
 from typing import Callable, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
@@ -564,8 +565,9 @@ def performance_plot(
     # Overlay one pair of significance curves for each configuration subgroup.
     colors = plt.get_cmap("cool")(np.linspace(0.15, 0.85, len(curves)))
     for signal_group, curve, color in zip(signal_groups, curves, colors):
-        group_label = utils__performance_group_label(
-            signal_group[0][0],
+        group_label = fill(
+            utils__performance_group_label(signal_group[0][0]),
+            width=70,
         )
         ax.plot(
             curve.x_values,
@@ -580,6 +582,8 @@ def performance_plot(
                 curve.observed_significances,
                 color=color,
                 label=group_label,
+                marker="o",
+                markersize=4,
                 linewidth=2,
             )
             ax.fill_between(
@@ -680,16 +684,16 @@ def performance_plot(
             float(np.max(curve.ignored_signal_events_max)) for curve in curves
         )
         ax.text(
-            0.99,
-            0.99,
+            0.0,
+            1.02,
             "WARNING: zero-background bins excluded from injected significance.\n"
             "Ignored expected signal events per worker (mean; max).\n"
             f"Largest point mean: {largest_mean:.3g}; worker maximum: {largest_maximum:.3g}.",
             transform=ax.transAxes,
-            ha="right",
-            va="top",
+            ha="left",
+            va="bottom",
             color="darkred",
-            fontsize=10,
+            fontsize=9,
             bbox={"facecolor": "white", "edgecolor": "darkred", "alpha": 0.95},
         )
         for curve in curves:

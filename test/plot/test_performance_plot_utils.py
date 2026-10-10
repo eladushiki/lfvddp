@@ -117,7 +117,7 @@ def test_loaded_performance_curve_uses_binned_evident_significance(
     )
     assert curve.x_label == r"evident injected $\sqrt{q_0}$"
     assert curve.show_reference_diagonal is False
-    assert curve.connect_points is False
+    assert curve.connect_points is True
 
 
 def test_loaded_significance_uses_training_sample(monkeypatch, tmp_path):
