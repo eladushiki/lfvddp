@@ -159,6 +159,25 @@ from a directory name:
 These fields are execution requirements, not audit-only annotations. The
 submission procedure must verify them before `qsub`.
 
+## Shared array acceptance criterion
+
+An inactive array is accepted when **more than 90%** of its expected elements
+have verified successful worker contexts and PBS exit status `0`. Count missing,
+malformed, and failed elements against the original expected size; do not shrink
+the denominator. Every saved scheduler array must have left active states.
+Record successful and expected counts and the scheduler/context/PBS evidence.
+
+This is the single acceptance definition for `finished`, plotting eligibility,
+and successful `artifact_archive`. A later threshold change applies to all
+three stages together; skills must reference this section rather than define
+another threshold. Acceptance does not waive plot dependencies, continuation
+checks, or archive verification. Accepted partial arrays preserve failure and
+missing-output evidence in state and archive every remaining worker artifact
+and PBS log except the explicitly retained worker; do not prune partial-array
+intermediates before archiving. A missing output cannot be archived, so record
+its absence explicitly. Do not defer an accepted partial array solely because
+some workers failed or outputs are missing.
+
 Submission statuses and their additional fields are:
 
 - `requested`: explicitly authorized and waiting in FIFO order. A previously
@@ -172,11 +191,10 @@ Submission statuses and their additional fields are:
   walltime and its whole continuation array is waiting for submission. Requires
   `pending_continuation.extra_time`, scheduler evidence, and source-pack update
   status.
-- `finished`: every saved array job left active states and either all elements
-  succeeded or more than 90% of expected elements have verified exit status 0.
+- `finished`: the shared array acceptance criterion above is met.
   Requires `finished_at`; accepted partial results also record
   `accepted_successful_elements`, `expected_elements`, and `completion_basis`.
-  Results at or below 90% remain blocked with evidence.
+  Results that fail the shared criterion remain blocked with evidence.
 - `analyzed`: the single-submission plot completed; requires
   `single_run_plot.completed_at`.
 - `retired`: preserved audit history that is no longer eligible for submission,
@@ -196,8 +214,11 @@ PBS-exit-status evidence. This removes only regenerable intermediates; it
 preserves contexts, configs, final statistics, and generated plots. After every
 referencing plot group is analyzed, a submission may record `artifact_archive` with
 `completed_at`, the archive path, verified dependent groups, and the scheduler,
-`run_successful`, and PBS exit-status evidence that every tracked array job
-succeeded and no `--extra-time` continuation is required. The archive contains
+`run_successful`, and PBS exit-status evidence satisfying the shared array
+acceptance criterion, and evidence that no `--extra-time` continuation is
+required. Accepted partial arrays are eligible under the same criterion as
+`finished`; retain their successful/expected counts and failure or missing-output
+evidence in the archive audit. The archive contains
 the remaining `single_train.py` outputs; histories already recorded in
 `intermediate_prune` need not be recreated. A failed check must be retained in
 `last_error` and reported rather than archived.

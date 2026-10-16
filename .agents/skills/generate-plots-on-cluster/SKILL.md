@@ -31,14 +31,18 @@ second connection.
   `qstat -tu $USER | grep <state-letter> | wc -l`.
 - Match only job IDs saved in submission `attempts`. Do not add pre-existing or
   otherwise unknown scheduler jobs to state.
-- Mark a submission `finished` only when every saved array job has left active
-  states, every saved `single_train.py` context reports `run_successful: true`,
-  and every corresponding PBS output log ends with exit status `0`. Record
-  `finished_at` and that evidence.
-- Record any missing context, nonzero or missing PBS exit status, failure, or
-  partial array with its scheduler evidence in `last_error` and report it; do
-  not plot or archive that submission. Handle scheduler walltime kills with the
-  continuation procedure below; other failures remain blocked.
+- Use the schema's [shared array acceptance criterion](../../submission-state.schema.md#shared-array-acceptance-criterion)
+  for completion, plotting, and archival; never define a separate threshold.
+  Mark an eligible inactive submission `finished`, recording `finished_at`,
+  successful/expected counts, and scheduler/context/PBS evidence. Accepted
+  partial arrays are eligible for plotting and archival just like accepted
+  complete arrays; preserve the unsuccessful or missing-element evidence.
+- Investigate missing contexts, nonzero or missing PBS exit statuses, and
+  failures before deciding acceptance. Record and report that evidence. Arrays
+  that fail the shared criterion cannot be plotted or successfully archived.
+  Handle proven scheduler walltime kills with the continuation procedure below;
+  other unaccepted failures remain blocked. Never classify an array with active
+  workers as finished or failed solely from incomplete contexts.
 
 ## Continue walltime-killed submissions
 
@@ -157,8 +161,13 @@ unfinished plot group. The helper validates every target is beneath the stated
 results root and contains the expected context and configs, and verifies the
 archive before deletion.
 
-For a successful `artifact_archive`, reconfirm every tracked array has
-successful scheduler, `run_successful`, and PBS-exit-status evidence. A
+For a successful `artifact_archive`, reconfirm every tracked array meets the
+schema's shared array acceptance criterion and has no active workers or pending
+continuation. Do not impose an all-workers-successful archival gate. For accepted
+partial arrays, record the successful/expected counts and failure or missing-output
+evidence; archive all remaining worker artifacts and PBS logs except the retained
+worker, without first pruning partial-array intermediates. Only release those
+sources after normal archive verification. A
 `retired` submission may instead be archived as a terminal audit artifact when
 it has no live scheduler elements and no non-retired plot group depends on it.
 Generate any plots that remain possible first. This exception permits
@@ -207,7 +216,7 @@ of these conditions is verified:
 - submission setup created the directory but failed before `qsub`, so it has no
   scheduler job IDs;
 - the submission failed; or
-- no more than 90% of its expected array jobs succeeded.
+- it fails the schema's shared array acceptance criterion.
 
 An earlier residue can be selected instead of a later completed submission for
 the same configuration and make an otherwise ready aggregate plot fail. Prefer
