@@ -47,13 +47,13 @@ from plot.plot_utils import (
     utils__performance_group_label,
     utils__prediction_mesh_mask,
     utils__plot_model_predictions_sliced,
-    utils__plot_region_histogram_meshes_2d,
     utils__plot_region_histograms_sliced,
     utils__plot_weighted_histogram_predictions_sliced,
     utils__prediction_process_observables,
     utils__synchronize_output_axis_limits,
     utils__warn_for_context_discrepancies,
 )
+from plot.prediction_heatmaps import region_distributions, render_prediction_heatmaps
 from plot.plotting_config import (
     PlotScope,
     PlottingConfig,
@@ -1515,342 +1515,120 @@ def plot_prediction_process_2d(
 
     numerator_model = numerator_training.model
     denominator_model = denominator_training.model
-    detector_effect = denominator_training.detector_effect
-    configured_observables = list(detector_effect.observable_names)
-
-    ndim = 2
+    configured_observables = list(denominator_training.detector_effect.observable_names)
     data_batch = numerator_training.data_batch
     datasets = data_batch.datasets
-    a_sr = datasets[DataSet.DataSetCategory.A_SR]
-    b_sr = datasets[DataSet.DataSetCategory.B_SR]
-    a_cr = datasets[DataSet.DataSetCategory.A_CR]
-    b_cr = datasets[DataSet.DataSetCategory.B_CR]
-    sr_background = a_sr + b_sr
-    cr_background = a_cr + b_cr
-
-    c = Carpenter(context)
-    fig = c.figure()
-    c.reserve_run_stamp_row(fig, **_prediction_process_subplot_adjustments(ndim))
-    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=22, y=0.99)
-
-    plot_colors = {
-        "background": "gray",
-        "sample_a": "tab:blue",
-        "sample_b": "tab:orange",
-        "theta_plus": "cornflowerblue",
-        "theta_minus": "sandybrown",
-    }
-    prediction_linestyles = {
-        "component": "-",
-        "denominator": "--",
-    }
-
-    display_edges_by_observable_for_run = display_edges_by_observable(
+    display_edges = display_edges_by_observable(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
     )
-    bins, bin_centers = _bins_for_observables(
-        display_edges_by_observable_for_run, selected_observables
-    )
-
-    sr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 1), ndim)
-    cr_distribution_ax = utils__add_subplot_sliced(fig, (2, 2, 2), ndim)
-    sr_prediction_ax = utils__add_subplot_sliced(fig, (2, 2, 3), ndim)
-    cr_prediction_ax = utils__add_subplot_sliced(fig, (2, 2, 4), ndim)
-
-    normalize_top_distributions = (
-        config.plot__prediction_process_normalize_each_prediction
-    )
-    log_prediction_process_output = config.plot__prediction_process_log_scale
-
-    utils__plot_region_histogram_meshes_2d(
-        ax=sr_distribution_ax,
-        sample_a=a_sr,
-        sample_b=b_sr,
-        background=sr_background,
-        bins=bins,
-        along_observables=selected_observables,
-        region_name="SR",
-        background_color=plot_colors["background"],
-        sample_a_color=plot_colors["sample_a"],
-        sample_b_color=plot_colors["sample_b"],
-        normalize_distributions=normalize_top_distributions,
-        log_scale=log_prediction_process_output,
-    )
-    utils__plot_region_histogram_meshes_2d(
-        ax=cr_distribution_ax,
-        sample_a=a_cr,
-        sample_b=b_cr,
-        background=cr_background,
-        bins=bins,
-        along_observables=selected_observables,
-        region_name="CR",
-        background_color=plot_colors["background"],
-        sample_a_color=plot_colors["sample_a"],
-        sample_b_color=plot_colors["sample_b"],
-        normalize_distributions=normalize_top_distributions,
-        log_scale=log_prediction_process_output,
-    )
-
-    def weighted_distribution_predictions(
-        reference_background: DataSet,
-        prediction_specs: Tuple[Tuple[np.ndarray, float, str, str, str], ...],
-    ) -> List[Tuple[np.ndarray, str, str, str, float]]:
-        return [
-            (
-                prediction_to_sample_ndf_hypothesis_weights(
-                    model_prediction=prediction,
-                    predicted_distribution_size=ndf_n_samples,
-                    reference_ndf_estimation=reference_background,
+    bins, _ = _bins_for_observables(display_edges, selected_observables)
+    normalize = config.plot__prediction_process_normalize_each_prediction
+    distributions = []
+    for sample_a_category, sample_b_category, is_sr in (
+        (DataSet.DataSetCategory.A_SR, DataSet.DataSetCategory.B_SR, True),
+        (DataSet.DataSetCategory.A_CR, DataSet.DataSetCategory.B_CR, False),
+    ):
+        sample_a, sample_b = datasets[sample_a_category], datasets[sample_b_category]
+        background = sample_a + sample_b
+        if is_sr:
+            predictions = (
+                utils__model_prediction_values(numerator_model.predict, background),
+                utils__model_prediction_values(
+                    numerator_model.predict_secondary, background
                 ),
-                label,
-                color,
-                marker,
-                ndf_n_samples,
             )
-            for (
-                prediction,
-                ndf_n_samples,
-                label,
-                color,
-                marker,
-            ) in prediction_specs
-        ]
-
-    sr_signal_plus_prediction = utils__model_prediction_values(
-        numerator_model.predict, sr_background
-    )
-    sr_signal_minus_prediction = utils__model_prediction_values(
-        numerator_model.predict_secondary, sr_background
-    )
-    sr_signal_predictions = (
-        (
-            sr_signal_plus_prediction,
-            a_sr.n_samples,
-            r"$(1+f(x))(1+\theta(x))$ prediction",
-            plot_colors["sample_a"],
-            "o",
-        ),
-        (
-            sr_signal_minus_prediction,
-            b_sr.n_samples,
-            r"$(1-f(x))(1-\theta(x))$ prediction",
-            plot_colors["sample_b"],
-            "s",
-        ),
-    )
-    utils__plot_weighted_histogram_predictions_sliced(
-        ax=sr_distribution_ax,
-        reference_dataset=sr_background,
-        predictions=weighted_distribution_predictions(
-            sr_background, sr_signal_predictions
-        ),
-        bins=bins,
-        bin_centers=bin_centers,
-        along_observables=selected_observables,
-        normalize_each_prediction=normalize_top_distributions,
-        log_scale=log_prediction_process_output,
-    )
-
-    cr_null_theta = utils__model_prediction_values(
-        denominator_model.predict_theta, cr_background
-    )
-    cr_null_theta_predictions = (
-        (
-            1.0 + cr_null_theta,
-            a_cr.n_samples,
-            r"null hypothesis $1+\theta(x)$ prediction",
-            plot_colors["theta_plus"],
-            "o",
-        ),
-        (
-            1.0 - cr_null_theta,
-            b_cr.n_samples,
-            r"null hypothesis $1-\theta(x)$ prediction",
-            plot_colors["theta_minus"],
-            "s",
-        ),
-    )
-    utils__plot_weighted_histogram_predictions_sliced(
-        ax=cr_distribution_ax,
-        reference_dataset=cr_background,
-        predictions=weighted_distribution_predictions(
-            cr_background, cr_null_theta_predictions
-        ),
-        bins=bins,
-        bin_centers=bin_centers,
-        along_observables=selected_observables,
-        normalize_each_prediction=normalize_top_distributions,
-        log_scale=log_prediction_process_output,
-    )
-
-    distribution_axes = (sr_distribution_ax, cr_distribution_ax)
-    utils__synchronize_output_axis_limits(list(distribution_axes), ndim)
-
-    for panel in distribution_axes:
-        utils__add_prediction_process_legend(panel, fontsize=8)
+            labels = ("Signal fit: A", "Signal fit: B")
+        else:
+            theta = utils__model_prediction_values(
+                denominator_model.predict_theta, background
+            )
+            predictions = (1.0 + theta, 1.0 - theta)
+            labels = ("Null fit: A", "Null fit: B")
+        distributions.append(
+            region_distributions(
+                sample_a,
+                sample_b,
+                predictions,
+                labels,
+                bins,
+                selected_observables,
+                normalize,
+            )
+        )
 
     prediction_grid = _prediction_grid(
-        display_edges_by_observable=display_edges_by_observable_for_run,
+        display_edges_by_observable=display_edges,
         selected_observables=selected_observables,
         configured_observables=configured_observables,
         nuisance_spec=config.train__function_space_config.nuisance,
-        continuous_axis_points=(
-            config.prediction_process_continuous_axis_points(
-                len(configured_observables)
-            )
+        continuous_axis_points=config.prediction_process_continuous_axis_points(
+            len(configured_observables)
         ),
         chunk_size=config.plot__prediction_process_chunk_size,
     )
-    prediction_coordinates, spanning_predictions = _evaluate_prediction_grid(
+    coordinates, projected = _evaluate_prediction_grid(
         prediction_grid,
         signal_plus_prediction_function=numerator_model.predict,
         signal_minus_prediction_function=numerator_model.predict_secondary,
         numerator_theta_prediction_function=numerator_model.predict_theta,
         denominator_theta_prediction_function=denominator_model.predict_theta,
     )
-    spanning_signal_plus_prediction = spanning_predictions.signal_plus
-    spanning_signal_minus_prediction = spanning_predictions.signal_minus
-    numerator_theta = spanning_predictions.numerator_theta
-    denominator_theta = spanning_predictions.denominator_theta
-    sr_prediction_specs = {
-        "signal_region_shift_theta_plus": (
-            r"signal hypothesis $(1+f(x))(1+\theta(x))$",
-            spanning_signal_plus_prediction,
-            plot_colors["sample_a"],
-            prediction_linestyles["component"],
-        ),
-        "signal_region_shift_theta_minus": (
-            r"signal hypothesis $(1-f(x))(1-\theta(x))$",
-            spanning_signal_minus_prediction,
-            plot_colors["sample_b"],
-            prediction_linestyles["component"],
-        ),
-    }
-
-    def nuisance_prediction_specs(
-        numerator_theta: np.ndarray,
-        denominator_theta: np.ndarray,
-    ) -> dict[str, Tuple[str, np.ndarray, str, str]]:
-        return {
-            "numerator_theta_plus": (
-                r"signal hypothesis $1+\theta(x)$",
-                1.0 + numerator_theta,
-                plot_colors["theta_plus"],
-                prediction_linestyles["component"],
-            ),
-            "numerator_theta_minus": (
-                r"signal hypothesis $1-\theta(x)$",
-                1.0 - numerator_theta,
-                plot_colors["theta_minus"],
-                prediction_linestyles["component"],
-            ),
-            "denominator_theta_plus": (
-                r"null hypothesis $1+\theta(x)$",
-                1.0 + denominator_theta,
-                plot_colors["theta_plus"],
-                prediction_linestyles["denominator"],
-            ),
-            "denominator_theta_minus": (
-                r"null hypothesis $1-\theta(x)$",
-                1.0 - denominator_theta,
-                plot_colors["theta_minus"],
-                prediction_linestyles["denominator"],
-            ),
-        }
-
-    theta_prediction_specs = nuisance_prediction_specs(
-        numerator_theta,
-        denominator_theta,
+    # Average hidden coordinates for display so the neutral model factor remains 1.
+    projection_size = prediction_grid.points_per_projection
+    numerator_theta = projected.numerator_theta / projection_size
+    denominator_theta = projected.denominator_theta / projection_size
+    predictions = (
+        [
+            (r"Signal A: $(1+f)(1+\theta)$", projected.signal_plus / projection_size),
+            (r"Signal B: $(1-f)(1-\theta)$", projected.signal_minus / projection_size),
+            (r"Null A: $1+\theta$", 1.0 + denominator_theta),
+            (r"Null B: $1-\theta$", 1.0 - denominator_theta),
+        ],
+        [
+            (r"Signal A: $1+\theta$", 1.0 + numerator_theta),
+            (r"Signal B: $1-\theta$", 1.0 - numerator_theta),
+            (r"Null A: $1+\theta$", 1.0 + denominator_theta),
+            (r"Null B: $1-\theta$", 1.0 - denominator_theta),
+        ],
     )
-    sr_prediction_specs.update(
-        {
-            key: theta_prediction_specs[key]
-            for key in ("denominator_theta_plus", "denominator_theta_minus")
-        }
-    )
-    cr_prediction_specs = theta_prediction_specs
-
-    def project_predictions(
-        prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
-    ) -> dict[str, Tuple[np.ndarray, np.ndarray]]:
-        return {
-            key: (prediction_coordinates, specification[1])
-            for key, specification in prediction_specs.items()
-        }
-
-    projected_sr_predictions = project_predictions(sr_prediction_specs)
-    projected_cr_predictions = project_predictions(cr_prediction_specs)
-    prediction_mesh_mask = utils__prediction_mesh_mask(
-        coordinates=next(iter(projected_sr_predictions.values()))[0],
+    mask = utils__prediction_mesh_mask(
+        coordinates=coordinates,
         data_points=data_batch.unified_data.slice_along_observable_names(
             selected_observables
         ),
     )
-    for projected_predictions in (
-        projected_sr_predictions,
-        projected_cr_predictions,
-    ):
-        for _, contour in projected_predictions.values():
-            contour[~prediction_mesh_mask] = np.nan
+    for region in predictions:
+        for _, values in region:
+            values[~mask] = np.nan
 
-    def prediction_axis_limits(
-        projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],
-    ) -> Tuple[float, float]:
-        finite_prediction_chunks = []
-        for _, contour in projected_predictions.values():
-            flattened_contour = utils__flatten_histogram_values(contour)
-            finite_prediction_chunks.append(
-                flattened_contour[np.isfinite(flattened_contour)]
-            )
-        finite_prediction_values = np.concatenate(finite_prediction_chunks)
-        prediction_minimum = min(1.0, float(np.min(finite_prediction_values)))
-        prediction_maximum = max(1.0, float(np.max(finite_prediction_values)))
-        prediction_span = prediction_maximum - prediction_minimum
-        prediction_padding = 0.05 * prediction_span if prediction_span > 0 else 0.05
-        return (
-            prediction_minimum - prediction_padding,
-            prediction_maximum + prediction_padding,
-        )
-
-    sr_prediction_limits = prediction_axis_limits(projected_sr_predictions)
-    cr_prediction_limits = prediction_axis_limits(projected_cr_predictions)
-
-    def projected_specs(
-        prediction_specs: dict[str, Tuple[str, np.ndarray, str, str]],
-        projected_predictions: dict[str, Tuple[np.ndarray, np.ndarray]],
-    ) -> List[Tuple[np.ndarray, np.ndarray, str, str, str]]:
-        return [
-            (
-                *projected_predictions[prediction_key],
-                specification[0],
-                specification[2],
-                specification[3],
-            )
-            for prediction_key, specification in prediction_specs.items()
-        ]
-
-    utils__plot_model_predictions_sliced(
-        ax=sr_prediction_ax,
-        predictions=projected_specs(sr_prediction_specs, projected_sr_predictions),
+    carpenter = Carpenter(context)
+    fig = carpenter.figure()
+    # More individually readable maps need a larger canvas, without 3D padding.
+    fig.set_size_inches(np.asarray(fig.get_size_inches()) * (1.6, 1.4))
+    layout_padding = 0.025
+    fig.texts[0].set_y(layout_padding / fig.get_figheight())
+    stamp_top = (
+        layout_padding + 1.5 * config.plot__run_stamp_font_size / 72
+    ) / fig.get_figheight()
+    fig.set_layout_engine(
+        "constrained",
+        h_pad=layout_padding,
+        w_pad=layout_padding,
+        hspace=0.015,
+        wspace=0.015,
+        rect=(0, stamp_top, 1, 1 - stamp_top),
+    )
+    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=18)
+    render_prediction_heatmaps(
+        fig=fig,
+        distributions=tuple(distributions),
+        predictions=predictions,
+        coordinates=coordinates,
         bins=bins,
-        along_observables=selected_observables,
-        prediction_limits=sr_prediction_limits,
-        title="SR predictions",
+        observables=selected_observables,
+        normalize=normalize,
+        log_scale=config.plot__prediction_process_log_scale,
     )
-    utils__plot_model_predictions_sliced(
-        ax=cr_prediction_ax,
-        predictions=projected_specs(cr_prediction_specs, projected_cr_predictions),
-        bins=bins,
-        along_observables=selected_observables,
-        prediction_limits=cr_prediction_limits,
-        title="CR predictions",
-    )
-    utils__finalize_prediction_process_layout(
-        distribution_axes=[sr_distribution_ax, cr_distribution_ax],
-        prediction_axes=[sr_prediction_ax, cr_prediction_ax],
-        number_of_dimensions=ndim,
-    )
-
     return fig
