@@ -56,13 +56,13 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
   - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps share a color normalization; both difference maps share a symmetric scale; all eight model-factor maps share a symmetric diverging scale centered at 1. No 3D perspective or overlaid surfaces are used.
 - Spacing:
   - 1D: No spacing needed between plots.
-  - 2+D: compact nested grids; observable labels appear on the outside of each block. Colorbars sit below their maps. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
+  - 2+D: compact nested grids with constrained layout; small physical padding replaces fixed exterior margins and large inter-block gaps. Observable labels appear on the outside of each block. Colorbars sit below their maps. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
 - Minimal borders of figure to allow for all labels and titles to fit nicely without being cut or overlap.
 - Legends:
   - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
   - 2+D: no overlay legends. Every map has a short external content label and each block has an external region label. These content identifiers remain visible in non-debug exports; optional axes and figure titles still follow the debug-title policy.
 - In debug mode, the suptitle is shown in sentence case as `<configured title> of <runtag>`; its default configured title is `Datasets along the process`. Generated non-debug figures omit all axes and figure titles.
-- Every Carpenter figure reserves the same 12% bottom row for the `run hash` stamp, so that row can be cropped for paper display without cutting plot content. The heatmap grid starts at 16% to keep its colorbar labels above that crop boundary.
+- The 1D figure retains Carpenter's 12% bottom run-stamp row. The 2+D figure instead uses a compact footer sized to the configured run-stamp font, with the stamp 0.025 inches above the figure edge; constrained layout fills the remaining canvas. No fixed 12% or 16% footer is reserved for heatmaps. Debug titles receive space only when displayed.
 
 ## Current Distribution Rendering
 

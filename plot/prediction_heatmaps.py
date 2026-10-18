@@ -119,7 +119,7 @@ def _map_axis(
 
 def _block_grid(fig: Figure, slot: SubplotSpec, heading: str, columns: int):
     grid = slot.subgridspec(
-        4, columns, height_ratios=[0.13, 1, 1, 0.09], hspace=0.48, wspace=0.12
+        4, columns, height_ratios=[0.07, 1, 1, 0.06], hspace=0.02, wspace=0.02
     )
     heading_ax = fig.add_subplot(grid[0, :])
     heading_ax.set_axis_off()
@@ -146,7 +146,7 @@ def render_prediction_heatmaps(
     log_scale: bool,
 ) -> None:
     """Render SR/CR blocks with shared scales, exterior labels, and no occlusion."""
-    outer = fig.add_gridspec(2, 2, hspace=0.29, wspace=0.14)
+    outer = fig.add_gridspec(2, 2, hspace=0.035, wspace=0.04)
     density_values = _finite_values(
         [values for region in distributions for _, values in region.maps]
     )

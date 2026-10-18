@@ -1607,8 +1607,20 @@ def plot_prediction_process_2d(
     fig = carpenter.figure()
     # More individually readable maps need a larger canvas, without 3D padding.
     fig.set_size_inches(np.asarray(fig.get_size_inches()) * (1.6, 1.4))
-    carpenter.reserve_run_stamp_row(fig, left=0.045, right=0.985, top=0.94, bottom=0.16)
-    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=18, y=0.985)
+    layout_padding = 0.025
+    fig.texts[0].set_y(layout_padding / fig.get_figheight())
+    stamp_top = (
+        layout_padding + 1.5 * config.plot__run_stamp_font_size / 72
+    ) / fig.get_figheight()
+    fig.set_layout_engine(
+        "constrained",
+        h_pad=layout_padding,
+        w_pad=layout_padding,
+        hspace=0.015,
+        wspace=0.015,
+        rect=(0, stamp_top, 1, 1 - stamp_top),
+    )
+    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=18)
     render_prediction_heatmaps(
         fig=fig,
         distributions=tuple(distributions),
