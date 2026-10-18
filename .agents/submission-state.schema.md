@@ -210,7 +210,11 @@ After a verified single-submission percentile-progression plot exists, a
 submission may record `intermediate_prune` even while an aggregate group is
 pending. It records `completed_at`, the removed HDF5, `training_outcomes`,
 runtime-resource, and PBS-log counts, plus the successful worker-context and
-PBS-exit-status evidence. This removes only regenerable intermediates; it
+PBS-exit-status evidence. For fully recovered continuations, this includes
+the latest array's complete exit-zero evidence and the paths of retained
+historical walltime-kill logs; only exit-zero logs are pruned. Historical
+failures remain audit evidence and are later included in artifact archives.
+This removes only regenerable intermediates; it
 preserves contexts, configs, final statistics, and generated plots. After every
 referencing plot group is analyzed, a submission may record `artifact_archive` with
 `completed_at`, the archive path, verified dependent groups, and the scheduler,

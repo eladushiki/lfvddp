@@ -101,6 +101,15 @@ python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artif
 
 Never prune a failed, partial, active, or continuation-pending submission. PBS
 logs are removed only after their `Job exit status: 0` footer has been verified.
+For a fully recovered continued array, verify that every expected worker is
+successful and every element of the latest array in the context's ordered
+`qsub_submissions` has an exit-zero log. Earlier saved arrays may have walltime
+kill logs; retain those logs unchanged as audit evidence and prune only
+exit-zero logs. Unknown jobs, other failures, or incomplete recovery block
+pruning. Record latest-array success and retained historical-log paths in
+`intermediate_prune`; subsequent archival preserves those logs in the archive.
+Retry a deferred prune on an `analyzed` submission using its existing verified
+progression plot, without regenerating the plot.
 
 Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
 A rerun must skip submissions already marked `analyzed` unless the user

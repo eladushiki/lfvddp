@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 import tarfile
@@ -104,6 +105,12 @@ def successful_worker_directories(submission: Path) -> list[Path]:
     )
     if not workers:
         raise ValueError(f"submission has no worker directories: {submission}")
+    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
+    expected = context.get("config", {}).get("cluster__qsub_n_jobs")
+    if expected is not None and (type(expected) is not int or len(workers) != expected):
+        raise ValueError(
+            f"worker count {len(workers)} differs from expected {expected}"
+        )
     failed = []
     for worker in workers:
         context_path = worker / CONTEXT_FILE_NAME
@@ -121,18 +128,61 @@ def successful_worker_directories(submission: Path) -> list[Path]:
 
 
 def verified_pbs_logs(submission: Path) -> list[Path]:
-    """Return only PBS outputs that prove zero exit status for every worker."""
+    """Verify completion and return only exit-zero logs eligible for removal.
+
+    A complete later walltime chunk recovers earlier walltime kills. Their
+    failure logs remain in place as audit evidence, including after pruning.
+    """
     logs = sorted(path for path in submission.glob("*.OU*") if path.is_file())
     if not logs:
         raise ValueError(f"submission has no PBS output logs: {submission}")
-    invalid = [
-        log.name
-        for log in logs
-        if not log.read_text(errors="ignore").rstrip().endswith("Job exit status: 0")
+    texts = {log: log.read_text(errors="ignore").rstrip() for log in logs}
+    successful = [
+        log for log, text in texts.items() if text.endswith("Job exit status: 0")
     ]
-    if invalid:
-        raise ValueError(f"PBS logs lack exit status 0: {', '.join(invalid[:5])}")
-    return logs
+    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
+    submissions = context.get("qsub_submissions", [])
+    if len(submissions) < 2:
+        invalid = [log.name for log in logs if log not in successful]
+        if invalid:
+            raise ValueError(f"PBS logs lack exit status 0: {', '.join(invalid[:5])}")
+        return successful
+
+    parents = []
+    for attempt in submissions:
+        match = re.fullmatch(r"(\d+)\[\](?:\..+)?", attempt["job_id"])
+        if match is None or match[1] in parents:
+            raise ValueError("Continuation history requires distinct saved array IDs")
+        parents.append(match[1])
+    expected = context.get("config", {}).get("cluster__qsub_n_jobs")
+    if type(expected) is not int or expected < 1:
+        raise ValueError("Continuation history lacks a positive expected array size")
+    indices = set(range(1, expected + 1))
+    latest_logs = {}
+    for log, text in texts.items():
+        match = re.fullmatch(r"(\d+)\[(\d+)\](?:\.[^.]+)*\.OU[^/]*", log.name)
+        if match is None or match[1] not in parents or int(match[2]) not in indices:
+            raise ValueError(f"PBS log is outside saved array history: {log.name}")
+        parent, index = match[1], int(match[2])
+        if parent == parents[-1]:
+            if index in latest_logs:
+                raise ValueError(f"Duplicate continuation output for element {index}")
+            latest_logs[index] = log
+            if log not in successful:
+                raise ValueError(
+                    f"Continuation PBS log lacks exit status 0: {log.name}"
+                )
+        elif log not in successful:
+            if "PBS: job killed: walltime" not in text:
+                raise ValueError(
+                    f"Historical PBS failure is not a walltime kill: {log.name}"
+                )
+            print(f"retain recovered walltime log: {log.name}")
+    if set(latest_logs) != indices:
+        raise ValueError(
+            "Latest continuation does not have exit-zero logs for every element"
+        )
+    return successful
 
 
 def prune_finished_intermediates(submission: Path, *, dry_run: bool) -> None:
