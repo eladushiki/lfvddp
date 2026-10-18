@@ -123,3 +123,159 @@ def test_archive_preserves_accepted_partial_array_evidence(tmp_path, failed_cont
     assert retained.is_dir()
     assert all(not worker.exists() for worker in workers if worker != retained)
     assert not log.exists()
+
+
+@pytest.fixture
+def continued_submission(tmp_path):
+    submission = _run_directory(tmp_path, SUBMIT_TRAIN_SCRIPT_NAME, 1)
+    (submission / CONFIGS_DIR_NAME).mkdir()
+    (submission / CONTEXT_FILE_NAME).write_text(
+        json.dumps(
+            {
+                "config": {"cluster__qsub_n_jobs": 2},
+                "qsub_submissions": [{"job_id": "123[].pbs"}, {"job_id": "456[].pbs"}],
+            }
+        )
+    )
+    for index in (1, 2):
+        worker = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, index + 1)
+        (worker / CONTEXT_FILE_NAME).write_text('{"run_successful": true}')
+        (worker / "training_outcomes").mkdir()
+        (worker / "training_outcomes/history.h5").write_text("history")
+        (worker / "runtime_resources.json").write_text("{}")
+        (submission / f"456[{index}].pbs.OU").write_text("Job exit status: 0\n")
+    (submission / "123[1].pbs.OU").write_text("PBS: job killed: walltime exceeded\n")
+    (submission / "123[2].pbs.OU").write_text("Job exit status: 0\n")
+    plot = _run_directory(submission, CREATE_PLOTS_SCRIPT_NAME, 4)
+    (plot / "t_train_percentile_progression_plot.png").write_bytes(b"plot")
+    return submission
+
+
+@pytest.mark.parametrize("all_under_root", [False, True])
+def test_cli_prunes_recovered_array_and_archives_failure_evidence(
+    continued_submission, monkeypatch, all_under_root
+):
+    submission = continued_submission
+    failure = submission / "123[1].pbs.OU"
+    original = failure.read_bytes()
+    args = [
+        str(_HELPER_PATH),
+        "--results-root",
+        str(submission.parent),
+        "--prune-finished-intermediates",
+        str(submission),
+    ]
+    if all_under_root:
+        args[-1] = "--all-under-root"
+    monkeypatch.setattr("sys.argv", [*args, "--dry-run"])
+    assert archive_submission_artifacts.main() == 0
+    assert len(list(submission.glob("**/*.h5"))) == 2
+    assert len(list(submission.glob("*.OU"))) == 4
+    monkeypatch.setattr("sys.argv", args)
+    assert archive_submission_artifacts.main() == 0
+    assert not list(submission.glob("**/*.h5"))
+    assert not list(submission.glob("**/training_outcomes"))
+    assert not list(submission.glob("**/runtime_resources*.json"))
+    assert list(submission.glob("*.OU")) == [failure]
+    assert failure.read_bytes() == original
+    assert len(list(submission.glob("*/context.json"))) == 2
+    assert archive_submission_artifacts.has_progression_plot(submission)
+    assert archive_submission_artifacts.main() == 0
+    monkeypatch.setattr(
+        "sys.argv", [a for a in args if a != "--prune-finished-intermediates"]
+    )
+    assert archive_submission_artifacts.main() == 0
+    with tarfile.open(
+        submission / archive_submission_artifacts.ARCHIVE_NAME
+    ) as archive:
+        assert archive.extractfile(failure.name).read() == original
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing_latest",
+        "latest_walltime",
+        "latest_error",
+        "historical_error",
+        "unknown_parent",
+        "out_of_range",
+        "duplicate_output",
+        "missing_size",
+        "duplicate_parent",
+        "unrecorded_parent",
+        "failed_worker",
+        "missing_plot",
+        "empty_logs",
+        "missing_worker",
+    ],
+)
+def test_pruning_refuses_incomplete_or_unverified_recovery(continued_submission, case):
+    submission = continued_submission
+    if case == "missing_latest":
+        (submission / "456[2].pbs.OU").unlink()
+    elif case in ("latest_walltime", "latest_error"):
+        (submission / "456[2].pbs.OU").write_text(
+            "PBS: job killed: walltime"
+            if case == "latest_walltime"
+            else "Job exit status: 1"
+        )
+    elif case == "historical_error":
+        (submission / "123[1].pbs.OU").write_text("Job exit status: 1")
+    elif case in ("unknown_parent", "out_of_range", "duplicate_output"):
+        name = {
+            "unknown_parent": "789[1].pbs.OU",
+            "out_of_range": "456[3].pbs.OU",
+            "duplicate_output": "456[1].pbs.OU.duplicate",
+        }[case]
+        (submission / name).write_text("Job exit status: 0")
+    elif case in ("missing_size", "duplicate_parent", "unrecorded_parent"):
+        path = submission / CONTEXT_FILE_NAME
+        context = json.loads(path.read_text())
+        if case == "missing_size":
+            context["config"] = {}
+        elif case == "duplicate_parent":
+            context["qsub_submissions"][1]["job_id"] = "123[].pbs"
+        else:
+            context["qsub_submissions"] = [{"job_id": "123[].pbs"}]
+        path.write_text(json.dumps(context))
+    elif case == "failed_worker":
+        next(submission.glob("*/context.json")).write_text('{"run_successful": false}')
+    elif case == "missing_plot":
+        next(submission.glob("*/*progression*.png")).unlink()
+    elif case == "missing_worker":
+        import shutil
+
+        shutil.rmtree(next(submission.glob("*_run_of_single_train.py_*")))
+    else:
+        for log in submission.glob("*.OU*"):
+            log.unlink()
+    before = {p: p.read_bytes() for p in submission.rglob("*") if p.is_file()}
+    with pytest.raises(ValueError):
+        archive_submission_artifacts.prune_finished_intermediates(
+            submission, dry_run=False
+        )
+    assert {p: p.read_bytes() for p in submission.rglob("*") if p.is_file()} == before
+
+
+@pytest.mark.parametrize("continued", [False, True])
+def test_zero_exit_logs_still_prune_normally(continued_submission, continued):
+    submission = continued_submission
+    (submission / "123[1].pbs.OU").write_text("Job exit status: 0")
+    if not continued:
+        (submission / CONTEXT_FILE_NAME).write_text("{}")
+    archive_submission_artifacts.prune_finished_intermediates(submission, dry_run=False)
+    assert not list(submission.glob("*.OU*"))
+    assert not list(submission.glob("**/*.h5"))
+
+
+def test_multiple_recovered_walltime_chunks(continued_submission):
+    submission = continued_submission
+    path = submission / CONTEXT_FILE_NAME
+    context = json.loads(path.read_text())
+    context["qsub_submissions"].insert(1, {"job_id": "234[]"})
+    path.write_text(json.dumps(context))
+    failure = submission / "234[2].pbs.OU"
+    failure.write_text("PBS: job killed: walltime exceeded")
+    archive_submission_artifacts.prune_finished_intermediates(submission, dry_run=False)
+    assert {p.name for p in submission.glob("*.OU")} == {"123[1].pbs.OU", failure.name}
