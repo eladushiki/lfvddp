@@ -171,14 +171,13 @@ def render_prediction_heatmaps(
         grid = _block_grid(
             fig, outer[0, column], f"{name} distributions and fitted densities", 3
         )
-        for index, (label, values) in enumerate(
-            region.maps + [("A/B difference", region.difference)]
-        ):
+        distribution_maps = [(label, values, False) for label, values in region.maps]
+        distribution_maps.insert(3, ("A/B difference", region.difference, True))
+        for index, (label, values, is_difference) in enumerate(distribution_maps):
             row, col = divmod(index, 3)
             ax = _map_axis(
                 fig, grid[row + 1, col], label, col, row, (2, 3), bins, observables
             )
-            is_difference = index == len(region.maps)
             artist = ax.pcolormesh(
                 *bins,
                 np.ma.masked_invalid(values.T),
@@ -188,11 +187,11 @@ def render_prediction_heatmaps(
                 rasterized=True,
             )
             if is_difference:
-                _colorbar(fig, grid[3, 2], artist, "Difference / counting error")
+                _colorbar(fig, grid[3, 0], artist, "Difference / counting error")
             elif index == 0:
                 _colorbar(
                     fig,
-                    grid[3, :2],
+                    grid[3, 1:],
                     artist,
                     density_label + (" (log color)" if log_scale else ""),
                 )

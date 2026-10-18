@@ -44,7 +44,7 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 
 | Position | Panel | 1D contents | 2+D contents |
 | --- | --- | --- | --- |
-| Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Six SR maps in a 2 × 3 grid: pooled background, A data, B data, fitted A, fitted B, and A/B difference in counting-error units. Hidden observables are histogrammed out. |
+| Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Six SR maps in a 2 × 3 grid: top row: pooled background, A data, B data; bottom row: A/B difference in counting-error units, fitted A, fitted B. Fits align beneath their corresponding data and the difference beneath the pooled background. Hidden observables are histogrammed out. |
 | Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | The same six maps for CR; the fitted densities use the denominator nuisance model. |
 | Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$, evaluated over the SR. | The same four SR factors in separate 2 × 2 heatmaps; signal terms above null terms, A to the left of B. |
 | Bottom right | CR prediction | Exactly the signal nuisance terms $1+\theta(x)$ and $1-\theta(x)$ plus the null nuisance terms $1+\theta(x)$ and $1-\theta(x)$, evaluated over the CR. | The same four CR factors in separate 2 × 2 heatmaps, with the same ordering as SR. |
@@ -56,7 +56,7 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
   - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps share a color normalization; both difference maps share a symmetric scale; all eight model-factor maps share a symmetric diverging scale centered at 1. No 3D perspective or overlaid surfaces are used.
 - Spacing:
   - 1D: No spacing needed between plots.
-  - 2+D: compact nested grids with constrained layout; small physical padding replaces fixed exterior margins and large inter-block gaps. Observable labels appear on the outside of each block. Colorbars sit below their maps. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
+  - 2+D: compact nested grids with constrained layout; small physical padding replaces fixed exterior margins and large inter-block gaps. Observable labels appear on the outside of each block. The difference colorbar sits beneath the background/difference column; the shared density colorbar spans the A/B columns. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
 - Minimal borders of figure to allow for all labels and titles to fit nicely without being cut or overlap.
 - Legends:
   - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
