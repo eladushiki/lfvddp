@@ -4,7 +4,7 @@
 
 - **Implementation status:** Ongoing - up to date behavior documented below
 - **Primary implementation:** `plot/plots.py`: `plot_prediction_process_1d` and `plot_prediction_process_2d`
-- **Primary utilities:** `plot/plot_utils.py`
+- **Primary utilities:** `plot/plot_utils.py` (1D and shared evaluation), `plot/prediction_heatmaps.py` (2+D histograms and rendering)
 - **Plot scope:** Single train process results
 
 ## Purpose
@@ -40,29 +40,29 @@ No further selection or manipulation, other than normalization in the sake of di
 
 ## Figure Layout
 
-A 2 × 2 figure with four panels:
+A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D each block contains separate, aligned heatmaps:
 
 | Position | Panel | 1D contents | 2+D contents |
 | --- | --- | --- | --- |
-| Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Same 2D SR histograms of the data. If more than 2D, its projection over the first two dimensions. |
-| Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | Same 2D CR histograms of the data. If more than 2D, its projection over the first two dimensions. |
-| Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$, evaluated over the SR. | Same four SR functions as 2D surfaces. |
-| Bottom right | CR prediction | Exactly the signal nuisance terms $1+\theta(x)$ and $1-\theta(x)$ plus the null nuisance terms $1+\theta(x)$ and $1-\theta(x)$, evaluated over the CR. | Same four CR functions as 2D surfaces. |
+| Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Six SR maps in a 2 × 3 grid: pooled background, A data, B data, fitted A, fitted B, and A/B difference in counting-error units. Hidden observables are histogrammed out. |
+| Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | The same six maps for CR; the fitted densities use the denominator nuisance model. |
+| Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$, evaluated over the SR. | The same four SR factors in separate 2 × 2 heatmaps; signal terms above null terms, A to the left of B. |
+| Bottom right | CR prediction | Exactly the signal nuisance terms $1+\theta(x)$ and $1-\theta(x)$ plus the null nuisance terms $1+\theta(x)$ and $1-\theta(x)$, evaluated over the CR. | The same four CR factors in separate 2 × 2 heatmaps, with the same ordering as SR. |
 
 ### Plot axes
 
 - The distribution panels share synchronized output-axis limits.
   - 1D: the x axes of all 4 subplots should match in name and limit values. Labels should be displayed once for each column. y axis should match values for top 2 and bottom 2 plots separately. It's label should be displayed once in each row.
-  - 2D: the x and y axes of all 4 subplots should match in name, observed direction and limit values. z axis should match values for top 2 and bottom 2 plots separately.
+  - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps share a color normalization; both difference maps share a symmetric scale; all eight model-factor maps share a symmetric diverging scale centered at 1. No 3D perspective or overlaid surfaces are used.
 - Spacing:
   - 1D: No spacing needed between plots.
-  - 2D: Just enough spacing for all labels to show.
+  - 2+D: compact nested grids; observable labels appear on the outside of each block. Colorbars sit below their maps. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
 - Minimal borders of figure to allow for all labels and titles to fit nicely without being cut or overlap.
 - Legends:
   - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
-  - 2D: default / uninterrupting location, also below the title.
+  - 2+D: no overlay legends. Every map has a short external content label and each block has an external region label. These content identifiers remain visible in non-debug exports; optional axes and figure titles still follow the debug-title policy.
 - In debug mode, the suptitle is shown in sentence case as `<configured title> of <runtag>`; its default configured title is `Datasets along the process`. Generated non-debug figures omit all axes and figure titles.
-- Every Carpenter figure reserves the same 12% bottom row for the `run hash` stamp, so that row can be cropped for paper display without cutting plot content.
+- Every Carpenter figure reserves the same 12% bottom row for the `run hash` stamp, so that row can be cropped for paper display without cutting plot content. The heatmap grid starts at 16% to keep its colorbar labels above that crop boundary.
 
 ## Current Distribution Rendering
 
@@ -72,10 +72,13 @@ A 2 × 2 figure with four panels:
 - The top panels draw A-region, B-region, and combined-background distributions.
 - The model predictions are converted to weighted distributions using the corresponding combined background as the reference dataset.
 - When `plot__prediction_process_normalize_each_prediction` is enabled, each of A, B and background should be normalized independently. That being said, all A datasets, predictions and hypothesis plots should be normalized by the same factor such that the top two pdfs would integrate to 1. Same goes for B. The current default is **enabled**.
-- Each distribution panel receives a prediction-process legend.
-- Normalization shou
+- Each 1D distribution panel receives a prediction-process legend; 2+D content is identified by external map labels.
 
 ## Prediction Rendering
+
+In the factor labels, $x$ denotes the event's observable vector, $f(x)$ is the
+learned signal shift, and $\theta(x)$ is the nuisance shift from the model
+identified by the signal/null label. A and B denote the two compared samples.
 
 ### SR prediction panel
 
@@ -107,9 +110,29 @@ It does not display signal product terms, nuisance-removed terms, or detector ef
   100,000 events by default, so peak memory is bounded by a chunk rather than
   by the full multidimensional grid. Complete coordinates preserve the legacy
   floating-point summation order.
-- The model output is projected onto the selected observable(s) before rendering, only if there are more then 2 observables in the data.
-- Null hypothesis terms use dashed lines; signal hypothesis terms use solid lines.
-- Every subplot title is positioned inside its own panel at 90% of panel height, avoiding the suptitle and adjacent plots.
+- The model output is projected onto the selected observable(s) before rendering when hidden observables exist. In 2+D heatmaps, projected sums are divided by the number of hidden-coordinate grid points, displaying a uniform grid average of each model factor. Nuisance terms are averaged before adding/subtracting unity, so a neutral model remains 1 in every dimension. This is a display normalization, not a density-weighted marginal or a change to model evaluation/training. The 1D projection is unchanged.
+- In 1D null terms use dashed lines and signal terms use solid lines. In 2+D signal and null terms have separate labeled maps, all using blue below unity, white at unity, and red above unity.
+- 1D subplot titles remain at 90% of panel height. 2+D content labels sit above the map, outside the data. Prediction heatmaps retain the existing mask outside the convex hull of observed data and the origin. No smoothing, clipping, or downsampling of model-grid values is applied.
+
+## Multidimensional Difference Map
+
+The additional top-row diagnostic uses the same display bins and independent
+Poisson counting variances to show a localized A/B discrepancy against noisy
+backgrounds. It is not a fitted residual or calibrated discovery significance.
+
+For each bin, the displayed difference is
+
+$$d = \frac{c_A n_A-c_B n_B}{\sqrt{c_A^2 n_A+c_B^2 n_B}}.$$
+
+Here $d$ is the difference in counting-error units; $n_A$ and $n_B$ are the
+observed A and B counts in that bin; $c_A$ and $c_B$ are their display scaling
+factors. With independent normalization enabled, $c_A=1/N_A$ and $c_B=1/N_B$,
+where $N_A$ and $N_B$ are the total observed sample counts. Otherwise both
+scaling factors are 1. For an empty sample the factor is set to 1, avoiding a
+division by zero. Bins with no counting variance are masked. The error scale
+uses plug-in Poisson variances; it does not propagate fitted-model uncertainty
+or the covariance induced by normalizing a sample to its observed total.
+Both regions use the full finite symmetric range, without significance cuts.
 
 ## Current Visual Encoding
 
@@ -122,6 +145,8 @@ It does not display signal product terms, nuisance-removed terms, or detector ef
 | Negative signal and nuisance variants | Sandybrown / moccasin |
 | Reference prediction | Gray dotted horizontal line at 1.0 |
 
+For 2+D maps, density uses `viridis` (logarithmic color when configured), and differences/model factors use `RdBu_r`. Empty logarithmic-density bins and unsupported model coordinates are masked. Linear-density zeros remain visible. The table above describes the unchanged 1D encoding.
+
 The figure uses the global plotting configuration. The baseline configuration sets a white figure face, classic Matplotlib style, serif font family, font size 24, and figure size 10 × 9 inches.
 
 ## Configuration Contract
@@ -133,7 +158,7 @@ The figure uses the global plotting configuration. The baseline configuration se
 | `plot__prediction_process_continuous_axis_points_above_2d` | `100` | Number of uniformly spaced prediction points along each selected observable when the data has more than two observables. |
 | `plot__prediction_process_chunk_size` | `100000` | Maximum number of full-dimensional grid events evaluated at once. |
 | `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each A/B/background distribution and its corresponding prediction with that component's shared sample-count factor. |
-| `plot__prediction_process_log_scale` | `true` | Displays prediction-process distribution outputs on a logarithmic axis when enabled; applies to the 1D y-axis and the 2D z-axis. |
+| `plot__prediction_process_log_scale` | `true` | Displays prediction-process distribution outputs on a logarithmic axis when enabled; applies to the 1D y-axis and the 2+D density color scale; difference and model-factor colors remain linear. |
 | `plot__figure_size` | `[10, 9]` | Base figure dimensions in inches. |
 
 ## Output Contract
@@ -146,7 +171,7 @@ The figure uses the global plotting configuration. The baseline configuration se
 
 - [ ] The selected-observable dimensionality is validated before plotting.
 - [ ] SR and CR distribution panels show the intended data and weighted predictions.
-- [ ] Prediction panels show the intended numerator and denominator curves with unambiguous legends.
+- [ ] Prediction panels show the intended numerator and denominator terms with unambiguous legends (1D) or separate labeled maps (2+D).
 - [ ] Axis labels, units, and normalization are scientifically correct and consistent as defined above.
 - [ ] Colors, line styles, and markers remain distinguishable in grayscale and for color-vision deficiencies. All labels, titles and plotted data are visible fully.
 - [ ] The artifact is reproducible from a recorded configuration and training output.
