@@ -84,6 +84,8 @@ ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
+
+
 def test_malformed_nuisance_mapping_is_rejected():
     from train.function_space_config import resolve_dual_role_config
 
@@ -659,7 +661,10 @@ def test_binned_nuisance_uses_the_same_per_event_evaluation(
     loss = model(prepared)
     loss.backward()
 
-    assert all(parameter.grad is not None for parameter in model.nuisance_function_space.parameters())
+    assert all(
+        parameter.grad is not None
+        for parameter in model.nuisance_function_space.parameters()
+    )
 
 
 @pytest.mark.parametrize(
@@ -974,6 +979,17 @@ class _TensorboardRecorder:
 @pytest.mark.parametrize(
     "function_execution_context",
     [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/adam_lbfgs_neural_nuisance.json"
+            ),
+        },
         {  # basic process
             ConfigType.DATASET.value: Path(
                 "test/configs/dataset/disjoint_1D_generated_dataset_config.json"

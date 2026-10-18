@@ -31,6 +31,7 @@ from train.checkpoints import (
     load_checkpoint_metadata,
     save_training_checkpoint,
 )
+from train.hybrid_optimizer import HybridOptimizer, validate_optimizer_continuation
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
@@ -202,9 +203,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             values = data.nuisance_events.new_zeros(data.nuisance_events.shape[0])
         else:
             values = self.nuisance_function_space(data.nuisance_events).squeeze(-1)
-        return tuple(
-            values.split((data.N_a_sr, data.N_b_sr, data.N_a_cr, data.N_b_cr))
-        )
+        return tuple(values.split((data.N_a_sr, data.N_b_sr, data.N_a_cr, data.N_b_cr)))
 
     @staticmethod
     def _scaled_term(
@@ -232,7 +231,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     def _assemble_loss(
         *,
         signal_hypothesis_sr_shift: torch.Tensor,
-        nuisance_estimates: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+        nuisance_estimates: tuple[
+            torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
+        ],
         data: _PreparedTrainingData,
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
@@ -273,9 +274,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         cr_linear_nuisance_term = DifferentiatingModel._scaled_term(
             data.nuisance_cr_coefficient,
-            lambda: (
-                a_cr_nuisance.sum() + b_cr_nuisance.sum()
-            ),
+            lambda: a_cr_nuisance.sum() + b_cr_nuisance.sum(),
         )
         a_cr_log_term = -torch.log1p(a_cr_nuisance).sum()
         b_cr_log_term = -torch.log1p(-b_cr_nuisance).sum()
@@ -320,9 +319,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 (dataset / self._norm_factor, parameters)
                 for dataset, parameters in data
             )
-        self._ensure_function_spaces_constructed(
-            data.unified_data.observable_names
-        )
+        self._ensure_function_spaces_constructed(data.unified_data.observable_names)
         categories = DataSet.DataSetCategory
         normalized_a_sr = normalized_data.datasets[categories.A_SR]
         normalized_b_sr = normalized_data.datasets[categories.B_SR]
@@ -472,6 +469,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             actual=metadata,
         )
         self.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        saved_schedule = checkpoint.get("optimizer_schedule")
+        validate_optimizer_continuation(
+            saved_schedule,
+            self._config.train__optimizer_strategy,
+            self._config.train__epochs,
+        )
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:
             optimizer.load_state_dict(optimizer_state_dict)
@@ -551,6 +554,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self,
         data: DataBatch,
     ) -> Dict[str, List[float]]:
+        if self._config.train__optimizer_strategy == "adam_lbfgs":
+            return self._fit_hybrid(data)
         self.train()
         target_epochs = self._config.train__epochs
         # Construct spaces only after the pooled normalization map is known.
@@ -616,6 +621,94 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         self._restore_best_model_state()
 
         # Collect history from training
+        return self._training_history
+
+    def _fit_hybrid(self, data: DataBatch) -> Dict[str, List[float]]:
+        """Charge each full-data gradient evaluation, including line-search probes."""
+        self.train()
+        training_data = self._prepare_training_data(data)
+        if not self.has_trainable_parameters():
+            self._training_history = self.calculate_loss_statically(data)
+            with torch.no_grad():
+                loss = self(data=training_data)
+            self._record_best_model_state(loss, 0, self._model_state_snapshot())
+            return self._training_history
+        schedule = HybridOptimizer(
+            [p for p in self.parameters() if p.requires_grad],
+            self._config.train__learning_rate,
+            self._config.train__epochs,
+        )
+        checkpoint = self._continuation_checkpoint_if_requested()
+        if checkpoint is not None:
+            saved_schedule = checkpoint[1].get("optimizer_schedule")
+            if saved_schedule is None:
+                raise ValueError("Cannot resume an Adam checkpoint as Adam/L-BFGS.")
+            schedule.restore(saved_schedule)
+        start_epoch = self._load_training_checkpoint_if_requested(schedule.optimizer)
+        if schedule.evaluations != start_epoch:
+            raise ValueError("Checkpoint budget does not match its epoch.")
+        self._epochs_executed = 0
+        if start_epoch >= schedule.total_epochs:
+            self._restore_best_model_state()
+            return self._training_history
+        progress = tqdm(
+            total=schedule.total_epochs - start_epoch,
+            desc=f"{self._name} training",
+            disable=not self._config.train__enable_progress_bar,
+        )
+        profiler = TrainingProfiler(
+            context=self._context,
+            model_name=self._name,
+            number_of_observables=data.unified_data.n_observables,
+            number_of_events=data.unified_data.n_samples,
+            number_of_training_epochs=schedule.total_epochs - start_epoch,
+            device=self._device,
+        )
+        with profiler:
+
+            def evaluate(epoch):
+                loss = self(data=training_data, profiler=profiler)
+                if not bool(torch.isfinite(loss)):
+                    raise RuntimeError("Nonfinite loss during Adam/L-BFGS evaluation.")
+                self._record_best_model_state(loss, epoch, self._model_state_snapshot())
+                if self._is_history_epoch(epoch):
+                    self._log(epoch, loss)
+                self._epochs_executed += 1
+                return loss
+
+            def after_evaluation():
+                profiler.step()
+                progress.update(1)
+
+            while schedule.evaluations < schedule.total_epochs:
+                before = schedule.evaluations
+                schedule.step(evaluate, after_evaluation)
+                # Only persist complete optimizer transactions. Checkpoints may
+                # cross a history boundary inside a line search.
+                if any(
+                    self._is_history_epoch(e)
+                    for e in range(before, schedule.evaluations)
+                ):
+                    save_training_checkpoint(
+                        context=self._context,
+                        model_name=self._name,
+                        model=self,
+                        optimizer=schedule.optimizer,
+                        epoch=schedule.evaluations - 1,
+                        training_history=self._training_history,
+                        metadata=build_checkpoint_metadata(
+                            model_name=self._name,
+                            is_numerator=self._is_numerator,
+                            resolved_config=self._function_space_config,
+                            normalization_factor=self._norm_factor,
+                        ),
+                        best_model_state_dict=self._best_model_state_dict,
+                        best_loss=self._best_loss,
+                        best_epoch=self._best_epoch,
+                        optimizer_schedule=schedule.state_dict(),
+                    )
+        progress.close()
+        self._restore_best_model_state()
         return self._training_history
 
     def calculate_loss_statically(

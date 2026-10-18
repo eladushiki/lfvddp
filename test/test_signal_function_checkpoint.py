@@ -167,6 +167,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     # The checkpoint carries both tensor state and its resolved function-space
     # and normalization metadata, avoiding one JSON file per checkpoint.
     assert set(checkpoint) == {
+        "optimizer_schedule",
         "model_name",
         "epoch",
         "model_state_dict",

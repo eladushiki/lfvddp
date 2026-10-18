@@ -108,6 +108,7 @@ def save_training_checkpoint(
     best_model_state_dict: Optional[dict[str, Any]] = None,
     best_loss: Optional[float] = None,
     best_epoch: Optional[int] = None,
+    optimizer_schedule: Optional[Mapping[str, Any]] = None,
 ) -> Path:
     checkpoint_dir = _checkpoint_dir(context)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -116,6 +117,9 @@ def save_training_checkpoint(
 
     torch.save(
         {
+            "optimizer_schedule": dict(optimizer_schedule)
+            if optimizer_schedule is not None
+            else None,
             "model_name": model_name,
             "epoch": epoch,
             "model_state_dict": model.state_dict(),

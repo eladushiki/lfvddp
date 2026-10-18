@@ -38,9 +38,7 @@ def test_prediction_grid_matches_legacy_projection_bitwise():
         chunk_size=7,
     )
     spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=dict(
-            zip(configured_observables, prediction_grid.axes)
-        ),
+        values_by_observable=dict(zip(configured_observables, prediction_grid.axes)),
         observable_names=configured_observables,
     )
 
@@ -74,9 +72,7 @@ def test_prediction_grid_matches_legacy_projection_bitwise():
     )
 
     np.testing.assert_array_equal(coordinates, legacy_coordinates)
-    np.testing.assert_array_equal(
-        projected_predictions.signal_plus, legacy_signal_plus
-    )
+    np.testing.assert_array_equal(projected_predictions.signal_plus, legacy_signal_plus)
     for prediction_function, projected_prediction in (
         (signal_minus, projected_predictions.signal_minus),
         (numerator_theta, projected_predictions.numerator_theta),
@@ -116,9 +112,7 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
     detector_effect,
     differentiating_model_factory,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     numerator_model = differentiating_model_factory(
         function_execution_context,
         detector_effect,
@@ -148,15 +142,12 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
         configured_observables=configured_observables,
         nuisance_spec=function_execution_context.config.train__function_space_config.nuisance,
         continuous_axis_points=(
-            function_execution_context.config
-            .plot__prediction_process_continuous_axis_points
+            function_execution_context.config.plot__prediction_process_continuous_axis_points
         ),
         chunk_size=function_execution_context.config.plot__prediction_process_chunk_size,
     )
     spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=dict(
-            zip(configured_observables, prediction_grid.axes)
-        ),
+        values_by_observable=dict(zip(configured_observables, prediction_grid.axes)),
         observable_names=configured_observables,
     )
 
@@ -191,15 +182,12 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
         configured_observables=configured_observables,
         nuisance_spec=function_execution_context.config.train__function_space_config.nuisance,
         continuous_axis_points=(
-            function_execution_context.config
-            .plot__prediction_process_continuous_axis_points
+            function_execution_context.config.plot__prediction_process_continuous_axis_points
         ),
         chunk_size=10_000,
     )
     projected_spanning_dataset = _spanning_dataset_from_observable_values(
-        values_by_observable=dict(
-            zip(configured_observables, projected_grid.axes)
-        ),
+        values_by_observable=dict(zip(configured_observables, projected_grid.axes)),
         observable_names=configured_observables,
     )
     coordinates, streamed_predictions = _evaluate_prediction_grid(
@@ -215,12 +203,10 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
         (numerator_model.predict_theta, streamed_predictions.numerator_theta),
         (denominator_model.predict_theta, streamed_predictions.denominator_theta),
     ):
-        legacy_coordinates, legacy_prediction = (
-            utils__project_prediction_values_sliced(
-                values=prediction_function(projected_spanning_dataset),
-                spanning_dataset=projected_spanning_dataset,
-                along_observables=[configured_observables[0]],
-            )
+        legacy_coordinates, legacy_prediction = utils__project_prediction_values_sliced(
+            values=prediction_function(projected_spanning_dataset),
+            spanning_dataset=projected_spanning_dataset,
+            along_observables=[configured_observables[0]],
         )
         np.testing.assert_array_equal(coordinates, legacy_coordinates)
         np.testing.assert_array_equal(streamed_prediction, legacy_prediction)
@@ -262,6 +248,21 @@ def test_prediction_grid_matches_full_model_evaluation_bitwise(
         pytest.param(
             {
                 ConfigType.DATASET: Path(
+                    "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path(
+                    "test/configs/train/adam_lbfgs_neural_nuisance.json"
+                ),
+            },
+            1,
+            id="1d-hybrid-neural-nuisance",
+        ),
+        pytest.param(
+            {
+                ConfigType.DATASET: Path(
                     "test/configs/dataset/disjoint_2D_generated_dataset_config.json"
                 ),
                 ConfigType.DETECTOR: Path(
@@ -283,9 +284,7 @@ def test_prediction_process_plot_generation(
     isolated_data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
 
     def prepared_training(is_numerator: bool) -> TrainLauncher.Training:
         model = DifferentiatingModel(
@@ -294,7 +293,7 @@ def test_prediction_process_plot_generation(
             is_numerator=is_numerator,
             name=f"neural_nuisance_{is_numerator}",
         )
-        model._prepare_training_data(detected_batch)
+        model.fit(detected_batch)
         return TrainLauncher.Training(
             data_batch=detected_batch,
             detector_effect=detector_effect,
@@ -313,9 +312,7 @@ def test_prediction_process_plot_generation(
     )
 
     assert len(figure.axes) == 4
-    assert all(
-        axis.lines or axis.patches or axis.collections for axis in figure.axes
-    )
+    assert all(axis.lines or axis.patches or axis.collections for axis in figure.axes)
     if number_of_dimensions == 1:
         prediction_lines = [
             line
@@ -327,8 +324,7 @@ def test_prediction_process_plot_generation(
         for line in prediction_lines:
             x_values = line.get_xdata()
             assert len(x_values) == (
-                function_execution_context.config
-                .plot__prediction_process_continuous_axis_points
+                function_execution_context.config.plot__prediction_process_continuous_axis_points
             )
             assert (x_values[1:] > x_values[:-1]).all()
     plt.close(figure)

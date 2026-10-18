@@ -36,3 +36,23 @@
 | D026 | 2026-10-18 multidimensional prediction visibility | plotting | Display multidimensional prediction results as separate aligned heatmaps with shared scales and external labels. | Preserve all observed/fitted density maps and all four model factors per region; add an unsmoothed A/B difference in Poisson counting-error units. Display model factors averaged over hidden grid coordinates so the neutral factor stays at unity. | Perspective and overlapping surfaces concealed localized bumps; independent maps remove occlusion, while the counting-error diagnostic separates coherent excesses from background count fluctuations. It is a visual diagnostic, not calibrated significance. The 1D presentation remains unchanged. | Yes | human + agent |
 
 | D027 | 2026-10-18 prediction-layout follow-up | plotting | Minimize multidimensional figure whitespace with constrained layout and a font-sized run-stamp footer. | Replace fixed top/bottom margins and large nested-grid gaps with small physical padding; keep the 1D rendering and layout unchanged. | The user requested smaller top, bottom, and inter-panel gaps after reviewing the heatmap preview. The compact heatmap footer supersedes the fixed crop-row convention for this view only. | Yes | human |
+
+### 2026-10-18: budgeted Adam/L-BFGS training
+
+- Keep Adam as the compatibility default; opt into `adam_lbfgs` per run.
+- Count full-data loss/gradient evaluations rather than L-BFGS outer iterations.
+  Warmup uses floor(5% of the initial budget), capped at 2,000 updates.
+- Treat each L-BFGS step as a checkpoint transaction. At budget exhaustion
+  inside a line search, restore parameters and optimizer curvature to step
+  entry while retaining every evaluated best candidate separately.
+- Resume preserves the original warmup boundary and exact saved optimizer
+  phase/state. Budget extension does not restart Adam. A completed truncated
+  line search may be retried on extension, so extension need not reproduce
+  a run originally configured with the larger budget.
+- Forty thousand evaluations per hypothesis preserves the tested 2,000-update
+  warmup. Neither this total budget nor the 5% split is an established optimum.
+- Caller inventory: `DifferentiatingModel.fit`, `calc_min_LFVNN`, checkpoint
+  load/save, `ModelTrainer` checkpoint-completion shortcut, sequential/parallel
+  training launchers, CLI epoch-target continuation, static denominator, and
+  primary/secondary/nuisance prediction. Neural modules and plot geometry are
+  unchanged, so no corresponding 1D/ND plot-spec change is required.

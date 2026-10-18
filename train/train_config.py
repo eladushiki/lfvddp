@@ -17,6 +17,7 @@ class TrainConfig:
 
     train__epochs: int
     train__number_of_epochs_for_checkpoint: int
+    train__optimizer_strategy: str = "adam"
     train__learning_rate: float = 0.03
     train__final_learning_rate: float | None = None
     train__enable_progress_bar: bool = True
@@ -95,8 +96,21 @@ class TrainConfig:
                 "Training profiling is only supported for LFVDDP training."
             )
 
+        if self.train__optimizer_strategy not in {"adam", "adam_lbfgs"}:
+            raise ValueError("Unknown train__optimizer_strategy.")
+        if self.train__epochs < 1:
+            raise ValueError("Training epochs must be positive.")
+        if self.train__optimizer_strategy == "adam_lbfgs":
+            if self.train__is_nplm:
+                raise ValueError("Adam/L-BFGS is only supported by LFVDDP.")
+            if self.train__final_learning_rate is not None:
+                raise ValueError("Adam/L-BFGS requires a constant Adam learning rate.")
+
         required_epochs = 100_000 if self.train__is_nplm else 500_000
-        if self.train__epochs < required_epochs:
+        if (
+            self.train__optimizer_strategy == "adam"
+            and self.train__epochs < required_epochs
+        ):
             warning("Training epochs may be insufficient for convergence.")
 
         if not self.train__is_nplm and self.train__nuisance_correction_types:
