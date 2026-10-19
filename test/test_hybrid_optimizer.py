@@ -29,12 +29,15 @@ def test_strict_budget_and_transactional_resume(budget, steps_before_save):
 
     def evaluate(epoch):
         calls.append(epoch)
-        return (parameter.exp() - 1).square().sum()
+        schedule.zero_grad(set_to_none=True)
+        loss = (parameter.exp() - 1).square().sum()
+        loss.backward()
+        return loss
 
     for _ in range(steps_before_save):
         if schedule.evaluations < budget:
             schedule.step(evaluate)
-    saved_schedule = deepcopy(schedule.state_dict())
+    saved_schedule = deepcopy(schedule.schedule_state_dict())
     saved_optimizer = deepcopy(schedule.optimizer.state_dict())
     saved_parameter = parameter.detach().clone()
     while schedule.evaluations < budget:
@@ -46,6 +49,7 @@ def test_strict_budget_and_transactional_resume(budget, steps_before_save):
     resumed = HybridOptimizer([parameter], 0.01, budget)
     resumed.restore(saved_schedule)
     resumed.optimizer.load_state_dict(saved_optimizer)
+    schedule = resumed
     while resumed.evaluations < budget:
         resumed.step(evaluate)
     torch.testing.assert_close(parameter, result, rtol=0, atol=0)
@@ -101,6 +105,7 @@ def test_hybrid_fit_checkpoint_and_prediction(
         checkpoint["optimizer_schedule"]["evaluations"] == context.config.train__epochs
     )
     assert model._epochs_executed == context.config.train__epochs
+    assert model.minimum_loss == min(model._training_history["loss"])
     with torch.no_grad():
         assert float(model(model._prepare_training_data(data))) == pytest.approx(
             model.minimum_loss
@@ -164,6 +169,8 @@ def test_line_search_budget_rolls_back_but_keeps_evaluated_candidate():
     def evaluate(epoch):
         loss = (parameter.exp() - parameter.new_tensor(3.1).exp()).square().sum()
         evaluated.append((float(loss.detach()), parameter.detach().clone()))
+        schedule.zero_grad(set_to_none=True)
+        loss.backward()
         return loss
 
     original = parameter.detach().clone()
@@ -240,3 +247,38 @@ def test_hybrid_static_denominator(
     assert model.minimum_loss == history["loss"][-1]
     assert model._training_history == history
     assert model._epochs_executed == 0
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_hybrid_optimizer_state_round_trip(legacy):
+    from train.hybrid_optimizer import load_optimizer_state
+
+    parameter = torch.nn.Parameter(torch.tensor([3.0], dtype=torch.float64))
+    optimizer = HybridOptimizer([parameter], 0.01, 40)
+
+    def closure(epoch):
+        optimizer.zero_grad(set_to_none=True)
+        loss = (parameter.exp() - 1).square().sum()
+        loss.backward()
+        return loss
+
+    for _ in range(4):
+        optimizer.step(closure)
+    assert optimizer.phase == "lbfgs"
+    assert optimizer.optimizer.state[parameter]["old_dirs"]
+    saved_state = deepcopy(optimizer.state_dict())
+    saved_parameter = parameter.detach().clone()
+    while optimizer.evaluations < optimizer.total_epochs:
+        optimizer.step(closure)
+    expected = parameter.detach().clone()
+    optimizer = HybridOptimizer([parameter], 0.01, 40)
+    if legacy:
+        schedule = saved_state.pop("optimizer_schedule")
+        load_optimizer_state(optimizer, saved_state, schedule)
+    else:
+        optimizer.load_state_dict(saved_state)
+    with torch.no_grad():
+        parameter.copy_(saved_parameter)
+    while optimizer.evaluations < optimizer.total_epochs:
+        optimizer.step(closure)
+    torch.testing.assert_close(parameter, expected, rtol=0, atol=0)

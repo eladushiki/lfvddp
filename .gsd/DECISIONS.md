@@ -56,3 +56,17 @@
   training launchers, CLI epoch-target continuation, static denominator, and
   primary/secondary/nuisance prediction. Neural modules and plot geometry are
   unchanged, so no corresponding 1D/ND plot-spec change is required.
+
+### 2026-10-19: share the optimizer training loop
+
+- Supersedes the separate hybrid-fit implementation: Adam and Adam/L-BFGS now
+  use the same `fit` loop and the same closure for forward loss, gradients,
+  best-model tracking, history, progress, and profiling.
+- `HybridOptimizer` owns the warmup transition, evaluation counter, epoch
+  iterator, underlying optimizers, and interrupted-line-search rollback.
+  Checkpoint hooks restore its phase before loading optimizer tensors.
+- Checkpoint writes stay outside the closure so that history boundaries crossed
+  inside a line search never persist a partial optimizer transaction.
+- Updated caller inventory: `_train_step` now receives the current epoch and
+  evaluation callback; its three existing test replacements use that same hook.
+  Real CPU worker integration covers hybrid training with learned nuisance.

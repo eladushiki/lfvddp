@@ -27,6 +27,8 @@ def validate_optimizer_continuation(saved_schedule, strategy: str, total_epochs:
 
 
 class HybridOptimizer:
+    """An optimizer facade owning phase transitions, budget, and resumable state."""
+
     def __init__(self, parameters, learning_rate: float, total_epochs: int):
         self.parameters = list(parameters)
         self.learning_rate = learning_rate
@@ -50,7 +52,7 @@ class HybridOptimizer:
             line_search_fn="strong_wolfe",
         )
 
-    def state_dict(self):
+    def schedule_state_dict(self):
         return {
             "strategy": "adam_lbfgs",
             "total_epochs": self.total_epochs,
@@ -76,33 +78,85 @@ class HybridOptimizer:
         self.phase = state["phase"]
         self.optimizer = self._make_optimizer()
 
-    def step(self, evaluate, after_evaluation=lambda: None):
+    @property
+    def param_groups(self):
+        return self.optimizer.param_groups
+
+    @property
+    def state(self):
+        return self.optimizer.state
+
+    def zero_grad(self, **kwargs):
+        self.optimizer.zero_grad(**kwargs)
+
+    def state_dict(self):
+        state = self.optimizer.state_dict()
+        state["optimizer_schedule"] = self.schedule_state_dict()
+        return state
+
+    def load_state_dict(self, state, legacy_schedule=None):
+        schedule = state.get("optimizer_schedule", legacy_schedule)
+        self.restore(schedule)
+        self.optimizer.load_state_dict(
+            {key: value for key, value in state.items() if key != "optimizer_schedule"}
+        )
+
+    def __iter__(self):
+        while self.evaluations < self.total_epochs:
+            yield self.evaluations
+
+    def step(self, closure):
+        """Swap optimizers at the warmup boundary and budget every closure call."""
         if self.phase == "adam" and self.evaluations >= self.warmup_epochs:
             self.phase = "lbfgs"
             self.optimizer = self._make_optimizer()
+        last_loss = None
 
-        def closure():
+        def budgeted_closure():
+            nonlocal last_loss
             if self.evaluations >= self.total_epochs:
                 raise EvaluationBudgetExhausted
-            self.optimizer.zero_grad(set_to_none=True)
-            loss = evaluate(self.evaluations)
-            loss.backward()
+            last_loss = closure(self.evaluations)
             self.evaluations += 1
-            after_evaluation()
-            return loss
+            return last_loss
 
         if self.phase == "adam":
-            closure()
-            self.optimizer.step()
-            return
+            self.optimizer.step(budgeted_closure)
+            return last_loss
         # Interrupted line searches leave temporary parameters and partial state.
-        # Roll both back, retaining all evaluated best candidates in the caller.
+        # Roll both back; the common training closure retains evaluated candidates.
         saved_parameters = [p.detach().clone() for p in self.parameters]
         saved_optimizer = deepcopy(self.optimizer.state_dict())
         try:
-            self.optimizer.step(closure)
+            self.optimizer.step(budgeted_closure)
         except EvaluationBudgetExhausted:
             with torch.no_grad():
                 for parameter, saved in zip(self.parameters, saved_parameters):
                     parameter.copy_(saved)
             self.optimizer.load_state_dict(saved_optimizer)
+        return last_loss
+
+
+def training_epochs(optimizer, start_epoch: int, target_epochs: int):
+    """Use the optimizer's evaluation counter when steps contain multiple probes."""
+    return (
+        iter(optimizer)
+        if isinstance(optimizer, HybridOptimizer)
+        else range(start_epoch, target_epochs)
+    )
+
+
+def optimizer_schedule(optimizer):
+    return (
+        optimizer.schedule_state_dict()
+        if isinstance(optimizer, HybridOptimizer)
+        else None
+    )
+
+
+def load_optimizer_state(optimizer, state, schedule):
+    """Allow old checkpoints with a separate schedule alongside raw Torch state."""
+    if isinstance(optimizer, HybridOptimizer):
+        optimizer.load_state_dict(state, legacy_schedule=schedule)
+    else:
+        optimizer.load_state_dict(state)
