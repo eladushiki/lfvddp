@@ -70,3 +70,24 @@
 - Updated caller inventory: `_train_step` now receives the current epoch and
   evaluation callback; its three existing test replacements use that same hook.
   Real CPU worker integration covers hybrid training with learned nuisance.
+
+### 2026-10-19: inherit the PyTorch optimizer protocol
+
+- `HybridOptimizer` subclasses and initializes `torch.optim.Optimizer`. It
+  inherits zeroing and state serialization/loading; registered native hooks
+  add schedule metadata and rebind the active Adam/L-BFGS delegate after load.
+- The facade and delegate share state and parameter-group objects. Switching
+  algorithms or rolling back a line search updates those objects in place.
+  Loading follows PyTorch's native replacement semantics, then rebinds the
+  delegate before user post-load hooks run.
+- Closures follow the standard zero-argument protocol. The common training
+  closure reads the hybrid evaluation counter to label each loss evaluation.
+- A single group is supported, matching L-BFGS. Additional groups are rejected
+  at construction and via `add_param_group`. The transition resets learning
+  rate to 1 and preserves `initial_lr` and parameter names. StepLR attachment
+  and post-load operation are tested; arbitrary scheduler policies are not
+  implied, and scheduler state remains separately owned by the caller.
+- Caller inventory remains the shared fit/closure, checkpoint hooks, training
+  launchers (including real CPU workers), predictions, plotting integration,
+  and profiler. This changes optimizer integration rather than likelihood or
+  model geometry, so 1D/ND plot specifications need no update.

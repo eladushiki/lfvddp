@@ -33,6 +33,7 @@ from train.checkpoints import (
 )
 from train.hybrid_optimizer import (
     HybridOptimizer,
+    evaluation_epoch,
     load_optimizer_state,
     training_epochs,
     validate_optimizer_continuation,
@@ -161,7 +162,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         if self.nuisance_function_space is not None:
             self.nuisance_function_space.initialize_parameters(gain)
 
-    def configure_optimizers(self) -> Optional[optim.Optimizer | HybridOptimizer]:
+    def configure_optimizers(self) -> Optional[optim.Optimizer]:
         trainable_parameters = [
             parameter for parameter in self.parameters() if parameter.requires_grad
         ]
@@ -459,7 +460,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             self._norm_factor = restored_normalization
 
     def _load_training_checkpoint_if_requested(
-        self, optimizer: Optional[optim.Optimizer | HybridOptimizer]
+        self, optimizer: Optional[optim.Optimizer]
     ) -> int:
         checkpoint_result = self._continuation_checkpoint_if_requested()
         if checkpoint_result is None:
@@ -530,7 +531,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _set_learning_rate_for_epoch(
         self,
-        optimizer: Optional[optim.Optimizer | HybridOptimizer],
+        optimizer: Optional[optim.Optimizer],
         epoch: int,
     ) -> None:
         """Set an adaptive learning rate for an absolute training epoch."""
@@ -548,7 +549,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
     def _train_step(
         self,
-        optimizer: Optional[optim.Optimizer | HybridOptimizer],
+        optimizer: Optional[optim.Optimizer],
         data: _PreparedTrainingData,
         profiler: TrainingProfiler,
         epoch: int,
@@ -556,7 +557,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> torch.Tensor:
         """Run one optimizer transaction through the shared evaluation closure."""
 
-        def closure(evaluation_epoch=epoch):
+        def closure():
             if optimizer is not None:
                 with profiler.region("training/zero_grad"):
                     optimizer.zero_grad(set_to_none=True)
@@ -567,7 +568,7 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             if optimizer is not None:
                 with profiler.region("training/backward"):
                     loss.backward()
-            on_evaluation(evaluation_epoch, loss)
+            on_evaluation(evaluation_epoch(optimizer, epoch), loss)
             return loss
 
         if optimizer is None:
