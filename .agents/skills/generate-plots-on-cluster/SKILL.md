@@ -108,6 +108,14 @@ kill logs; retain those logs unchanged as audit evidence and prune only
 exit-zero logs. Unknown jobs, other failures, or incomplete recovery block
 pruning. Record latest-array success and retained historical-log paths in
 `intermediate_prune`; subsequent archival preserves those logs in the archive.
+A scheduler relaunch can leave an earlier `single_train.py` directory containing
+only `context.json`. Treat it as superseded only when its array index has exactly
+one later successful context, all expected indices have one successful worker,
+its `products` is empty, and it has no other files or directories. Preserve those
+context-only directories unchanged; do not count them as failed final elements.
+Missing or duplicate successful indices, nonempty earlier launches, unknown jobs,
+and missing exit-zero logs still block pruning. Record the superseded context
+paths in the completion and prune evidence.
 Retry a deferred prune on an `analyzed` submission using its existing verified
 progression plot, without regenerating the plot.
 
