@@ -158,7 +158,11 @@ when configuration files need target-significance signal amounts.
   do not share mutable geometry. Geometry comparable to observable axes
   (bin limits, spline knots, polynomial domains, centres, and widths) is given
   in physical observable units; LFVDDP applies the run's shared data
-  normalization before evaluating per-event function spaces.
+  normalization before evaluating per-event function spaces. New LFVDDP fits
+  subtract each observable's pooled mean and divide by its pooled population
+  standard deviation across all four categories. Constant observables map to
+  zero with unit scale. Checkpoint continuation reuses its saved coordinate
+  map, including the historical min/max map for older checkpoints.
   Deterministic per-dimension bases accept `tensor_product_basis: true` in
   their `options` to train one coefficient per Cartesian product of basis
   elements across observables. The option defaults to `true`.
