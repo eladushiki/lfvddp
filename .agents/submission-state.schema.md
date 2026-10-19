@@ -225,7 +225,12 @@ required. Accepted partial arrays are eligible under the same criterion as
 evidence in the archive audit. The archive contains
 the remaining `single_train.py` outputs; histories already recorded in
 `intermediate_prune` need not be recreated. A failed check must be retained in
-`last_error` and reported rather than archived.
+`last_error` and reported rather than archived. Superseded context-only scheduler
+launches may be excluded from final-element counts only after unique successful
+coverage of every expected array index and later-launch ordering are verified.
+Keep the earlier contexts unchanged and record their paths in
+`successful_element_reconciliation` and `intermediate_prune`; nonempty failed
+launches remain blockers.
 
 A `retired` submission may record `retired_artifact_archive` when it has no
 live scheduler elements and no non-retired plot group depends on it. This is a

@@ -279,3 +279,170 @@ def test_multiple_recovered_walltime_chunks(continued_submission):
     failure.write_text("PBS: job killed: walltime exceeded")
     archive_submission_artifacts.prune_finished_intermediates(submission, dry_run=False)
     assert {p.name for p in submission.glob("*.OU")} == {"123[1].pbs.OU", failure.name}
+
+
+@pytest.fixture
+def superseded_launch_submission(continued_submission):
+    submission = continued_submission
+    workers = sorted(submission.glob("*_run_of_single_train.py_*"))
+    for index, worker in enumerate(workers, 1):
+        (worker / CONTEXT_FILE_NAME).write_text(
+            json.dumps(
+                {
+                    "run_successful": True,
+                    "array_index": index,
+                    "time": "run_20261019_100000",
+                    "products": ["final-statistics.json"],
+                }
+            )
+        )
+        (worker / "final-statistics.json").write_text('{"t": 1.0}')
+    old = _run_directory(submission, SINGLE_TRAIN_SCRIPT_NAME, 5)
+    (old / CONTEXT_FILE_NAME).write_text(
+        json.dumps(
+            {
+                "run_successful": False,
+                "array_index": 1,
+                "time": "run_20261019_095900",
+                "products": [],
+            }
+        )
+    )
+    return submission
+
+
+@pytest.mark.parametrize("all_under_root", [False, True])
+@pytest.mark.parametrize("continued", [False, True])
+def test_cli_prunes_superseded_launches_without_removing_contexts(
+    superseded_launch_submission, monkeypatch, all_under_root, continued
+):
+    submission = superseded_launch_submission
+    if not continued:
+        path = submission / CONTEXT_FILE_NAME
+        context = json.loads(path.read_text())
+        context["qsub_submissions"] = context["qsub_submissions"][-1:]
+        path.write_text(json.dumps(context))
+        for log in submission.glob("123*.OU"):
+            log.unlink()
+    preserved = {
+        p: p.read_bytes()
+        for p in submission.rglob("*")
+        if p.is_file()
+        and (
+            p.name in (CONTEXT_FILE_NAME, "final-statistics.json") or p.suffix == ".png"
+        )
+    }
+    args = [
+        str(_HELPER_PATH),
+        "--results-root",
+        str(submission.parent),
+        "--prune-finished-intermediates",
+        "--all-under-root" if all_under_root else str(submission),
+    ]
+    monkeypatch.setattr("sys.argv", [*args, "--dry-run"])
+    assert archive_submission_artifacts.main() == 0
+    assert len(list(submission.glob("**/*.h5"))) == 2
+    monkeypatch.setattr("sys.argv", args)
+    assert archive_submission_artifacts.main() == 0
+    assert not list(submission.glob("**/*.h5"))
+    assert not list(submission.glob("**/training_outcomes"))
+    assert not list(submission.glob("**/runtime_resources*.json"))
+    assert {p: p.read_bytes() for p in preserved} == preserved
+    expected_logs = [submission / "123[1].pbs.OU"] if continued else []
+    assert list(submission.glob("*.OU")) == expected_logs
+    assert archive_submission_artifacts.main() == 0
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "artifact",
+        "empty_directory",
+        "products",
+        "unknown_index",
+        "missing_index",
+        "boolean_index",
+        "later_launch",
+        "equal_time",
+        "missing_time",
+        "malformed_context",
+        "missing_success_flag",
+        "missing_successful_worker",
+        "duplicate_success",
+        "out_of_range_success",
+        "missing_size",
+        "missing_log",
+        "duplicate_log",
+        "unknown_log",
+    ],
+)
+def test_superseded_launch_pruning_refuses_ambiguous_or_incomplete_evidence(
+    superseded_launch_submission, case
+):
+    submission = superseded_launch_submission
+    old = next(
+        p
+        for p in submission.glob("*_run_of_single_train.py_*")
+        if json.loads((p / CONTEXT_FILE_NAME).read_text())["run_successful"] is False
+    )
+    path = old / CONTEXT_FILE_NAME
+    context = json.loads(path.read_text())
+    if case == "artifact":
+        (old / "partial.h5").write_text("partial result")
+    elif case == "empty_directory":
+        (old / "training_outcomes").mkdir()
+    elif case == "products":
+        context["products"] = ["missing-but-recorded-result"]
+    elif case == "unknown_index":
+        context["array_index"] = 3
+    elif case == "missing_index":
+        del context["array_index"]
+    elif case == "boolean_index":
+        context["array_index"] = True
+    elif case == "later_launch":
+        context["time"] = "run_20261019_110000"
+    elif case == "equal_time":
+        context["time"] = "run_20261019_100000"
+    elif case == "missing_time":
+        del context["time"]
+    elif case == "missing_success_flag":
+        del context["run_successful"]
+    elif case == "missing_successful_worker":
+        worker = next(
+            p
+            for p in submission.glob("*_run_of_single_train.py_*")
+            if json.loads((p / CONTEXT_FILE_NAME).read_text())["run_successful"] is True
+        )
+        (worker / CONTEXT_FILE_NAME).write_text('{"run_successful": false}')
+    elif case in ("duplicate_success", "out_of_range_success"):
+        worker = next(
+            p
+            for p in submission.glob("*_run_of_single_train.py_*")
+            if json.loads((p / CONTEXT_FILE_NAME).read_text())["array_index"] == 2
+        )
+        data = json.loads((worker / CONTEXT_FILE_NAME).read_text())
+        data["array_index"] = 1 if case == "duplicate_success" else 3
+        (worker / CONTEXT_FILE_NAME).write_text(json.dumps(data))
+    elif case == "missing_size":
+        parent = submission / CONTEXT_FILE_NAME
+        data = json.loads(parent.read_text())
+        data["config"] = {}
+        parent.write_text(json.dumps(data))
+    elif case == "missing_log":
+        (submission / "456[2].pbs.OU").unlink()
+    elif case in ("duplicate_log", "unknown_log"):
+        (
+            submission
+            / (
+                "456[1].pbs.OU.duplicate"
+                if case == "duplicate_log"
+                else "789[1].pbs.OU"
+            )
+        ).write_text("Job exit status: 0")
+    path.write_text("{" if case == "malformed_context" else json.dumps(context))
+    before = {p: p.read_bytes() for p in submission.rglob("*") if p.is_file()}
+    with pytest.raises(ValueError):
+        archive_submission_artifacts.prune_finished_intermediates(
+            submission, dry_run=False
+        )
+    assert {p: p.read_bytes() for p in submission.rglob("*") if p.is_file()} == before

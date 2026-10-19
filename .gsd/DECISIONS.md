@@ -91,3 +91,23 @@
   launchers (including real CPU workers), predictions, plotting integration,
   and profiler. This changes optimizer integration rather than likelihood or
   model geometry, so 1D/ND plot specifications need no update.
+
+
+### 2026-10-19: count final array elements when pruning relaunched workers
+
+- Scheduler relaunches can leave `run_successful: false` contexts before work
+  starts. Directory count alone cannot classify final array elements as failed.
+- Permit a superseded launch only when it contains just `context.json`, records
+  no products, and a later successful context covers the same valid array index.
+  Require exactly one successful context for every expected element; preserve
+  the superseded contexts. Require complete exit-zero latest-array PBS logs for
+  initial arrays as well as continuations. Unknown or ambiguous evidence blocks
+  deletion before any artifacts change.
+- Caller inventory: `successful_worker_directories` and `verified_pbs_logs` feed
+  only `prune_finished_intermediates`; public CLI selects explicit targets or
+  `--all-under-root`, with dry-run, actual cleanup, and repeat behavior. Regression
+  coverage exercises both selectors, ordinary and continued arrays, preservation
+  of contexts/final statistics/plots/historical failures, and rejection cases.
+  Archive/restore behavior stays covered by the existing helper suite. This
+  changes artifact validation; training, prediction, model restore, and 1D/ND
+  plotting semantics are unaffected.

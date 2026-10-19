@@ -107,24 +107,63 @@ def successful_worker_directories(submission: Path) -> list[Path]:
         raise ValueError(f"submission has no worker directories: {submission}")
     context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
     expected = context.get("config", {}).get("cluster__qsub_n_jobs")
-    if expected is not None and (type(expected) is not int or len(workers) != expected):
-        raise ValueError(
-            f"worker count {len(workers)} differs from expected {expected}"
-        )
-    failed = []
+    contexts = {}
     for worker in workers:
-        context_path = worker / CONTEXT_FILE_NAME
         try:
-            successful = (
-                json.loads(context_path.read_text()).get("run_successful") is True
+            contexts[worker] = json.loads((worker / CONTEXT_FILE_NAME).read_text())
+            if not isinstance(contexts[worker], dict):
+                raise ValueError(f"worker context is not an object: {worker}")
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"worker context cannot be verified: {worker}") from error
+    successful = [
+        worker for worker in workers if contexts[worker].get("run_successful") is True
+    ]
+    if expected is not None and (
+        type(expected) is not int or expected < 1 or len(successful) != expected
+    ):
+        raise ValueError(
+            f"successful worker count {len(successful)} differs from expected {expected}"
+        )
+    superseded = [worker for worker in workers if worker not in successful]
+    # Legacy successful contexts need not have array indices. Superseded launches
+    # require complete, unambiguous element identity rather than directory counts.
+    indexed = superseded or any("array_index" in contexts[w] for w in successful)
+    by_index = {}
+    if indexed:
+        if type(expected) is not int or expected < 1:
+            raise ValueError("Indexed workers require a positive expected array size")
+        for worker in successful:
+            index = contexts[worker].get("array_index")
+            if type(index) is not int or index not in range(1, expected + 1):
+                raise ValueError(f"worker array index is invalid: {worker}")
+            if index in by_index:
+                raise ValueError(f"duplicate successful worker for array index {index}")
+            by_index[index] = worker
+        if set(by_index) != set(range(1, expected + 1)):
+            raise ValueError("Successful workers do not cover every expected element")
+    for worker in superseded:
+        launch = contexts[worker]
+        index = launch.get("array_index")
+        replacement = by_index.get(index) if type(index) is int else None
+        stamp = launch.get("time")
+        later_stamp = contexts[replacement].get("time") if replacement else None
+        if (
+            launch.get("run_successful") is not False
+            or replacement is None
+            or not isinstance(stamp, str)
+            or not stamp
+            or not isinstance(later_stamp, str)
+            or stamp >= later_stamp
+            or launch.get("products")
+            or set(worker.iterdir()) != {worker / CONTEXT_FILE_NAME}
+        ):
+            raise ValueError(
+                f"worker is not a verified superseded context-only launch: {worker}"
             )
-        except (OSError, json.JSONDecodeError):
-            successful = False
-        if not successful:
-            failed.append(worker.name)
-    if failed:
-        raise ValueError(f"worker contexts are not successful: {', '.join(failed[:5])}")
-    return workers
+        print(
+            f"retain superseded context-only launch for element {index}: {worker.name}"
+        )
+    return successful
 
 
 def verified_pbs_logs(submission: Path) -> list[Path]:
@@ -142,7 +181,7 @@ def verified_pbs_logs(submission: Path) -> list[Path]:
     ]
     context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
     submissions = context.get("qsub_submissions", [])
-    if len(submissions) < 2:
+    if not submissions:
         invalid = [log.name for log in logs if log not in successful]
         if invalid:
             raise ValueError(f"PBS logs lack exit status 0: {', '.join(invalid[:5])}")
