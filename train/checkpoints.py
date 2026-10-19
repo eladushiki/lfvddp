@@ -11,7 +11,9 @@ from frame.file_structure import (
     TRAINING_CHECKPOINT_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
-
+from train.hybrid_optimizer import (
+    optimizer_schedule as get_optimizer_schedule,
+)
 
 CHECKPOINT_METADATA_KEY = "metadata"
 
@@ -108,7 +110,10 @@ def save_training_checkpoint(
     best_model_state_dict: Optional[dict[str, Any]] = None,
     best_loss: Optional[float] = None,
     best_epoch: Optional[int] = None,
+    optimizer_schedule: Optional[Mapping[str, Any]] = None,
 ) -> Path:
+    if optimizer_schedule is None:
+        optimizer_schedule = get_optimizer_schedule(optimizer)
     checkpoint_dir = _checkpoint_dir(context)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = checkpoint_dir / checkpoint_filename(model_name)
@@ -116,6 +121,9 @@ def save_training_checkpoint(
 
     torch.save(
         {
+            "optimizer_schedule": dict(optimizer_schedule)
+            if optimizer_schedule is not None
+            else None,
             "model_name": model_name,
             "epoch": epoch,
             "model_state_dict": model.state_dict(),

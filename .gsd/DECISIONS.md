@@ -36,3 +36,58 @@
 | D026 | 2026-10-18 multidimensional prediction visibility | plotting | Display multidimensional prediction results as separate aligned heatmaps with shared scales and external labels. | Preserve all observed/fitted density maps and all four model factors per region; add an unsmoothed A/B difference in Poisson counting-error units. Display model factors averaged over hidden grid coordinates so the neutral factor stays at unity. | Perspective and overlapping surfaces concealed localized bumps; independent maps remove occlusion, while the counting-error diagnostic separates coherent excesses from background count fluctuations. It is a visual diagnostic, not calibrated significance. The 1D presentation remains unchanged. | Yes | human + agent |
 
 | D027 | 2026-10-18 prediction-layout follow-up | plotting | Minimize multidimensional figure whitespace with constrained layout and a font-sized run-stamp footer. | Replace fixed top/bottom margins and large nested-grid gaps with small physical padding; keep the 1D rendering and layout unchanged. | The user requested smaller top, bottom, and inter-panel gaps after reviewing the heatmap preview. The compact heatmap footer supersedes the fixed crop-row convention for this view only. | Yes | human |
+
+### 2026-10-18: budgeted Adam/L-BFGS training
+
+- Keep Adam as the compatibility default; opt into `adam_lbfgs` per run.
+- Count full-data loss/gradient evaluations rather than L-BFGS outer iterations.
+  Warmup uses floor(5% of the initial budget), capped at 2,000 updates.
+- Treat each L-BFGS step as a checkpoint transaction. At budget exhaustion
+  inside a line search, restore parameters and optimizer curvature to step
+  entry while retaining every evaluated best candidate separately.
+- Resume preserves the original warmup boundary and exact saved optimizer
+  phase/state. Budget extension does not restart Adam. A completed truncated
+  line search may be retried on extension, so extension need not reproduce
+  a run originally configured with the larger budget.
+- Forty thousand evaluations per hypothesis preserves the tested 2,000-update
+  warmup. Neither this total budget nor the 5% split is an established optimum.
+- Caller inventory: `DifferentiatingModel.fit`, `calc_min_LFVNN`, checkpoint
+  load/save, `ModelTrainer` checkpoint-completion shortcut, sequential/parallel
+  training launchers, CLI epoch-target continuation, static denominator, and
+  primary/secondary/nuisance prediction. Neural modules and plot geometry are
+  unchanged, so no corresponding 1D/ND plot-spec change is required.
+
+### 2026-10-19: share the optimizer training loop
+
+- Supersedes the separate hybrid-fit implementation: Adam and Adam/L-BFGS now
+  use the same `fit` loop and the same closure for forward loss, gradients,
+  best-model tracking, history, progress, and profiling.
+- `HybridOptimizer` owns the warmup transition, evaluation counter, epoch
+  iterator, underlying optimizers, and interrupted-line-search rollback.
+  Checkpoint hooks restore its phase before loading optimizer tensors.
+- Checkpoint writes stay outside the closure so that history boundaries crossed
+  inside a line search never persist a partial optimizer transaction.
+- Updated caller inventory: `_train_step` now receives the current epoch and
+  evaluation callback; its three existing test replacements use that same hook.
+  Real CPU worker integration covers hybrid training with learned nuisance.
+
+### 2026-10-19: inherit the PyTorch optimizer protocol
+
+- `HybridOptimizer` subclasses and initializes `torch.optim.Optimizer`. It
+  inherits zeroing and state serialization/loading; registered native hooks
+  add schedule metadata and rebind the active Adam/L-BFGS delegate after load.
+- The facade and delegate share state and parameter-group objects. Switching
+  algorithms or rolling back a line search updates those objects in place.
+  Loading follows PyTorch's native replacement semantics, then rebinds the
+  delegate before user post-load hooks run.
+- Closures follow the standard zero-argument protocol. The common training
+  closure reads the hybrid evaluation counter to label each loss evaluation.
+- A single group is supported, matching L-BFGS. Additional groups are rejected
+  at construction and via `add_param_group`. The transition resets learning
+  rate to 1 and preserves `initial_lr` and parameter names. StepLR attachment
+  and post-load operation are tested; arbitrary scheduler policies are not
+  implied, and scheduler state remains separately owned by the caller.
+- Caller inventory remains the shared fit/closure, checkpoint hooks, training
+  launchers (including real CPU workers), predictions, plotting integration,
+  and profiler. This changes optimizer integration rather than likelihood or
+  model geometry, so 1D/ND plot specifications need no update.

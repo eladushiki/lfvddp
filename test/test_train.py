@@ -84,6 +84,8 @@ ONE_DIMENSION_WITH_NEURAL_NUISANCE_CONFIG = {
         "test/configs/train/short_1D_train_config_with_neural_nuisance.json"
     ),
 }
+
+
 def test_malformed_nuisance_mapping_is_rejected():
     from train.function_space_config import resolve_dual_role_config
 
@@ -659,7 +661,10 @@ def test_binned_nuisance_uses_the_same_per_event_evaluation(
     loss = model(prepared)
     loss.backward()
 
-    assert all(parameter.grad is not None for parameter in model.nuisance_function_space.parameters())
+    assert all(
+        parameter.grad is not None
+        for parameter in model.nuisance_function_space.parameters()
+    )
 
 
 @pytest.mark.parametrize(
@@ -855,9 +860,11 @@ def test_adaptive_learning_rate_descends_over_training_epochs(
     )
     learning_rates = []
 
-    def capture_learning_rate(optimizer, data, profiler):
+    def capture_learning_rate(optimizer, data, profiler, epoch, on_evaluation):
         learning_rates.append(optimizer.param_groups[0]["lr"])
-        return torch.tensor(0.0)
+        loss = torch.tensor(0.0)
+        on_evaluation(epoch, loss)
+        return loss
 
     monkeypatch.setattr(model, "_train_step", capture_learning_rate)
     monkeypatch.setattr(
@@ -890,9 +897,11 @@ def test_adaptive_learning_rate_continuation_uses_retargeted_epoch_schedule(
     )
     learning_rates = []
 
-    def capture_learning_rate(optimizer, data, profiler):
+    def capture_learning_rate(optimizer, data, profiler, epoch, on_evaluation):
         learning_rates.append(optimizer.param_groups[0]["lr"])
-        return torch.tensor(0.0)
+        loss = torch.tensor(0.0)
+        on_evaluation(epoch, loss)
+        return loss
 
     monkeypatch.setattr(model, "_train_step", capture_learning_rate)
     monkeypatch.setattr(
@@ -925,12 +934,14 @@ def test_training_returns_and_saves_the_lowest_loss_model_state(
     losses = iter([3.0, 1.0, 2.0, 4.0])
     states_before_step = []
 
-    def controlled_train_step(self, optimizer, data, profiler):
+    def controlled_train_step(self, optimizer, data, profiler, epoch, on_evaluation):
         states_before_step.append(self._model_state_snapshot())
+        loss = torch.tensor(next(losses), dtype=self._dtype)
+        on_evaluation(epoch, loss)
         with torch.no_grad():
             for parameter in self.parameters():
                 parameter.add_(1.0)
-        return torch.tensor(next(losses), dtype=self._dtype)
+        return loss
 
     monkeypatch.setattr(DifferentiatingModel, "_train_step", controlled_train_step)
 
@@ -974,6 +985,17 @@ class _TensorboardRecorder:
 @pytest.mark.parametrize(
     "function_execution_context",
     [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/adam_lbfgs_neural_nuisance.json"
+            ),
+        },
         {  # basic process
             ConfigType.DATASET.value: Path(
                 "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
@@ -1108,9 +1130,20 @@ def test_learning_accepts_a_resampled_loaded_regional_pair(
                 "test/configs/detector/basic_1D_detector_config.json"
             ),
             ConfigType.TRAIN.value: Path(
+                "test/configs/train/adam_lbfgs_neural_nuisance_profile.json"
+            ),
+        },
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
                 "test/configs/train/profile_1D_train_config_with_nuisance.json"
             ),
-        }
+        },
     ],
     indirect=True,
 )

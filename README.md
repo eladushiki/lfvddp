@@ -132,6 +132,27 @@ calibrate_signal_events \
 The command prints JSON containing the mean signal event count for each target.
 The repository `signal-count-estimate-by-dataset-parameters` skill uses this calibration workflow
 when configuration files need target-significance signal amounts.
+- `train__optimizer_strategy` defaults to `"adam"`. Select `"adam_lbfgs"`
+  for full-batch Adam warmup followed by L-BFGS with strong-Wolfe line search.
+  Each hypothesis has its own `train__epochs` budget: every full-data loss and
+  gradient evaluation counts once, including every L-BFGS line-search probe.
+  Adam receives the smaller of 5% of that budget (rounded down) and 2,000
+  evaluations. Budgets below 20 start directly with L-BFGS. The Adam learning
+  rate is `train__learning_rate`; `train__final_learning_rate` must be `null`.
+  L-BFGS uses initial step length 1 and 50 curvature-history entries.
+  `HybridOptimizer` is a PyTorch `Optimizer` supporting standard zero-argument
+  closures, optimizer hooks, and one parameter group. An attached learning-rate
+  scheduler can change the active optimizer's rate; the Adam-to-L-BFGS switch
+  explicitly resets that rate to 1 while preserving scheduler metadata.
+  Scheduler state must be saved separately when using one outside the training
+  pipeline; no external scheduler is configured by this strategy.
+  A conservative initial budget is 40,000 evaluations per hypothesis, preserving
+  the 2,000-update warmup used in our experiments; an optimal budget has not been
+  established. Best-state retention includes evaluated line-search probes.
+  Checkpoints preserve optimizer phase, counters, and curvature history.
+  Continuation may extend the budget with `--epochs-target`; the original
+  warmup boundary stays fixed. Switching strategy during continuation or
+  reducing its budget is rejected. NPLM does not support this strategy.
 - `train__backend` is the sole training-backend selector and defaults to
   `"lfvddp"`. `train__f` is a required function-space mapping with `family`
   and `options`; `train__nuisance` uses the same mapping or `null` when
