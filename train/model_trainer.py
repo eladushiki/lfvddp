@@ -18,19 +18,19 @@ purpose of the inheritance hierarchy: each subclass has a fixed execution
 contract rather than dynamically changing strategies.
 """
 
+import hashlib
+import logging
+import os
+import resource
+import sys
+import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-import hashlib
-import logging
 from logging import info
 from multiprocessing import get_context
-import os
 from pathlib import Path
-import resource
-import sys
 from time import perf_counter
-import traceback
 from typing import Any, Iterator, Optional
 
 import torch
@@ -44,14 +44,15 @@ from frame.file_structure import CONTEXT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel, calc_min_LFVNN
 from neural_networks.utils import ContextedModel
-from train.hybrid_optimizer import validate_optimizer_continuation
+from tools.thread_pool_probe.cases import probe_torch_capacity
 from train.checkpoints import find_latest_training_checkpoint
 from train.cpu_runtime import configure_cpu_runtime
+from train.hybrid_optimizer import validate_optimizer_continuation
+from train.null_initialization import validate_null_initialization_checkpoint
 from train.runtime_resources import RuntimeAllocation
 from train.train_config import TrainConfig
-from train.training_profiler import TrainingResourceProfiler
 from train.training_names import training_name
-from tools.thread_pool_probe.cases import probe_torch_capacity
+from train.training_profiler import TrainingResourceProfiler
 
 
 class TrainLauncher(ABC):
@@ -69,6 +70,7 @@ class TrainLauncher(ABC):
         result: Optional[float] = None
         model: Optional[ContextedModel] = None
         history: Optional[dict[str, Any]] = None
+        null_model: Optional[DifferentiatingModel] = None
 
     def __init__(self, context: ExecutionContext, detector_effect: DetectorEffect):
         self._context = context
@@ -124,6 +126,9 @@ class TrainLauncher(ABC):
         return checkpoint
 
     def _checkpoint_finished_training(self, checkpoint: dict[str, Any]) -> bool:
+        validate_null_initialization_checkpoint(
+            checkpoint, self._config.train__initialize_from_null
+        )
         schedule = checkpoint.get("optimizer_schedule")
         validate_optimizer_continuation(
             schedule, self._config.train__optimizer_strategy, self._config.train__epochs
@@ -180,6 +185,7 @@ class TrainLauncher(ABC):
                 is_numerator=training.is_numerator,
                 name=model_name,
                 device=device,
+                null_model=training.null_model,
             )
             training.history = history
 
@@ -776,6 +782,10 @@ class SequentialTrainLauncher(_ResourceAwareTrainLauncher):
                     self._follow_instructions_for_t(training)
             return
 
+        if self._config.train__initialize_from_null:
+            self._execute_null_initialized_pairs()
+            return
+
         static_indices, trainable_indices = self._pending_lfvnn_work()
 
         for index in static_indices:
@@ -784,6 +794,30 @@ class SequentialTrainLauncher(_ResourceAwareTrainLauncher):
         for assignment in self._sequential_assignments(trainable_indices):
             self._execute_in_parent(assignment)
 
+    def _execute_null_initialized_pairs(self) -> None:
+        """Run each explicit batch's null first and materialize completed best states."""
+        batches = {}
+        for index, training in enumerate(self._train_stack):
+            batches.setdefault(id(training.data_batch), []).append(index)
+        pairs = []
+        for indices in batches.values():
+            nulls = [i for i in indices if not self._train_stack[i].is_numerator]
+            alternatives = [i for i in indices if self._train_stack[i].is_numerator]
+            if len(nulls) != 1 or len(alternatives) != 1:
+                raise ValueError(
+                    "Null initialization requires one denominator and one alternative per DataBatch."
+                )
+            pairs.append((nulls[0], alternatives[0]))
+        for null_index, alternative_index in pairs:
+            assignments = self._sequential_assignments([null_index, alternative_index])
+            for assignment in assignments:
+                training = self._train_stack[assignment.index]
+                if training.is_numerator:
+                    training.null_model = self._train_stack[null_index].model
+                if not self._requires_optimization(training):
+                    assignment = _TrainingAssignment(assignment.index, "cpu", 1)
+                self._execute_in_parent(assignment)
+
 
 class ParallelTrainLauncher(_ResourceAwareTrainLauncher):
     """Execute trainable LFVNN branches in independent spawned workers."""
@@ -791,6 +825,8 @@ class ParallelTrainLauncher(_ResourceAwareTrainLauncher):
     def execute_trainings(self) -> None:
         """Run the parallel strategy selected by the caller."""
 
+        if self._config.train__initialize_from_null:
+            raise RuntimeError("Null initialization requires SequentialTrainLauncher.")
         if self._config.train__is_nplm:
             raise RuntimeError("ParallelTrainLauncher does not support NPLM training.")
 

@@ -17,6 +17,7 @@ class TrainConfig:
 
     train__epochs: int
     train__number_of_epochs_for_checkpoint: int
+    train__initialize_from_null: bool = False
     train__optimizer_strategy: str = "adam"
     train__learning_rate: float = 0.03
     train__final_learning_rate: float | None = None
@@ -85,6 +86,15 @@ class TrainConfig:
         ):
             raise ValueError(
                 "NPLM requires integer hidden_layer_nodes; list architectures are supported only by LFVDDP."
+            )
+
+        if type(self.train__initialize_from_null) is not bool:
+            raise ValueError("train__initialize_from_null must be a boolean.")
+        if self.train__initialize_from_null and (
+            self.train__is_nplm or resolved.f.family != "adaptive_neural"
+        ):
+            raise ValueError(
+                "Null initialization requires LFVDDP with adaptive_neural f."
             )
 
         if self.train__profiling_warmup_epochs < 0:

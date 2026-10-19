@@ -38,6 +38,11 @@ from train.hybrid_optimizer import (
     training_epochs,
     validate_optimizer_continuation,
 )
+from train.null_initialization import (
+    prepare_null_normalization,
+    retain_null_candidate,
+    validate_null_initialization_checkpoint,
+)
 from train.train_config import TrainConfig
 from train.training_profiler import TrainingProfiler
 
@@ -468,6 +473,9 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         checkpoint_path, checkpoint = checkpoint_result
         metadata = load_checkpoint_metadata(checkpoint_path)
+        validate_null_initialization_checkpoint(
+            checkpoint, self._config.train__initialize_from_null
+        )
         validate_checkpoint_metadata(
             checkpoint_path=checkpoint_path,
             model_name=self._name,
@@ -576,8 +584,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         with profiler.region("training/optimizer_step"):
             return optimizer.step(closure)
 
-    def fit(self, data: DataBatch) -> Dict[str, List[float]]:
+    def fit(
+        self, data: DataBatch, null_model: DifferentiatingModel | None = None
+    ) -> Dict[str, List[float]]:
         self.train()
+        if self._config.train__initialize_from_null and self._is_numerator:
+            prepare_null_normalization(self, null_model)
         target_epochs = self._config.train__epochs
         training_data = self._prepare_training_data(data)
         if not self.has_trainable_parameters():
@@ -589,7 +601,17 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         optimizer = self.configure_optimizers()
         start_epoch = self._load_training_checkpoint_if_requested(optimizer)
         self._epochs_executed = 0
+        candidate_improved = False
+        if self._config.train__initialize_from_null and self._is_numerator:
+            candidate_improved = retain_null_candidate(
+                self,
+                null_model,
+                training_data,
+                initialize=self._continuation_checkpoint_if_requested() is None,
+            )
         if start_epoch >= target_epochs:
+            if candidate_improved:
+                self._save_training_checkpoint(optimizer, start_epoch - 1)
             self._restore_best_model_state()
             return self._training_history
         progress = tqdm(
@@ -636,27 +658,35 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                     # after a complete (or rolled back) optimizer transaction.
                     if checkpoint_due:
                         with profiler.region("training/checkpoint"):
-                            save_training_checkpoint(
-                                context=self._context,
-                                model_name=self._name,
-                                model=self,
-                                optimizer=optimizer,
-                                epoch=last_evaluated_epoch,
-                                training_history=self._training_history,
-                                metadata=build_checkpoint_metadata(
-                                    model_name=self._name,
-                                    is_numerator=self._is_numerator,
-                                    resolved_config=self._function_space_config,
-                                    normalization_factor=self._norm_factor,
-                                ),
-                                best_model_state_dict=self._best_model_state_dict,
-                                best_loss=self._best_loss,
-                                best_epoch=self._best_epoch,
+                            self._save_training_checkpoint(
+                                optimizer, last_evaluated_epoch
                             )
                         checkpoint_due = False
         progress.close()
         self._restore_best_model_state()
         return self._training_history
+
+    def _save_training_checkpoint(
+        self, optimizer: Optional[optim.Optimizer], epoch: int
+    ) -> None:
+        save_training_checkpoint(
+            context=self._context,
+            model_name=self._name,
+            model=self,
+            optimizer=optimizer,
+            epoch=epoch,
+            training_history=self._training_history,
+            metadata=build_checkpoint_metadata(
+                model_name=self._name,
+                is_numerator=self._is_numerator,
+                resolved_config=self._function_space_config,
+                normalization_factor=self._norm_factor,
+            ),
+            best_model_state_dict=self._best_model_state_dict,
+            best_loss=self._best_loss,
+            best_epoch=self._best_epoch,
+            initialize_from_null=self._config.train__initialize_from_null,
+        )
 
     def calculate_loss_statically(
         self,
@@ -743,6 +773,7 @@ def calc_min_LFVNN(
     is_numerator: bool,
     name: str,
     device: Union[str, torch.device] = "cpu",
+    null_model: DifferentiatingModel | None = None,
 ) -> Tuple[ContextedModel, float, Dict[str, List[float]]]:
     model = DifferentiatingModel(
         context=context,
@@ -753,6 +784,8 @@ def calc_min_LFVNN(
     )
 
     # Module shape and physical geometry are determined by the pooled batch map.
+    if context.config.train__initialize_from_null and is_numerator:
+        prepare_null_normalization(model, null_model)
     model._prepare_training_data(data)
 
     if not model.has_trainable_parameters():
@@ -762,7 +795,7 @@ def calc_min_LFVNN(
     else:
         info("Starting training")
         t0 = time()
-        model_history = model.fit(data=data)
+        model_history = model.fit(data=data, null_model=null_model)
         if model._device.type == "cuda":
             torch.cuda.synchronize(model._device)
         info(f"Training time (seconds): {time() - t0}")

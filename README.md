@@ -132,6 +132,28 @@ calibrate_signal_events \
 The command prints JSON containing the mean signal event count for each target.
 The repository `signal-count-estimate-by-dataset-parameters` skill uses this calibration workflow
 when configuration files need target-significance signal amounts.
+- Set `train__initialize_from_null: true` to fit the null first and initialize
+  the alternative with its fitted nuisance and normalization. This optional
+  setting defaults to `false`. It supports LFVDDP with an `adaptive_neural`
+  signal function, including learned, binned, or absent nuisance functions.
+  Only the signal output weights and bias are zeroed; seeded hidden weights
+  remain random. Both hypotheses retain their full configured training budgets.
+  One additional forward evaluation without gradients per alternative fit or
+  continuation invocation retains the embedded null as a feasible candidate. It is marked as best
+  epoch `-1` when retained and adds no history row or budgeted evaluation.
+  This dependency uses `SequentialTrainLauncher`; explicitly requesting the
+  parallel launcher is rejected. Programmatic callers must supply one null
+  and one alternative for the same `DataBatch`, or pass a fitted `null_model`
+  to the alternative's `fit`/`calc_min_LFVNN` call.
+  Continuation preserves live alternative parameters and optimizer state. If
+  extending the null fit improves it, its newly embedded candidate can replace
+  the alternative's retained best state even when that alternative's budget
+  is already complete. Its live optimizer checkpoint remains unchanged.
+  Changing this flag during continuation is rejected; older checkpoints imply
+  `false`. Reported likelihood ratios remain raw; intermediate history values
+  can still be negative even though the retained feasible candidate protects
+  the final alternative minimum. This option provides no global convergence
+  or statistical calibration guarantee.
 - `train__optimizer_strategy` defaults to `"adam"`. Select `"adam_lbfgs"`
   for full-batch Adam warmup followed by L-BFGS with strong-Wolfe line search.
   Each hypothesis has its own `train__epochs` budget: every full-data loss and

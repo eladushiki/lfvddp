@@ -111,6 +111,7 @@ def save_training_checkpoint(
     best_loss: Optional[float] = None,
     best_epoch: Optional[int] = None,
     optimizer_schedule: Optional[Mapping[str, Any]] = None,
+    initialize_from_null: bool = False,
 ) -> Path:
     if optimizer_schedule is None:
         optimizer_schedule = get_optimizer_schedule(optimizer)
@@ -137,6 +138,7 @@ def save_training_checkpoint(
             "array_index": context.array_index,
             "run_hash": context.run_hash,
             CHECKPOINT_METADATA_KEY: dict(metadata) if metadata is not None else None,
+            **({"initialize_from_null": True} if initialize_from_null else {}),
         },
         temporary_path,
     )

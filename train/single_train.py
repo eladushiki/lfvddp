@@ -123,7 +123,8 @@ def select_train_launcher_class(
     """
 
     if (
-        not probe_forces_sequential()
+        not config.train__initialize_from_null
+        and not probe_forces_sequential()
         and not config.train__is_nplm
         and lfvnn_denominator_is_trainable(config)
         and allocation_supports_parallel_training(allocation)
@@ -230,10 +231,7 @@ def plot_training_prediction(
     numerator_training: TrainLauncher.Training,
     denominator_training: TrainLauncher.Training,
 ) -> None:
-    if (
-        numerator_training.model is None
-        or denominator_training.model is None
-    ):
+    if numerator_training.model is None or denominator_training.model is None:
         return
 
     # Plotting is optional and imports a comparatively heavy scientific stack.

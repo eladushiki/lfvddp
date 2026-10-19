@@ -2,6 +2,7 @@
 Pytest configuration and shared fixtures for all tests.
 This file is automatically discovered by pytest.
 """
+
 from argparse import Namespace
 from contextlib import ExitStack
 from pathlib import Path
@@ -53,14 +54,9 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    skip_server = pytest.mark.skip(
-        reason="need --run-server-tests to run server tests"
-    )
+    skip_server = pytest.mark.skip(reason="need --run-server-tests to run server tests")
     for item in items:
-        if (
-            "server" in item.keywords
-            and not config.getoption("--run-server-tests")
-        ):
+        if "server" in item.keywords and not config.getoption("--run-server-tests"):
             item.add_marker(skip_server)
 
 
@@ -89,7 +85,9 @@ def function_execution_context(
         command_line_args=wrap_with_command_line_args(config_paths),
         args=args,
     ) as context:
-        context.typed_config_paths = config_paths  # Attach config_paths to context for test convenience
+        context.typed_config_paths = (
+            config_paths  # Attach config_paths to context for test convenience
+        )
         yield context
         del context.typed_config_paths  # Clean up after test
 
@@ -202,3 +200,41 @@ def detector_comparison_contexts(session_execution_context):
                 )
             )
         yield contexts
+
+
+@fixture
+def training_context_pair(request, session_execution_context):
+    """Create two independent contexts from committed 1D training fixtures."""
+    args = Namespace(
+        debug=True,
+        build_container=False,
+        only_train=False,
+        out_dir=session_execution_context.unique_out_dir,
+        continue_from=None,
+    )
+    with ExitStack() as stack:
+        contexts = []
+        for train_fixture in request.param:
+            paths = DEFAULT_CONFIG_PATHS | {
+                ConfigType.DATASET: Path(
+                    "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+                ),
+                ConfigType.DETECTOR: Path(
+                    "test/configs/detector/basic_1D_detector_config.json"
+                ),
+                ConfigType.TRAIN: Path("test/configs/train") / train_fixture,
+            }
+            config = create_config_from_paths(
+                list(paths.values()), out_dir=args.out_dir
+            )
+            contexts.append(
+                stack.enter_context(
+                    version_controlled_execution_context(
+                        config=config,
+                        config_paths=list(paths.values()),
+                        command_line_args=wrap_with_command_line_args(paths),
+                        args=args,
+                    )
+                )
+            )
+        yield tuple(contexts)
