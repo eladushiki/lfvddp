@@ -1,5 +1,6 @@
 """File-backed checkpoint and continuation compatibility for Issue 018 function spaces."""
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
@@ -250,6 +251,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     indirect=True,
 )
 @pytest.mark.parametrize("is_numerator", [True, False])
+@pytest.mark.parametrize("legacy_normalization", [False, True])
 def test_continuation_restores_normalization_and_resumes_history(
     function_execution_context,
     isolated_data_generation,
@@ -258,13 +260,32 @@ def test_continuation_restores_normalization_and_resumes_history(
     monkeypatch,
     differentiating_model_factory,
     is_numerator,
+    legacy_normalization,
 ):
     context = function_execution_context
     data_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     model = differentiating_model_factory(
         context, detector_effect, name="continuation", is_numerator=is_numerator
     )
+    if legacy_normalization:
+        legacy = json.loads(
+            Path("test/configs/checkpoints/legacy_neural_widths.json").read_text()
+        )
+        legacy_map = legacy["normalization_factor"]
+        model._norm_factor = ShiftAndNormalizationFactor.from_mapping(
+            {
+                key: {
+                    name: values["param_0"]
+                    for name in data_batch.unified_data.observable_names
+                }
+                for key, values in legacy_map.items()
+            }
+        )
     optimizer = _take_one_step(model, data_batch)
+    metadata = _metadata(model)
+    if legacy_normalization:
+        # Historical checkpoints had only factors and offsets; no shift field.
+        metadata["normalization_factor"].pop("shift")
     checkpoint_path = save_training_checkpoint(
         context=_checkpoint_context(tmp_path, context),
         model_name="continuation",
@@ -272,7 +293,7 @@ def test_continuation_restores_normalization_and_resumes_history(
         optimizer=optimizer,
         epoch=0,
         training_history=model._training_history,
-        metadata=_metadata(model),
+        metadata=metadata,
     )
     checkpoint = _torch_load(checkpoint_path)
 
