@@ -36,7 +36,7 @@ From looking at the plot, a reader should be able to understand:
 | SR | `A_SR`, `B_SR` | `A_SR + B_SR` |
 | CR | `A_CR`, `B_CR` | `A_CR + B_CR` |
 
-No further selection or manipulation, other than normalization in the sake of display, should be done in the plotting procedure. The plots should be faithful to their source training procedure and the data it used.
+Display limits may omit tails explicitly configured for visualization. No event selection, training sample, normalization denominator, or saved significance histogram is changed; the plots remain faithful within their displayed range.
 
 ## Figure Layout
 
@@ -66,7 +66,10 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 
 ## Current Distribution Rendering
 
-- Display-bin edges are derived from the unified data for the configured detector observables.
+- Display-bin edges are derived from finite unified A/B and SR/CR data for the configured detector observables.
+- `plot__prediction_process_display_percentiles` defaults to `[0, 100]` (the full observed range). An explicit interval such as `[0, 99.5]` crops only the visualization. Compute each observable's percentiles before constructing its equally spaced display bins and continuous prediction grid.
+- `plot__prediction_process_share_observable_range` defaults to `false`. When enabled, use the union of those percentile intervals as the same numerical range for every observable and every SR/CR/A/B map. Enable this only for commensurate observables such as electron and muon transverse momenta.
+- These options apply to both 1D and multidimensional views. Normalization continues to use full sample sizes, so cropped distributions are not renormalized to the visible area. The saved training-sample histogram edges used for injected significance retain their full observed range.
 - The selected observable bins use `plot__prediction_process_number_of_bins`.
 - The default configuration uses **30 bins**.
 - The top panels draw A-region, B-region, and combined-background distributions.

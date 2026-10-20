@@ -3,6 +3,10 @@ from enum import Enum
 from types import FunctionType
 from typing import Any, Callable, Dict, List, Tuple
 
+from data_tools.histogram_binning import (
+    DEFAULT_DISPLAY_PERCENTILES,
+    validate_display_percentiles,
+)
 from frame.file_structure import PLOT_FILE_EXTENSION
 
 
@@ -18,6 +22,7 @@ class PlotScope(Enum):
 
 def plot_for_scope(scope: PlotScope) -> Callable[[FunctionType], FunctionType]:
     """Declare the execution scope of a plot next to its implementation."""
+
     def decorate(plot_function: FunctionType) -> FunctionType:
         plot_function.plot_scope = scope
         return plot_function
@@ -80,13 +85,18 @@ class PlottingConfig:
     plot__prediction_process_continuous_axis_points_above_2d: int = (
         DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS_ABOVE_2D
     )
-    plot__prediction_process_chunk_size: int = (
-        DEFAULT_PREDICTION_PROCESS_CHUNK_SIZE
-    )
+    plot__prediction_process_chunk_size: int = DEFAULT_PREDICTION_PROCESS_CHUNK_SIZE
     # Normalize every upper data/prediction histogram independently to unit probability.
     plot__prediction_process_normalize_each_prediction: bool = True
     # Use a logarithmic output axis for prediction-process distributions.
     plot__prediction_process_log_scale: bool = True
+
+    # Display-only tail crop; full training samples and statistical bins are unchanged.
+    plot__prediction_process_display_percentiles: Tuple[float, float] = (
+        DEFAULT_DISPLAY_PERCENTILES
+    )
+    # Explicit opt-in for observables expressed in the same units (for example e/mu pT).
+    plot__prediction_process_share_observable_range: bool = False
 
     # Shared layout values used by Carpenter for every plot.
     plot__run_stamp_row_height: float = 0.12
@@ -97,6 +107,7 @@ class PlottingConfig:
     plot__standard_top_border: float = 0.88
 
     def __post_init__(self) -> None:
+        validate_display_percentiles(self.plot__prediction_process_display_percentiles)
         if self.plot__prediction_process_continuous_axis_points < 1:
             raise ValueError(
                 "plot__prediction_process_continuous_axis_points must be positive."
@@ -107,9 +118,7 @@ class PlottingConfig:
                 "must be positive."
             )
         if self.plot__prediction_process_chunk_size < 1:
-            raise ValueError(
-                "plot__prediction_process_chunk_size must be positive."
-            )
+            raise ValueError("plot__prediction_process_chunk_size must be positive.")
 
     def prediction_process_continuous_axis_points(
         self, number_of_observables: int

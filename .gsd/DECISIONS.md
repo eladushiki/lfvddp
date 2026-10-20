@@ -113,3 +113,17 @@
   plotting semantics are unaffected.
 
 | D028 | Plot09 resampled reference | significance plotting | Honor an explicitly supplied reference directory even when its saved dataset contains signal; warn with its signal configuration. Keep automatic discovery background-only. | The null for a resampling comparison is the user-selected empirical reference distribution. Signal content does not invalidate that explicitly chosen null. The shared performance plot handles every dataset dimension. | Yes | human |
+
+
+| D029 | 2026-10-20 prediction bulk display | plotting | Offer explicit percentile display limits and a common numerical range for commensurate observables in both 1D and multidimensional prediction plots. | Pool A/B and SR/CR before percentile selection, then take the union of observable intervals when sharing is enabled. Keep full-data defaults, full sample normalization, and saved statistical histogram edges unchanged. | Extreme momentum tails concealed the populated region; electron/muon exchange and SR/CR comparison require a common coordinate frame. Cropping is a display decision rather than an analysis selection. | Yes | human + agent |
+
+### 2026-10-20: prediction display range caller inventory (D029)
+
+- `data_tools.histogram_binning.display_edges_by_observable` is called by both
+  prediction entry points, `train.single_train.save_training_data_samples`, and
+  plot utility tests. Only plotting passes the new optional display settings;
+  saved sample edges retain the full observed range for statistical use.
+- Factory dispatch selects 1D for one observable and the multidimensional view
+  otherwise. Both paths share binning and prediction-grid bounds. Existing
+  prediction tests cover neural/disabled nuisance in 1D, binned nuisance in 2D,
+  and projected grid evaluation. Model training/restore logic is unchanged.
