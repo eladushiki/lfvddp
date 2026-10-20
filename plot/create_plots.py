@@ -33,8 +33,9 @@ def _plot_options_from_args(
         "--background-directory",
         type=Path,
         help=(
-            "Explicit background-only submission directory for multi-run plots; "
-            "defaults to discovery below the submission directory"
+            "Explicit reference submission directory for multi-run plots; "
+            "signal-containing references are allowed with a warning; defaults to "
+            "background-only discovery below the submission directory"
         ),
     )
     parser.add_argument(
@@ -46,9 +47,10 @@ def _plot_options_from_args(
     submission_directory = args.submission_directory
     if not submission_directory.is_dir():
         parser.error(f"Submission directory does not exist: {submission_directory}")
-    if not args.multi_run_plots and not (
-        submission_directory / CONFIGS_DIR_NAME
-    ).is_dir():
+    if (
+        not args.multi_run_plots
+        and not (submission_directory / CONFIGS_DIR_NAME).is_dir()
+    ):
         parser.error(
             f"Submission directory does not contain a configs directory: "
             f"{submission_directory}"
@@ -96,9 +98,7 @@ def _config_paths_for_plots(
         if multi_run_plots
         else submission_directory
     )
-    return expand_config_paths(
-        [configured_submission_directory / CONFIGS_DIR_NAME]
-    )
+    return expand_config_paths([configured_submission_directory / CONFIGS_DIR_NAME])
 
 
 def create_configured_plots(
@@ -156,9 +156,7 @@ def create_plots(
         argv,
         context_options,
     ) as context:
-        scope = (
-            PlotScope.MULTI_RUN if multi_run_plots else PlotScope.SINGLE_SUBMISSION
-        )
+        scope = PlotScope.MULTI_RUN if multi_run_plots else PlotScope.SINGLE_SUBMISSION
         create_configured_plots(
             context,
             scope,

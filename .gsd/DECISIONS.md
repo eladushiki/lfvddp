@@ -111,3 +111,5 @@
   Archive/restore behavior stays covered by the existing helper suite. This
   changes artifact validation; training, prediction, model restore, and 1D/ND
   plotting semantics are unaffected.
+
+| D016 | Plot09 resampled reference | significance plotting | Honor an explicitly supplied reference directory even when its saved dataset contains signal; warn with its signal configuration. Keep automatic discovery background-only. | The null for a resampling comparison is the user-selected empirical reference distribution. Signal content does not invalidate that explicitly chosen null. The shared performance plot handles every dataset dimension. | Yes | human |

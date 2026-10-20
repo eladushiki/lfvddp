@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import fill
@@ -417,7 +418,8 @@ def performance_plot(
     types.
 
     Data needed to generate the plot:
-    - t values distributions for runs with background only.
+    - t values distributions for the selected reference runs.
+        An explicit signal-containing reference warns and remains usable.
         Every outermost directory containing a context below the
         supplied parent is gathered into one reference distribution.
     - A parent directory containing t value distributions. Each
@@ -446,13 +448,18 @@ def performance_plot(
     for background_context, _ in background_contexts:
         background_config: DatasetConfig = background_context.config
         for background_dataset_properties in background_config.dataset_parameters:
-            assert not background_dataset_properties.dataset__has_signal, (
-                f"background dataset expected to have only background events, "
-                f"{background_dataset_properties.category} is configured with "
-                f"{background_dataset_properties.dataset__number_of_signal_events} "
-                "signal events and a mean of "
-                f"{background_dataset_properties.dataset__mean_number_of_signal_events}"
-            )
+            if background_dataset_properties.dataset__has_signal:
+                warnings.warn(
+                    f"Using selected background reference "
+                    f"{background_only_t_values_parent_directory} despite signal: "
+                    f"{background_dataset_properties.category} is configured with "
+                    f"{background_dataset_properties.dataset__number_of_signal_events} "
+                    "signal events and a mean of "
+                    f"{background_dataset_properties.dataset__mean_number_of_signal_events}. "
+                    "Measured significance is relative to this reference distribution.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
     utils__warn_for_context_discrepancies(
         background_contexts,
         "one background dataset",

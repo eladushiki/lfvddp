@@ -348,6 +348,11 @@ python plot/create_plots.py <signal-directory> \
   --background-directory <background-submission-directory>
 ```
 
+An explicit `--background-directory` may contain signal, for example when
+using a resampled signal-containing dataset as the null reference. Plotting
+warns and uses that saved distribution; measured significance is relative to
+that reference. Automatic discovery still selects background-only runs.
+
 Multi-run discovery can be disrupted by a stale timestamped directory from a
 submission that was empty, failed before or after `qsub`, or completed no more
 than 90% of its expected array jobs. Retain such directories while diagnosing
