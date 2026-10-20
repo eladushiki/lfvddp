@@ -40,14 +40,14 @@ significance remains the result of the original training experiment.
 | Input | Current behavior |
 | --- | --- |
 | Execution context | Supplies the plotting configuration and output lifecycle. Also, the degree of the expected $\chi^2$ distribution by the configured number of the models' degrees of freedom. |
-| Background-only parent directory | Required; each outermost directory containing a context beneath it contributes to the reference `t` distribution. |
+| Reference parent directory | Required; each outermost directory containing a context beneath it contributes to the reference `t` distribution. Automatic discovery requires background-only datasets. Explicit references may contain signal and emit a warning identifying the directory, category, configured signal count, and mean. |
 | Signal parent directory | Required; each outermost directory containing a context beneath it supplies one signal distribution. |
 
 The plot factory discovers and injects the two parent directories for this multi-run plot. Signal contexts are grouped only when their dataset configurations are compatible.
 
 ## Aggregation and Calculation
 
-- Background-only `t` values from all discovered background contexts are aggregated into one reference distribution.
+- Reference `t` values from all selected background contexts are aggregated into one reference distribution. An explicit signal-containing reference is used unchanged after a warning; empirical significance is relative to that reference, including for resampled datasets.
 - Signal contexts are discovered recursively and grouped by compatible dataset configuration.
 - Each signal context contributes a `t` distribution and an x-axis signal-strength value:
   - generated datasets use detector-level analytic injected significance derived from their existing generated background and signal PDFs. Multiply both event densities by the configured nominal efficiency for the signal dataset’s A/B family, respecting detector observable selection and order. Integrate the full local likelihood contribution, including the accepted signal subtraction, without renormalizing accepted yields. Efficiency uncertainty, measurement smearing, and nuisance profiling are outside this efficiency-only benchmark;
