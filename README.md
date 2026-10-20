@@ -328,6 +328,11 @@ Create the configured plots from one completed submission:
 python plot/create_plots.py <submission-directory>
 ```
 
+Prediction-process plots can use `plot__prediction_process_display_percentiles`
+(e.g. `[0, 99.5]`) to focus on the populated range of each observable independently.
+This option preserves training data, full-sample normalization, and significance
+histograms. Its default retains the full observed range.
+
 The submission must contain the staged `configs` directory and its training
 runs. The plotting command reads that saved configuration; it does not accept
 `--configs`. Use `--debug` while working with an uncommitted tree.

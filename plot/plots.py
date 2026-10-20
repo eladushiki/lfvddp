@@ -1195,6 +1195,7 @@ def plot_prediction_process_1d(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
+        display_percentiles=config.plot__prediction_process_display_percentiles,
     )
     bins, bin_centers = _bins_for_observables(
         display_edges_by_observable_for_run, selected_observables
@@ -1529,6 +1530,7 @@ def plot_prediction_process_2d(
         datasets=[data_batch.unified_data],
         observable_names=configured_observables,
         number_of_bins=config.plot__prediction_process_number_of_bins,
+        display_percentiles=config.plot__prediction_process_display_percentiles,
     )
     bins, _ = _bins_for_observables(display_edges, selected_observables)
     normalize = config.plot__prediction_process_normalize_each_prediction

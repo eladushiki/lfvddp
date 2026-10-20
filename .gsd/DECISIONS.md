@@ -113,3 +113,27 @@
   plotting semantics are unaffected.
 
 | D028 | Plot09 resampled reference | significance plotting | Honor an explicitly supplied reference directory even when its saved dataset contains signal; warn with its signal configuration. Keep automatic discovery background-only. | The null for a resampling comparison is the user-selected empirical reference distribution. Signal content does not invalidate that explicitly chosen null. The shared performance plot handles every dataset dimension. | Yes | human |
+
+
+| D029 | 2026-10-20 prediction bulk display | plotting | Offer explicit percentile display limits in both 1D and multidimensional prediction plots, keeping observable ranges independent. | Pool A/B and SR/CR before selecting each observable's percentiles. Keep full-data defaults, full sample normalization, and saved statistical histogram edges unchanged. | Extreme momentum tails concealed the populated region. Cropping is a display decision rather than an analysis selection. PR #207 review explicitly rejected forcing different observables onto a common numerical range. | Yes | human + agent |
+
+### 2026-10-20: prediction display range caller inventory (D029)
+
+- `data_tools.histogram_binning.display_edges_by_observable` is called by both
+  prediction entry points, `train.single_train.save_training_data_samples`, and
+  plot utility tests. Only plotting passes the new optional display settings;
+  saved sample edges retain the full observed range for statistical use.
+- Factory dispatch selects 1D for one observable and the multidimensional view
+  otherwise. Both paths share binning and prediction-grid bounds. Existing
+  prediction tests cover neural/disabled nuisance in 1D, binned nuisance in 2D,
+  and projected grid evaluation. Model training/restore logic is unchanged.
+- PR #207 review removed the cross-observable range option from configuration,
+  binning, and both plotting callers. Preserve percentile limits independently
+  for each observable; sharing limits between different physical quantities
+  requires an explicit request. Saved-sample callers still use full-range defaults.
+- Review validation: 42 prediction/factory/performance checks passed, including
+  enabled nuisance and saved-sample binning callers. The 2D plot generation check
+  renders successfully but fails its stale four-axes assertion (30 axes); this
+  also reproduces with the original PR code. Manual checks cover full/cropped
+  independent ranges, 1D/ND parity, finite/constant data, and invalid percentiles.
+  Training, checkpoint restore, and model prediction implementations are unchanged.
