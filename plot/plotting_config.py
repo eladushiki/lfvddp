@@ -95,8 +95,6 @@ class PlottingConfig:
     plot__prediction_process_display_percentiles: Tuple[float, float] = (
         DEFAULT_DISPLAY_PERCENTILES
     )
-    # Explicit opt-in for observables expressed in the same units (for example e/mu pT).
-    plot__prediction_process_share_observable_range: bool = False
 
     # Shared layout values used by Carpenter for every plot.
     plot__run_stamp_row_height: float = 0.12

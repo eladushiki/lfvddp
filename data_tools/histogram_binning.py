@@ -21,7 +21,6 @@ def display_edges_by_observable(
     observable_names: list[str],
     number_of_bins: int,
     display_percentiles: tuple[float, float] = DEFAULT_DISPLAY_PERCENTILES,
-    share_observable_range: bool = False,
 ) -> dict[str, np.ndarray]:
     if number_of_bins <= 0:
         raise ValueError(
@@ -31,7 +30,7 @@ def display_edges_by_observable(
     validate_display_percentiles(display_percentiles)
 
     datasets = tuple(datasets)
-    ranges_by_observable = {}
+    edges_by_observable = {}
     for observable_name in observable_names:
         values = np.concatenate(
             [
@@ -52,15 +51,8 @@ def display_edges_by_observable(
             padding = max(abs(minimum) * 0.05, 0.5)
             minimum -= padding
             maximum += padding
-        ranges_by_observable[observable_name] = (minimum, maximum)
-
-    if share_observable_range and ranges_by_observable:
-        shared_range = (
-            min(bounds[0] for bounds in ranges_by_observable.values()),
-            max(bounds[1] for bounds in ranges_by_observable.values()),
+        edges_by_observable[observable_name] = np.linspace(
+            minimum, maximum, number_of_bins + 1
         )
-        ranges_by_observable = dict.fromkeys(observable_names, shared_range)
-    return {
-        observable_name: np.linspace(minimum, maximum, number_of_bins + 1)
-        for observable_name, (minimum, maximum) in ranges_by_observable.items()
-    }
+
+    return edges_by_observable

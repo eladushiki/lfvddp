@@ -68,8 +68,8 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 
 - Display-bin edges are derived from finite unified A/B and SR/CR data for the configured detector observables.
 - `plot__prediction_process_display_percentiles` defaults to `[0, 100]` (the full observed range). An explicit interval such as `[0, 99.5]` crops only the visualization. Compute each observable's percentiles before constructing its equally spaced display bins and continuous prediction grid.
-- `plot__prediction_process_share_observable_range` defaults to `false`. When enabled, use the union of those percentile intervals as the same numerical range for every observable and every SR/CR/A/B map. Enable this only for commensurate observables such as electron and muon transverse momenta.
-- These options apply to both 1D and multidimensional views. Normalization continues to use full sample sizes, so cropped distributions are not renormalized to the visible area. The saved training-sample histogram edges used for injected significance retain their full observed range.
+- Observable ranges remain independent; each observable uses its own percentile interval across A/B and SR/CR.
+- This option applies to both 1D and multidimensional views. Normalization continues to use full sample sizes, so cropped distributions are not renormalized to the visible area. The saved training-sample histogram edges used for injected significance retain their full observed range.
 - The selected observable bins use `plot__prediction_process_number_of_bins`.
 - The default configuration uses **30 bins**.
 - The top panels draw A-region, B-region, and combined-background distributions.
