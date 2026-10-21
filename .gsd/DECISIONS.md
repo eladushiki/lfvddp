@@ -157,3 +157,37 @@
   early transients. Component calibration lookup was forced to fail if accessed;
   neither component accessed it. Existing t curves, colors, and limits match
   the previous implementation. Signed-limit empty/constant cases also passed.
+
+
+### 2026-10-21: common loaded observable space before regional resampling
+
+- Materialize loaded components and advance their source pools as before, then
+  project every completed loaded category onto the ordered detector observable
+  list before regional A/B finalization. Use the detector configuration as the
+  single source of truth. Retain extra ROOT branches through loading/cuts;
+  never invent values for cut-only columns in generated signal events.
+- This fixes Plot09 when signal-region resampling is enabled: its signal-bearing
+  A dataset was already projected while the background-only B dataset retained
+  bookkeeping columns. Apply the same rule to control regions, zero-signal
+  realizations, identity splitting, and resampling with or without replacement.
+- Initialize sampled-component bookkeeping when constructing DataGeneration so
+  direct category access works before get_batch. Preserve get_batch's per-batch
+  reset, source depletion, sampled component contents, and final event counts.
+- Caller inventory: DataGeneration.get_batch feeds train.single_train and shared
+  training fixtures; __getitem__ feeds direct category callers; sampled_components
+  feeds saved loaded-data significance samples. Regression coverage exercises both
+  batch and category entry points, dimensions 1/2, reordered columns, all splitting
+  modes, two successive source draws, exhaustion, detector integration,
+  normalization, and training with enabled neural nuisance and disabled nuisance.
+  Direct DatasetParameters.dataset__data and ROOT cut/loading behavior are unchanged
+  and checked by their existing suites. Checkpoint/primary/secondary/nuisance
+  prediction implementations and plot rendering are unchanged; existing training
+  checks exercise model predictions/restore. No plotting parity change is needed.
+- Existing sampling tests now explicitly select the committed 1D detector fixture
+  matching their scalar NumPy input rather than inheriting unrelated ROOT columns.
+- Validation: 100 data-generation, dataset, ROOT-input, and training checks passed,
+  including the 18 new projection/category/training cases. The TensorFlow-only
+  NPLM learning case was deselected because this macOS environment has no
+  TensorFlow; the changed loaded-data path uses LFVNN/PyTorch. Ruff and whitespace
+  checks passed. The original implementation failed the new regression before
+  projection was added.

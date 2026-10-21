@@ -77,6 +77,7 @@ class DataGeneration:
     def __init__(self, context: ExecutionContext):
         self._context = context
         self._config: DatasetConfig = context.config
+        self._sampled_components = {}
 
     def get_batch(self) -> DataBatch:
         self._sampled_components = {}
@@ -169,11 +170,20 @@ class DataGeneration:
                 background_remainder,
                 signal_remainder,
             )
-            
+
         else:
-            raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
+            raise ValueError(
+                f"Unsupported dataset parameters type: {type(dataset_parameters)}"
+            )
 
         complete_ds = background_data + signal_data
+        if isinstance(dataset_parameters, LoadedDatasetParameters):
+            # Cuts and component sampling use the loaded columns; regional A/B
+            # pooling must use the same ordered detector space for every category,
+            # including categories with no generated signal.
+            complete_ds = complete_ds.filter_observable_names(
+                self._context.config.detector__detect_observable_names
+            )
         complete_ds.category = dataset_parameters.category
         return complete_ds
 

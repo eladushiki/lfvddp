@@ -90,6 +90,10 @@ Important configuration choices include:
   and records one.
 - `dataset__definitions` describes the A/B signal-region and control-region
   samples. See the two basic packs for generated and loaded examples.
+- Loaded datasets are projected onto the ordered `detector__detect_observable_names`
+  after cuts and component sampling, before regional A/B pooling. Background-only
+  categories use the same columns as signal-bearing categories; extra loaded
+  columns remain available for cuts.
 - Loaded-dataset resampling is configured per A/B region. When enabled for a
   region, LFVDDP first selects each category's configured background and signal
   counts, combines its two components, then resamples the complete regional A/B
