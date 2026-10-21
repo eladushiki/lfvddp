@@ -159,10 +159,10 @@
   the previous implementation. Signed-limit empty/constant cases also passed.
 
 
-### 2026-10-21: common loaded observable space before regional resampling
+### 2026-10-21: common observable space before regional resampling
 
-- Materialize loaded components and advance their source pools as before, then
-  project every completed loaded category onto the ordered detector observable
+- Materialize components and advance loaded source pools as before, then
+  project every completed category onto the ordered detector observable
   list before regional A/B finalization. Use the detector configuration as the
   single source of truth. Retain extra ROOT branches through loading/cuts;
   never invent values for cut-only columns in generated signal events.
@@ -191,3 +191,12 @@
   TensorFlow; the changed loaded-data path uses LFVNN/PyTorch. Ruff and whitespace
   checks passed. The original implementation failed the new regression before
   projection was added.
+
+- Review clarified that observable compatibility is source-independent. Apply the
+  projection unconditionally after component combination, without a loaded-data
+  type check. Extra-observable generated fixtures cover batch/category access in
+  1D/2D and reordered columns, preserving selected values and event counts. Source
+  acquisition/sampling remains separate from the shared materialization invariant.
+- Updated validation: 106 checks passed after removing the source-type condition;
+  all six new generated-source cases failed on the previous loaded-only version.
+  The same TensorFlow-only case remains excluded because its dependency is absent.

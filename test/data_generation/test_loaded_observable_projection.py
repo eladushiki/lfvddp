@@ -1,4 +1,4 @@
-"""Loaded cuts/bookkeeping columns must not leak into regional dataset pools."""
+"""All data sources must enter regional pools in the detector observable space."""
 
 from pathlib import Path
 
@@ -129,3 +129,53 @@ def test_category_access_uses_projected_regional_pool(
         == parameters.dataset__number_of_background_events
         + parameters.dataset__number_of_signal_events
     )
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET: Path(
+                "test/configs/dataset/generated_extra_observables.yaml"
+            ),
+            ConfigType.DETECTOR: Path(f"test/configs/detector/{detector_fixture}.json"),
+            ConfigType.TRAIN: Path(
+                f"test/configs/train/short_{dimension}D_train_config_without_nuisance.json"
+            ),
+        }
+        for dimension, detector_fixture in (
+            (1, "basic_1D_detector_config"),
+            (2, "basic_2D_detector_config"),
+            (2, "reordered_2D_detector_config"),
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.parametrize("entry_point", ["batch", "category"])
+def test_generated_source_uses_the_same_ordered_projection(
+    function_execution_context,
+    isolated_data_generation,
+    entry_point,
+):
+    config = function_execution_context.config
+    category = DATASET_REGIONS.sr.a
+    parameters = config.get_parameters(category)
+    random_state = np.random.get_state()
+    background, signal = parameters.dataset__data
+    raw_events = np.concatenate((background.events, signal.events))
+    np.random.set_state(random_state)
+
+    if entry_point == "batch":
+        batch = isolated_data_generation.get_batch()
+        assert all(
+            dataset.observable_names == list(config.detector__detect_observable_names)
+            for dataset, _ in batch
+        )
+        dataset = batch.datasets[category]
+    else:
+        dataset, _ = isolated_data_generation[category]
+    names = list(config.detector__detect_observable_names)
+    indices = [background.observable_names.index(name) for name in names]
+    assert raw_events.shape == (5, 4)
+    assert dataset.observable_names == names
+    np.testing.assert_array_equal(dataset.events, raw_events[:, indices])
