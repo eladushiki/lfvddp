@@ -11,6 +11,16 @@
             }
         },
         {
+            "name": "numerator_train_percentile_progression_plot",
+            "instructions": {
+            }
+        },
+        {
+            "name": "denominator_train_percentile_progression_plot",
+            "instructions": {
+            }
+        },
+        {
             "name": "performance_plot",
             "instructions": {
             }
