@@ -1267,3 +1267,42 @@ def test_convergence(
     )
 
     assert t_a > 0
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET: Path(
+                "test/configs/dataset/loaded_extra_observables_resampled.yaml"
+            ),
+            ConfigType.DETECTOR: Path(
+                f"test/configs/detector/basic_{dimension}D_detector_config.json"
+            ),
+            ConfigType.TRAIN: Path(
+                f"test/configs/train/short_{dimension}D_train_config_{nuisance}.json"
+            ),
+        }
+        for dimension, nuisance in (
+            (1, "with_neural_nuisance"),
+            (2, "without_nuisance"),
+        )
+    ],
+    indirect=True,
+)
+def test_learning_accepts_projected_loaded_signal_and_background_pair(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+    isolated_data_generation,
+    detector_effect,
+    loaded_extra_observable_source,
+):
+    with monkeypatch.context() as working_directory:
+        working_directory.chdir(tmp_path)
+        batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
+    result = _train_numerator(
+        function_execution_context, batch, detector_effect, "projected_loaded_pair"
+    )
+    assert np.isfinite(result)
+    assert result != 0

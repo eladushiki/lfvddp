@@ -27,16 +27,23 @@ def test_illegal_data_request(
         _, _ = data_generation[DataSet.DataSetCategory.SR]
 
 @pytest.mark.parametrize(
-        "function_execution_context",
-        [{
-            ConfigType.DATASET.value: Path("test/data_generation/configs/dataset/small_exact_sized_loaded_dataset_config.json"),
-        }],
-        indirect=True,
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/data_generation/configs/dataset/small_exact_sized_loaded_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+        }
+    ],
+    indirect=True,
 )
 def test_loaded_sampling_without_replacement_depletes_source_pool(
-        tmp_path,
-        monkeypatch,
-        isolated_data_generation,
+    tmp_path,
+    monkeypatch,
+    isolated_data_generation,
 ):
     np.save(tmp_path / "events.npy", np.arange(2, dtype=float).reshape(-1, 1))
 
@@ -172,13 +179,18 @@ def test_loaded_component_sampling_defaults_to_random_without_replacement():
 
 
 @pytest.mark.parametrize(
-        "function_execution_context",
-        [{
+    "function_execution_context",
+    [
+        {
             ConfigType.DATASET.value: Path(
                 "test/data_generation/configs/dataset/resampled_pairs_dataset_config.json"
             ),
-        }],
-        indirect=True,
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+        }
+    ],
+    indirect=True,
 )
 def test_loaded_resampling_shuffles_complete_regional_pairs(
         tmp_path,
@@ -237,11 +249,16 @@ def test_dataset_config_rejects_mismatched_regional_resampling_policy(
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{
-        ConfigType.DATASET.value: Path(
-            "test/data_generation/configs/dataset/ordered_loaded_component_sampling.json"
-        ),
-    }],
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/data_generation/configs/dataset/ordered_loaded_component_sampling.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+        }
+    ],
     indirect=True,
 )
 def test_loaded_component_sampling_uses_first_events_and_exact_component_counts(

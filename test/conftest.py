@@ -202,3 +202,13 @@ def detector_comparison_contexts(session_execution_context):
                 )
             )
         yield contexts
+
+
+@fixture
+def loaded_extra_observable_source(tmp_path):
+    """Four loaded columns, of which the detector keeps only its configured subset."""
+    import numpy as np
+
+    source = np.arange(24, dtype=float).reshape(6, 4) + 10
+    np.save(tmp_path / "events.npy", source)
+    return source
