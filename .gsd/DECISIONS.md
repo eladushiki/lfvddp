@@ -137,3 +137,23 @@
   also reproduces with the original PR code. Manual checks cover full/cropped
   independent ranges, 1D/ND parity, finite/constant data, and invalid percentiles.
   Training, checkpoint restore, and model prediction implementations are unchanged.
+
+### 2026-10-21: component percentile progression
+
+- Numerator and denominator progression figures use separate explicit plot entries,
+  enabled in both standard configs. Preserve the factory's one-entry/one-figure
+  contract and allow custom configs to select outputs independently.
+- All three quantities share the final-t quality selection and renderer. Component
+  losses can be negative, so fit signed final-half limits with range padding;
+  chi-square references and calibration lookup apply only to the test statistic.
+- Caller inventory: the existing t entry point is selected through plot configs
+  and `PlotFactory`; `create_configured_plots` persists each resulting figure.
+  The two internal helpers also have direct utility-test callers, retained for
+  compatibility. One dimension-independent renderer covers 1D and ND datasets.
+  Training, checkpoint restore, and prediction entry points are unaffected.
+- Validation: 42 existing utility, factory, and aggregation checks passed. Manual
+  smoke checks rendered all three entry points in 1D/2D with an enabled nuisance
+  config, paired final-t rejection, negative losses, constant denominators, and
+  early transients. Component calibration lookup was forced to fail if accessed;
+  neither component accessed it. Existing t curves, colors, and limits match
+  the previous implementation. Signed-limit empty/constant cases also passed.

@@ -203,13 +203,18 @@ when configuration files need target-significance signal amounts.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
   significance is calibrated against background runs. Single-submission
-  distribution and percentile-progression plots always show diagnostic
-  chi-square references: adaptive LFVDDP counts all signal-network weights and
+  test-statistic distribution and percentile-progression plots always show
+  diagnostic chi-square references: adaptive LFVDDP counts all signal-network weights and
   biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed
   families use their constrained dimension. Shared nuisance parameters do not
   contribute to this reference. Parameter counting alone does not establish
-  Wilks validity. Multi-run performance plots use analytic injected significance
-  for generated datasets, with the configured nominal detector efficiency
+  Wilks validity. Separate `numerator_train_percentile_progression_plot` and
+  `denominator_train_percentile_progression_plot` entries show the component-loss
+  percentiles without chi-square references. Both standard plot configs enable
+  them; custom configs opt in explicitly. All three progression plots use the
+  same final-test-statistic run selection. Component axes show signed values
+  fitted to the final half of training. Multi-run performance plots use analytic
+  injected significance for generated datasets, with the configured nominal detector efficiency
   multiplying both signal and background densities without renormalizing
   accepted event counts. This efficiency-only benchmark excludes efficiency
   uncertainty, measurement smearing, and nuisance profiling. The signal-yield

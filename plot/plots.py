@@ -107,10 +107,13 @@ def _prediction_process_subplot_adjustments(
 
 def _eventually_converged_histories(
     histories: np.ndarray,
+    t_histories: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    """Return complete histories whose final t passes the shared tail filter."""
+    """Select complete histories using the paired final t quality filter."""
+    if t_histories is None:
+        t_histories = histories
     eventually_converged, _, _ = _t_distribution_included_mask(
-        histories[:, -1],
+        t_histories[:, -1],
         cut_non_converged=True,
         cut_overfitted=True,
     )
@@ -139,6 +142,23 @@ def _percentile_progression_y_upper_limit(
     )
 
 
+def _component_percentile_progression_y_limits(
+    percentiles: np.ndarray,
+) -> tuple[float, float]:
+    """Fit signed component curves in the final half with range-based padding."""
+    values = percentiles[:, percentiles.shape[1] // 2 :]
+    finite_values = values[np.isfinite(values)]
+    if finite_values.size == 0:
+        return -1.0, 1.0
+    lower = float(np.min(finite_values))
+    upper = float(np.max(finite_values))
+    span = upper - lower
+    padding = _PERCENTILE_PROGRESSION_Y_HEADROOM * (
+        span if span > 0 else max(abs(lower), 1.0)
+    )
+    return lower - padding, upper + padding
+
+
 def _t_distribution_x_axis_upper_limit(max_t_value: float) -> float:
     """Return an x-axis upper limit with headroom beyond retained values."""
     return max(
@@ -147,14 +167,11 @@ def _t_distribution_x_axis_upper_limit(max_t_value: float) -> float:
     )
 
 
-@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
-def t_train_percentile_progression_plot(
+def _train_percentile_progression_plot(
     context: ExecutionContext,
-):
-    """
-    Plot numerator, denominator, and derived-t percentile progression for each
-    sample over the toy runs.
-    """
+    history_key: HistoryKeys,
+) -> Figure:
+    """Render one paired training quantity across samples and toy runs."""
     if not isinstance(config := context.config, PlottingConfig):
         raise ValueError(
             f"Expected context.config to be of type {PlottingConfig}, got {type(config)}"
@@ -173,20 +190,22 @@ def t_train_percentile_progression_plot(
 
     quantiles = [2.5, 25, 50, 75, 97.5]
     colors = ["violet", "hotpink", "mediumvioletred", "mediumorchid", "darkviolet"]
-    chi2_dof = agg.chi_square_degrees_of_freedom
-    reference_quantiles = np.asarray(
-        [chi2.ppf(quantile / 100, df=chi2_dof) for quantile in quantiles]
-    )
+    reference_quantiles = np.array([])
+    if history_key is HistoryKeys.T:
+        chi2_dof = agg.chi_square_degrees_of_freedom
+        reference_quantiles = chi2.ppf(np.asarray(quantiles) / 100, df=chi2_dof)
     legend_handles = []
     for row, sample_name in enumerate(sample_names):
         ax = axes[row, 0]
-        values = all_history_values[sample_name][HistoryKeys.T.value]
-        converged_values = _eventually_converged_histories(values)
+        sample_histories = all_history_values[sample_name]
+        values = sample_histories[history_key.value]
+        converged_values = _eventually_converged_histories(
+            values, sample_histories[HistoryKeys.T.value]
+        )
         percentiles = np.percentile(converged_values, quantiles, axis=0)
-        for quantile, percentile, reference_quantile, color in zip(
+        for quantile, percentile, color in zip(
             quantiles,
             percentiles,
-            reference_quantiles,
             colors,
         ):
             (line,) = ax.plot(
@@ -198,35 +217,42 @@ def t_train_percentile_progression_plot(
             )
             if row == 0:
                 legend_handles.append(line)
+        for reference_quantile, color in zip(reference_quantiles, colors):
             ax.axhline(
                 reference_quantile,
                 color=color,
                 linestyle="--",
                 linewidth=1.5,
             )
-        ax.set_ylabel(HistoryKeys.T.value)
-        ax.set_ylim(
-            0,
-            _percentile_progression_y_upper_limit(
-                percentiles,
-                reference_quantiles,
-            ),
-        )
+        ax.set_ylabel(history_key.value)
+        if history_key is HistoryKeys.T:
+            ax.set_ylim(
+                0,
+                _percentile_progression_y_upper_limit(percentiles, reference_quantiles),
+            )
+        else:
+            ax.set_ylim(*_component_percentile_progression_y_limits(percentiles))
         ax.ticklabel_format(axis="x", style="scientific", scilimits=(0, 0))
         if row == len(sample_names) - 1:
             ax.set_xlabel("Training epochs")
 
-    legend_handles.append(
-        Line2D(
-            [],
-            [],
-            color="black",
-            linestyle="--",
-            linewidth=1.5,
-            label=rf"$\chi^2_{{{chi2_dof}}}$ quantiles",
+    if history_key is HistoryKeys.T:
+        legend_handles.append(
+            Line2D(
+                [],
+                [],
+                color="black",
+                linestyle="--",
+                linewidth=1.5,
+                label=rf"$\chi^2_{{{chi2_dof}}}$ quantiles",
+            )
         )
+    title = (
+        "Training percentile progression"
+        if history_key is HistoryKeys.T
+        else f"Training {history_key.value} percentile progression"
     )
-    fig.suptitle("Training percentile progression", fontsize=24)
+    fig.suptitle(title, fontsize=24)
     fig.legend(
         handles=legend_handles,
         labels=[handle.get_label() for handle in legend_handles],
@@ -238,6 +264,24 @@ def t_train_percentile_progression_plot(
     c.standardize_plot_borders(fig)
 
     return fig
+
+
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
+def t_train_percentile_progression_plot(context: ExecutionContext) -> Figure:
+    """Plot test-statistic percentiles with diagnostic chi-square references."""
+    return _train_percentile_progression_plot(context, HistoryKeys.T)
+
+
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
+def numerator_train_percentile_progression_plot(context: ExecutionContext) -> Figure:
+    """Plot numerator loss percentiles for runs passing final-t selection."""
+    return _train_percentile_progression_plot(context, HistoryKeys.NUMERATOR)
+
+
+@plot_for_scope(PlotScope.SINGLE_SUBMISSION)
+def denominator_train_percentile_progression_plot(context: ExecutionContext) -> Figure:
+    """Plot denominator loss percentiles for runs passing final-t selection."""
+    return _train_percentile_progression_plot(context, HistoryKeys.DENOMINATOR)
 
 
 @plot_for_scope(PlotScope.SINGLE_SUBMISSION)
