@@ -201,11 +201,11 @@ when configuration files need target-significance signal amounts.
 - Multidimensional prediction-process figures use aligned heatmaps with external
   labels and shared colorbars. Separate data and fitted-density maps retain the
   full distributions; an A/B difference map in counting-error units highlights
-  localized discrepancies. Model-factor maps share a diverging scale centered
-  at unity, with an A-minus-B factor-difference column at the left of each
-  signal/null row and a shared difference scale centered at zero.
-  Hidden-observable model factors are displayed as uniform grid
-  averages. The 1D view is unchanged.
+  localized discrepancies. Model-factor maps use the distribution palette with
+  their own shared limits symmetric around unity. An A-minus-B factor-difference column sits at
+  the left of each signal/null row; all top and bottom differences share one
+  color scale centered at zero. Hidden-observable model factors are displayed
+  as uniform grid averages. The 1D view is unchanged.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
   significance is calibrated against background runs. Single-submission

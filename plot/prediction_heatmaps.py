@@ -159,7 +159,6 @@ def render_prediction_heatmaps(
         )
     else:
         density_norm = Normalize(vmin=0, vmax=maximum)
-    difference_norm = _centered_norm([region.difference for region in distributions], 0)
     prediction_norm = _centered_norm(
         [values for region in predictions for _, values in region], 1
     )
@@ -167,8 +166,10 @@ def render_prediction_heatmaps(
         [region[index][1] - region[index + 1][1] for index in (0, 2)]
         for region in predictions
     ]
-    prediction_difference_norm = _centered_norm(
-        [values for region in prediction_differences for values in region], 0
+    difference_norm = _centered_norm(
+        [region.difference for region in distributions]
+        + [values for region in prediction_differences for values in region],
+        0,
     )
     density_label = "Probability per bin" if normalize else "Events per bin"
     x_values, y_values = (np.unique(coordinates[:, index]) for index in range(2))
@@ -220,8 +221,8 @@ def render_prediction_heatmaps(
                 x_values,
                 y_values,
                 np.ma.masked_invalid(values.reshape(len(x_values), len(y_values)).T),
-                cmap="RdBu_r",
-                norm=prediction_difference_norm if is_difference else prediction_norm,
+                cmap="RdBu_r" if is_difference else "viridis",
+                norm=difference_norm if is_difference else prediction_norm,
                 shading="nearest",
                 rasterized=True,
             )
