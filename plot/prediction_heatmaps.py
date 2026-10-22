@@ -147,8 +147,10 @@ def render_prediction_heatmaps(
 ) -> None:
     """Render SR/CR blocks with shared scales, exterior labels, and no occlusion."""
     outer = fig.add_gridspec(2, 2, hspace=0.035, wspace=0.04)
+    # The first three maps are observed pooled/A/B histograms. Model-weighted
+    # tails must not determine the color range used to compare them with data.
     density_values = _finite_values(
-        [values for region in distributions for _, values in region.maps]
+        [values for region in distributions for _, values in region.maps[:3]]
     )
     positive = density_values[density_values > 0]
     maximum = float(np.max(positive)) if positive.size else 1.0
