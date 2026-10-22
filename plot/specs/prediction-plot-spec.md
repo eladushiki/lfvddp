@@ -46,17 +46,17 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 | --- | --- | --- | --- |
 | Top left | SR distribution | Histograms of A-SR, B-SR, their combined background, and weighted numerator-model predictions. | Six SR maps in a 2 × 3 grid: top row: pooled background, A data, B data; bottom row: A/B difference in counting-error units, fitted A, fitted B. Fits align beneath their corresponding data and the difference beneath the pooled background. Hidden observables are histogrammed out. |
 | Top right | CR distribution | Histograms of A-CR, B-CR, their combined background, and weighted denominator-model predictions. | The same six maps for CR; the fitted densities use the denominator nuisance model. |
-| Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$, evaluated over the SR. | The same four SR factors in separate 2 × 2 heatmaps; signal terms above null terms, A to the left of B. |
-| Bottom right | CR prediction | Exactly the signal nuisance terms $1+\theta(x)$ and $1-\theta(x)$ plus the null nuisance terms $1+\theta(x)$ and $1-\theta(x)$, evaluated over the CR. | The same four CR factors in separate 2 × 2 heatmaps, with the same ordering as SR. |
+| Bottom left | SR prediction | Exactly the null terms $1+\theta(x)$ and $1-\theta(x)$ plus the signal products $(1+f(x))(1+\theta(x))$ and $(1-f(x))(1-\theta(x))$, evaluated over the SR. | Six SR maps in a 2 × 3 grid: signal terms above null terms; each row shows the A-minus-B factor difference, A factor, and B factor. |
+| Bottom right | CR prediction | Exactly the signal nuisance terms $1+\theta(x)$ and $1-\theta(x)$ plus the null nuisance terms $1+\theta(x)$ and $1-\theta(x)$, evaluated over the CR. | Six CR maps in a 2 × 3 grid, with the same difference/A/B ordering as SR. |
 
 ### Plot axes
 
 - The distribution panels share synchronized output-axis limits.
   - 1D: the x axes of all 4 subplots should match in name and limit values. Labels should be displayed once for each column. y axis should match values for top 2 and bottom 2 plots separately. It's label should be displayed once in each row.
-  - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps share a color normalization; both difference maps share a symmetric scale; all eight model-factor maps share a symmetric diverging scale centered at 1. No 3D perspective or overlaid surfaces are used.
+  - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps and all eight model-factor maps share one color normalization computed from their combined finite values; all six difference maps share a symmetric diverging scale centered at 0 across the top and bottom blocks; density and model-factor maps use the same sequential viridis palette, numerical limits, and linear/logarithmic scaling. No 3D perspective or overlaid surfaces are used.
 - Spacing:
   - 1D: No spacing needed between plots.
-  - 2+D: compact nested grids with constrained layout; small physical padding replaces fixed exterior margins and large inter-block gaps. Observable labels appear on the outside of each block. The difference colorbar sits beneath the background/difference column; the shared density colorbar spans the A/B columns. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
+  - 2+D: compact nested grids with constrained layout; small physical padding replaces fixed exterior margins and large inter-block gaps. Observable labels appear on the outside of each block. In distribution blocks, the difference colorbar sits beneath the background/difference column and the shared density colorbar spans the A/B columns. In model-factor blocks, the factor-difference colorbar sits beneath the left column and the shared model-factor colorbar spans the A/B columns. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
 - Minimal borders of figure to allow for all labels and titles to fit nicely without being cut or overlap.
 - Legends:
   - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
@@ -114,7 +114,7 @@ It does not display signal product terms, nuisance-removed terms, or detector ef
   by the full multidimensional grid. Complete coordinates preserve the legacy
   floating-point summation order.
 - The model output is projected onto the selected observable(s) before rendering when hidden observables exist. In 2+D heatmaps, projected sums are divided by the number of hidden-coordinate grid points, displaying a uniform grid average of each model factor. Nuisance terms are averaged before adding/subtracting unity, so a neutral model remains 1 in every dimension. This is a display normalization, not a density-weighted marginal or a change to model evaluation/training. The 1D projection is unchanged.
-- In 1D null terms use dashed lines and signal terms use solid lines. In 2+D signal and null terms have separate labeled maps, all using blue below unity, white at unity, and red above unity.
+- In 1D null terms use dashed lines and signal terms use solid lines. In 2+D signal and null terms have separate labeled maps, using the same sequential viridis palette as distributions and the same numerical color normalization as distributions.
 - 1D subplot titles remain at 90% of panel height. 2+D content labels sit above the map, outside the data. Prediction heatmaps retain the existing mask outside the convex hull of observed data and the origin. No smoothing, clipping, or downsampling of model-grid values is applied.
 
 ## Multidimensional Difference Map
@@ -135,7 +135,23 @@ scaling factors are 1. For an empty sample the factor is set to 1, avoiding a
 division by zero. Bins with no counting variance are masked. The error scale
 uses plug-in Poisson variances; it does not propagate fitted-model uncertainty
 or the covariance induced by normalizing a sample to its observed total.
-Both regions use the full finite symmetric range, without significance cuts.
+Both regions and all four model-factor differences use one shared full finite
+symmetric range, without significance cuts. The colorbar labels retain the
+distinct meanings of counting-error units and model-factor differences.
+
+### Model-factor differences
+
+Each row of each bottom block includes the pointwise A factor minus the B
+factor shown in that row, computed after the existing hidden-coordinate
+projection. Signal-hypothesis differences occupy the first row and
+null-hypothesis differences the second. The four maps share the top
+distribution differences' linear diverging scale with blue for negative, white for zero, and red for positive differences,
+using their full finite symmetric range. They retain the model factors' convex
+hull mask and continuous prediction grid. These are dimensionless factor
+differences, without counting-error normalization or a significance
+interpretation; no count variance is assigned to model factors. The 1D view
+keeps its overlaid factor curves, so the extra heatmap column applies only to
+the multidimensional view.
 
 ## Current Visual Encoding
 
@@ -148,7 +164,7 @@ Both regions use the full finite symmetric range, without significance cuts.
 | Negative signal and nuisance variants | Sandybrown / moccasin |
 | Reference prediction | Gray dotted horizontal line at 1.0 |
 
-For 2+D maps, density uses `viridis` (logarithmic color when configured), and differences/model factors use `RdBu_r`. Empty logarithmic-density bins and unsupported model coordinates are masked. Linear-density zeros remain visible. The table above describes the unchanged 1D encoding.
+For 2+D maps, densities and model factors use `viridis` with identical numerical limits derived from their combined finite values. Both are logarithmic when configured, and linear otherwise; model factors are not centered at unity in color space. All differences use `RdBu_r` with one shared symmetric zero-centered normalization. Nonpositive values on logarithmic scales and unsupported model coordinates are masked. Linear-density zeros remain visible. The table above describes the unchanged 1D encoding.
 
 The figure uses the global plotting configuration. The baseline configuration sets a white figure face, classic Matplotlib style, serif font family, font size 24, and figure size 10 × 9 inches.
 
@@ -161,7 +177,7 @@ The figure uses the global plotting configuration. The baseline configuration se
 | `plot__prediction_process_continuous_axis_points_above_2d` | `100` | Number of uniformly spaced prediction points along each selected observable when the data has more than two observables. |
 | `plot__prediction_process_chunk_size` | `100000` | Maximum number of full-dimensional grid events evaluated at once. |
 | `plot__prediction_process_normalize_each_prediction` | `true` | Normalizes each A/B/background distribution and its corresponding prediction with that component's shared sample-count factor. |
-| `plot__prediction_process_log_scale` | `true` | Displays prediction-process distribution outputs on a logarithmic axis when enabled; applies to the 1D y-axis and the 2+D density color scale; difference and model-factor colors remain linear. |
+| `plot__prediction_process_log_scale` | `true` | Displays prediction-process distribution outputs on a logarithmic axis when enabled; applies to the 1D y-axis and the shared 2+D density/model-factor color scale; difference colors remain linear. |
 | `plot__figure_size` | `[10, 9]` | Base figure dimensions in inches. |
 
 ## Output Contract

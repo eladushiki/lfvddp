@@ -147,21 +147,27 @@ def render_prediction_heatmaps(
 ) -> None:
     """Render SR/CR blocks with shared scales, exterior labels, and no occlusion."""
     outer = fig.add_gridspec(2, 2, hspace=0.035, wspace=0.04)
-    density_values = _finite_values(
+    shared_values = _finite_values(
         [values for region in distributions for _, values in region.maps]
+        + [values for region in predictions for _, values in region]
     )
-    positive = density_values[density_values > 0]
+    positive = shared_values[shared_values > 0]
     maximum = float(np.max(positive)) if positive.size else 1.0
     if log_scale:
         minimum = float(np.min(positive)) if positive.size else 0.1
-        density_norm = LogNorm(
+        value_norm = LogNorm(
             vmin=minimum, vmax=maximum if maximum > minimum else minimum * 10
         )
     else:
-        density_norm = Normalize(vmin=0, vmax=maximum)
-    difference_norm = _centered_norm([region.difference for region in distributions], 0)
-    prediction_norm = _centered_norm(
-        [values for region in predictions for _, values in region], 1
+        value_norm = Normalize(vmin=0, vmax=maximum)
+    prediction_differences = [
+        [region[index][1] - region[index + 1][1] for index in (0, 2)]
+        for region in predictions
+    ]
+    difference_norm = _centered_norm(
+        [region.difference for region in distributions]
+        + [values for region in prediction_differences for values in region],
+        0,
     )
     density_label = "Probability per bin" if normalize else "Events per bin"
     x_values, y_values = (np.unique(coordinates[:, index]) for index in range(2))
@@ -182,7 +188,7 @@ def render_prediction_heatmaps(
                 *bins,
                 np.ma.masked_invalid(values.T),
                 cmap="RdBu_r" if is_difference else "viridis",
-                norm=difference_norm if is_difference else density_norm,
+                norm=difference_norm if is_difference else value_norm,
                 shading="flat",
                 rasterized=True,
             )
@@ -197,20 +203,34 @@ def render_prediction_heatmaps(
                 )
 
         grid = _block_grid(
-            fig, outer[1, column], f"{name} model factors (neutral = 1)", 2
+            fig, outer[1, column], f"{name} model factors (neutral = 1)", 3
         )
-        for index, (label, values) in enumerate(model_maps):
-            row, col = divmod(index, 2)
+        factor_maps = [(label, values, False) for label, values in model_maps]
+        for row, (hypothesis, values) in enumerate(
+            zip(("Signal", "Null"), prediction_differences[column])
+        ):
+            factor_maps.insert(row * 3, (f"{hypothesis} A − B", values, True))
+        for index, (label, values, is_difference) in enumerate(factor_maps):
+            row, col = divmod(index, 3)
             ax = _map_axis(
-                fig, grid[row + 1, col], label, col, row, (2, 2), bins, observables
+                fig, grid[row + 1, col], label, col, row, (2, 3), bins, observables
             )
             artist = ax.pcolormesh(
                 x_values,
                 y_values,
                 np.ma.masked_invalid(values.reshape(len(x_values), len(y_values)).T),
-                cmap="RdBu_r",
-                norm=prediction_norm,
+                cmap="RdBu_r" if is_difference else "viridis",
+                norm=difference_norm if is_difference else value_norm,
                 shading="nearest",
                 rasterized=True,
             )
-        _colorbar(fig, grid[3, :], artist, "Model factor (shared SR/CR scale)")
+            if index == 0:
+                _colorbar(fig, grid[3, 0], artist, "Factor difference (A − B)")
+            elif index == 1:
+                _colorbar(
+                    fig,
+                    grid[3, 1:],
+                    artist,
+                    "Model factor (shared density/factor scale)"
+                    + (" (log color)" if log_scale else ""),
+                )
