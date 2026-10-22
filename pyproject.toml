@@ -86,4 +86,4 @@ aggregate_train_results = "frame.aggregate_train_results:main"
 calibrate_signal_events = "data_tools.signal_calibration:main"
 
 [tool.setuptools.packages.find]
-include = ["configs*", "data_tools*", "frame*", "neural_networks*", "plot*"]
+include = ["configs*", "data_tools*", "frame*", "neural_networks*", "plot*", "train*"]
