@@ -6,6 +6,7 @@ import numpy as np
 from matplotlib.colors import LogNorm, Normalize, TwoSlopeNorm
 from matplotlib.figure import Figure
 from matplotlib.gridspec import SubplotSpec
+from matplotlib.patches import Rectangle
 
 from data_tools.data_utils import DataSet
 from neural_networks.utils import prediction_to_sample_ndf_hypothesis_weights
@@ -135,6 +136,37 @@ def _colorbar(fig: Figure, slot: SubplotSpec, artist, label: str):
     return bar
 
 
+def _signal_zoom(ax, artist, limits: np.ndarray | None) -> None:
+    """Magnify the same mesh and color scale without rebinning or refitting."""
+    if limits is None:
+        return
+    inset = ax.inset_axes([0.57, 0.57, 0.39, 0.39])
+    coordinates = artist.get_coordinates()
+    inset.pcolormesh(
+        coordinates[..., 0],
+        coordinates[..., 1],
+        artist.get_array(),
+        cmap=artist.cmap,
+        norm=artist.norm,
+        shading="flat",
+        rasterized=True,
+    )
+    inset.set(xlim=limits[0], ylim=limits[1])
+    inset.set_title("Signal zoom", fontsize=6, pad=2)
+    inset.tick_params(labelsize=5, length=2, pad=1)
+    inset.locator_params(nbins=2)
+    inset.grid(False)
+    ax.add_patch(
+        Rectangle(
+            limits[:, 0],
+            *(limits[:, 1] - limits[:, 0]),
+            fill=False,
+            edgecolor="0.4",
+            linewidth=0.6,
+        )
+    )
+
+
 def render_prediction_heatmaps(
     fig: Figure,
     distributions: tuple[RegionDistributions, RegionDistributions],
@@ -144,6 +176,7 @@ def render_prediction_heatmaps(
     observables: list[str],
     normalize: bool,
     log_scale: bool,
+    signal_zoom_limits: np.ndarray | None = None,
 ) -> None:
     """Render SR/CR blocks with shared scales, exterior labels, and no occlusion."""
     outer = fig.add_gridspec(2, 2, hspace=0.035, wspace=0.04)
@@ -196,6 +229,7 @@ def render_prediction_heatmaps(
                 shading="flat",
                 rasterized=True,
             )
+            _signal_zoom(ax, artist, signal_zoom_limits)
             if is_difference:
                 _colorbar(fig, grid[3, 0], artist, "Difference / counting error")
             elif index == 0:
@@ -228,6 +262,7 @@ def render_prediction_heatmaps(
                 shading="nearest",
                 rasterized=True,
             )
+            _signal_zoom(ax, artist, signal_zoom_limits)
             if index == 0:
                 _colorbar(fig, grid[3, 0], artist, "Factor difference (A − B)")
             elif index == 1:

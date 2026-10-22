@@ -200,3 +200,20 @@
 - Updated validation: 106 checks passed after removing the source-type condition;
   all six new generated-source cases failed on the previous loaded-only version.
   The same TensorFlow-only case remains excluded because its dependency is absent.
+
+### 2026-10-22: matching signal zooms in two-dimensional prediction maps
+
+- All 24 maps of an exactly 2D resonant-signal prediction figure receive the
+  same inset window: the configured injected mean plus/minus three marginal
+  standard deviations on each axis. Covariance entries are variances.
+- Use configured signal geometry, with observable-name ordering, rather than
+  estimating a center or width from noisy data or fitted model predictions.
+  Multiple Gaussian injections use their enclosing window.
+- Magnify the existing meshes and retain their color scales and binning; the
+  inset changes presentation only. Background-only, nonresonant, 1D, and
+  higher-dimensional projections do not receive insets. Their corresponding
+  plot entry points require no change.
+- Caller inventory: `plot_prediction_process_2d` calls
+  `render_prediction_heatmaps`; the renderer also has direct plotting smoke
+  callers. Its new optional bounds argument preserves those callers. No model,
+  training, checkpoint, prediction-function, or statistical behavior changes.
