@@ -206,6 +206,10 @@ when configuration files need target-significance signal amounts.
   factor-difference column sits at the left of each signal/null row; all top
   and bottom differences share one color scale centered at zero.
   Hidden-observable model factors are displayed as uniform grid averages. The 1D view is unchanged.
+- For a resonant Gaussian injection with exactly two detected observables, all
+  24 prediction-process heatmaps include a matching signal zoom inset centered
+  on the injected mean and extending three standard deviations per coordinate.
+  Insets preserve the parent map's binning and color scale.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
   significance is calibrated against background runs. Single-submission

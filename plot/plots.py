@@ -55,6 +55,7 @@ from plot.plot_utils import (
     utils__warn_for_context_discrepancies,
 )
 from plot.prediction_heatmaps import region_distributions, render_prediction_heatmaps
+from plot.prediction_signal_zoom import prediction_signal_zoom_limits
 from plot.plotting_config import (
     PlotScope,
     PlottingConfig,
@@ -1683,5 +1684,8 @@ def plot_prediction_process_2d(
         observables=selected_observables,
         normalize=normalize,
         log_scale=config.plot__prediction_process_log_scale,
+        signal_zoom_limits=prediction_signal_zoom_limits(
+            config, configured_observables, selected_observables
+        ),
     )
     return fig

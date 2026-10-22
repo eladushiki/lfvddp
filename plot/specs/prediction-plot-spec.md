@@ -66,6 +66,27 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 
 ## Current Distribution Rendering
 
+### Resonant-signal zoom insets (2D only)
+
+- When exactly two detector observables are configured and a nonzero signal
+  injection is Gaussian in both coordinates, all 24 data, fit, difference, and
+  model-factor maps include a small upper-right inset. SR and CR maps use the
+  same signal window, including CR panels with no injected signal.
+- Center the window on the configured injected mean and extend it three marginal
+  standard deviations in each direction. For a multivariate Gaussian, take the
+  square root of the covariance diagonal; correlations do not change these
+  axis-aligned bounds. Respect the displayed observable order and explicit
+  loaded-signal observable names. Joint, isotropic, and independently configured
+  Gaussian generators are supported. Multiple Gaussian injections share their
+  enclosing window; zero-width distributions omit the inset.
+- Insets magnify each panel's existing mesh with identical color normalization,
+  bins, and masks. Do not resample, refit, or independently normalize the inset.
+  Show small coordinate ticks and a `Signal zoom` label; mark the corresponding
+  window on the parent map with a thin outline. The inset may extend beyond
+  the displayed data range, leaving unsupported areas blank.
+- Background-only and nonresonant signals, 1D figures, and projections from
+  higher-dimensional detector configurations retain their existing rendering.
+
 - Display-bin edges are derived from finite unified A/B and SR/CR data for the configured detector observables.
 - `plot__prediction_process_display_percentiles` defaults to `[0, 100]` (the full observed range). An explicit interval such as `[0, 99.5]` crops only the visualization. Compute each observable's percentiles before constructing its equally spaced display bins and continuous prediction grid.
 - Observable ranges remain independent; each observable uses its own percentile interval across A/B and SR/CR.
