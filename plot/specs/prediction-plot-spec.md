@@ -53,7 +53,7 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 
 - The distribution panels share synchronized output-axis limits.
   - 1D: the x axes of all 4 subplots should match in name and limit values. Labels should be displayed once for each column. y axis should match values for top 2 and bottom 2 plots separately. It's label should be displayed once in each row.
-  - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps share a color normalization; all eight model-factor maps use a separate shared linear normalization with limits symmetric around 1; all six difference maps share a symmetric diverging scale centered at 0 across the top and bottom blocks; density and model-factor maps use the same sequential viridis palette with separate numerical limits. No 3D perspective or overlaid surfaces are used.
+  - 2+D: all maps share observable names, increasing axis direction, and display limits. All ten density maps share a color normalization derived only from the observed pooled/A/B maps across SR and CR; all eight model-factor maps use a separate shared linear normalization with limits symmetric around 1; all six difference maps share a symmetric diverging scale centered at 0 across the top and bottom blocks; density and model-factor maps use the same sequential viridis palette with separate numerical limits. No 3D perspective or overlaid surfaces are used.
 - Spacing:
   - 1D: No spacing needed between plots.
   - 2+D: compact nested grids with constrained layout; small physical padding replaces fixed exterior margins and large inter-block gaps. Observable labels appear on the outside of each block. In distribution blocks, the difference colorbar sits beneath the background/difference column and the shared density colorbar spans the A/B columns. In model-factor blocks, the factor-difference colorbar sits beneath the left column and the shared model-factor colorbar spans the A/B columns. The canvas is 1.6 times the configured width and 1.4 times the configured height (16 × 12.6 inches by default).
@@ -77,13 +77,19 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
 - When `plot__prediction_process_normalize_each_prediction` is enabled, each of A, B and background should be normalized independently. That being said, all A datasets, predictions and hypothesis plots should be normalized by the same factor such that the top two pdfs would integrate to 1. Same goes for B. The current default is **enabled**.
 - Each 1D distribution panel receives a prediction-process legend; 2+D content is identified by external map labels.
 
-The logarithmic density scale uses the smallest strictly positive bin value
-across all ten observed and fitted-density maps. Fitted bins contain weighted
-expected counts, which may be much smaller than one even when the supporting
-pooled bin contains a single event; these bins can extend the shared scale far
-below the smallest observed count. No minimum-occupancy cut or color-range
-percentile trimming is applied. Model-factor color limits are computed
-independently so these sparse fitted bins do not set the bottom factor range.
+The top density color limits are determined only by the six observed pooled,
+A, and B histograms across SR and CR, after the configured display
+normalization. Fitted histograms use the same color normalization but do not
+influence its limits. The logarithmic scale starts at the smallest strictly
+positive observed bin and ends at the largest observed bin; the linear scale
+starts at zero and ends at that same observed maximum. Existing empty-range
+and single-value fallbacks are retained.
+
+Positive fitted values outside those limits use the endpoint colors, retaining
+their original bin values. Nonpositive logarithmic bins remain masked. No
+minimum-occupancy cut or color-range percentile trimming is applied. Model-factor
+color limits remain independent. This changes only multidimensional heatmap
+color normalization; the 1D line/histogram view has no corresponding color scale.
 
 ## Prediction Rendering
 

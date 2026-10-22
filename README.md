@@ -200,9 +200,11 @@ when configuration files need target-significance signal amounts.
   freedom from parameter counts.
 - Multidimensional prediction-process figures use aligned heatmaps with external
   labels and shared colorbars. Separate data and fitted-density maps retain the
-  full distributions; an A/B difference map in counting-error units highlights
-  localized discrepancies. Model-factor maps use the distribution palette with
-  separate shared linear limits symmetric around unity. An A-minus-B
+  full distributions. Their shared color limits come from observed histograms;
+  fitted values outside those limits use the endpoint colors. An A/B difference
+  map in counting-error units highlights localized discrepancies. Model-factor
+  maps use the distribution palette with separate shared linear limits
+  symmetric around unity. An A-minus-B
   factor-difference column sits at the left of each signal/null row; all top
   and bottom differences share one color scale centered at zero.
   Hidden-observable model factors are displayed as uniform grid averages. The 1D view is unchanged.
