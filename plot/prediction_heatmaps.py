@@ -147,19 +147,21 @@ def render_prediction_heatmaps(
 ) -> None:
     """Render SR/CR blocks with shared scales, exterior labels, and no occlusion."""
     outer = fig.add_gridspec(2, 2, hspace=0.035, wspace=0.04)
-    shared_values = _finite_values(
+    density_values = _finite_values(
         [values for region in distributions for _, values in region.maps]
-        + [values for region in predictions for _, values in region]
     )
-    positive = shared_values[shared_values > 0]
+    positive = density_values[density_values > 0]
     maximum = float(np.max(positive)) if positive.size else 1.0
     if log_scale:
         minimum = float(np.min(positive)) if positive.size else 0.1
-        value_norm = LogNorm(
+        density_norm = LogNorm(
             vmin=minimum, vmax=maximum if maximum > minimum else minimum * 10
         )
     else:
-        value_norm = Normalize(vmin=0, vmax=maximum)
+        density_norm = Normalize(vmin=0, vmax=maximum)
+    prediction_norm = _centered_norm(
+        [values for region in predictions for _, values in region], 1
+    )
     prediction_differences = [
         [region[index][1] - region[index + 1][1] for index in (0, 2)]
         for region in predictions
@@ -188,7 +190,7 @@ def render_prediction_heatmaps(
                 *bins,
                 np.ma.masked_invalid(values.T),
                 cmap="RdBu_r" if is_difference else "viridis",
-                norm=difference_norm if is_difference else value_norm,
+                norm=difference_norm if is_difference else density_norm,
                 shading="flat",
                 rasterized=True,
             )
@@ -220,7 +222,7 @@ def render_prediction_heatmaps(
                 y_values,
                 np.ma.masked_invalid(values.reshape(len(x_values), len(y_values)).T),
                 cmap="RdBu_r" if is_difference else "viridis",
-                norm=difference_norm if is_difference else value_norm,
+                norm=difference_norm if is_difference else prediction_norm,
                 shading="nearest",
                 rasterized=True,
             )
@@ -231,6 +233,5 @@ def render_prediction_heatmaps(
                     fig,
                     grid[3, 1:],
                     artist,
-                    "Model factor (shared density/factor scale)"
-                    + (" (log color)" if log_scale else ""),
+                    "Model factor (shared SR/CR scale)",
                 )
