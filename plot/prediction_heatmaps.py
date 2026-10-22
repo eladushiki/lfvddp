@@ -163,6 +163,13 @@ def render_prediction_heatmaps(
     prediction_norm = _centered_norm(
         [values for region in predictions for _, values in region], 1
     )
+    prediction_differences = [
+        [region[index][1] - region[index + 1][1] for index in (0, 2)]
+        for region in predictions
+    ]
+    prediction_difference_norm = _centered_norm(
+        [values for region in prediction_differences for values in region], 0
+    )
     density_label = "Probability per bin" if normalize else "Events per bin"
     x_values, y_values = (np.unique(coordinates[:, index]) for index in range(2))
     for column, (name, region, model_maps) in enumerate(
@@ -197,20 +204,28 @@ def render_prediction_heatmaps(
                 )
 
         grid = _block_grid(
-            fig, outer[1, column], f"{name} model factors (neutral = 1)", 2
+            fig, outer[1, column], f"{name} model factors (neutral = 1)", 3
         )
-        for index, (label, values) in enumerate(model_maps):
-            row, col = divmod(index, 2)
+        factor_maps = [(label, values, False) for label, values in model_maps]
+        for row, (hypothesis, values) in enumerate(
+            zip(("Signal", "Null"), prediction_differences[column])
+        ):
+            factor_maps.insert(row * 3, (f"{hypothesis} A − B", values, True))
+        for index, (label, values, is_difference) in enumerate(factor_maps):
+            row, col = divmod(index, 3)
             ax = _map_axis(
-                fig, grid[row + 1, col], label, col, row, (2, 2), bins, observables
+                fig, grid[row + 1, col], label, col, row, (2, 3), bins, observables
             )
             artist = ax.pcolormesh(
                 x_values,
                 y_values,
                 np.ma.masked_invalid(values.reshape(len(x_values), len(y_values)).T),
                 cmap="RdBu_r",
-                norm=prediction_norm,
+                norm=prediction_difference_norm if is_difference else prediction_norm,
                 shading="nearest",
                 rasterized=True,
             )
-        _colorbar(fig, grid[3, :], artist, "Model factor (shared SR/CR scale)")
+            if index == 0:
+                _colorbar(fig, grid[3, 0], artist, "Factor difference (A − B)")
+            elif index == 1:
+                _colorbar(fig, grid[3, 1:], artist, "Model factor (shared SR/CR scale)")
