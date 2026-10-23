@@ -29,7 +29,7 @@
     \begin{itemize}
         \item General steps of a classical search for BSM physics:
         \begin{itemize}
-            \item Hypothesize a BSM model
+            \item Hypothesize a model beyond the SM
             \item Derive production mechanisms and decay modes
             \item Define event selection
             \item Model background and signal processes
@@ -57,7 +57,7 @@
 \begin{frame}{LFV - DDP}
     \begin{itemize}
         \item The Standard Model postulates a $SU(3)_C \times SU(2)_L \times U(1)_Y$ local symmetry
-        \item In addition to the imposed symmetry group, the SM does not exclude several other global symmetries - those are accidental symmetries
+        \item In addition to the imposed symmetry group, the SM holds several other global symmetries - those are accidental symmetries
         \item One of the accidental global symmetries is the lepton flavor universality, by which the three lepton generations hold the same properties and interactions, except for their masses
         \item There is motivation to look for places in which this symmetry does not hold - driven by observed neutrino oscillations
         \item We'll use this symmetry assumption to compare pairs of equivalent datasets and look for differences without modelling
@@ -81,44 +81,44 @@
     \begin{itemize}
         \item We consider stochastic physical processes, which we repeat many times and gather statistics of their outcomes
     \end{itemize}
-
     \begin{center}
     \begin{columns}[c]
-
-        % Proton collision
-        \begin{column}{0.42\textwidth}
+        \begin{column}{0.42\textwidth} % Proton collision
             \centering
             \addpic{
                 figures/proton-proton-collision.png
             }
         \end{column}
-
-        % Arrow
-        \begin{column}{0.10\textwidth}
+        \begin{column}{0.10\textwidth} % Arrow
             \centering
-            {\Huge $\xrightarrow{\mathcal{L}}$}
+            {\Huge $\xrightarrow{}$}
         \end{column}
-
-        % Final state / next figure
-        \begin{column}{0.42\textwidth}
+        \begin{column}{0.42\textwidth} % Final state / next figure
             \centering
             \addgraph{
                 figures/generic-pt.png
             }
         \end{column}
-
     \end{columns}
     \end{center}
     \begin{itemize}
-        \item We record some $k$ physical quantities of each such event, $\event \in \mathbb{R}^k$, and gather them into datasets, $\dataset{A} = \{\event\}$
+        \item Each collision is an event, $\event$, that is represented as some $k$ physical quantities that we measure - center of mass energy, product $p_t$, etc.
+    \end{itemize}
+    \begin{equation}
+        \eventsymbol \in \mathbb{R}^k, \quad \event \sim \pdf, \quad \dataset{A} = \{\eventsymbol\}
+    \end{equation}
+    \begin{itemize}
+        \item $\dataset{A}$ is called a dataset, $\pdf$ is a parametrized underlying probability distribution
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Previous Work}
     \begin{itemize}
-        \item In the original work~\footfullcite{Italian_no_1_Learning_New_Physics_from_a_Machine} the sample dataset was compared to a larger reference dataset, which was assumed to contain no new physics
-        \item We propose the Symmetrized Formalism - comparing two samples, using their combination as the reference distribution, $\refdist$
-        \item With it, we express either distribution as a shift of $\refdist$, with functions that are neural network outputs: $f(\anyevent) \refdist$
+        \item In the original work~\footnote{\fullcite{Italian_no_1_Learning_New_Physics_from_a_Machine}} the sample dataset was single dimensional and compared to a larger reference dataset
+        \item The reference dataset was assumed to contain no new physics, and it's own statistical fluctuations were neglected
+        \item We propose the Symmetrized Formalism - comparing two samples, using their combination as the reference distribution, $\refdist[\eventsymbol]$
+        \item The usual event count expression, $n(\eventsymbol) = b(\eventsymbol) + \param s(\eventsymbol)$, is replaced with a more flexible one, $n(\eventsymbol) = N_{\dataset{A}} e^{\paramf(\eventsymbol)} \refdist[\eventsymbol]$
+        \item With it, we express either distribution as a shift of $\refdist[\eventsymbol]$, with parametrized functions that are neural network outputs: $\paramf(\eventsymbol)$ (full expression below)
     \end{itemize}
 \end{frame}
 
@@ -130,7 +130,9 @@
     \begin{columns}[c]
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\mathcal{L}_e$
+            \addsizedpic{0.7}{
+                figures/proton-proton-collision.png
+            }
         \end{column}
         \begin{column}{0.1\textwidth}
             \centering \[
@@ -139,27 +141,28 @@
         \end{column}
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\mathcal{L}_\mu$
+            \addsizedpic{0.7}{
+                figures/proton-proton-collision.png
+            }
         \end{column}
     \end{columns}
-    \vspace{0.3cm}
     \begin{columns}[c]
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\downarrow$
+            \huge $\downarrow$
         \end{column}
         \begin{column}{0.1\textwidth}
         \end{column}
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\downarrow$
+            \huge $\downarrow$
         \end{column}
     \end{columns}
     \vspace{0.3cm}
     \begin{columns}[c]
         \begin{column}{0.4\textwidth}
             \centering
-            \addsizedgraph{0.8}{
+            \addsizedgraph{0.7}{
                 figures/electron-pt.png
             }
         \end{column}
@@ -167,7 +170,7 @@
         \end{column}
         \begin{column}{0.4\textwidth}
             \centering
-            \addsizedgraph{0.8}{
+            \addsizedgraph{0.7}{
                 figures/muon-pt.png
             }
         \end{column}
@@ -182,16 +185,13 @@
     \begin{itemize}
         \item Consider doing the same experiment twice - same process, same outcomes, same duration
         \item We still expect the resulting samples to differ due to statistical fluctuations
-        \item This means that every histogram bar would be of different height, like the total number of events
+        \item This means that every histogram bar would be of different height, as well as the total number of events
         \item But we still claim, in this case, that the datasets are produced by symmetric physical processes
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Hypothesis Testing}
-    \begin{itemize}
-        \item Hypothesis formulation, symmterized formalism:
-    \end{itemize}
-    \begin{block}{null vs signal hypotheses}
+    \begin{block}{null and signal hypotheses, symmetrized formalism}
         \begin{equation}
         \begin{aligned}
             \nullhypothesis &: \quad
@@ -200,13 +200,13 @@
                 &=
                 \frac{N_{\dataset{A}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{h(\eventsymbol)} \refdist[\eventsymbol],
+                e^{\paramh(\eventsymbol)} \refdist[\eventsymbol],
                 \\
                 \pdf_{\dataset{B}}(\eventsymbol)
                 &=
                 \frac{N_{\dataset{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{h(\eventsymbol)+r} \refdist[\eventsymbol],
+                e^{\paramh(\eventsymbol)+\paramr} \refdist[\eventsymbol],
             \end{cases} \\
             \hypothesis{1} &: \quad
             \begin{cases}
@@ -214,42 +214,45 @@
                 &=
                 \frac{N_{\dataset{A}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{f(\eventsymbol)} \refdist[\eventsymbol],
+                e^{\paramf(\eventsymbol)} \refdist[\eventsymbol],
                 \\
                 \pdf_{\dataset{B}}(\eventsymbol)
                 &=
                 \frac{N_{\dataset{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{g(\eventsymbol)} \refdist[\eventsymbol].
+                e^{\paramg(\eventsymbol)} \refdist[\eventsymbol].
             \end{cases}
         \end{aligned}
         \end{equation}
     \end{block}
+    \begin{itemize}
+        \item Likelihood of a distribution given a dataset $\dataset{A}$ is the probability of observing $\dataset{A}$ had the distribution been true:
+    \end{itemize}
+    \begin{equation}
+        \likelihood(\parampdf | \dataset{A}) = P(\dataset{A} | \parampdf)
+    \end{equation}
     \begin{itemize}
         \item Test statistic
     \end{itemize}
     \begin{equation}
         t = 2 \log \left(
             \dfrac{
-                \max\limits_{f, g} \left(
+                \max\limits_{\param} \left(
                     \likelihood(\hypothesis{1}|\dataset{A}, \dataset{B})
                 \right)
             }{
-                \max\limits_{h, r} \left(
+                \max\limits_{\nparam} \left(
                     \likelihood(\nullhypothesis|\dataset{A}, \dataset{B})
                 \right)
             }
         \right)
     \end{equation}
-    \begin{itemize}
-        \item The maximization is done over each hypothesis space's degrees of freedom by the number of parameters in $f, g$ and $h, r$
-    \end{itemize}
 \end{frame}
 
 \begin{frame}{t Distribution}
     \begin{itemize}
+        \item The maximization is done over each hypothesis space's parameters is the main computational burden in the method
         \item Wilk's and Wald's theorems tell us that, in the lack of any difference, the distribution of $t$ should be $\chi^2$ with $r$ degrees of freedom, where $r = (\text{\#DoF in signal hypothesis}) - (\text{\#DoF in null hypothesis})$
-        \item The farther away the resulting $t$ distribution is from the $\chi^2$, the more likely it is that we have observed a signal
     \end{itemize}
     \begin{center}
     \begin{columns}[c]
@@ -262,7 +265,6 @@
             with signal
         \end{column}
     \end{columns}
-    \vspace{0.3cm}
     \begin{columns}[c]
         \begin{column}{0.45\textwidth}
             \centering
@@ -278,16 +280,22 @@
         \end{column}
     \end{columns}
     \end{center}
+    \TODO{these images show mean}
 \end{frame}
 
 \begin{frame}{Significance Progression}
     \begin{itemize}
-        \item We previously showed that with fully simulated samples, we can detect differences with some sensitivity penalty
+        \item The inverse cumulative gaussian of the median signal p-value is used to determine the significance of the observed signal: $Z = \Phi^{-1}(1 - p(t))$
+        \item We showed the fully simulated sensitivity:
     \end{itemize}
-    \vspace{1cm}
-    \addsizedgraph{1}{
-        figures/previous-significance-progression.png
-    }
+    \begin{figure}
+        \addsizedgraph{0.8}{
+            figures/previous-significance-progression.png
+        }
+        \caption{
+            Extracted from \footnote{\fullcite{LastDDPPaper}}
+        }
+    \end{figure}
 \end{frame}
 
 \begin{frame}
@@ -295,29 +303,14 @@
         \item Up to now, we talked about 1D fully simulated samples
         \item In our work, we add
         \begin{itemize}
-            \item Detector effects
-            \item Multiple dimension samples
+            \item Detector effects that break interaction point symmtery
+            \item Multiple observable quantities per sample
             \item CMS Open Data
         \end{itemize}
     \end{itemize}
 \end{frame}
 
 \section{Formulation}
-
-\begin{frame}{Observing Events}
-    \begin{itemize}
-        \item We consider stochastic physical processes (= collisions)
-        \item To probe their behavior, we repeat the same experiment many times and gather statistics of the results
-        \item Each collision is an event, $\event$, that is represented as some $k$ physical quantities that we measure - center of mass energy, product $p_t$, etc.
-    \end{itemize}
-    \begin{equation}
-        \event \in \mathbb{R}^k, \quad \event \sim \pdf, \quad \dataset{A} = \{\event\}
-    \end{equation}
-    \begin{itemize}
-        \item A group of observations, $\dataset{A}$, is called a dataset
-        \item $\pdf$ is some underlying probability distribution according to which $\event$'s are distributed.
-    \end{itemize}
-\end{frame}
 
 \begin{frame}{Underlying Probability Distributions}
     \begin{figure}
@@ -345,7 +338,7 @@
 \begin{frame}{Data Regions}
     \begin{itemize}
         \item To study the nature of our system, we normally define a control region (CR) within the data
-        \item We assume there is no apparent new physics in the CR
+        \item We assume there is no apparent new physics in the CR, but systematic effects are still present, i.e., detector efficiency
         \item The data from which we study the new physics is then called the Signal Region (SR)
         \item The datasets we use are summed in the table:
         \end{itemize}
@@ -375,8 +368,8 @@
         \end{cases} \\
         \hypothesis{1} |_{SR} &: \quad
         \begin{cases}
-            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} (1 + f(\anyevent)) (1 + {\nparam(\anyevent)}) \srrefdist \\
-            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} (1 - f(\anyevent)) (1 - {\nparam(\anyevent)}) \srrefdist
+            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} (1 + \paramf(\anyevent)) (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} (1 - \paramf(\anyevent)) (1 - {\nparam(\anyevent)}) \srrefdist
         \end{cases} \\
         \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
         \begin{cases}
@@ -385,34 +378,33 @@
         \end{cases}
     \end{aligned}
     \end{equation}
+    \begin{itemize}
+        \item CR may come from a MC that models no signal
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Distribution Likelihood}
-    \begin{itemize}
-        \item this is what we skipped before
-        \item Likelihood of a distribution given a dataset $\dataset{A}$ is the probability of observing $\dataset{A}$ had the distribution been true:
-    \end{itemize}
-    \begin{equation}
-        \likelihood(\parampdf | \dataset{A}) = P(\dataset{A} | \parampdf)
-    \end{equation}
     \begin{itemize}
         \item Likelihood of a dataset generated from Poisson statistics then becomes
     \end{itemize}
     \begin{equation}
     \label{eq:poisson-likelihood}
-        \likelihood(\parampdf | \dataset{A})
+        \likelihood(\srdist{\dataset{A}} | \dataset{A})
         = \dfrac{e^{-N_{\dataset{A}}(\param, \nparam)}}{\abs{\dataset{A}}!}
-        \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
-        = \dfrac{e^{-\int \parampdf(\anyevent) d\anyevent}}{\abs{\dataset{A}}!}
-        \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
+        \prod\limits_{\event \in \dataset{A}} \srdist{\dataset{A}}
+        = \dfrac{e^{-\int \srdist{\dataset{A}} d\anyevent}}{\abs{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}} \srdist{\dataset{A}}
     \end{equation}
     \begin{itemize}
         \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
     \end{itemize}
     \begin{equation}
     \label{eq:poisson-log-likelihood}
-        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A}
+        \llikelihood( \srdist{\dataset{A}} | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + \paramf(\anyevent)) (1 + \nparam(\anyevent)) \refdist \big) + C_\dataset{A}
     \end{equation}
+    \begin{itemize}
+        \item a similar expression holds for $\dataset{B}$, and 
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Likelihood and Test Statistics}
@@ -421,9 +413,9 @@
     \end{itemize}
     \begin{equation}
         \Lambda(\param) = \dfrac{
-            \likelihood(\hat{\param},\hat{\nparam})
+            \likelihood(\hat{\paramf},\hat{\nparam})
         }{
-            \likelihood(\param = 0, \hat{\hat{\nparam}})
+            \likelihood(\paramf = 0, \hat{\hat{\nparam}})
         }
     \end{equation}
     \begin{itemize}
@@ -433,7 +425,7 @@
     \begin{aligned}
         t &= 2 \log \left(
             \frac{
-                \max\limits_{f, \nparam} (\likelihood(\hypothesis{1}(\param, \nparam)|\dataset{A}, \dataset{B}))
+                \max\limits_{\paramf, \nparam} (\likelihood(\hypothesis{1}(\paramf, \nparam)|\dataset{A}, \dataset{B}))
             }{
                 \max\limits_{\nparam} (\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}))
         }\right)
@@ -468,25 +460,15 @@
     \begin{itemize}
         \item Since $\paramf$ should be as generic and as expressive as possible, we realize them as neural network outputs:
     \end{itemize}
-    \addsizedpic{0.5}{
+    \begin{equation}
+        \paramf(\anyevent) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \anyevent^j + b_\alpha)
+    \end{equation}
+    \addsizedpic{0.3}{
         figures/nn-illustration.png
     }
     \begin{itemize}
         \item This implementation lets us easily control the number of degrees of freedom of our hypothesis space, by controlling the number of neurons in the middle layer
         \item $\nparam$ is implemented similarly, with a possibly different number of degrees of freedom
-    \end{itemize}
-\end{frame}
-
-\begin{frame}{Wilk's Theorem}
-    \begin{theorem}
-        \textbf{Wilk theorem}: Given a test statistic $\Lambda$ of a signal hypothesis vs. the null hypothesis, assuming the null hypothesis is true, the negative log-likelihood test statistic converges to a $\chi^2$:
-        \begin{equation*}
-            -2 \log \Lambda \to \chi^2_r
-        \end{equation*}
-        with $r$ the number of degrees of freedom of the signal hypothesis minus those of the null one.
-    \end{theorem}
-    \begin{itemize}
-        \item in a calssical analysis f has assumptions on the size of a signal
     \end{itemize}
 \end{frame}
 
