@@ -375,6 +375,9 @@ class Runner:
                 "status_counts": dict(
                     Counter(x["status"] for x in self.store.data["submissions"])
                 ),
+                "plot_group_status_counts": dict(
+                    Counter(g["status"] for g in self.store.data["plot_groups"])
+                ),
                 "timings": self.store.timings,
             }
         if prepared_commit is not None:
@@ -483,6 +486,11 @@ class Runner:
                 Counter(x["status"] for x in self.store.data["submissions"])
             ),
         )
+        self.store.data["routine_runner"] = {
+            "path": os.environ.get("LFVDDP_ATLAS_RUNNER"),
+            "revision": self.report["implementation_revision"],
+            "verified_at": now(),
+        }
         self.store.data["scheduler_snapshot"] = {
             "observed_at": now(),
             "counts": snapshot.counts,
