@@ -60,6 +60,13 @@ class GaussianSignal(SignalDistribution):
         self._gaussian_signal_sigma = gaussian_signal_sigma
 
     @property
+    def positive_region_probability(self) -> float:
+        return float(
+            stats.norm.sf(0, loc=self._location, scale=self._gaussian_signal_sigma)
+            ** self._number_of_dimensions
+        )
+
+    @property
     def integration_upper_limits(self) -> np.ndarray:
         return np.full(self._number_of_dimensions, self._domain_max)
 
@@ -67,11 +74,13 @@ class GaussianSignal(SignalDistribution):
         self,
         amount: int,
     ) -> DataSet:
-        return DataSet(np.random.normal(
-            loc=self._location,
-            scale=self._gaussian_signal_sigma,
-            size=(amount, self._number_of_dimensions)
-        ))
+        return DataSet(
+            np.random.normal(
+                loc=self._location,
+                scale=self._gaussian_signal_sigma,
+                size=(amount, self._number_of_dimensions),
+            )
+        )
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         sigma, mean = self._gaussian_signal_sigma, self._location
@@ -153,22 +162,39 @@ class MultivariateGaussianSignal(SignalDistribution):
         )
 
     @property
+    def positive_region_probability(self) -> float:
+        return float(
+            stats.multivariate_normal.cdf(
+                np.zeros(self._number_of_dimensions),
+                mean=-self._mean,
+                cov=self._covariance,
+                allow_singular=True,
+                rng=np.random.default_rng(0),
+            )
+        )
+
+    @property
     def integration_upper_limits(self) -> np.ndarray:
         return self._integration_upper_limits.copy()
 
     def generate_amount(self, amount: int) -> DataSet:
-        return DataSet(np.random.multivariate_normal(
-            mean=self._mean,
-            cov=self._covariance,
-            size=amount,
-            check_valid="raise",
-        ))
+        return DataSet(
+            np.random.multivariate_normal(
+                mean=self._mean,
+                cov=self._covariance,
+                size=amount,
+                check_valid="raise",
+            )
+        )
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         return self._frozen_distribution.pdf(x)
 
 
 class NonlocalSignal(SignalDistribution):
+    @property
+    def positive_region_probability(self) -> float:
+        return 1.0
 
     def generate_amount(
         self,

@@ -217,3 +217,25 @@
   `render_prediction_heatmaps`; the renderer also has direct plotting smoke
   callers. Its new optional bounds argument preserves those callers. No model,
   training, checkpoint, prediction-function, or statistical behavior changes.
+
+### 2026-10-23: condition generated signals on nonnegative coordinates
+
+- `dataset__signal_positive_only` defaults to true for generated signal overlays
+  on both generated and loaded backgrounds. Reject whole events with any negative
+  coordinate and redraw until the configured count is retained. This samples the
+  joint conditional distribution; it neither clips coordinates nor preserves the
+  numerical value of an unrestricted distribution's correlation coefficient.
+- Normalize the signal PDF by its positive-region probability so continuous
+  significance calibration uses the same signal yield as generation. Joint
+  Gaussians use their orthant probability; independent coordinates multiply their
+  marginal probabilities. Explicit calibration uses the same default and offers
+  `--no-signal-positive-only`; dataset configuration controls config-driven mode.
+- Restrict truth-level signal observables before detector effects. Other background
+  support boundaries are outside this option's scope. Empty signals remain empty;
+  impossible regions fail clearly, and a bounded draw budget prevents rare-region
+  rejection sampling from hanging or returning an incomplete count.
+- Affected entry points: generated and loaded `dataset__data`, signal PDFs and
+  integration limits, config-driven calibration, and explicit calibration API/CLI.
+  Regression fixtures cover defaults, opt-out, joint/repeated/per-coordinate
+  generators, loaded overlays, counts, conditional moments, and normalized PDFs.
+  Plot rendering and model definitions require no changes.

@@ -3,11 +3,13 @@ from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any, Dict, List, Mapping, Sequence, Union
 
+import numpy as np
 from camel_converter import to_pascal
+from scipy.integrate import nquad
+
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 from frame.module_retriever import _retrieve_from_module
-import numpy as np
 
 
 @dataclass(frozen=True)
@@ -163,6 +165,18 @@ class DataDistribution(ABC):
         self._domain_granularity = domain_granularity
 
     @property
+    def positive_region_probability(self) -> float:
+        """Probability that all coordinates are nonnegative."""
+        return nquad(
+            lambda *coordinates: self.pdf(
+                coordinates[0]
+                if self._number_of_dimensions == 1
+                else np.asarray(coordinates)
+            ),
+            [(0, np.inf)] * self._number_of_dimensions,
+        )[0]
+
+    @property
     @abstractmethod
     def integration_upper_limits(self) -> np.ndarray:
         """Return a distribution-specific finite bound for every coordinate."""
@@ -217,11 +231,24 @@ class IndependentDimensionsDistribution(DataDistribution):
         self._names = names
 
     @property
+    def positive_region_probability(self) -> float:
+        return float(
+            np.prod(
+                [
+                    distribution.positive_region_probability
+                    for distribution in self._distributions
+                ]
+            )
+        )
+
+    @property
     def integration_upper_limits(self) -> np.ndarray:
-        return np.concatenate([
-            distribution.integration_upper_limits
-            for distribution in self._distributions
-        ])
+        return np.concatenate(
+            [
+                distribution.integration_upper_limits
+                for distribution in self._distributions
+            ]
+        )
 
     def generate_amount(self, amount: int) -> DataSet:
         generated_dimensions = []

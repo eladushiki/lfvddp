@@ -2,6 +2,7 @@
     "dataset__definitions": [
         {
             "name": "joint",
+            "dataset__signal_positive_only": false,
             "type": "generated",
             "category": "a_sr",
             "dataset_generated__number_of_dimensions": 2,

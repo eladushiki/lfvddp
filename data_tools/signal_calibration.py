@@ -15,6 +15,7 @@ from data_tools.event_generation.distribution import (
     normalize_generator_selection,
     resolve_generator,
 )
+from data_tools.event_generation.positive_signal import condition_signal_distribution
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
@@ -87,6 +88,7 @@ def calc_n_signal_events_for_generated_signal(
     upper_limit: float | np.ndarray | None = None,
     max_n_signal_events: float = 1e9,
     detector_efficiency: Callable | None = None,
+    signal_positive_only: bool = True,
 ) -> float:
     """Calibrate dataset generator specifications to a target significance.
 
@@ -104,6 +106,9 @@ def calc_n_signal_events_for_generated_signal(
         signal,
         normalize_generator_selection(signal_generator),
         number_of_dimensions,
+    )
+    signal_distribution = condition_signal_distribution(
+        signal_distribution, number_of_dimensions, signal_positive_only
     )
     if upper_limit is None:
         upper_limit = np.maximum(
@@ -217,6 +222,12 @@ def main(argv: list[str] | None = None) -> None:
         help="One common limit or one limit per observable dimension.",
     )
     parser.add_argument("--max-signal-events", type=float, default=1e9)
+    parser.add_argument(
+        "--signal-positive-only",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Condition explicit-mode signals on nonnegative coordinates (default: enabled).",
+    )
     arguments = parser.parse_args(argv)
 
     manual_fields = (
@@ -256,6 +267,7 @@ def main(argv: list[str] | None = None) -> None:
                 target_significance=target_significance,
                 upper_limit=upper_limit,
                 max_n_signal_events=arguments.max_signal_events,
+                signal_positive_only=arguments.signal_positive_only,
             )
         results.append(
             {"target_significance": target_significance, "mean_signal_events": count}
