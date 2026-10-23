@@ -58,8 +58,9 @@ def install_receipts(module):
 
 
 def main(args):
+    # Application modules import argv by reference; preserve that shared list.
+    sys.argv[:] = ["submit_train.py", *args]
     import frame.submit as submit
 
     install_receipts(submit)
-    sys.argv = ["submit_train.py", *args]
     runpy.run_module("train.submit_train", run_name="__main__")
