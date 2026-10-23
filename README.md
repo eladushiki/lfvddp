@@ -465,3 +465,13 @@ The entry point opts into the six array cases and starts the one-thread
 `/proc` sampler. Each PBS log contains a `THREAD_PROBE_RESULT` JSON record.
 Use this only for a new runtime investigation; do not add probe environment
 variables to normal submissions.
+
+### ATLAS routine
+
+From the configured shared cluster shell, run
+`python .agents/scripts/run_atlas_routine.py` for scheduler reconciliation,
+plotting, verified archival and FIFO submission. The command records submission
+intents before qsub, recovers interrupted submissions without blind retries, and
+retains one worker prediction example per array. It does not choose or change
+your scheduling interval. See [the routine procedure](.agents/atlas-routine.md)
+for dry runs, phase selection, locking and explicitly authorized history resets.

@@ -31,7 +31,7 @@ bootstrap_command='set +eu; export COMPILER="${COMPILER:-gcc}"; export CXX="${CX
 if [ "$#" -eq 0 ]; then
     interactive_command="export WIS_CLUSTER_REMOTE_PROJECT_ROOT=$quoted_root; $bootstrap_command; exec /bin/bash --noprofile --norc -i"
     quoted_interactive_command=$(shell_quote "$interactive_command")
-    remote_command="cd $quoted_root && exec /bin/bash --noprofile --norc -ic $quoted_interactive_command"
+    remote_command="cd $quoted_root && export WIS_CLUSTER_REMOTE_PROJECT_ROOT=$quoted_root && exec /bin/bash --noprofile --norc -ic $quoted_interactive_command"
     if [ -n "$identity_file" ]; then
         exec ssh -tt -i "$identity_file" "$ssh_target" "$remote_command"
     fi
@@ -41,7 +41,7 @@ fi
 command_text=$*
 run_command="export WIS_CLUSTER_REMOTE_PROJECT_ROOT=$quoted_root; $bootstrap_command; $command_text"
 quoted_run_command=$(shell_quote "$run_command")
-remote_command="cd $quoted_root && exec /bin/bash --noprofile --norc -c $quoted_run_command"
+remote_command="cd $quoted_root && export WIS_CLUSTER_REMOTE_PROJECT_ROOT=$quoted_root && exec /bin/bash --noprofile --norc -c $quoted_run_command"
 
 if [ -n "$identity_file" ]; then
     exec ssh -i "$identity_file" "$ssh_target" "$remote_command"

@@ -327,3 +327,38 @@ background.
 - Skip completed stages on retries. State transitions make the daily routine
   idempotent.
 - Skip `retired` submissions entirely.
+
+## Versioned routine and submission intents
+
+Use `.agents/scripts/run_atlas_routine.py` as the ordinary operational entry point;
+see [the routine procedure](atlas-routine.md). Keep the user's scheduling interval
+independent of the workflow implementation. The runner uses one held canonical
+lock and never opens SSH. Skills call the same implementation rather than define
+independent completion or cleanup rules.
+
+Before a new submission or continuation, atomically save
+`pending_submission_intent` on the existing request: unique ID, attempt kind,
+command, branch/commit, receipt path and previously present submission directories.
+Write the receipt under canonical `.agents/submission-state-tools/intents/`.
+The receipt checkpoints each qsub call as `prepared`, `started`, then `accepted`
+with its returned scheduler ID. Only an explicit PBS quota rejection is a proven
+`rejected` outcome; other failed/unknown responses remain uncertain. Add the
+intent token to the scheduler environment and a short unique PBS name.
+
+An interruption between qsub and the normal state save must be recovered from
+that same intent. Verify the returned ID or an exact owner/name/token match in
+scheduler history. No match, ambiguous matches or unavailable history require
+review, never a blind repeat. Save verified attempts once, archive the intent in
+`submission_intents`, then clear `pending_submission_intent`. Preserve the
+original queue position throughout. These receipts are evidence linked from
+canonical state, not additional authoritative queues.
+
+Explicitly user-authorized `--archive-completed-state` may reset existing active
+lists only when all tracked work/groups are terminal, no scheduler job is active,
+no intent remains unresolved and no recorded scientific follow-up is pending.
+First write and checksum-verify an immutable compressed copy under canonical
+`.agents/submission-state-tools/history/`; record its path, SHA256, original size,
+counts and timestamp in `state_history`. Then atomically clear submissions and
+plot groups while preserving global policy, branch migrations and scientific
+completion evidence. This is a reset of an existing verified state, never recovery
+of a missing file. History remains audit-only. Never reset on ordinary heartbeats.
