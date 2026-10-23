@@ -10,12 +10,12 @@ from urllib.parse import urlparse
 import numpy as np
 
 from data_tools.CMS_open_data import parse_CMS_open_data_sources_json
+from data_tools.data_utils import DATASET_REGIONS, DataSet
 from data_tools.dataset_pair import (
     DatasetPairSplitPolicy,
     IdentityDatasetPairSplitPolicy,
     ShuffledDatasetPairSplitPolicy,
 )
-from data_tools.data_utils import DATASET_REGIONS, DataSet
 from data_tools.event_generation import background, signal
 from data_tools.event_generation.distribution import (
     DataDistribution,
@@ -27,6 +27,7 @@ from data_tools.event_generation.distribution import (
     validate_generated_dataset,
     validate_generated_dataset_within_integration_domain,
 )
+from data_tools.event_generation.positive_signal import condition_signal_distribution
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 from frame.file_system.numpy_events import load_numpy_events
 from frame.file_system.root_reader import load_root_events
@@ -133,6 +134,7 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
     dataset__signal_number_of_events_to_generate: int = field(default=None)
     dataset__mean_number_of_signal_events: int = field(default=0)
     dataset__number_of_signal_events: int = field(default=None)
+    dataset__signal_positive_only: bool = field(default=True)
 
     _dataset__signal_source: str = field(init=False, default="", repr=False)
     _dataset__signal_description: str = field(init=False, default="", repr=False)
@@ -200,10 +202,13 @@ class DatasetWithGeneratedSignalParameters(DatasetParameters, ABC):
         signal_dimensions = self.dataset__signal_number_of_dimensions
         if self.dataset__signal_generator is None:
             return signal.NoSignal(signal_dimensions)
-        return resolve_generator(
+        distribution = resolve_generator(
             signal,
             self.dataset__signal_generator,
             signal_dimensions,
+        )
+        return condition_signal_distribution(
+            distribution, signal_dimensions, self.dataset__signal_positive_only
         )
 
     def _dataset__scaled_pdf(
@@ -555,6 +560,7 @@ class DatasetConfig:
     SIGNAL_CONFIGURATION_FIELDS: ClassVar[set[str]] = {
         *SIGNAL_EVENT_CONFIGURATION_FIELDS,
         "dataset__signal_generator",
+        "dataset__signal_positive_only",
     }
 
     

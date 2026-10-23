@@ -90,6 +90,16 @@ Important configuration choices include:
   and records one.
 - `dataset__definitions` describes the A/B signal-region and control-region
   samples. See the two basic packs for generated and loaded examples.
+- `dataset__signal_positive_only` defaults to `true` for generated signals on
+  both generated and loaded backgrounds. Every signal coordinate must be
+  nonnegative. `gaussian_signal` uses a truncated normal; correlated and composed
+  generators redraw rejected whole events to retain the configured signal count.
+  The joint distribution is conditioned on that region, preserving
+  joint dependence rather than clipping values at zero. Its PDF is renormalized
+  for significance calibration. Set this field to `false` in a dataset definition
+  to retain negative signal coordinates. Calibration with `--configs` reads this
+  same setting; explicit-generator calibration uses the dataset default. This constraint
+  applies before detector effects and does not match other background bounds.
 - All datasets are projected onto the ordered `detector__detect_observable_names`
   after component combination, before regional A/B pooling. Generated and loaded
   sources use the same rule, including background-only categories. Extra loaded

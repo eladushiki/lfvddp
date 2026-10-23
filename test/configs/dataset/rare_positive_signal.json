@@ -1,0 +1,24 @@
+{
+  "dataset__definitions": [
+    {
+      "name": "rare_positive",
+      "type": "generated",
+      "category": "a_sr",
+      "dataset_generated__number_of_dimensions": 1,
+      "dataset_generated__background_generator": {
+        "function": "exponential_background"
+      },
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 1000,
+      "dataset__signal_generator": {
+        "function": "gaussian_signal",
+        "arguments": {
+          "location": -1,
+          "gaussian_signal_sigma": 0.1,
+          "domain_max": 1
+        }
+      }
+    }
+  ],
+  "random_seed": 81723
+}

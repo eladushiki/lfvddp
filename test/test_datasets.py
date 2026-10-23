@@ -124,6 +124,7 @@ def test_dataset_config_owns_signal_configuration_fields():
     assert DatasetConfig.SIGNAL_CONFIGURATION_FIELDS == {
         "dataset__mean_number_of_signal_events",
         "dataset__signal_generator",
+        "dataset__signal_positive_only",
     }
 
 

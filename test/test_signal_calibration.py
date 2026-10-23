@@ -143,3 +143,81 @@ def test_cli_rejects_incomplete_or_mixed_input_modes(extra):
     )
     with pytest.raises(SystemExit):
         main([*args, "--target-significance", "1.6"])
+
+
+def test_explicit_calibration_matches_positive_signal_pdf():
+    from data_tools.event_generation.signal import GaussianSignal
+
+    count = calc_n_signal_events_for_generated_signal(
+        {"function": "exponential_background"},
+        {
+            "function": "gaussian_signal",
+            "arguments": {"location": 0, "gaussian_signal_sigma": 1},
+        },
+        number_of_dimensions=1,
+        n_background_events=1000,
+        target_significance=1.6,
+    )
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=ExponentialBackground(1).pdf,
+        signal_pdf=lambda x: GaussianSignal(1, 0, 1).pdf(x) * 2,
+        n_background_events=1000,
+        n_signal_events=count,
+        upper_limit=6,
+    )
+    assert significance == pytest.approx(1.6, rel=1e-5)
+
+
+@pytest.mark.parametrize("source", ["api", "cli"])
+@pytest.mark.parametrize("mode,normalization", [("positive", 2), ("unrestricted", 1)])
+def test_calibration_uses_the_dataset_positivity_setting(
+    source, mode, normalization, capsys
+):
+    from data_tools.event_generation.signal import GaussianSignal
+
+    paths = [
+        Path(f"test/configs/dataset/calibration_{mode}_signal.json"),
+        Path("test/configs/detector/basic_1D_detector_config.json"),
+    ]
+    config = load_signal_calibration_config(paths)
+    if source == "api":
+        count = calc_n_signal_events_for_config(config, 1.6)
+    else:
+        main(["--configs", *map(str, paths), "--target-significance", "1.6"])
+        count = json.loads(capsys.readouterr().out)[0]["mean_signal_events"]
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=ExponentialBackground(1).pdf,
+        signal_pdf=lambda x: GaussianSignal(1, 0, 1).pdf(x) * normalization,
+        n_background_events=1000,
+        n_signal_events=count,
+        upper_limit=config.signal_dataset_parameters.dataset_generated__integration_upper_limits,
+    )
+    assert significance == pytest.approx(1.6, rel=1e-5)
+
+
+def test_explicit_calibration_cli_uses_dataset_default(capsys):
+    from data_tools.event_generation.signal import GaussianSignal
+
+    main(
+        [
+            "--background-generator",
+            '{"function":"exponential_background"}',
+            "--signal-generator",
+            '{"function":"gaussian_signal","arguments":{"location":0,"gaussian_signal_sigma":1}}',
+            "--number-of-dimensions",
+            "1",
+            "--background-events",
+            "1000",
+            "--target-significance",
+            "1.6",
+        ]
+    )
+    count = json.loads(capsys.readouterr().out)[0]["mean_signal_events"]
+    significance = calc_injected_t_significance_by_sqrt_q0_continuous(
+        background_pdf=ExponentialBackground(1).pdf,
+        signal_pdf=lambda x: GaussianSignal(1, 0, 1).pdf(x) * 2,
+        n_background_events=1000,
+        n_signal_events=count,
+        upper_limit=6,
+    )
+    assert significance == pytest.approx(1.6, rel=1e-5)

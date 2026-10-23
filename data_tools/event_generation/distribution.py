@@ -3,11 +3,12 @@ from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any, Dict, List, Mapping, Sequence, Union
 
+import numpy as np
 from camel_converter import to_pascal
+
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 from frame.module_retriever import _retrieve_from_module
-import numpy as np
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,13 @@ class DataDistribution(ABC):
         self._domain_granularity = domain_granularity
 
     @property
+    def positive_region_probability(self) -> float:
+        """Probability that all coordinates are nonnegative."""
+        raise NotImplementedError(
+            "Distributions used as signals must implement positive_region_probability."
+        )
+
+    @property
     @abstractmethod
     def integration_upper_limits(self) -> np.ndarray:
         """Return a distribution-specific finite bound for every coordinate."""
@@ -187,12 +195,14 @@ class DataDistribution(ABC):
         probabilities = np.array([self.pdf(x) for x in rng])
         probabilities /= probabilities.sum()
 
-        return DataSet(np.random.choice(
-            rng,
-            size=(amount, self._number_of_dimensions),
-            replace=True,
-            p=probabilities,
-        ))
+        return DataSet(
+            np.random.choice(
+                rng,
+                size=(amount, self._number_of_dimensions),
+                replace=True,
+                p=probabilities,
+            )
+        )
 
     @abstractmethod
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
@@ -217,11 +227,24 @@ class IndependentDimensionsDistribution(DataDistribution):
         self._names = names
 
     @property
+    def positive_region_probability(self) -> float:
+        return float(
+            np.prod(
+                [
+                    distribution.positive_region_probability
+                    for distribution in self._distributions
+                ]
+            )
+        )
+
+    @property
     def integration_upper_limits(self) -> np.ndarray:
-        return np.concatenate([
-            distribution.integration_upper_limits
-            for distribution in self._distributions
-        ])
+        return np.concatenate(
+            [
+                distribution.integration_upper_limits
+                for distribution in self._distributions
+            ]
+        )
 
     def generate_amount(self, amount: int) -> DataSet:
         generated_dimensions = []
@@ -283,7 +306,9 @@ def resolve_generator(
             f"{len(selection)}."
         )
 
-    dimension_specs = selection * number_of_dimensions if len(selection) == 1 else selection
+    dimension_specs = (
+        selection * number_of_dimensions if len(selection) == 1 else selection
+    )
     return IndependentDimensionsDistribution(
         distributions=[instantiate(spec, 1) for spec in dimension_specs],
         names=[spec.function for spec in dimension_specs],

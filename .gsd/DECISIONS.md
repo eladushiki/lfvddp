@@ -218,8 +218,51 @@
   callers. Its new optional bounds argument preserves those callers. No model,
   training, checkpoint, prediction-function, or statistical behavior changes.
 
+### 2026-10-23: condition generated signals on nonnegative coordinates
+
+- `dataset__signal_positive_only` defaults to true for generated signal overlays
+  on both generated and loaded backgrounds. Reject whole events with any negative
+  coordinate and redraw until the configured count is retained. This samples the
+  joint conditional distribution; it neither clips coordinates nor preserves the
+  numerical value of an unrestricted distribution's correlation coefficient.
+- Normalize the signal PDF by its positive-region probability so continuous
+  significance calibration uses the same signal yield as generation. Joint
+  Gaussians use their orthant probability; independent coordinates multiply their
+  marginal probabilities. `dataset__signal_positive_only` is the sole public
+  setting. Config-driven calibration reads it; explicit calibration constructs
+  dataset parameters and inherits their default, with no separate CLI/API toggle.
+- Restrict truth-level signal observables before detector effects. Other background
+  support boundaries are outside this option's scope. Empty signals remain empty;
+  impossible regions fail clearly, and a bounded draw budget prevents rare-region
+  rejection sampling from hanging or returning an incomplete count.
+- Affected entry points: generated and loaded `dataset__data`, signal PDFs and
+  integration limits, config-driven calibration, and explicit calibration API/CLI.
+  Regression fixtures cover defaults, opt-out, joint/repeated/per-coordinate
+  generators, loaded overlays, counts, conditional moments, and normalized PDFs.
+  Plot rendering and model definitions require no changes.
+
 ### 2026-10-23: tighten the resonant-signal zoom window
 
 - Supersede the three-standard-deviation half-width above with two marginal
   standard deviations per coordinate. The smaller window makes the injected
   peak larger inside each inset; all 24 maps retain identical signal bounds.
+
+### 2026-10-23: explicit signal conditioning implementations
+
+- Use one frozen SciPy normal or truncated-normal marginal for Gaussian signal
+  generation and PDF evaluation. The dataset positivity setting selects the
+  distribution; no additional configuration flag is introduced. Correlated and
+  composed generators retain whole-event rejection, without a separate
+  dimension-wise resampling optimization.
+- Require each concrete signal class to supply its positive-region probability
+  through an abstract property. Remove automatic numerical integration from the
+  distribution base; unsupported signal implementations fail explicitly.
+- The user elected to leave performance-curve grouping unchanged and requested
+  no migration of historical saved contexts.
+- Caller inventory: generated and loaded signal overlays, generated signal PDFs,
+  integration bounds, and both calibration API/CLI modes. Generation tests cover
+  1D/ND Gaussian, correlated, independent-list, loaded, empty, unrestricted, and
+  rare-region cases. The existing generated-extra-observables fixture also
+  exercises training and checkpoint restore with primary, secondary, and nuisance
+  predictions. Plot rendering and model implementations are unchanged; plots
+  consume the same normalized-PDF interface covered by calibration checks.

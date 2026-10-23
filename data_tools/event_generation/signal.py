@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Optional
 
 import numpy as np
@@ -15,14 +16,24 @@ _NONLOCAL_INTEGRATION_TAIL_PROBABILITY = 1e-3
 # are automatically recognized by the program and can be
 # called from the config file by snake case class name.
 
+
 class SignalDistribution(DataDistribution):
     """Base class for distributions defined in the signal namespace."""
+
+    @property
+    @abstractmethod
+    def positive_region_probability(self) -> float:
+        """Explicit normalization for conditioning on nonnegative coordinates."""
 
 
 class NoSignal(SignalDistribution):
     """
     No signal distribution.
     """
+
+    @property
+    def positive_region_probability(self) -> float:
+        return 0.0
 
     def generate_amount(
         self,
@@ -39,7 +50,6 @@ class NoSignal(SignalDistribution):
 
 
 class GaussianSignal(SignalDistribution):
-    
     def __init__(
         self,
         number_of_dimensions: int,
@@ -48,8 +58,7 @@ class GaussianSignal(SignalDistribution):
         domain_max: Optional[float] = None,
     ):
         integration_upper_limit = (
-            location
-            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS * gaussian_signal_sigma
+            location + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS * gaussian_signal_sigma
             if domain_max is None
             else domain_max
         )
@@ -58,6 +67,21 @@ class GaussianSignal(SignalDistribution):
         super().__init__(number_of_dimensions, domain_max=integration_upper_limit)
         self._location = location
         self._gaussian_signal_sigma = gaussian_signal_sigma
+        self._marginal_distribution = stats.norm(
+            loc=location, scale=gaussian_signal_sigma
+        )
+
+    def condition_on_positive_region(self) -> "GaussianSignal":
+        return _PositiveGaussianSignal(
+            self._number_of_dimensions,
+            self._location,
+            self._gaussian_signal_sigma,
+            domain_max=self._domain_max,
+        )
+
+    @property
+    def positive_region_probability(self) -> float:
+        return float(self._marginal_distribution.sf(0) ** self._number_of_dimensions)
 
     @property
     def integration_upper_limits(self) -> np.ndarray:
@@ -67,18 +91,13 @@ class GaussianSignal(SignalDistribution):
         self,
         amount: int,
     ) -> DataSet:
-        return DataSet(np.random.normal(
-            loc=self._location,
-            scale=self._gaussian_signal_sigma,
-            size=(amount, self._number_of_dimensions)
-        ))
+        return DataSet(
+            self._marginal_distribution.rvs(size=(amount, self._number_of_dimensions))
+        )
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
-        sigma, mean = self._gaussian_signal_sigma, self._location
         values = np.asarray(x)
-        densities = 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp(
-            -(values - mean) ** 2 / (2 * sigma**2)
-        )
+        densities = self._marginal_distribution.pdf(values)
         if self._number_of_dimensions == 1:
             return densities
         if values.ndim == 0:
@@ -91,6 +110,27 @@ class GaussianSignal(SignalDistribution):
                 f"{values.shape[-1]}."
             )
         return np.prod(densities, axis=-1)
+
+
+class _PositiveGaussianSignal(GaussianSignal):
+    """Independent Gaussian coordinates conditioned to be nonnegative."""
+
+    def __init__(
+        self,
+        number_of_dimensions: int,
+        location: float,
+        gaussian_signal_sigma: float,
+        domain_max: float | None = None,
+    ):
+        super().__init__(
+            number_of_dimensions, location, gaussian_signal_sigma, domain_max
+        )
+        self._marginal_distribution = stats.truncnorm(
+            a=-location / gaussian_signal_sigma,
+            b=np.inf,
+            loc=location,
+            scale=gaussian_signal_sigma,
+        )
 
 
 class MultivariateGaussianSignal(SignalDistribution):
@@ -132,8 +172,7 @@ class MultivariateGaussianSignal(SignalDistribution):
         marginal_standard_deviations = np.sqrt(np.diag(self._covariance))
         self._integration_upper_limits = (
             self._mean
-            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS
-            * marginal_standard_deviations
+            + _GAUSSIAN_INTEGRATION_STANDARD_DEVIATIONS * marginal_standard_deviations
             if domain_max is None
             else np.full(number_of_dimensions, domain_max, dtype=float)
         )
@@ -153,22 +192,39 @@ class MultivariateGaussianSignal(SignalDistribution):
         )
 
     @property
+    def positive_region_probability(self) -> float:
+        return float(
+            stats.multivariate_normal.cdf(
+                np.zeros(self._number_of_dimensions),
+                mean=-self._mean,
+                cov=self._covariance,
+                allow_singular=True,
+                rng=np.random.default_rng(0),
+            )
+        )
+
+    @property
     def integration_upper_limits(self) -> np.ndarray:
         return self._integration_upper_limits.copy()
 
     def generate_amount(self, amount: int) -> DataSet:
-        return DataSet(np.random.multivariate_normal(
-            mean=self._mean,
-            cov=self._covariance,
-            size=amount,
-            check_valid="raise",
-        ))
+        return DataSet(
+            np.random.multivariate_normal(
+                mean=self._mean,
+                cov=self._covariance,
+                size=amount,
+                check_valid="raise",
+            )
+        )
 
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
         return self._frozen_distribution.pdf(x)
 
 
 class NonlocalSignal(SignalDistribution):
+    @property
+    def positive_region_probability(self) -> float:
+        return 1.0
 
     def generate_amount(
         self,
