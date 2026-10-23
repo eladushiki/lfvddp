@@ -8,14 +8,9 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import brentq
 
+from data_tools.dataset_config import GeneratedDatasetParameters
 from data_tools.detector.analytic_efficiency import generated_detector_efficiency
-from data_tools.event_generation import background, signal
-from data_tools.event_generation.distribution import (
-    GeneratorSelectionConfig,
-    normalize_generator_selection,
-    resolve_generator,
-)
-from data_tools.event_generation.positive_signal import condition_signal_distribution
+from data_tools.event_generation.distribution import GeneratorSelectionConfig
 from data_tools.profile_likelihood import (
     calc_injected_t_significance_by_sqrt_q0_continuous,
 )
@@ -88,7 +83,6 @@ def calc_n_signal_events_for_generated_signal(
     upper_limit: float | np.ndarray | None = None,
     max_n_signal_events: float = 1e9,
     detector_efficiency: Callable | None = None,
-    signal_positive_only: bool = True,
 ) -> float:
     """Calibrate dataset generator specifications to a target significance.
 
@@ -96,31 +90,24 @@ def calc_n_signal_events_for_generated_signal(
     objects as dataset configuration. If ``upper_limit`` is omitted, the
     component-wise maximum of the two generator integration limits is used.
     Without an efficiency callable, this explicit-PDF mode is generated-level.
+    Dataset defaults apply; use config-driven calibration to change dataset options.
     """
-    background_distribution = resolve_generator(
-        background,
-        normalize_generator_selection(background_generator),
-        number_of_dimensions,
-    )
-    signal_distribution = resolve_generator(
-        signal,
-        normalize_generator_selection(signal_generator),
-        number_of_dimensions,
-    )
-    signal_distribution = condition_signal_distribution(
-        signal_distribution, number_of_dimensions, signal_positive_only
+    parameters = GeneratedDatasetParameters(
+        name="calibration",
+        type="generated",
+        category="a_sr",
+        dataset_generated__number_of_dimensions=number_of_dimensions,
+        dataset_generated__background_generator=background_generator,
+        dataset__signal_generator=signal_generator,
+        dataset__number_of_background_events=n_background_events,
+        dataset__number_of_signal_events=0,
     )
     if upper_limit is None:
-        upper_limit = np.maximum(
-            background_distribution.integration_upper_limits,
-            signal_distribution.integration_upper_limits,
-        )
-        if number_of_dimensions == 1:
-            upper_limit = upper_limit.item()
+        upper_limit = parameters.dataset_generated__integration_upper_limits
 
     return calc_n_signal_events_for_target_injected_t_significance(
-        background_pdf=background_distribution.pdf,
-        signal_pdf=signal_distribution.pdf,
+        background_pdf=parameters.dataset_generated__background_pdf,
+        signal_pdf=parameters.dataset_generated__signal_pdf,
         n_background_events=n_background_events,
         target_significance=target_significance,
         upper_limit=upper_limit,
@@ -222,12 +209,6 @@ def main(argv: list[str] | None = None) -> None:
         help="One common limit or one limit per observable dimension.",
     )
     parser.add_argument("--max-signal-events", type=float, default=1e9)
-    parser.add_argument(
-        "--signal-positive-only",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Condition explicit-mode signals on nonnegative coordinates (default: enabled).",
-    )
     arguments = parser.parse_args(argv)
 
     manual_fields = (
@@ -267,7 +248,6 @@ def main(argv: list[str] | None = None) -> None:
                 target_significance=target_significance,
                 upper_limit=upper_limit,
                 max_n_signal_events=arguments.max_signal_events,
-                signal_positive_only=arguments.signal_positive_only,
             )
         results.append(
             {"target_significance": target_significance, "mean_signal_events": count}

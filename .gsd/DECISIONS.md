@@ -228,8 +228,9 @@
 - Normalize the signal PDF by its positive-region probability so continuous
   significance calibration uses the same signal yield as generation. Joint
   Gaussians use their orthant probability; independent coordinates multiply their
-  marginal probabilities. Explicit calibration uses the same default and offers
-  `--no-signal-positive-only`; dataset configuration controls config-driven mode.
+  marginal probabilities. `dataset__signal_positive_only` is the sole public
+  setting. Config-driven calibration reads it; explicit calibration constructs
+  dataset parameters and inherits their default, with no separate CLI/API toggle.
 - Restrict truth-level signal observables before detector effects. Other background
   support boundaries are outside this option's scope. Empty signals remain empty;
   impossible regions fail clearly, and a bounded draw budget prevents rare-region
@@ -239,3 +240,9 @@
   Regression fixtures cover defaults, opt-out, joint/repeated/per-coordinate
   generators, loaded overlays, counts, conditional moments, and normalized PDFs.
   Plot rendering and model definitions require no changes.
+
+### 2026-10-23: tighten the resonant-signal zoom window
+
+- Supersede the three-standard-deviation half-width above with two marginal
+  standard deviations per coordinate. The smaller window makes the injected
+  peak larger inside each inset; all 24 maps retain identical signal bounds.

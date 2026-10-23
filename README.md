@@ -96,8 +96,8 @@ Important configuration choices include:
   count. The joint distribution is conditioned on that region, preserving
   joint dependence rather than clipping values at zero. Its PDF is renormalized
   for significance calibration. Set this field to `false` in a dataset definition
-  to retain negative signal coordinates. The explicit-generator calibration CLI
-  uses the same default; `--no-signal-positive-only` disables it. This constraint
+  to retain negative signal coordinates. Calibration with `--configs` reads this
+  same setting; explicit-generator calibration uses the dataset default. This constraint
   applies before detector effects and does not match other background bounds.
 - All datasets are projected onto the ordered `detector__detect_observable_names`
   after component combination, before regional A/B pooling. Generated and loaded
@@ -219,7 +219,7 @@ when configuration files need target-significance signal amounts.
   Hidden-observable model factors are displayed as uniform grid averages. The 1D view is unchanged.
 - For a resonant Gaussian injection with exactly two detected observables, all
   24 prediction-process heatmaps include a matching signal zoom inset centered
-  on the injected mean and extending three standard deviations per coordinate.
+  on the injected mean and extending two standard deviations per coordinate.
   Insets preserve the parent map's binning and color scale.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
