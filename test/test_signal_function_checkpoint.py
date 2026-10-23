@@ -31,6 +31,19 @@ _TRAIN_CONFIG_DIR = Path("test/configs/train")
 
 
 _FUNCTION_SPACE_CASES = [
+    pytest.param(
+        {
+            ConfigType.DATASET: Path(
+                "test/configs/dataset/generated_extra_observables.yaml"
+            ),
+            ConfigType.DETECTOR: Path(
+                "test/configs/detector/basic_2D_detector_config.json"
+            ),
+            ConfigType.TRAIN: _TRAIN_CONFIG_DIR
+            / "two_dimensional_adaptive_neural_binned.json",
+        },
+        id="truncated-gaussian-signal",
+    ),
     *[
         pytest.param(config, id=config[ConfigType.TRAIN].stem)
         for config in NEURAL_DEPTH_CONFIGS

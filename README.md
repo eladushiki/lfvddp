@@ -92,8 +92,9 @@ Important configuration choices include:
   samples. See the two basic packs for generated and loaded examples.
 - `dataset__signal_positive_only` defaults to `true` for generated signals on
   both generated and loaded backgrounds. Every signal coordinate must be
-  nonnegative; rejected events are redrawn to retain the configured signal
-  count. The joint distribution is conditioned on that region, preserving
+  nonnegative. `gaussian_signal` uses a truncated normal; correlated and composed
+  generators redraw rejected whole events to retain the configured signal count.
+  The joint distribution is conditioned on that region, preserving
   joint dependence rather than clipping values at zero. Its PDF is renormalized
   for significance calibration. Set this field to `false` in a dataset definition
   to retain negative signal coordinates. Calibration with `--configs` reads this

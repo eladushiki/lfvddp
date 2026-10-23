@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Mapping, Sequence, Union
 
 import numpy as np
 from camel_converter import to_pascal
-from scipy.integrate import nquad
 
 from data_tools.data_utils import DataSet
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
@@ -167,14 +166,9 @@ class DataDistribution(ABC):
     @property
     def positive_region_probability(self) -> float:
         """Probability that all coordinates are nonnegative."""
-        return nquad(
-            lambda *coordinates: self.pdf(
-                coordinates[0]
-                if self._number_of_dimensions == 1
-                else np.asarray(coordinates)
-            ),
-            [(0, np.inf)] * self._number_of_dimensions,
-        )[0]
+        raise NotImplementedError(
+            "Distributions used as signals must implement positive_region_probability."
+        )
 
     @property
     @abstractmethod
@@ -201,12 +195,14 @@ class DataDistribution(ABC):
         probabilities = np.array([self.pdf(x) for x in rng])
         probabilities /= probabilities.sum()
 
-        return DataSet(np.random.choice(
-            rng,
-            size=(amount, self._number_of_dimensions),
-            replace=True,
-            p=probabilities,
-        ))
+        return DataSet(
+            np.random.choice(
+                rng,
+                size=(amount, self._number_of_dimensions),
+                replace=True,
+                p=probabilities,
+            )
+        )
 
     @abstractmethod
     def pdf(self, x: FLOAT_OR_ARRAY) -> FLOAT_OR_ARRAY:
@@ -310,7 +306,9 @@ def resolve_generator(
             f"{len(selection)}."
         )
 
-    dimension_specs = selection * number_of_dimensions if len(selection) == 1 else selection
+    dimension_specs = (
+        selection * number_of_dimensions if len(selection) == 1 else selection
+    )
     return IndependentDimensionsDistribution(
         distributions=[instantiate(spec, 1) for spec in dimension_specs],
         names=[spec.function for spec in dimension_specs],

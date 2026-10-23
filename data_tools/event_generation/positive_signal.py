@@ -9,7 +9,7 @@ from data_tools.event_generation.distribution import (
     DataDistribution,
     validate_generated_dataset,
 )
-from data_tools.event_generation.signal import NoSignal
+from data_tools.event_generation.signal import GaussianSignal, NoSignal
 from data_tools.event_generation.types import FLOAT_OR_ARRAY
 
 
@@ -20,6 +20,8 @@ def condition_signal_distribution(
 ) -> DataDistribution:
     """Apply the shared signal-domain policy to sampling and calibration."""
     if positive_only and not isinstance(distribution, NoSignal):
+        if isinstance(distribution, GaussianSignal):
+            return distribution.condition_on_positive_region()
         return PositiveSignalDistribution(distribution, number_of_dimensions)
     return distribution
 

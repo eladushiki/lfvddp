@@ -3,10 +3,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 from scipy.integrate import dblquad, quad
-from scipy.stats import halfnorm
+from scipy.stats import halfnorm, truncnorm
 
 from data_tools.data_utils import DataSet
-from data_tools.event_generation.positive_signal import PositiveSignalDistribution
+from data_tools.event_generation.positive_signal import (
+    PositiveSignalDistribution,
+    condition_signal_distribution,
+)
 from data_tools.event_generation.signal import (
     GaussianSignal,
     MultivariateGaussianSignal,
@@ -71,12 +74,36 @@ def test_positive_signal_toggle_restores_unrestricted_distribution(
 
 
 def test_positive_signal_one_dimension_and_empty_sample():
-    distribution = PositiveSignalDistribution(GaussianSignal(1, 0, 1), 1)
+    distribution = condition_signal_distribution(GaussianSignal(1, 0, 1), 1, True)
     assert distribution.generate_amount(0).events.shape == (0, 1)
     assert distribution.generate_amount(100).events.shape == (100, 1)
     assert distribution.pdf(-1) == 0
     np.testing.assert_allclose(distribution.pdf(np.array([0, 1])), halfnorm.pdf([0, 1]))
     assert quad(distribution.pdf, 0, np.inf)[0] == pytest.approx(1)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [{ConfigType.DATASET: Path("test/configs/dataset/rare_positive_signal.json")}],
+    indirect=True,
+)
+def test_positive_gaussian_uses_truncated_normal_for_rare_regions(
+    function_execution_context,
+):
+    parameters = function_execution_context.config.get_parameters(
+        DataSet.DataSetCategory.A_SR
+    )
+    _, signal = parameters.dataset__data
+    reference = truncnorm(a=10, b=np.inf, loc=-1, scale=0.1)
+    assert signal.events.shape == (1000, 1)
+    assert np.all(signal.events >= 0)
+    assert np.mean(signal.events) == pytest.approx(reference.mean(), abs=0.001)
+    pdf = parameters.dataset_generated__signal_pdf
+    np.testing.assert_allclose(
+        pdf(np.array([-0.01, 0, 0.01, 0.1])),
+        reference.pdf(np.array([-0.01, 0, 0.01, 0.1])),
+    )
+    assert quad(pdf, 0, 1)[0] == pytest.approx(1)
 
 
 def test_positive_signal_impossible_region_fails_without_hanging():

@@ -246,3 +246,23 @@
 - Supersede the three-standard-deviation half-width above with two marginal
   standard deviations per coordinate. The smaller window makes the injected
   peak larger inside each inset; all 24 maps retain identical signal bounds.
+
+### 2026-10-23: explicit signal conditioning implementations
+
+- Use one frozen SciPy normal or truncated-normal marginal for Gaussian signal
+  generation and PDF evaluation. The dataset positivity setting selects the
+  distribution; no additional configuration flag is introduced. Correlated and
+  composed generators retain whole-event rejection, without a separate
+  dimension-wise resampling optimization.
+- Require each concrete signal class to supply its positive-region probability
+  through an abstract property. Remove automatic numerical integration from the
+  distribution base; unsupported signal implementations fail explicitly.
+- The user elected to leave performance-curve grouping unchanged and requested
+  no migration of historical saved contexts.
+- Caller inventory: generated and loaded signal overlays, generated signal PDFs,
+  integration bounds, and both calibration API/CLI modes. Generation tests cover
+  1D/ND Gaussian, correlated, independent-list, loaded, empty, unrestricted, and
+  rare-region cases. The existing generated-extra-observables fixture also
+  exercises training and checkpoint restore with primary, secondary, and nuisance
+  predictions. Plot rendering and model implementations are unchanged; plots
+  consume the same normalized-PDF interface covered by calibration checks.
