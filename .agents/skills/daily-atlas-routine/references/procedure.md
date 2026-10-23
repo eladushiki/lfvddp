@@ -148,3 +148,12 @@ source verification, and enabled preparation gates. The SSH helper is exercised
 with a fake SSH executable. Scientific model entry points are reused, unchanged;
 this refactor introduces no model/configuration modes. Verify plotting's named
 arguments by inspection rather than adding plot-utility tests.
+
+
+Worker adapters update the existing `sys.argv` list before invoking application
+entry points. Application modules import that list directly; replacing it leaves
+context descriptors bound to the runner name. Submission/plot names must remain
+`submit_train.py`/`create_plots.py` so discovery, recovery and cleanup agree.
+The private adapter tests exercise real descriptor construction after prior
+application imports, including both saved plotting debug modes. Existing tracked
+runner-named submission directories remain valid; do not rename active work.
