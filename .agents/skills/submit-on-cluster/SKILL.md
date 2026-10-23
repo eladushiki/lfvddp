@@ -5,17 +5,15 @@ description: "Submit saved ATLAS requests and continuations in FIFO order using 
 
 # Submit on cluster
 
-Read [the shared state schema](../../submission-state.schema.md) and
-[the versioned routine procedure](../../atlas-routine.md).
+Read [the shared state schema](../daily-atlas-routine/references/submission-state.schema.md) and
+[the versioned routine procedure](../daily-atlas-routine/references/procedure.md).
 Use the existing shared SSH shell. Never open another connection.
 
 ```sh
-python .agents/scripts/run_atlas_routine.py --phase submit
+python .agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py --phase submit
 ```
 
-Append `--held-lock` when the caller already holds the canonical lock. For an
-older checkout use the identical deployed runner under canonical
-`.agents/submission-state-tools/runner/`. The full daily routine uses the runner
+Append `--held-lock` when the caller already holds the canonical lock. Use the current skill scripts. The full daily routine uses the runner
 without a phase restriction.
 
 Submit only saved requests. Preserve ordered configuration layers, branch

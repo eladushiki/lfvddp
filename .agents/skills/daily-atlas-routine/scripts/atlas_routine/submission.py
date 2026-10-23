@@ -6,11 +6,11 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
-from frame.cluster.atlas.completion import completion_evidence, output_path
-from frame.cluster.atlas.files import atomic_json
-from frame.cluster.atlas.scheduler import parent
-from frame.cluster.atlas.state import now
-from frame.cluster.submission_intent import RECEIPT_ENV, QUOTA_ERROR
+from atlas_routine.completion import completion_evidence, output_path
+from atlas_routine.files import atomic_json
+from atlas_routine.scheduler import parent
+from atlas_routine.state import now
+from atlas_routine.submission_intent import RECEIPT_ENV, QUOTA_ERROR
 
 QUOTA = QUOTA_ERROR
 
@@ -152,20 +152,12 @@ class SubmissionManager:
         if receipt["id"] != intent["id"]:
             raise ValueError("Receipt identity differs from canonical intent")
         calls = receipt["calls"]
-        if not calls or all(call["status"] == "prepared" for call in calls):
-            self.cleanup(entry, intent, receipt)
-            entry.pop("pending_submission_intent")
-            entry["status"] = (
-                "continuation_requested"
-                if intent["kind"] == "continuation"
-                else "requested"
-            )
-            self.store.save()
-            return
-        if all(
+        not_started = not calls or all(call["status"] == "prepared" for call in calls)
+        quota_rejected = bool(calls) and all(
             call["status"] == "rejected" and QUOTA.search(call.get("error", ""))
             for call in calls
-        ):
+        )
+        if not_started or quota_rejected:
             self.cleanup(entry, intent, receipt)
             entry.pop("pending_submission_intent")
             entry["status"] = (

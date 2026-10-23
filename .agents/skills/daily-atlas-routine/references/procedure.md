@@ -3,7 +3,7 @@
 Run the committed command from the one configured SSH shell:
 
 ```sh
-python .agents/scripts/run_atlas_routine.py
+python .agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py
 ```
 
 The command checks Torch, acquires the shared canonical lock once, reconciles PBS,
@@ -52,11 +52,12 @@ runner reports an unsatisfied gate and leaves the request pending. It never uses
 personal credentials or executes free-form instruction text as shell code. Never
 update a checkout with active scheduler jobs. A pending scientific calibration
 that requires figure inspection is reported for review, not guessed or repeated.
-Completed v8 calibration and runtime requirements remain in canonical metadata.
+Scientific requirements remain request metadata and one-time operator instructions;
+the runner never infers them from pack names.
 
 ## Completion, plots and cleanup
 
-`frame.cluster.atlas.completion.accepted_size` implements the schema's shared
+`atlas_routine.completion.accepted_size` implements the schema's shared
 strict greater-than-90-percent criterion. Use the original expected array size,
 unique worker indices and matching exit-zero PBS logs. Every tracked parent must
 be inactive. Failed and missing evidence remains in state. Walltime kills request
@@ -79,10 +80,11 @@ or overwrite conflicting evidence. Already analyzed/archived stages are skipped.
 ## Explicit history reset
 
 Only when the user authorizes it, and scheduler jobs, requests, continuations,
-unfinished groups, unresolved intents and scientific follow-ups are absent:
+unfinished groups and unresolved intents are absent, and you have checked that
+any one-time scientific follow-ups are complete:
 
 ```sh
-python .agents/scripts/run_atlas_routine.py --archive-completed-state
+python .agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py --archive-completed-state
 ```
 
 This creates an immutable gzip snapshot of the original canonical YAML and
@@ -100,12 +102,11 @@ and cleanup. Empty runs use one active/history snapshot and scan no result trees
 The agent reports meaningful changes or required intervention; an unchanged idle
 run needs no new narrative. The user alone chooses the schedule interval.
 
-For an older clean checkout, deploy this exact committed script beside a `cluster/`
-directory containing the committed `atlas/` package and `submission_intent.py`,
-under `.agents/submission-state-tools/runner/`. The launcher adds only that new
-package location; it does not replace training, config or plotting source files.
-Call the deployed script with the same flags. Record its Git revision and checksums.
-Do not construct temporary workflow implementations or monkeypatch policies.
+The skill imports LFVDDP's existing training/config/plot entry points; it is not
+an application package and does not alter `frame` import paths. Deployment is
+an optional code-only bundle of these committed skill scripts, including the
+lock helper. Use the matching current application interfaces; obsolete checkout
+compatibility is not maintained. The launcher verifies a deployed manifest.
 
 When the runner reports a saved checkout gate, perform the repository GitHub App
 fetch/fast-forward in the same held transaction, rechecking that PBS is idle.
@@ -117,8 +118,33 @@ Existing verification may be reused while jobs remain active on that same commit
 an idle transaction with a saved latest-main action requires fresh preparation.
 
 Create the deployment bundle with
-`python .agents/scripts/package_atlas_routine.py /tmp/atlas-routine.tar.gz` after
+`python .agents/skills/daily-atlas-routine/scripts/package_atlas_routine.py /tmp/atlas-routine.tar.gz` after
 committing. It reads Git objects, never uncommitted files or local secrets. Transfer
 that code-only archive through the existing SSH shell and unpack it into the
-ignored runner directory. `manifest.json` records the revision and every source
+ignored runtime directory. `manifest.json` records the revision and every source
 checksum; the launcher verifies it on every invocation and reports its revision.
+
+
+## Maintenance boundaries
+
+The scripts, schema, procedure, fixtures and tests belong to this skill. Archive
+mechanics and their tests belong to `generate-plots-on-cluster`. Public training
+and plotting packages have no dependency on the routine. Update the explicit
+skill test suite when changing the lock, launch/receipt boundary, completion,
+FIFO/quota behavior or cleanup. Plot utilities need no new plot tests.
+
+Operational stage failures are checkpointed at one shared boundary. Submission
+failures stop scanning; recover receipts before launching anything again.
+Unexpected programming errors escape instead of being converted into continued
+workflow work. Investigation and one-time scientific instructions remain with
+the agent; the script does not pretend to automate those decisions.
+
+
+Refactor entry-point inventory: the full launcher, plots/submission phases and
+held-lock workers share this package; packaging and the process lock remain
+separate commands. The private tests exercise phases, live/idle PBS snapshots,
+initial and continuation receipts, quota/uncertain recovery, archive and restore,
+source verification, and enabled preparation gates. The SSH helper is exercised
+with a fake SSH executable. Scientific model entry points are reused, unchanged;
+this refactor introduces no model/configuration modes. Verify plotting's named
+arguments by inspection rather than adding plot-utility tests.

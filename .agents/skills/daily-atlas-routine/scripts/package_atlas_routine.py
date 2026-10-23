@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package only committed runner files for an older cluster checkout."""
+"""Package only committed runner files as a self-contained skill script bundle."""
 
 import argparse
 import hashlib
@@ -21,9 +21,7 @@ def package(root: Path, output: Path):
             "-r",
             "--name-only",
             revision,
-            "frame/cluster/atlas",
-            "frame/cluster/submission_intent.py",
-            ".agents/scripts/run_atlas_routine.py",
+            ".agents/skills/daily-atlas-routine/scripts",
         ],
         cwd=root,
         text=True,
@@ -32,15 +30,11 @@ def package(root: Path, output: Path):
     for path in paths:
         if not path.endswith(".py"):
             continue
-        name = (
-            "run_atlas_routine.py"
-            if path.startswith(".agents/")
-            else path.removeprefix("frame/")
-        )
+        name = path.removeprefix(".agents/skills/daily-atlas-routine/scripts/")
         files[name] = subprocess.check_output(
             ["git", "show", f"{revision}:{path}"], cwd=root
         )
-    if "run_atlas_routine.py" not in files or "cluster/atlas/runner.py" not in files:
+    if "run_atlas_routine.py" not in files or "atlas_routine/runner.py" not in files:
         raise ValueError("Commit the runner before packaging it")
     files["manifest.json"] = json.dumps(
         {
@@ -72,4 +66,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    package(Path(__file__).resolve().parents[2], args.output)
+    package(Path(__file__).resolve().parents[4], args.output)

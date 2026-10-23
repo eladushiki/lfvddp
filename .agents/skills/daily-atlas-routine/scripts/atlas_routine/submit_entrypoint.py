@@ -4,7 +4,7 @@ import inspect
 import runpy
 import subprocess
 import sys
-from frame.cluster.submission_intent import QUOTA_ERROR, SubmissionReceipt
+from atlas_routine.submission_intent import QUOTA_ERROR, SubmissionReceipt
 
 
 def install_receipts(module):

@@ -24,12 +24,6 @@ def bootstrap():
                 )
         os.environ["LFVDDP_ATLAS_REVISION"] = metadata["revision"]
     sys.path.insert(0, str(root))
-    import frame.cluster
-
-    # Optional ignored deployment of this same committed package for older checkouts.
-    overlay = Path(__file__).parent / "cluster"
-    if overlay.is_dir():
-        frame.cluster.__path__ = [str(overlay), *frame.cluster.__path__]
     os.environ["LFVDDP_ATLAS_RUNNER"] = str(Path(__file__).resolve())
     return root
 
@@ -37,14 +31,14 @@ def bootstrap():
 def main():
     root = bootstrap()
     if sys.argv[1:2] == ["--worker"]:
-        from frame.cluster.atlas.state import assert_held_lock
+        from atlas_routine.state import assert_held_lock
 
         assert_held_lock(root)
         kind, args = sys.argv[2], sys.argv[3:]
         if kind == "submit":
-            from frame.cluster.atlas.submit_entrypoint import main as worker
+            from atlas_routine.submit_entrypoint import main as worker
         elif kind == "plot":
-            from frame.cluster.atlas.plot_entrypoint import main as worker
+            from atlas_routine.plot_entrypoint import main as worker
         else:
             raise ValueError("Unknown routine worker")
         worker(args)
@@ -80,9 +74,7 @@ def main():
             for command in (["quota"], ["lquota"]):
                 subprocess.run(command, check=False)
             return health.returncode
-        lock = root / ".agents/scripts/with_submission_state_lock.py"
-        if not lock.exists():
-            lock = root / ".agents/submission-state-tools/with_submission_state_lock.py"
+        lock = Path(__file__).with_name("with_submission_state_lock.py")
         # Fail-fast helper is the sole lock implementation; no nested acquisition.
         return subprocess.call(
             [
@@ -96,8 +88,8 @@ def main():
             ],
             cwd=root,
         )
-    from frame.cluster.atlas.runner import Runner
-    from frame.cluster.atlas.state import StateStore
+    from atlas_routine.runner import Runner
+    from atlas_routine.state import StateStore
 
     runner = Runner(StateStore(root))
     report = runner.run(

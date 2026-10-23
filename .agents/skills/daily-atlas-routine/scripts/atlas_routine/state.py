@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 import yaml
-from frame.cluster.atlas.files import atomic_bytes
+from atlas_routine.files import atomic_bytes
 
 LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 DUMPER = getattr(yaml, "CSafeDumper", yaml.SafeDumper)

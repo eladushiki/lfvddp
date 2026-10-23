@@ -14,18 +14,20 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import yaml
 from frame.context.run_descriptor import build_run_descriptor
-from frame.cluster.atlas.backend import Backend, re_match_pack
-from frame.cluster.atlas.completion import accepted_size, completion_evidence, frozen
-from frame.cluster.atlas.files import atomic_json
-from frame.cluster.atlas.runner import Runner
-from frame.cluster.atlas.scheduler import Scheduler, Snapshot
-from frame.cluster.atlas.state import StateStore
-from frame.cluster.atlas.submission import SubmissionManager
-from frame.cluster.atlas.submit_entrypoint import install_receipts
-from frame.cluster.submission_intent import RECEIPT_ENV
+from atlas_routine.artifacts import Artifacts
+from atlas_routine.backend import Backend
+from atlas_routine.completion import accepted_size, completion_evidence, frozen
+from atlas_routine.files import atomic_json
+from atlas_routine.runner import Runner
+from atlas_routine.scheduler import Scheduler, Snapshot
+from atlas_routine.state import StateStore
+from atlas_routine.submission import SubmissionManager
+from atlas_routine.submit_entrypoint import install_receipts
+from atlas_routine.submission_intent import RECEIPT_ENV
 
-FIXTURE = Path(__file__).parent / "configs/cluster/atlas_routine_state.yaml"
-ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = Path(__file__).parent / "configs/atlas_routine_state.yaml"
+SKILL = Path(__file__).resolve().parents[1]
+ROOT = SKILL.parents[2]
 
 
 class AtlasCase(unittest.TestCase):
@@ -52,7 +54,8 @@ class AtlasCase(unittest.TestCase):
                 "SUBMISSION_STATE_PATH": str(self.path),
                 "WIS_CLUSTER_REMOTE_PROJECT_ROOT": str(self.root),
                 "LFVDDP_ATLAS_RUNNER": str(
-                    ROOT / ".agents/scripts/run_atlas_routine.py"
+                    ROOT
+                    / ".agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py"
                 ),
             },
         )
@@ -64,11 +67,11 @@ class AtlasCase(unittest.TestCase):
         value = {
             "id": name,
             "status": status,
-            "output_root": "results/plots-v9/plot-05",
+            "output_root": "results/example",
             "config_packs": [
-                "configs/plots-v9/generic",
-                "configs/plots-v9/mandatory-optional/2d/generated",
-                "configs/plots-v9/plot-05-2d/signal",
+                "configs/example/generic",
+                "configs/example/mandatory-optional/2d/generated",
+                "configs/example/plot-05-2d/signal",
             ],
             "only_train": True,
             "debug": False,
@@ -141,7 +144,7 @@ class LockedStateTest(AtlasCase):
         self.assertEqual(evidence["sha256"], hashlib.sha256(before).hexdigest())
         result = yaml.safe_load(self.path.read_text())
         self.assertEqual(result["submissions"], [])
-        self.assertEqual(result["last_v8_configuration_update"]["status"], "complete")
+        self.assertEqual(result["completed_scientific_update"]["status"], "complete")
         self.assertIn("worker_retention_policy", result)
 
     def test_reset_refuses_pending_work_and_live_scheduler(self):
@@ -177,7 +180,7 @@ class LockedStateTest(AtlasCase):
         before = self.path.read_bytes()
         self.entry()
         with patch(
-            "frame.cluster.atlas.state.atomic_bytes", side_effect=OSError("disk full")
+            "atlas_routine.state.atomic_bytes", side_effect=OSError("disk full")
         ):
             with self.assertRaises(OSError):
                 self.store.save()
@@ -286,16 +289,17 @@ class LockedStateTest(AtlasCase):
         backend.plot.return_value = ["progression.png"]
         Runner(self.store, self.scheduler(), backend).single_plots()
         self.assertEqual(entry["status"], "analyzed")
-        backend.prune.assert_not_called()
+        backend.artifacts.prune.assert_not_called()
 
     def test_frozen_and_protected_outputs_not_touched(self):
         entry = self.entry(status="finished")
-        entry["config_packs"] = ["configs/plots-v4/generic"]
+        entry["frozen"] = True
         runner = Runner(self.store, self.scheduler(), self.backend())
         self.assertTrue(frozen(entry))
         runner.single_plots()
         runner.backend.plot.assert_not_called()
-        entry["config_packs"] = ["configs/plots-v9/generic"]
+        entry["config_packs"] = ["configs/example/generic"]
+        entry["frozen"] = False
         entry["purpose"] = "research workflow"
         runner.single_plots()
         runner.backend.plot.assert_not_called()
@@ -448,7 +452,10 @@ class LockedStateTest(AtlasCase):
         result = subprocess.run(
             [
                 sys.executable,
-                str(ROOT / ".agents/scripts/run_atlas_routine.py"),
+                str(
+                    ROOT
+                    / ".agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py"
+                ),
                 "--held-lock",
                 "--dry-run",
             ],
@@ -462,7 +469,7 @@ class LockedStateTest(AtlasCase):
 
     def test_qsub_receipt_records_before_execution_and_limits_retries(self):
         import frame.submit as module
-        from frame.cluster.atlas.submit_entrypoint import install_receipts
+        from atlas_routine.submit_entrypoint import install_receipts
 
         path = (
             self.root / ".agents/submission-state-tools/intents" / ("b" * 32 + ".json")
@@ -520,20 +527,6 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(scheduler.recover_call(call, token), "1[]")
         with self.assertRaises(RuntimeError):
             scheduler.recover_call(call, "b" * 32)
-
-    def test_pack_dimension_and_data_source_are_explicit(self):
-        self.assertEqual(
-            re_match_pack(
-                ["generic", "mandatory", "configs/plots-v9/plot-08-cms-data-2d/signal"]
-            ),
-            ("plots-v9", "2d", "cms_open_data"),
-        )
-        self.assertEqual(
-            re_match_pack(
-                ["generic", "mandatory", "configs/plots-v9/plot-06-4d/signal"]
-            ),
-            ("plots-v9", "4d", "generated"),
-        )
 
 
 class RecoveryAndArchiveTest(AtlasCase):
@@ -651,17 +644,17 @@ class RecoveryAndArchiveTest(AtlasCase):
                 report = {"timings": []}
                 backend = Backend(self.root, self.root / "runtime", report)
                 # Use the actual committed helper, with this test's isolated results.
-                helper = Backend(ROOT, self.root / "runtime", report).archive_helper()
-                backend.helper = helper
+                helper = Artifacts(ROOT).archive_helper()
+                backend.artifacts.helper = helper
                 with patch.object(
                     helper.shutil,
                     "rmtree",
                     side_effect=OSError("interruption after verified tar"),
                 ):
                     with self.assertRaises(OSError):
-                        backend.archive(directory)
+                        backend.artifacts.archive(directory)
                 self.assertTrue((directory / "array-job-artifacts.tar.gz").exists())
-                result = backend.archive(directory)
+                result = backend.artifacts.archive(directory)
                 self.assertEqual(len(result["retained_worker_directories"]), 1)
                 self.assertEqual(
                     len(list(directory.glob("*_run_of_single_train.py_*"))), 1
@@ -688,11 +681,9 @@ class RecoveryAndArchiveTest(AtlasCase):
                 archive.add(log, arcname=log.name)
         data.write_text("different")
         backend = Backend(self.root, self.root / "runtime", {"timings": []})
-        backend.helper = Backend(
-            ROOT, self.root / "runtime", {"timings": []}
-        ).archive_helper()
+        backend.artifacts.helper = Artifacts(ROOT).archive_helper()
         with self.assertRaises(ValueError):
-            backend.archive(directory)
+            backend.artifacts.archive(directory)
         self.assertEqual(data.read_text(), "different")
 
     def test_qsub_rejection_is_recorded_and_never_retried(self):
@@ -767,6 +758,46 @@ class RecoveryAndArchiveTest(AtlasCase):
 
 
 class AdditionalWorkflowTest(AtlasCase):
+    def test_saved_config_layers_are_passed_in_order_without_name_inference(self):
+        entry = self.entry()
+        entry["config_packs"] = [
+            "configs/base",
+            "configs/custom-geometry",
+            "configs/override",
+            "configs/final",
+        ]
+        files = [self.root / pack for pack in entry["config_packs"]]
+        backend = Backend(self.root, self.root / "runtime", {"timings": []})
+        with (
+            patch(
+                "frame.file_system.textual_data.expand_config_paths", return_value=files
+            ) as expand,
+            patch(
+                "frame.file_system.textual_data.load_config_params_from_paths",
+                return_value={},
+            ) as load,
+            patch(
+                "frame.context.execution_context.create_config_from_paramters",
+                return_value=object(),
+            ) as create,
+        ):
+            config, actual = backend.configs(entry)
+        expand.assert_called_once_with(files)
+        load.assert_called_once_with(files)
+        self.assertIs(config, create.return_value)
+        self.assertEqual(actual, files)
+
+    def test_programming_error_escapes_stage_boundary_without_marking_failed(self):
+        entry = self.entry(status="finished")
+        self.directory(entry)
+        entry["completion_evidence"] = {"complete": True, "accepted": True}
+        backend = self.backend()
+        backend.plot.side_effect = TypeError("unexpected programming error")
+        runner = Runner(self.store, self.scheduler(), backend)
+        with self.assertRaises(TypeError):
+            runner.single_plots()
+        self.assertNotIn("last_error", entry)
+
     def test_continuation_corrects_only_last_defining_layer(self):
         import shutil
 
@@ -799,7 +830,7 @@ class AdditionalWorkflowTest(AtlasCase):
         self.assertTrue(completion_evidence(directory, ["123"])["complete"])
 
     def test_preparation_gate_keeps_request_pending_and_does_not_overtake(self):
-        from frame.cluster.atlas.backend import PreparationRequired
+        from atlas_routine.backend import PreparationRequired
 
         first = self.entry("first")
         self.entry("later")
@@ -816,7 +847,7 @@ class AdditionalWorkflowTest(AtlasCase):
     def test_plot_phase_never_submits_saved_request(self):
         self.entry()
         scheduler = Scheduler(command=Mock(return_value=""))
-        with patch("frame.cluster.atlas.runner.SubmissionManager") as manager:
+        with patch("atlas_routine.runner.SubmissionManager") as manager:
             Runner(self.store, scheduler, self.backend()).run(phase="plots")
         manager.return_value.submit.assert_not_called()
 
@@ -838,12 +869,12 @@ class AdditionalWorkflowTest(AtlasCase):
             archive.add(other, arcname=other.name)
         other.unlink()
         backend = Backend(self.root, self.root / "runtime", {"timings": []})
-        backend.restore(directory)
-        backend.restore(directory)
+        backend.artifacts.restore(directory)
+        backend.artifacts.restore(directory)
         self.assertEqual(other.read_text(), "archive content")
         picture.write_bytes(b"conflict")
         with self.assertRaises(ValueError):
-            backend.restore(directory)
+            backend.artifacts.restore(directory)
 
     def test_server_suffix_does_not_duplicate_context_submission_record(self):
         entry = self.entry()
@@ -931,7 +962,7 @@ class LauncherTest(AtlasCase):
         self.assertEqual(trace.read_text(), "x")
 
     def test_stale_preparation_does_not_satisfy_new_idle_transaction(self):
-        from frame.cluster.atlas.backend import PreparationRequired
+        from atlas_routine.backend import PreparationRequired
 
         entry = self.entry()
         entry["required_pre_submission_action"] = "Fetch and fast-forward latest main"
@@ -946,23 +977,19 @@ class LauncherTest(AtlasCase):
 
 
 class DeploymentTest(AtlasCase):
-    def test_older_checkout_loads_verified_overlay_and_rejects_drift(self):
+    def test_skill_deployment_verifies_sources_and_rejects_drift(self):
         import shutil
 
         deployment = self.root / ".agents/submission-state-tools/runner"
         deployment.mkdir(parents=True)
         shutil.copyfile(
-            ROOT / ".agents/scripts/run_atlas_routine.py",
+            ROOT / ".agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py",
             deployment / "run_atlas_routine.py",
         )
         shutil.copytree(
-            ROOT / "frame/cluster/atlas",
-            deployment / "cluster/atlas",
+            SKILL / "scripts/atlas_routine",
+            deployment / "atlas_routine",
             ignore=shutil.ignore_patterns("__pycache__"),
-        )
-        shutil.copyfile(
-            ROOT / "frame/cluster/submission_intent.py",
-            deployment / "cluster/submission_intent.py",
         )
         hashes = {
             str(p.relative_to(deployment)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -991,7 +1018,7 @@ class DeploymentTest(AtlasCase):
         self.assertEqual(
             json.loads(result.stdout)["implementation_revision"], "fixture-revision"
         )
-        (deployment / "cluster/atlas/runner.py").write_text(
+        (deployment / "atlas_routine/runner.py").write_text(
             "raise RuntimeError('changed')"
         )
         result = subprocess.run(command, env=env, capture_output=True, text=True)

@@ -4,7 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
-from frame.cluster.atlas.files import atomic_json
+from atlas_routine.files import atomic_json
 
 QUOTA_ERROR = re.compile(
     r"qsub:.*(?:per-user limit|would exceed.*(?:limit|quota))", re.I

@@ -6,7 +6,7 @@ submissions: []
 plot_groups: []
 worker_retention_policy:
   rule: Retain the first lexicographic worker for every array, regardless of debug.
-last_v8_configuration_update:
+completed_scientific_update:
   status: complete
-  pending_plot06_calibration:
+  calibration:
     status: complete

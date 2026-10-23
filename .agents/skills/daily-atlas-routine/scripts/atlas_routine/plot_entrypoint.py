@@ -25,5 +25,8 @@ def main(args):
     plot_utils.utils__discover_performance_contexts = discover
     plots.utils__discover_performance_contexts = discover
     create_plots(
-        True, Path(plan["directory"]), "--debug" in args, Path(plan["background"])
+        multi_run_plots=True,
+        submission_directory=Path(plan["directory"]),
+        debug="--debug" in args,
+        background_directory=Path(plan["background"]),
     )

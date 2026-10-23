@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from frame.cluster.atlas.scheduler import parent
+from atlas_routine.scheduler import parent
 
 ACCEPTANCE_FRACTION = 0.9
 
@@ -18,19 +18,7 @@ def accepted_size(successful: int, expected: int) -> bool:
 
 
 def frozen(entry: dict) -> bool:
-    paths = str(
-        [
-            entry.get(k)
-            for k in (
-                "config_pack",
-                "config_packs",
-                "output_root",
-                "remote_submission_directory",
-                "remote_multi_run_directory",
-            )
-        ]
-    )
-    return bool(re.search(r"(?:plots-v|/v)[1-4](?:/|\b)", paths))
+    return bool(entry.get("frozen"))
 
 
 def protected(entry: dict) -> bool:

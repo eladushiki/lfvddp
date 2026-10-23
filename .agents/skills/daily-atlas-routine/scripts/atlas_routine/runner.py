@@ -5,16 +5,17 @@ import os
 import shutil
 import time
 from collections import Counter
-from frame.cluster.atlas.backend import Backend, PreparationRequired
-from frame.cluster.atlas.completion import (
+from contextlib import contextmanager
+from atlas_routine.backend import Backend, PreparationRequired
+from atlas_routine.completion import (
     completion_evidence,
     frozen,
     output_path,
     protected,
 )
-from frame.cluster.atlas.scheduler import Scheduler
-from frame.cluster.atlas.state import now
-from frame.cluster.atlas.submission import SubmissionManager
+from atlas_routine.scheduler import Scheduler
+from atlas_routine.state import now
+from atlas_routine.submission import SubmissionManager
 
 
 class Runner:
@@ -53,6 +54,16 @@ class Runner:
         self.store.save()
         self.report["errors"].append({"id": entry["id"], **entry["last_error"]})
 
+    @contextmanager
+    def stage(self, entry, name, *, block=False, failed_status=None):
+        """Checkpoint operational failures at the stage boundary; let code errors escape."""
+        try:
+            yield
+        except (ValueError, KeyError, OSError, RuntimeError) as error:
+            if failed_status:
+                entry["status"] = failed_status
+            self.failure(entry, name, error, block=block)
+
     def reconcile(self):
         snapshot = self.scheduler.snapshot
         for entry in self.store.data["submissions"]:
@@ -74,7 +85,7 @@ class Runner:
                 for a in entry["attempts"]
             ):
                 continue
-            try:
+            with self.stage(entry, "reconciliation", block=True):
                 directory = output_path(self.store.root, entry)
                 evidence = completion_evidence(
                     directory, entry["attempts"][-1]["job_ids"]
@@ -108,8 +119,6 @@ class Runner:
                     )
                 self.store.save()
                 self.event("reconciled", entry)
-            except (ValueError, KeyError, OSError) as error:
-                self.failure(entry, "reconciliation", error, block=True)
 
     def plot(self, entry, directory, *, background=None, members=None):
         if "pending_plot" not in entry:
@@ -132,7 +141,7 @@ class Runner:
         for entry in self.store.data["submissions"]:
             if entry["status"] != "finished" or frozen(entry) or protected(entry):
                 continue
-            try:
+            with self.stage(entry, "single_run_plot"):
                 directory = output_path(self.store.root, entry)
                 if any(
                     self.scheduler.snapshot.live(
@@ -162,7 +171,7 @@ class Runner:
                 if entry["completion_evidence"]["complete"] and not entry.get(
                     "intermediate_prune"
                 ):
-                    self.backend.prune(directory)
+                    self.backend.artifacts.prune(directory)
                     entry["intermediate_prune"] = {
                         "completed_at": now(),
                         "verified": True,
@@ -173,8 +182,6 @@ class Runner:
                 entry["status"] = "analyzed"
                 entry.pop("last_error", None)
                 self.store.save()
-            except (ValueError, OSError, RuntimeError) as error:
-                self.failure(entry, "single_run_plot", error)
 
     def review_tree(self, group, directory):
         saved = {
@@ -221,7 +228,7 @@ class Runner:
                 for attempt in x.get("attempts", [])
             ):
                 continue
-            try:
+            with self.stage(group, "aggregate", failed_status="failed"):
                 tree = (self.store.root / group["remote_multi_run_directory"]).resolve()
                 tree.relative_to(self.store.root)
                 self.review_tree(group, tree)
@@ -229,7 +236,9 @@ class Runner:
                     if entry.get("artifact_archive") and not entry.get(
                         "aggregate_restore"
                     ):
-                        self.backend.restore(output_path(self.store.root, entry))
+                        self.backend.artifacts.restore(
+                            output_path(self.store.root, entry)
+                        )
                         entry["aggregate_restore"] = {"completed_at": now()}
                         self.store.save()
                 products = self.plot(
@@ -244,9 +253,6 @@ class Runner:
                 group.pop("last_error", None)
                 self.store.save()
                 self.event("aggregate", group)
-            except (ValueError, OSError, RuntimeError) as error:
-                group["status"] = "failed"
-                self.failure(group, "aggregate", error)
 
     def archives(self):
         for entry in self.store.data["submissions"]:
@@ -266,7 +272,7 @@ class Runner:
             ]
             if any(g["status"] != "analyzed" for g in dependencies):
                 continue
-            try:
+            with self.stage(entry, "artifact_archive"):
                 directory = output_path(self.store.root, entry)
                 if entry.get("completion_evidence") and not entry[
                     "completion_evidence"
@@ -299,7 +305,7 @@ class Runner:
                     for a in entry.get("attempts", [])
                 ):
                     raise ValueError("Cannot archive active scheduler elements")
-                evidence = self.backend.archive(directory)
+                evidence = self.backend.artifacts.archive(directory)
                 entry["artifact_archive"] = {
                     **evidence,
                     "verified_dependent_groups": [g["id"] for g in dependencies],
@@ -311,8 +317,6 @@ class Runner:
                 entry.pop("last_error", None)
                 self.store.save()
                 self.event("archived", entry)
-            except (ValueError, OSError, RuntimeError) as error:
-                self.failure(entry, "artifact_archive", error)
 
     def submissions(self, manager):
         threshold = None
@@ -358,6 +362,42 @@ class Runner:
                 self.failure(entry, "submission", error, block=True)
                 break
 
+    def record_preparation(self, prepared_commit, snapshot):
+        if not snapshot.idle or self.backend.git("status", "--porcelain"):
+            raise ValueError(
+                "Checkout preparation requires an idle scheduler and clean checkout"
+            )
+        if (
+            self.backend.git("rev-parse", "HEAD") != prepared_commit
+            or self.backend.git("rev-parse", "origin/main") != prepared_commit
+            or self.backend.git("branch", "--show-current") != "main"
+        ):
+            raise ValueError(
+                "Prepared checkout must be clean main at verified origin/main"
+            )
+        owner = json.loads(
+            self.store.path.with_suffix(".lock").joinpath("owner.json").read_text()
+        )
+        for entry in self.store.data["submissions"]:
+            if entry["status"] in (
+                "requested",
+                "continuation_requested",
+            ) and entry.get("required_pre_submission_action"):
+                entry["pre_submission_action_verification"] = {
+                    "at": now(),
+                    "remote_commit": prepared_commit,
+                    "branch": "main",
+                    "lock_acquired_at": owner["acquired_at"],
+                    "transport": "Operator-verified repository GitHub App fetch and fast-forward",
+                }
+        self.store.data["remote_checkout"] = {
+            "branch": "main",
+            "commit": prepared_commit,
+            "observed_at": now(),
+            "latest_main_checked_at": now(),
+        }
+        self.store.save()
+
     def run(
         self,
         *,
@@ -381,48 +421,8 @@ class Runner:
                 "timings": self.store.timings,
             }
         if prepared_commit is not None:
-            if not snapshot.idle or self.backend.git("status", "--porcelain"):
-                raise ValueError(
-                    "Checkout preparation requires an idle scheduler and clean checkout"
-                )
-            if (
-                self.backend.git("rev-parse", "HEAD") != prepared_commit
-                or self.backend.git("rev-parse", "origin/main") != prepared_commit
-                or self.backend.git("branch", "--show-current") != "main"
-            ):
-                raise ValueError(
-                    "Prepared checkout must be clean main at verified origin/main"
-                )
-            owner = json.loads(
-                self.store.path.with_suffix(".lock").joinpath("owner.json").read_text()
-            )
-            for entry in self.store.data["submissions"]:
-                if entry["status"] in (
-                    "requested",
-                    "continuation_requested",
-                ) and entry.get("required_pre_submission_action"):
-                    entry["pre_submission_action_verification"] = {
-                        "at": now(),
-                        "remote_commit": prepared_commit,
-                        "branch": "main",
-                        "lock_acquired_at": owner["acquired_at"],
-                        "transport": "Operator-verified repository GitHub App fetch and fast-forward",
-                    }
-            self.store.data["remote_checkout"] = {
-                "branch": "main",
-                "commit": prepared_commit,
-                "observed_at": now(),
-                "latest_main_checked_at": now(),
-            }
-            self.store.save()
+            self.record_preparation(prepared_commit, snapshot)
         if archive_completed:
-            pending = self.store.data.get("last_v8_configuration_update", {}).get(
-                "pending_plot06_calibration", {}
-            )
-            if pending and pending.get("status") != "complete":
-                raise ValueError(
-                    "Complete the pending scientific follow-up before resetting state"
-                )
             self.report["state_archive"] = self.store.archive_completed(snapshot.idle)
             self.by_id = {x["id"]: x for x in self.store.data["submissions"]}
         manager = SubmissionManager(
@@ -450,22 +450,6 @@ class Runner:
                 action()
                 self.report["timings"].append(
                     {"stage": label, "seconds": time.monotonic() - stage_started}
-                )
-        followup = self.store.data.get("last_v8_configuration_update", {}).get(
-            "pending_plot06_calibration", {}
-        )
-        if followup and followup.get("status") != "complete":
-            group = next(
-                (
-                    g
-                    for g in self.store.data["plot_groups"]
-                    if g["id"] == followup["wait_for_group"]
-                ),
-                None,
-            )
-            if group and group["status"] == "analyzed":
-                self.report["requires_review"].append(
-                    "Inspect completed Plot06 figure and run the recorded continuous calibration follow-up"
                 )
         if phase != "plots":
             self.submissions(manager)
