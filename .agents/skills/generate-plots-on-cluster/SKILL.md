@@ -1,271 +1,31 @@
 ---
 name: generate-plots-on-cluster
-description: "Detect completed tracked ATLAS submissions and generate their single-run and grouped multi-run plots."
+description: "Reconcile tracked ATLAS work and generate verified single-run/group plots and archival cleanup through the committed runner."
 ---
 
-# Generate Plots on Cluster
+# Generate plots on cluster
 
-Run this skill inside the shared lock transaction defined in
-[the submission-state schema](../../submission-state.schema.md#shared-access-and-locking).
-Read and save `$SUBMISSION_STATE_PATH` there; hold the lock through every
-action and its state update. Never use a local YAML copy or nest lock acquisition.
+Read [the shared state schema](../daily-atlas-routine/references/submission-state.schema.md) and
+[the versioned routine procedure](../daily-atlas-routine/references/procedure.md). The user's instructions
+override older skill wording. In particular retain one first worker example for
+every array regardless of debug mode.
 
-Process only submissions recorded in the canonical cluster submission state. Ignore
-untracked jobs when deciding what to plot; include them only in scheduler-count
-reporting.
-
-Skip submissions with status `retired`. Their saved result directories must be
-outside active `remote_multi_run_directory` trees so recursive plot discovery
-cannot reintroduce retired signal points.
-
-Read [the submission-state schema](../../submission-state.schema.md) before
-changing state. This skill assumes `ssh-to-cluster` has already opened one
-shared shell at the remote project root. Do not run `ssh`, `scp`, or open a
-second connection.
-
-## Detect finished submissions
-
-- Inspect active array jobs with `qstat -tu $USER` and history with
-  `qstat -xu $USER`.
-- Count scheduler states with
-  `qstat -tu $USER | grep <state-letter> | wc -l`.
-- Match only job IDs saved in submission `attempts`. Do not add pre-existing or
-  otherwise unknown scheduler jobs to state.
-- Use the schema's [shared array acceptance criterion](../../submission-state.schema.md#shared-array-acceptance-criterion)
-  for completion, plotting, and archival; never define a separate threshold.
-  Mark an eligible inactive submission `finished`, recording `finished_at`,
-  successful/expected counts, and scheduler/context/PBS evidence. Accepted
-  partial arrays are eligible for plotting and archival just like accepted
-  complete arrays; preserve the unsuccessful or missing-element evidence.
-- Investigate missing contexts, nonzero or missing PBS exit statuses, and
-  failures before deciding acceptance. Record and report that evidence. Arrays
-  that fail the shared criterion cannot be plotted or successfully archived.
-  Handle proven scheduler walltime kills with the continuation procedure below;
-  other unaccepted failures remain blocked. Never classify an array with active
-  workers as finished or failed solely from incomplete contexts.
-
-## Continue walltime-killed submissions
-
-When scheduler history proves that a tracked attempt was killed for exceeding
-walltime:
-
-1. Choose an additional walltime from the scheduler evidence. If it supplies no
-   better estimate, use the killed attempt's configured total walltime so the
-   recovered total doubles.
-2. Submit the continuation as a whole array before new requests. There is no
-   internal queued-element cap or capacity deferral.
-3. Continue the saved run without debug mode:
-
-   ```sh
-   python -m train.submit_train \
-     --continue <remote-submission-directory> \
-     --extra-time <HH:MM:SS>
-   ```
-
-4. Verify that the saved context's total `cluster__qsub_walltime` increased by
-   the added duration. For a layered request, locate the last saved
-   `config_packs` layer that defines `cluster__qsub_walltime` and update that
-   source; for a legacy request update `config_pack`. This preserves override
-   order and makes future fresh runs inherit the correction. Running jobs use
-   staged configs, so this targeted source-pack edit is not a checkout update.
-   Do not copy the corrected total into top-level submission state.
-5. Append a `continuation` attempt with its job IDs, added time, submission
-   timestamp, and source-config update evidence. Return the submission to
-   `submitted` and reconcile all attempts on later checks.
-
-## Single-submission plots
-
-For each newly `finished` submission, use its saved timestamped
-`remote_submission_directory`:
+Use the existing shared SSH shell; never open another connection. Run:
 
 ```sh
-python -m plot.create_plots <remote-submission-directory>
+python .agents/skills/daily-atlas-routine/scripts/run_atlas_routine.py --phase plots
 ```
 
-Verify that the command succeeds and creates the configured single-submission
-figures, including `t_train_percentile_progression_plot`. After that plot exists
-and every worker context and PBS output proves success, prune regenerable
-intermediates even when aggregate plotting remains pending: `*.h5`,
-`training_outcomes`, `runtime_resources*.json`, and PBS `.OU*` logs. This is
-standing quota-recovery cleanup. Preserve contexts, configs, final statistics,
-and generated plots. Run the helper first with `--dry-run`, then without it:
+Inside a transaction that already holds the canonical lock, append `--held-lock`;
+do not nest lock acquisition. Use the current skill scripts; no obsolete-checkout fallback is maintained.
 
-```sh
-python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root <saved-output-root> --prune-finished-intermediates --dry-run \
-  <submission-directory>
-python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root <saved-output-root> --prune-finished-intermediates \
-  <submission-directory>
-```
+The runner owns acceptance, complete-family membership, progression plots,
+pruning, archive verification and immediate atomic state saves. It skips retired,
+explicitly frozen entries and protected research output. It preserves failed-element
+evidence and retains one worker directory in every archive cleanup.
 
-Never prune a failed, partial, active, or continuation-pending submission. PBS
-logs are removed only after their `Job exit status: 0` footer has been verified.
-For a fully recovered continued array, verify that every expected worker is
-successful and every element of the latest array in the context's ordered
-`qsub_submissions` has an exit-zero log. Earlier saved arrays may have walltime
-kill logs; retain those logs unchanged as audit evidence and prune only
-exit-zero logs. Unknown jobs, other failures, or incomplete recovery block
-pruning. Record latest-array success and retained historical-log paths in
-`intermediate_prune`; subsequent archival preserves those logs in the archive.
-A scheduler relaunch can leave an earlier `single_train.py` directory containing
-only `context.json`. Treat it as superseded only when its array index has exactly
-one later successful context, all expected indices have one successful worker,
-its `products` is empty, and it has no other files or directories. Preserve those
-context-only directories unchanged; do not count them as failed final elements.
-Missing or duplicate successful indices, nonempty earlier launches, unknown jobs,
-and missing exit-zero logs still block pruning. Record the superseded context
-paths in the completion and prune evidence.
-Retry a deferred prune on an `analyzed` submission using its existing verified
-progression plot, without regenerating the plot.
-
-Then set the submission to `analyzed` and record `single_run_plot.completed_at`.
-A rerun must skip submissions already marked `analyzed` unless the user
-explicitly requests regeneration.
-
-## Multi-run plots
-
-Use `plot_groups` as the single definition of background and signal membership.
-A group is ready only when its background and every signal submission are
-`analyzed`.
-
-Use the group's saved `remote_multi_run_directory` as the signal tree and its
-explicit `background_submission` timestamped directory as the reference.
-Plot 02 is exceptional because that reference belongs to Plot 01. Do not infer
-a different background at runtime.
-
-Run:
-
-```sh
-python -m plot.create_plots <remote-multi-run-directory> \
-  --multi-run-plots \
-  --background-directory <background-submission-directory>
-```
-
-Verify the configured aggregate plots, set the group status to `analyzed`, and
-record `completed_at`. Skip completed groups on later daily runs.
-
-## Archive completed array artifacts
-
-Archive every successfully analyzed submission after its required plots have
-been generated. For a submission referenced by a `plot_group`, wait until
-every saved group that names it as background or signal is `analyzed`, because
-its final statistics remain aggregate-plot inputs. A successfully analyzed
-standalone submission with no `plot_groups` has no aggregate dependency and
-must be archived in the same routine pass. Do not leave a standalone result
-merely pruned or unpacked.
-
-Archival cleanup is standing routine authorization. Retain only the submission's
-`context.json`, `configs/`, generated plot directories, and one
-`array-job-artifacts.tar.gz`. The archive must include every remaining
-`single_train.py` directory except the retained worker. Histories already
-pruned after their progression plot are intentionally absent. Use the saved
-submission `output_root` as `--results-root`; run the helper first with
-`--dry-run`, then without it:
-
-```sh
-python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root <saved-output-root> --dry-run <submission-directory>
-python .agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py \
-  --results-root <saved-output-root> <submission-directory>
-```
-
-For a full cleanup below the results root, replace the explicit
-directory with `--all-under-root`; it discovers only timestamped
-`submit_train.py` directories. Never archive an active or
-continuation-pending submission, or any member still needed by a non-retired
-unfinished plot group. The helper validates every target is beneath the stated
-results root and contains the expected context and configs, and verifies the
-archive before deletion.
-
-For a successful `artifact_archive`, reconfirm every tracked array meets the
-schema's shared array acceptance criterion and has no active workers or pending
-continuation. Do not impose an all-workers-successful archival gate. For accepted
-partial arrays, record the successful/expected counts and failure or missing-output
-evidence; archive all remaining worker artifacts and PBS logs except the retained
-worker, without first pruning partial-array intermediates. Only release those
-sources after normal archive verification. A
-`retired` submission may instead be archived as a terminal audit artifact when
-it has no live scheduler elements and no non-retired plot group depends on it.
-Generate any plots that remain possible first. This exception permits
-compression of canceled, failed, or partial work that will never be continued;
-it does not classify the work as successful. Record it as
-`retired_artifact_archive`, including the archive path and the observed failure
-or partial-completion evidence. Before removal in either mode, verify that
-every remaining `training_outcomes` path is present in the archive.
-
-For every submission, retain the first lexicographic per-array output directory
-in place. Do not include or delete that worker; archive and remove every other
-eligible array artifact. Report the retained path so later inspection is
-reproducible.
-
-If an archive was created before its aggregate plot, restore it before retrying
-the group rather than treating it as a failure residue or deleting it. Run the
-same helper with `--restore` and `--dry-run` first. Restoration refuses unsafe
-archive members and existing artifact files, leaves the archive in place, and
-must be verified before running `plot.create_plots`.
-
-If the results filesystem has insufficient space even for a temporary archive,
-the user may authorize `--temporary-directory /tmp`. The helper verifies the
-archive there, removes the verified sources, then moves the archive into the
-submission directory. If that final move fails, it preserves the verified
-temporary archive and reports its path for recovery.
-
-### Submission residue cleanup
-
-When a tracked job is explicitly deleted or retired, perform the same terminal
-cleanup as for a finished job during that routine: first inspect its saved
-timestamped submission directory, remove only verified empty directories, and
-archive any completed or partial artifacts that will no longer be used by a
-non-retired plot group. Use the normal `archive_submission_artifacts.py`
-procedure and retain only `context.json`, `configs/`, generated plots, and
-`array-job-artifacts.tar.gz` (plus the retained first worker). Never
-delete non-empty output from a deleted job before verifying its context and
-scheduler evidence; record the exact path and outcome in state. A deleted job
-is eligible for the retired terminal-audit archive even when it did not finish,
-provided it has no live scheduler elements and no non-retired group depends on
-it. Verify each archive before removing its source files.
-
-Before running a multi-run plot, inspect the timestamped submission directories
-under `remote_multi_run_directory`. A directory is a residue candidate when any
-of these conditions is verified:
-
-- submission setup created the directory but failed before `qsub`, so it has no
-  scheduler job IDs;
-- the submission failed; or
-- it fails the schema's shared array acceptance criterion.
-
-An earlier residue can be selected instead of a later completed submission for
-the same configuration and make an otherwise ready aggregate plot fail. Prefer
-the completed submission only after the residue has been reviewed; do not hide
-or silently ignore the residue.
-
-Standing routine authorization covers deletion of a verified failed residue
-when it has been superseded by a newly submitted or saved `requested` retry,
-and deletion of a failed pre-`qsub` directory. Before deleting, record the
-exact path and failure evidence in state or the routine report, verify the
-saved context has `run_successful: false`, and, for pre-`qsub` residue, verify
-`qsub_submissions` is empty. Delete only the exact timestamped directory and
-verify that it is gone. A pre-`qsub` residue is not adopted as a tracked attempt
-because no scheduler job was submitted.
-
-After the underlying failure has been fixed, delete the verified superseded
-residue, retry the multi-run command when its dependencies are now ready, and
-clear the group's stale `last_error` only when the retry succeeds.
-
-Do not classify a submission as an empty or failed residue merely because its
-per-run artifacts are in `array-job-artifacts.tar.gz`; restore that verified
-archive first when the aggregate plot has not yet been generated. A real
-residue requires its own failed scheduler/context evidence.
-
-## Failure handling
-
-Save the failed stage and concise error without advancing its status. Continue
-with independent ready submissions or groups, but do not bypass a dependency.
-Include every failure in the daily summary.
-
-## Safety
-
-This skill authorizes plotting and the state updates needed to make plotting
-idempotent. It does not authorize submission, remote Git updates, or discovery
-of unrecorded jobs.
+Stop immediately on lock contention or access failure. Inspect the structured
+report for scientific review or unsupported recovery; do not invent a workaround,
+change a completion threshold, adopt jobs, or regenerate completed stages.
+This phase authorizes no new qsub. Walltime continuations are recorded for the
+submission phase. Run the full runner for the daily routine.

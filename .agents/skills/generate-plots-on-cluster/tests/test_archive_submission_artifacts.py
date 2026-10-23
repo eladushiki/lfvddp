@@ -16,8 +16,8 @@ from frame.file_structure import (
     SUBMIT_TRAIN_SCRIPT_NAME,
 )
 
-_HELPER_PATH = Path(
-    ".agents/skills/generate-plots-on-cluster/scripts/archive_submission_artifacts.py"
+_HELPER_PATH = (
+    Path(__file__).resolve().parents[1] / "scripts/archive_submission_artifacts.py"
 )
 _HELPER_SPEC = importlib.util.spec_from_file_location(
     "archive_submission_artifacts", _HELPER_PATH

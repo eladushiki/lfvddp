@@ -12,10 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-HELPER = (
-    Path(__file__).resolve().parents[1]
-    / ".agents/scripts/with_submission_state_lock.py"
-)
+HELPER = Path(__file__).resolve().parents[1] / "scripts/with_submission_state_lock.py"
 spec = importlib.util.spec_from_file_location("submission_state_lock", HELPER)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -200,9 +197,7 @@ class ClusterRootExportTest(unittest.TestCase):
             ssh = root / "ssh"
             ssh.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
             ssh.chmod(0o755)
-            helper = (
-                HELPER.parent.parent / "skills/ssh-to-cluster/scripts/ssh-to-cluster.sh"
-            )
+            helper = HELPER.parents[2] / "ssh-to-cluster/scripts/ssh-to-cluster.sh"
             for args in ([], ["pwd"]):
                 with self.subTest(interactive=not args):
                     result = subprocess.run(
