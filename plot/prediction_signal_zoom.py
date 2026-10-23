@@ -9,7 +9,7 @@ from data_tools.dataset_config import (
 )
 from data_tools.event_generation.distribution import GeneratorSpec
 
-_SIGNAL_ZOOM_STANDARD_DEVIATIONS = 3.0
+_SIGNAL_ZOOM_STANDARD_DEVIATIONS = 2.0
 
 
 def _gaussian_moments(
@@ -33,7 +33,7 @@ def prediction_signal_zoom_limits(
     configured_observables: list[str],
     selected_observables: list[str],
 ) -> np.ndarray | None:
-    """Return common mean ± 3 marginal-sigma bounds, ordered by plotted axes.
+    """Return common mean ± 2 marginal-sigma bounds, ordered by plotted axes.
 
     Multiple Gaussian injections share the enclosing window. Higher-dimensional
     projections and signals nonresonant in either displayed coordinate omit it.

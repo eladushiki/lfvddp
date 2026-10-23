@@ -217,3 +217,9 @@
   `render_prediction_heatmaps`; the renderer also has direct plotting smoke
   callers. Its new optional bounds argument preserves those callers. No model,
   training, checkpoint, prediction-function, or statistical behavior changes.
+
+### 2026-10-23: tighten the resonant-signal zoom window
+
+- Supersede the three-standard-deviation half-width above with two marginal
+  standard deviations per coordinate. The smaller window makes the injected
+  peak larger inside each inset; all 24 maps retain identical signal bounds.
