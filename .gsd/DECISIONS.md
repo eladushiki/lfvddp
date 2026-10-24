@@ -267,6 +267,12 @@
   predictions. Plot rendering and model implementations are unchanged; plots
   consume the same normalized-PDF interface covered by calibration checks.
 
+### 2026-10-24: use a one-standard-deviation signal zoom
+
+- Tighten the common inset window to one marginal standard deviation on each
+  side of the injected mean, superseding the two-standard-deviation window.
+  All 24 panels keep identical coordinates and their existing color scales.
+  
 ### 2026-10-24 — Configurable Adam/L-BFGS allocation
 
 - The hybrid strategy accepts either `train__adam_warmup_epochs` or
