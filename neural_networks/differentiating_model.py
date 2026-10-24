@@ -173,6 +173,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 trainable_parameters,
                 self._config.train__learning_rate,
                 self._config.train__epochs,
+                adam_epochs=self._config.train__adam_warmup_epochs,
+                adam_fraction=self._config.train__adam_warmup_fraction,
             )
         optimizer = optim.Adam(
             trainable_parameters, lr=self._config.train__learning_rate
@@ -485,6 +487,8 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             saved_schedule,
             self._config.train__optimizer_strategy,
             self._config.train__epochs,
+            self._config.train__adam_warmup_epochs,
+            self._config.train__adam_warmup_fraction,
         )
         optimizer_state_dict = checkpoint.get("optimizer_state_dict")
         if optimizer is not None and optimizer_state_dict is not None:

@@ -18,6 +18,8 @@ class TrainConfig:
     train__epochs: int
     train__number_of_epochs_for_checkpoint: int
     train__optimizer_strategy: str = "adam"
+    train__adam_warmup_epochs: int | None = None
+    train__adam_warmup_fraction: float | None = None
     train__learning_rate: float = 0.03
     train__final_learning_rate: float | None = None
     train__enable_progress_bar: bool = True
@@ -100,6 +102,18 @@ class TrainConfig:
             raise ValueError("Unknown train__optimizer_strategy.")
         if self.train__epochs < 1:
             raise ValueError("Training epochs must be positive.")
+        from train.hybrid_optimizer import adam_warmup_epochs
+
+        adam_warmup_epochs(
+            self.train__epochs,
+            self.train__adam_warmup_epochs,
+            self.train__adam_warmup_fraction,
+        )
+        if self.train__optimizer_strategy != "adam_lbfgs" and (
+            self.train__adam_warmup_epochs is not None
+            or self.train__adam_warmup_fraction is not None
+        ):
+            raise ValueError("Adam warmup controls require the adam_lbfgs strategy.")
         if self.train__optimizer_strategy == "adam_lbfgs":
             if self.train__is_nplm:
                 raise ValueError("Adam/L-BFGS is only supported by LFVDDP.")
