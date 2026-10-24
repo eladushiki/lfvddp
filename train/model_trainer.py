@@ -126,7 +126,11 @@ class TrainLauncher(ABC):
     def _checkpoint_finished_training(self, checkpoint: dict[str, Any]) -> bool:
         schedule = checkpoint.get("optimizer_schedule")
         validate_optimizer_continuation(
-            schedule, self._config.train__optimizer_strategy, self._config.train__epochs
+            schedule,
+            self._config.train__optimizer_strategy,
+            self._config.train__epochs,
+            self._config.train__adam_warmup_epochs,
+            self._config.train__adam_warmup_fraction,
         )
         return int(checkpoint.get("epoch", -1)) >= self._config.train__epochs - 1
 

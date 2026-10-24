@@ -1,6 +1,7 @@
 """Full-batch Adam warmup and budgeted L-BFGS continuation."""
 
 from copy import deepcopy
+from math import isfinite
 
 import torch
 
@@ -11,11 +12,40 @@ class EvaluationBudgetExhausted(Exception):
     """Stop before a closure would exceed the full-data evaluation budget."""
 
 
-def adam_warmup_epochs(total_epochs: int) -> int:
+def adam_warmup_epochs(
+    total_epochs: int,
+    epochs: int | None = None,
+    fraction: float | None = None,
+) -> int:
+    """Resolve an explicit Adam budget or the historical capped default."""
+    if epochs is not None and fraction is not None:
+        raise ValueError("Specify Adam warmup epochs or fraction, not both.")
+    if epochs is not None:
+        if type(epochs) is not int or not 0 <= epochs <= total_epochs:
+            raise ValueError(
+                "Adam warmup epochs must be an integer within the total budget."
+            )
+        return epochs
+    if fraction is not None:
+        if (
+            type(fraction) not in (int, float)
+            or not isfinite(fraction)
+            or not 0 <= fraction <= 1
+        ):
+            raise ValueError(
+                "Adam warmup fraction must be a finite number between 0 and 1."
+            )
+        return int(total_epochs * fraction)
     return min(total_epochs // 20, MAX_ADAM_WARMUP)
 
 
-def validate_optimizer_continuation(saved_schedule, strategy: str, total_epochs: int):
+def validate_optimizer_continuation(
+    saved_schedule,
+    strategy: str,
+    total_epochs: int,
+    adam_epochs: int | None = None,
+    adam_fraction: float | None = None,
+):
     """Validate optimizer compatibility before restoring or skipping a checkpoint."""
     saved_strategy = (
         saved_schedule["strategy"] if saved_schedule is not None else "adam"
@@ -24,17 +54,39 @@ def validate_optimizer_continuation(saved_schedule, strategy: str, total_epochs:
         raise ValueError("Continuation optimizer strategy differs from checkpoint.")
     if saved_schedule is not None and total_epochs < saved_schedule["total_epochs"]:
         raise ValueError("Adam/L-BFGS continuation cannot reduce the epoch budget.")
+    if saved_schedule is not None and (
+        adam_epochs is not None or adam_fraction is not None
+    ):
+        boundary = adam_warmup_epochs(
+            saved_schedule.get("initial_total_epochs", saved_schedule["total_epochs"]),
+            adam_epochs,
+            adam_fraction,
+        )
+        if boundary != saved_schedule["warmup_epochs"]:
+            raise ValueError("Adam warmup split differs from checkpoint.")
 
 
 class HybridOptimizer(torch.optim.Optimizer):
     """An Optimizer owning phase transitions, budget, and resumable state."""
 
-    def __init__(self, parameters, learning_rate: float, total_epochs: int):
+    def __init__(
+        self,
+        parameters,
+        learning_rate: float,
+        total_epochs: int,
+        adam_epochs: int | None = None,
+        adam_fraction: float | None = None,
+    ):
         super().__init__(parameters, {"lr": learning_rate})
         self.parameters = self.param_groups[0]["params"]
         self.learning_rate = self.param_groups[0]["lr"]
         self.total_epochs = total_epochs
-        self.warmup_epochs = adam_warmup_epochs(total_epochs)
+        self.initial_total_epochs = total_epochs
+        self.adam_epochs = adam_epochs
+        self.adam_fraction = adam_fraction
+        self.warmup_epochs = adam_warmup_epochs(
+            total_epochs, adam_epochs, adam_fraction
+        )
         self.evaluations = 0
         self.phase = "adam" if self.warmup_epochs else "lbfgs"
         self._adopt_optimizer(self._make_optimizer())
@@ -101,19 +153,33 @@ class HybridOptimizer(torch.optim.Optimizer):
         return {
             "strategy": "adam_lbfgs",
             "total_epochs": self.total_epochs,
+            "initial_total_epochs": self.initial_total_epochs,
             "warmup_epochs": self.warmup_epochs,
             "evaluations": self.evaluations,
             "phase": self.phase,
         }
 
     def restore(self, state):
-        validate_optimizer_continuation(state, "adam_lbfgs", self.total_epochs)
+        validate_optimizer_continuation(
+            state, "adam_lbfgs", self.total_epochs, self.adam_epochs, self.adam_fraction
+        )
         if not 0 <= state["evaluations"] <= state["total_epochs"]:
             raise ValueError("Invalid checkpoint evaluation count.")
         if state["phase"] not in {"adam", "lbfgs"}:
             raise ValueError("Invalid checkpoint optimizer phase.")
+        self.initial_total_epochs = state.get(
+            "initial_total_epochs", state["total_epochs"]
+        )
+        if (
+            type(self.initial_total_epochs) is not int
+            or not 0 < self.initial_total_epochs <= state["total_epochs"]
+        ):
+            raise ValueError("Invalid checkpoint initial evaluation budget.")
         self.warmup_epochs = state["warmup_epochs"]
-        if not 0 <= self.warmup_epochs <= min(state["total_epochs"], MAX_ADAM_WARMUP):
+        if (
+            type(self.warmup_epochs) is not int
+            or not 0 <= self.warmup_epochs <= self.initial_total_epochs
+        ):
             raise ValueError("Invalid checkpoint warmup boundary.")
         if state["phase"] == "adam" and state["evaluations"] > self.warmup_epochs:
             raise ValueError("Adam checkpoint exceeds its warmup budget.")

@@ -266,3 +266,25 @@
   exercises training and checkpoint restore with primary, secondary, and nuisance
   predictions. Plot rendering and model implementations are unchanged; plots
   consume the same normalized-PDF interface covered by calibration checks.
+
+### 2026-10-24 — Configurable Adam/L-BFGS allocation
+
+- The hybrid strategy accepts either `train__adam_warmup_epochs` or
+  `train__adam_warmup_fraction`; L-BFGS receives the remaining total evaluation
+  budget. Fractions use 0–1 units and round down to whole Adam updates. Explicit
+  allocations bypass the historical 2,000-update cap. Leaving both options unset
+  preserves the existing capped 5% default. Endpoints permit all Adam or all L-BFGS.
+- A continuation retains its checkpoint's original phase boundary even when
+  its total budget grows. An explicitly supplied split must match that boundary
+  using the checkpoint's original budget; silently changing a resumed schedule
+  is rejected. Legacy checkpoints keep their stored boundary.
+- Caller inventory: `DifferentiatingModel.configure_optimizers`, model checkpoint
+  restore, `TrainLauncher._checkpoint_finished_training`, and direct optimizer
+  state restoration. Shared committed fixtures exercise count/fraction/default
+  schedules with numerator and nuisance-enabled denominator training, interrupted
+  restore, and primary, secondary, and nuisance predictions. Optimizer tests
+  cover strict budgets, both phase endpoints, legacy state, and budget extension.
+  Existing learning/checkpoint and prediction-plot integration tests cover the
+  unchanged Adam and plotting entry points; NPLM rejects hybrid controls.
+- This change adds configuration support only; cluster requests and packs are
+  not modified as part of the implementation.
