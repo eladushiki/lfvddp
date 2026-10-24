@@ -72,8 +72,8 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
   injection is Gaussian in both coordinates, all 24 data, fit, difference, and
   model-factor maps include a small upper-right inset. SR and CR maps use the
   same signal window, including CR panels with no injected signal.
-- Center the window on the configured injected mean and extend it two marginal
-  standard deviations in each direction. For a multivariate Gaussian, take the
+- Center the window on the configured injected mean and extend it one marginal
+  standard deviation in each direction. For a multivariate Gaussian, take the
   square root of the covariance diagonal; correlations do not change these
   axis-aligned bounds. Respect the displayed observable order and explicit
   loaded-signal observable names. Joint, isotropic, and independently configured

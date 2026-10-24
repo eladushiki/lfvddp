@@ -220,7 +220,7 @@ when configuration files need target-significance signal amounts.
   Hidden-observable model factors are displayed as uniform grid averages. The 1D view is unchanged.
 - For a resonant Gaussian injection with exactly two detected observables, all
   24 prediction-process heatmaps include a matching signal zoom inset centered
-  on the injected mean and extending two standard deviations per coordinate.
+  on the injected mean and extending one standard deviation per coordinate.
   Insets preserve the parent map's binning and color scale.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
