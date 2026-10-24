@@ -20,11 +20,30 @@ def test_warmup_boundary(budget, warmup):
     assert adam_warmup_epochs(budget) == warmup
 
 
+@pytest.mark.parametrize(
+    "budget,epochs,fraction,expected",
+    [
+        (40000, None, 0.5, 20000),
+        (40000, 30000, None, 30000),
+        (19, None, 0.5, 9),
+        (40, 0, None, 0),
+        (40, 40, None, 40),
+        (40, None, 0, 0),
+        (40, None, 1, 40),
+    ],
+)
+def test_explicit_warmup_boundary(budget, epochs, fraction, expected):
+    assert adam_warmup_epochs(budget, epochs, fraction) == expected
+
+
+@pytest.mark.parametrize("adam_fraction", [None, 0.0, 0.5, 1.0])
 @pytest.mark.parametrize("budget", [1, 2, 20, 40])
 @pytest.mark.parametrize("steps_before_save", [1, 2, 3])
-def test_strict_budget_and_transactional_resume(budget, steps_before_save):
+def test_strict_budget_and_transactional_resume(
+    budget, steps_before_save, adam_fraction
+):
     parameter = torch.nn.Parameter(torch.tensor([3.0], dtype=torch.float64))
-    schedule = HybridOptimizer([parameter], 0.01, budget)
+    schedule = HybridOptimizer([parameter], 0.01, budget, adam_fraction=adam_fraction)
     calls = []
 
     def evaluate():
@@ -46,19 +65,23 @@ def test_strict_budget_and_transactional_resume(budget, steps_before_save):
     assert calls == list(range(budget))
     with torch.no_grad():
         parameter.copy_(saved_parameter)
-    resumed = HybridOptimizer([parameter], 0.01, budget)
+    resumed = HybridOptimizer([parameter], 0.01, budget, adam_fraction=adam_fraction)
     resumed.load_state_dict(saved_optimizer)
     schedule = resumed
     while resumed.evaluations < budget:
         resumed.step(evaluate)
     torch.testing.assert_close(parameter, result, rtol=0, atol=0)
-    extended = HybridOptimizer([parameter], 0.01, budget + 100)
+    extended = HybridOptimizer(
+        [parameter], 0.01, budget + 100, adam_fraction=adam_fraction
+    )
     extended.restore(saved_schedule)
     assert extended.warmup_epochs == saved_schedule["warmup_epochs"]
     assert extended.phase == saved_schedule["phase"]
     if budget > 1:
         with pytest.raises(ValueError, match="cannot reduce"):
-            HybridOptimizer([parameter], 0.01, budget - 1).restore(saved_schedule)
+            HybridOptimizer(
+                [parameter], 0.01, budget - 1, adam_fraction=adam_fraction
+            ).restore(saved_schedule)
 
 
 @pytest.mark.parametrize(
@@ -71,10 +94,13 @@ def test_strict_budget_and_transactional_resume(budget, steps_before_save):
             ConfigType.DETECTOR: Path(
                 "test/configs/detector/basic_1D_detector_config.json"
             ),
-            ConfigType.TRAIN: Path(
-                "test/configs/train/adam_lbfgs_neural_nuisance.json"
-            ),
+            ConfigType.TRAIN: Path(f"test/configs/train/{fixture}.json"),
         }
+        for fixture in [
+            "adam_lbfgs_neural_nuisance",
+            "adam_lbfgs_neural_nuisance_half_epochs",
+            "adam_lbfgs_neural_nuisance_half_fraction",
+        ]
     ],
     indirect=True,
 )
@@ -119,6 +145,14 @@ def test_hybrid_fit_checkpoint_and_prediction(
     invalid["optimizer_schedule"]["total_epochs"] += 1
     with pytest.raises(ValueError, match="cannot reduce"):
         TrainLauncher._checkpoint_finished_training(launcher, invalid)
+    if (
+        context.config.train__adam_warmup_epochs is not None
+        or context.config.train__adam_warmup_fraction is not None
+    ):
+        invalid = deepcopy(checkpoint)
+        invalid["optimizer_schedule"]["warmup_epochs"] += 1
+        with pytest.raises(ValueError, match="split differs"):
+            TrainLauncher._checkpoint_finished_training(launcher, invalid)
     completed = checkpoint
     torch.manual_seed(71)
     interrupted = differentiating_model_factory(
@@ -199,6 +233,78 @@ def test_line_search_budget_rolls_back_but_keeps_evaluated_candidate():
             "constant",
         ),
         ({"train__epochs": 0}, "positive"),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_epochs": 41,
+            },
+            "within",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_epochs": -1,
+            },
+            "within",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_epochs": 0.5,
+            },
+            "integer",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_epochs": True,
+            },
+            "integer",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_fraction": -0.1,
+            },
+            "between",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_fraction": 1.1,
+            },
+            "between",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_fraction": float("nan"),
+            },
+            "finite",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_fraction": float("inf"),
+            },
+            "finite",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_fraction": True,
+            },
+            "finite",
+        ),
+        (
+            {
+                "train__optimizer_strategy": "adam_lbfgs",
+                "train__adam_warmup_epochs": 20,
+                "train__adam_warmup_fraction": 0.5,
+            },
+            "not both",
+        ),
+        ({"train__adam_warmup_epochs": 20}, "require"),
     ],
 )
 def test_optimizer_config_validation(options, message):
@@ -251,11 +357,12 @@ def test_hybrid_static_denominator(
 
 
 @pytest.mark.parametrize("legacy", [False, True])
-def test_hybrid_optimizer_state_round_trip(legacy):
+@pytest.mark.parametrize("adam_fraction", [None, 0.5])
+def test_hybrid_optimizer_state_round_trip(legacy, adam_fraction):
     from train.hybrid_optimizer import load_optimizer_state
 
     parameter = torch.nn.Parameter(torch.tensor([3.0], dtype=torch.float64))
-    optimizer = HybridOptimizer([parameter], 0.01, 40)
+    optimizer = HybridOptimizer([parameter], 0.01, 40, adam_fraction=adam_fraction)
 
     def closure():
         optimizer.zero_grad(set_to_none=True)
@@ -263,7 +370,7 @@ def test_hybrid_optimizer_state_round_trip(legacy):
         loss.backward()
         return loss
 
-    for _ in range(4):
+    for _ in range(optimizer.warmup_epochs + 2):
         optimizer.step(closure)
     assert optimizer.phase == "lbfgs"
     assert optimizer.optimizer.state[parameter]["old_dirs"]
@@ -272,7 +379,7 @@ def test_hybrid_optimizer_state_round_trip(legacy):
     while optimizer.evaluations < optimizer.total_epochs:
         optimizer.step(closure)
     expected = parameter.detach().clone()
-    optimizer = HybridOptimizer([parameter], 0.01, 40)
+    optimizer = HybridOptimizer([parameter], 0.01, 40, adam_fraction=adam_fraction)
     if legacy:
         schedule = saved_state.pop("optimizer_schedule")
         load_optimizer_state(optimizer, saved_state, schedule)
@@ -283,6 +390,36 @@ def test_hybrid_optimizer_state_round_trip(legacy):
     while optimizer.evaluations < optimizer.total_epochs:
         optimizer.step(closure)
     torch.testing.assert_close(parameter, expected, rtol=0, atol=0)
+
+
+def test_checkpoint_keeps_large_boundary_and_rejects_changed_split():
+    from train.hybrid_optimizer import validate_optimizer_continuation
+
+    parameter = torch.nn.Parameter(torch.tensor([3.0], dtype=torch.float64))
+    original = HybridOptimizer([parameter], 0.01, 40000, adam_fraction=0.5)
+    saved = original.schedule_state_dict()
+    restored = HybridOptimizer([parameter], 0.01, 80000, adam_fraction=0.5)
+    restored.restore(saved)
+    assert restored.warmup_epochs == 20000
+    second_extension = HybridOptimizer([parameter], 0.01, 100000, adam_fraction=0.5)
+    second_extension.restore(restored.schedule_state_dict())
+    assert second_extension.warmup_epochs == 20000
+    assert second_extension.initial_total_epochs == 40000
+    legacy = deepcopy(saved)
+    legacy.pop("initial_total_epochs")
+    restored.restore(legacy)
+    assert restored.initial_total_epochs == 40000
+    # Both public continuation gates and direct optimizer restoration reject changes.
+    for epochs, fraction in [(10000, None), (None, 0.25)]:
+        with pytest.raises(ValueError, match="split differs"):
+            validate_optimizer_continuation(
+                saved, "adam_lbfgs", 80000, epochs, fraction
+            )
+        with pytest.raises(ValueError, match="split differs"):
+            HybridOptimizer([parameter], 0.01, 80000, epochs, fraction).restore(saved)
+    implicit = HybridOptimizer([parameter], 0.01, 80000)
+    implicit.restore(saved)
+    assert implicit.warmup_epochs == 20000
 
 
 def test_native_optimizer_hooks_and_zero_grad():
