@@ -1,10 +1,13 @@
 """Explicit canonical group membership, never recursive plot-context guessing."""
 
 import json
+import sys
 from pathlib import Path
 
 
 def main(args):
+    # Context descriptors and plot metadata must identify the plotting entrypoint.
+    sys.argv[:] = ["create_plots.py", *args]
     from frame.context.execution_context import ExecutionContext
     from plot import plot_utils, plots
     from plot.create_plots import create_plots
