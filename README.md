@@ -151,7 +151,14 @@ when configuration files need target-significance signal amounts.
   Each hypothesis has its own `train__epochs` budget: every full-data loss and
   gradient evaluation counts once, including every L-BFGS line-search probe.
   Adam receives the smaller of 5% of that budget (rounded down) and 2,000
-  evaluations. Budgets below 20 start directly with L-BFGS. The Adam learning
+  evaluations by default. Override this with `train__adam_warmup_epochs`
+  (an integer count) or `train__adam_warmup_fraction` (a number from 0 to 1),
+  never both. For example, `train__adam_warmup_fraction: 0.5` assigns half the
+  total budget to Adam and the remainder to L-BFGS. Explicit splits are not
+  capped at 2,000; fractional counts round down. Zero starts directly with
+  L-BFGS, and the full budget uses Adam only. These controls require the
+  `adam_lbfgs` strategy. Without an explicit split, budgets below 20 start
+  directly with L-BFGS. The Adam learning
   rate is `train__learning_rate`; `train__final_learning_rate` must be `null`.
   L-BFGS uses initial step length 1 and 50 curvature-history entries.
   `HybridOptimizer` is a PyTorch `Optimizer` supporting standard zero-argument
@@ -165,7 +172,9 @@ when configuration files need target-significance signal amounts.
   established. Best-state retention includes evaluated line-search probes.
   Checkpoints preserve optimizer phase, counters, and curvature history.
   Continuation may extend the budget with `--epochs-target`; the original
-  warmup boundary stays fixed. Switching strategy during continuation or
+  warmup boundary stays fixed, including for fractional splits. An explicit
+  continuation split must agree with that saved boundary, evaluated against
+  the original budget. Switching strategy during continuation or
   reducing its budget is rejected. NPLM does not support this strategy.
 - `train__backend` is the sole training-backend selector and defaults to
   `"lfvddp"`. `train__f` is a required function-space mapping with `family`
