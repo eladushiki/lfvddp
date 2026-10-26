@@ -115,6 +115,6 @@ class GitGuardTest(unittest.TestCase):
             patch.dict(os.environ, clear=True),
             patch("sys.argv", ["is_same_as_commit", "--commit-hash", "sha"]),
             patch("frame.git_tools.git_head_changes", return_value=" M source.py"),
+            self.assertRaisesRegex(RuntimeError, "not clean"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "not clean"):
-                main()
+            main()
