@@ -29,6 +29,13 @@ from frame.file_structure import CONTEXT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import prediction_to_sample_ndf_hypothesis_weights
 from plot.carpenter import Carpenter
+from plot.layout_constants import (
+    PREDICTION_HEATMAP_FIGURE_SCALE,
+    PREDICTION_HEATMAP_LAYOUT_PADDING_INCHES,
+    PREDICTION_HEATMAP_LAYOUT_SPACING,
+    PREDICTION_HEATMAP_STAMP_LINE_HEIGHT,
+    PREDICTION_HEATMAP_TITLE_FONT_SIZE_POINTS,
+)
 from plot.plot_utils import (
     HandlerCircle,
     HandlerRect,
@@ -1658,23 +1665,27 @@ def plot_prediction_process_2d(
             values[~mask] = np.nan
 
     carpenter = Carpenter(context)
-    fig = carpenter.figure()
     # More individually readable maps need a larger canvas, without 3D padding.
-    fig.set_size_inches(np.asarray(fig.get_size_inches()) * (1.6, 1.4))
-    layout_padding = 0.025
-    fig.texts[0].set_y(layout_padding / fig.get_figheight())
+    fig = carpenter.figure(size_scale=PREDICTION_HEATMAP_FIGURE_SCALE)
+    layout_padding = PREDICTION_HEATMAP_LAYOUT_PADDING_INCHES
+    stamp = fig.texts[0]
+    stamp.set_y(layout_padding / config.plot__figure_size[1])
     stamp_top = (
-        layout_padding + 1.5 * config.plot__run_stamp_font_size / 72
-    ) / fig.get_figheight()
+        stamp.get_position()[1]
+        + PREDICTION_HEATMAP_STAMP_LINE_HEIGHT * config.plot__run_stamp_relative_height
+    )
     fig.set_layout_engine(
         "constrained",
         h_pad=layout_padding,
         w_pad=layout_padding,
-        hspace=0.015,
-        wspace=0.015,
+        hspace=PREDICTION_HEATMAP_LAYOUT_SPACING,
+        wspace=PREDICTION_HEATMAP_LAYOUT_SPACING,
         rect=(0, stamp_top, 1, 1 - stamp_top),
     )
-    fig.suptitle(_prediction_process_suptitle(context, title), fontsize=18)
+    fig.suptitle(
+        _prediction_process_suptitle(context, title),
+        fontsize=PREDICTION_HEATMAP_TITLE_FONT_SIZE_POINTS,
+    )
     render_prediction_heatmaps(
         fig=fig,
         distributions=tuple(distributions),

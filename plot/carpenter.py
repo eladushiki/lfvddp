@@ -1,5 +1,6 @@
 from frame.context.execution_context import ExecutionContext
 from plot.plotting_config import PlottingConfig
+from plot.layout_constants import POINTS_PER_INCH
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -10,7 +11,6 @@ class Carpenter:
 
     RUN_STAMP_ROW_HEIGHT = 0.12
     RUN_STAMP_Y = 0.02
-    RUN_STAMP_FONT_SIZE = 10
     STANDARD_LEFT_BORDER = 0.125
     STANDARD_RIGHT_BORDER = 0.9
     STANDARD_TOP_BORDER = 0.88
@@ -25,8 +25,10 @@ class Carpenter:
         self._context = context
 
         if not isinstance(config := context.config, PlottingConfig):
-            raise TypeError(f"Can't instantiate a Carpenter without a PlottingConfig, got {type(config)}")
-        
+            raise TypeError(
+                f"Can't instantiate a Carpenter without a PlottingConfig, got {type(config)}"
+            )
+
         self._config = config
         self.initialize_styling()
 
@@ -43,8 +45,13 @@ class Carpenter:
 
         plt.style.use(self._config.plot__pyplot_styling["style.use"])
 
-    def figure(self) -> Figure:
-        fig = plt.figure(figsize=self._config.plot__figure_size)
+    def figure(self, *, size_scale: tuple[float, float] = (1, 1)) -> Figure:
+        fig = plt.figure(
+            figsize=tuple(
+                size * scale
+                for size, scale in zip(self._config.plot__figure_size, size_scale)
+            )
+        )
 
         # Apply styling
         fig.patch.set_facecolor(self._figure_styling["patch_set_facecolor"])
@@ -54,7 +61,9 @@ class Carpenter:
             x=0,
             y=self._config.plot__run_stamp_y,
             s=f"run hash: {self._context.run_hash}",
-            fontsize=self._config.plot__run_stamp_font_size,
+            fontsize=self._config.plot__run_stamp_relative_height
+            * fig.get_figheight()
+            * POINTS_PER_INCH,
             verticalalignment="bottom",
             horizontalalignment="left",
         )

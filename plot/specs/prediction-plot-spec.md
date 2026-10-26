@@ -62,7 +62,9 @@ A 2 × 2 figure with four logical blocks. In 1D each block is one axes; in 2+D e
   - 1D: top two plots: to the bottom left of each plot. Bottom two plots: to the upper left, with their top edge at 82% of panel height so they do not touch the title.
   - 2+D: no overlay legends. Every map has a short external content label and each block has an external region label. These content identifiers remain visible in non-debug exports; optional axes and figure titles still follow the debug-title policy.
 - In debug mode, the suptitle is shown in sentence case as `<configured title> of <runtag>`; its default configured title is `Datasets along the process`. Generated non-debug figures omit all axes and figure titles.
-- The 1D figure retains Carpenter's 12% bottom run-stamp row. The 2+D figure instead uses a compact footer sized to the configured run-stamp font, with the stamp 0.025 inches above the figure edge; constrained layout fills the remaining canvas. No fixed 12% or 16% footer is reserved for heatmaps. Debug titles receive space only when displayed.
+- Shared physical-unit conversions, reference dimensions, and heatmap layout values are named once in `plot/layout_constants.py`; footer clearance is calculated directly from the configured relative stamp height.
+- Both 1D and 2+D run-hash stamps use the same relative font height as d_dist: 10 points per 9 inches of canvas height (about 1.54%), including the enlarged heatmap canvas.
+- The 1D figure retains Carpenter's 12% bottom run-stamp row. The 2+D figure instead uses a compact footer sized to the configured run-stamp font, with the stamp offset and footer scaling with canvas height; constrained layout fills the remaining canvas. No fixed 12% or 16% footer is reserved for heatmaps. Debug titles receive space only when displayed.
 
 ## Current Distribution Rendering
 

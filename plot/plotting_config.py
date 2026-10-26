@@ -8,6 +8,10 @@ from data_tools.histogram_binning import (
     validate_display_percentiles,
 )
 from frame.file_structure import PLOT_FILE_EXTENSION
+from plot.layout_constants import (
+    DEFAULT_FIGURE_SIZE_INCHES,
+    DEFAULT_RUN_STAMP_RELATIVE_HEIGHT,
+)
 
 
 DEFAULT_PREDICTION_PROCESS_CONTINUOUS_AXIS_POINTS = 1_000
@@ -76,7 +80,7 @@ class PlottingConfig:
     )
 
     ## Sizing
-    plot__figure_size: Tuple[int, int] = (10, 9)
+    plot__figure_size: Tuple[int, int] = DEFAULT_FIGURE_SIZE_INCHES
 
     plot__prediction_process_number_of_bins: int = 30
     plot__prediction_process_continuous_axis_points: int = (
@@ -99,7 +103,8 @@ class PlottingConfig:
     # Shared layout values used by Carpenter for every plot.
     plot__run_stamp_row_height: float = 0.12
     plot__run_stamp_y: float = 0.02
-    plot__run_stamp_font_size: int = 10
+    # Preserve the d_dist stamp proportion: 10 points on a 9-inch-high canvas.
+    plot__run_stamp_relative_height: float = DEFAULT_RUN_STAMP_RELATIVE_HEIGHT
     plot__standard_left_border: float = 0.125
     plot__standard_right_border: float = 0.9
     plot__standard_top_border: float = 0.88

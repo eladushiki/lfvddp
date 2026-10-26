@@ -296,3 +296,17 @@
   not modified as part of the implementation.
 
 - Submission cleanliness is an observation, not permission to mutate Git index flags. An unchanged clean checkout bracketing a pre-qsub cleanliness failure permits one audited worker retry; scheduler calls must never be repeated by this recovery path. Operational workflow regressions remain skill-owned.
+
+### 2026-10-26 — Proportional run-hash stamp height
+
+- Use the d_dist reference of 10 points on a 9-inch-high canvas for all run-hash
+  stamps. `plot__run_stamp_relative_height` replaces the absolute point-size
+  setting; the shared Carpenter converts this fraction to points only after
+  the final figure dimensions are known. Both 1D and ND plots use this path.
+- The enlarged prediction heatmaps scale their compact footer and stamp offset
+  with the canvas height so the proportional stamp remains clear of the panels.
+- Review follow-up: define the points-per-inch conversion, reference canvas,
+  reference stamp font, and heatmap layout dimensions once in
+  `plot/layout_constants.py`. Footer clearance uses the configured relative
+  stamp height directly, avoiding a round trip through physical font units.
+  The layout constants preserve the previously rendered dimensions.
