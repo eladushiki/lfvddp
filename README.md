@@ -146,6 +146,12 @@ calibrate_signal_events \
 The command prints JSON containing the mean signal event count for each target.
 The repository `signal-count-estimate-by-dataset-parameters` skill uses this calibration workflow
 when configuration files need target-significance signal amounts.
+- `train__adam_weight_decay` defaults to `1e-4` and accepts finite non-negative
+  numbers; set it to `0` to disable weight decay. It applies to LFVDDP Adam,
+  the Adam warmup of `adam_lbfgs`, and NPLM Adam. L-BFGS is unaffected.
+  LFVDDP uses PyTorch Adam's coupled L2 decay; NPLM uses Keras Adam's
+  decoupled weight decay. Checkpoint continuation retains the saved optimizer's
+  decay value.
 - `train__optimizer_strategy` defaults to `"adam"`. Select `"adam_lbfgs"`
   for full-batch Adam warmup followed by L-BFGS with strong-Wolfe line search.
   Each hypothesis has its own `train__epochs` budget: every full-data loss and

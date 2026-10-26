@@ -1,0 +1,17 @@
+{
+  "train__epochs": 100,
+  "train__number_of_epochs_for_checkpoint": 10,
+  "train__nuisance": {
+    "family": "adaptive_neural",
+    "options": {
+      "hidden_layer_nodes": 2
+    }
+  },
+  "train__f": {
+    "family": "adaptive_neural",
+    "options": {
+      "hidden_layer_nodes": 4
+    }
+  },
+  "train__adam_weight_decay": 0
+}

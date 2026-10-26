@@ -164,7 +164,7 @@ def train_NPML_model(
         feature=np.array(feature_dataset.events, dtype=np.float32),
         target=np.array(target_structure, dtype=np.float32),
         loss=imperfect_loss,  # This is (11) in "Learning New Physics from a Machine", D'Angolo et al.
-        optimizer=keras.optimizers.Adam(),
+        optimizer=keras.optimizers.Adam(weight_decay=config.train__adam_weight_decay),
         total_epochs=config.train__epochs,
         patience=config.train__number_of_epochs_for_checkpoint,
         clipping=config.train__nn_weight_clipping > 0,

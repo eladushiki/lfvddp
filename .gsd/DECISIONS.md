@@ -310,3 +310,11 @@
   `plot/layout_constants.py`. Footer clearance uses the configured relative
   stamp height directly, avoiding a round trip through physical font units.
   The layout constants preserve the previously rendered dimensions.
+
+### 2026-10-26 — Adam weight decay
+
+- `train__adam_weight_decay` owns the training default of `1e-4`; zero disables
+  decay. Pass it to each backend's Adam implementation and to hybrid Adam
+  warmup only. Use the backend's native Adam decay semantics without adding a
+  penalty to the likelihood or changing L-BFGS. Existing optimizer checkpoints
+  retain their saved parameter-group settings during continuation.

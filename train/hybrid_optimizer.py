@@ -5,6 +5,7 @@ from math import isfinite
 
 import torch
 
+DEFAULT_ADAM_WEIGHT_DECAY = 1e-4
 MAX_ADAM_WARMUP = 2000
 
 
@@ -76,10 +77,13 @@ class HybridOptimizer(torch.optim.Optimizer):
         total_epochs: int,
         adam_epochs: int | None = None,
         adam_fraction: float | None = None,
+        *,
+        adam_weight_decay: float = DEFAULT_ADAM_WEIGHT_DECAY,
     ):
         super().__init__(parameters, {"lr": learning_rate})
         self.parameters = self.param_groups[0]["params"]
         self.learning_rate = self.param_groups[0]["lr"]
+        self.adam_weight_decay = adam_weight_decay
         self.total_epochs = total_epochs
         self.initial_total_epochs = total_epochs
         self.adam_epochs = adam_epochs
@@ -137,7 +141,11 @@ class HybridOptimizer(torch.optim.Optimizer):
 
     def _make_optimizer(self):
         if self.phase == "adam":
-            return torch.optim.Adam(self.parameters, lr=self.learning_rate)
+            return torch.optim.Adam(
+                self.parameters,
+                lr=self.learning_rate,
+                weight_decay=self.adam_weight_decay,
+            )
         return torch.optim.LBFGS(
             self.parameters,
             lr=1.0,
