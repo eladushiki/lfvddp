@@ -100,6 +100,8 @@ def test_strict_budget_and_transactional_resume(
             "adam_lbfgs_neural_nuisance",
             "adam_lbfgs_neural_nuisance_half_epochs",
             "adam_lbfgs_neural_nuisance_half_fraction",
+            "adam_lbfgs_weight_decay_zero",
+            "adam_lbfgs_weight_decay_custom",
         ]
     ],
     indirect=True,
@@ -221,6 +223,10 @@ def test_line_search_budget_rolls_back_but_keeps_evaluated_candidate():
     "options,message",
     [
         ({"train__optimizer_strategy": "unknown"}, "Unknown"),
+        *[
+            ({"train__adam_weight_decay": value}, "finite non-negative")
+            for value in [-0.1, float("nan"), float("inf"), True, "0.01", None]
+        ],
         (
             {"train__optimizer_strategy": "adam_lbfgs", "train__backend": "nplm"},
             "only supported",

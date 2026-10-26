@@ -175,9 +175,12 @@ class DifferentiatingModel(nn.Module, ContextedModel):
                 self._config.train__epochs,
                 adam_epochs=self._config.train__adam_warmup_epochs,
                 adam_fraction=self._config.train__adam_warmup_fraction,
+                adam_weight_decay=self._config.train__adam_weight_decay,
             )
         optimizer = optim.Adam(
-            trainable_parameters, lr=self._config.train__learning_rate
+            trainable_parameters,
+            lr=self._config.train__learning_rate,
+            weight_decay=self._config.train__adam_weight_decay,
         )
         return optimizer
 

@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from logging import warning
+from math import isfinite
 from typing import Any
 
 from train.function_space_config import (
@@ -9,6 +10,7 @@ from train.function_space_config import (
     TrainingBackend,
     resolve_dual_role_config,
 )
+from train.hybrid_optimizer import DEFAULT_ADAM_WEIGHT_DECAY, adam_warmup_epochs
 
 
 @dataclass
@@ -20,6 +22,7 @@ class TrainConfig:
     train__optimizer_strategy: str = "adam"
     train__adam_warmup_epochs: int | None = None
     train__adam_warmup_fraction: float | None = None
+    train__adam_weight_decay: float = DEFAULT_ADAM_WEIGHT_DECAY
     train__learning_rate: float = 0.03
     train__final_learning_rate: float | None = None
     train__enable_progress_bar: bool = True
@@ -100,10 +103,14 @@ class TrainConfig:
 
         if self.train__optimizer_strategy not in {"adam", "adam_lbfgs"}:
             raise ValueError("Unknown train__optimizer_strategy.")
+        if (
+            type(self.train__adam_weight_decay) not in (int, float)
+            or not isfinite(self.train__adam_weight_decay)
+            or self.train__adam_weight_decay < 0
+        ):
+            raise ValueError("Adam weight decay must be a finite non-negative number.")
         if self.train__epochs < 1:
             raise ValueError("Training epochs must be positive.")
-        from train.hybrid_optimizer import adam_warmup_epochs
-
         adam_warmup_epochs(
             self.train__epochs,
             self.train__adam_warmup_epochs,
