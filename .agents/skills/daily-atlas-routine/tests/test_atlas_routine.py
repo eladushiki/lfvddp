@@ -12,8 +12,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+
 import yaml
-from frame.context.run_descriptor import build_run_descriptor
 from atlas_routine.artifacts import Artifacts
 from atlas_routine.backend import Backend
 from atlas_routine.completion import accepted_size, completion_evidence, frozen
@@ -22,8 +22,10 @@ from atlas_routine.runner import Runner
 from atlas_routine.scheduler import Scheduler, Snapshot
 from atlas_routine.state import StateStore
 from atlas_routine.submission import SubmissionManager
-from atlas_routine.submit_entrypoint import install_receipts
 from atlas_routine.submission_intent import RECEIPT_ENV
+from atlas_routine.submit_entrypoint import install_receipts
+
+from frame.context.run_descriptor import build_run_descriptor
 
 FIXTURE = Path(__file__).parent / "configs/atlas_routine_state.yaml"
 SKILL = Path(__file__).resolve().parents[1]
@@ -468,8 +470,9 @@ class LockedStateTest(AtlasCase):
         self.assertEqual(self.path.read_bytes(), before)
 
     def test_qsub_receipt_records_before_execution_and_limits_retries(self):
-        import frame.submit as module
         from atlas_routine.submit_entrypoint import install_receipts
+
+        import frame.submit as module
 
         path = (
             self.root / ".agents/submission-state-tools/intents" / ("b" * 32 + ".json")
@@ -1028,3 +1031,116 @@ class DeploymentTest(AtlasCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CleanSubmissionRecoveryTest(AtlasCase):
+    def test_clean_bracket_retries_once_before_qsub_with_saved_audit(self):
+        for error_type in ("RuntimeError", "DirtyGitHeadError"):
+            for kind in ("initial", "continuation"):
+                with self.subTest(error=error_type, kind=kind):
+                    backend = self.backend()
+                    entry = self.entry(name=error_type + kind)
+                    receipt_path = self.path.parent / (
+                        "receipt-" + entry["id"] + ".json"
+                    )
+                    atomic_json(receipt_path, {"calls": []})
+                    intent = {
+                        "receipt_path": str(receipt_path),
+                        "branch": "main",
+                        "commit": "commit",
+                        "kind": kind,
+                        "previous_directories": [],
+                    }
+                    entry["pending_submission_intent"] = intent
+                    manager = SubmissionManager(
+                        self.store, self.scheduler(), backend, {}
+                    )
+
+                    def command(
+                        args, label, env, backend=backend, error_type=error_type
+                    ):
+                        if not label.endswith("-clean-retry"):
+                            (backend.runtime / (label + ".log")).write_text(
+                                json.dumps(
+                                    {
+                                        "error": error_type,
+                                        "message": "Commit changes before running the script.\n?? transient",
+                                    }
+                                )
+                            )
+                            return SimpleNamespace(returncode=2)
+                        saved = yaml.safe_load(self.path.read_text())["submissions"][-1]
+                        self.assertIn(
+                            "cleanliness_recovery", saved["pending_submission_intent"]
+                        )
+                        self.assertEqual(args[-1], "argument")
+                        return SimpleNamespace(returncode=0)
+
+                    backend.command.side_effect = command
+                    result, label = manager.launch(
+                        entry, intent, {}, ["argument"], "attempt"
+                    )
+                    self.assertEqual(result.returncode, 0)
+                    self.assertEqual(label, "attempt-clean-retry")
+                    self.assertEqual(backend.command.call_count, 2)
+                    backend.prepare.assert_called_once()
+
+    def test_never_retries_qsub_started_other_failure_changed_head_or_dirty(self):
+        for mode in (
+            "started",
+            "uncertain",
+            "accepted",
+            "rejected",
+            "prepared",
+            "unrelated",
+            "head",
+            "dirty",
+            "persistent",
+        ):
+            with self.subTest(mode=mode):
+                backend = self.backend()
+                entry = self.entry(name=mode)
+                path = self.path.parent / (mode + ".json")
+                atomic_json(
+                    path,
+                    {
+                        "calls": [{"status": mode}]
+                        if mode
+                        in ("started", "uncertain", "accepted", "rejected", "prepared")
+                        else []
+                    },
+                )
+                intent = {
+                    "receipt_path": str(path),
+                    "branch": "main",
+                    "commit": "commit",
+                    "previous_directories": [],
+                }
+                (backend.runtime / "failure.log").write_text(
+                    json.dumps(
+                        {
+                            "error": "RuntimeError",
+                            "message": "other failure"
+                            if mode == "unrelated"
+                            else "Commit changes before running the script.",
+                        }
+                    )
+                )
+                (backend.runtime / "failure-clean-retry.log").write_text(
+                    "persistent failure"
+                )
+                backend.command.return_value = SimpleNamespace(returncode=2)
+                if mode == "head":
+                    backend.prepare.return_value = ("main", "changed")
+                if mode == "dirty":
+                    backend.prepare.side_effect = RuntimeError("Checkout is dirty")
+                manager = SubmissionManager(self.store, self.scheduler(), backend, {})
+                if mode in ("head", "dirty"):
+                    with self.assertRaises(RuntimeError):
+                        manager.launch(entry, intent, {}, [], "failure")
+                else:
+                    result, _ = manager.launch(entry, intent, {}, [], "failure")
+                    self.assertEqual(result.returncode, 2)
+                self.assertEqual(
+                    backend.command.call_count, 2 if mode == "persistent" else 1
+                )

@@ -38,7 +38,7 @@ from frame.file_system.textual_data import (
     save_dict_to_json,
 )
 from frame.file_system.training_history import save_training_history
-from frame.git_tools import get_commit_hash, is_git_head_clean
+from frame.git_tools import get_commit_hash, require_clean_git_head
 from frame.time_tools import (
     get_time_and_date_string,
     get_unique_run_dir_name,
@@ -605,8 +605,8 @@ def version_controlled_execution_context(
             )
         if args.debug:
             context.is_debug_mode = True
-        if not context.is_debug_mode and not is_git_head_clean():
-            raise RuntimeError("Commit changes before running the script.")
+        if not context.is_debug_mode:
+            require_clean_git_head()
 
         extra_time = getattr(args, "extra_time", None)
         if extra_time is not None:
@@ -626,8 +626,8 @@ def version_controlled_execution_context(
     else:
         if config is None or config_paths is None:
             raise ValueError("Fresh runs require configuration files.")
-        if not args.debug and not is_git_head_clean():
-            raise RuntimeError("Commit changes before running the script.")
+        if not args.debug:
+            require_clean_git_head()
 
         random_seed = load_config_params_from_paths(config_paths).get("random_seed")
         context_kwargs = {}

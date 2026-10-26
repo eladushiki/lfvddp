@@ -288,7 +288,8 @@ python train/single_train.py --configs configs/my-study
 ```
 
 Normal runs require a clean Git working tree so their saved commit identifies
-the executed code. During development, `--debug` disables that check:
+the executed code. Cleanliness checks do not change the Git index and confirm
+transient changes once; persistent failures list the changed paths. During development, `--debug` disables that check:
 
 ```bash
 python train/single_train.py --configs configs/my-study --debug

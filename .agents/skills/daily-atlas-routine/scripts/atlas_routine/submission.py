@@ -6,11 +6,12 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
+
 from atlas_routine.completion import completion_evidence, output_path
 from atlas_routine.files import atomic_json
 from atlas_routine.scheduler import parent
 from atlas_routine.state import now
-from atlas_routine.submission_intent import RECEIPT_ENV, QUOTA_ERROR
+from atlas_routine.submission_intent import QUOTA_ERROR, RECEIPT_ENV
 
 QUOTA = QUOTA_ERROR
 
@@ -180,6 +181,56 @@ class SubmissionManager:
         atomic_json(Path(intent["receipt_path"]), receipt)
         self.finalize(entry, intent, receipt)
 
+    def launch(self, entry, intent, environment, args, label):
+        """Retry only a pre-qsub cleanliness failure bracketed by clean checks."""
+        for attempt in range(2):
+            result = self.backend.command(
+                [
+                    sys.executable,
+                    os.environ["LFVDDP_ATLAS_RUNNER"],
+                    "--worker",
+                    "submit",
+                    *args,
+                ],
+                label,
+                env=environment,
+            )
+            receipt = json.loads(Path(intent["receipt_path"]).read_text())
+            if not result.returncode or receipt["calls"] or attempt:
+                return result, label
+            log = (self.backend.runtime / (label + ".log")).read_text()
+            errors = []
+            for line in log.splitlines():
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(value, dict):
+                    errors.append(value)
+            if not any(
+                error.get("error") in ("RuntimeError", "DirtyGitHeadError")
+                and error.get("message", "").splitlines()[0]
+                == "Commit changes before running the script."
+                for error in errors
+                if error.get("message")
+            ):
+                return result, label
+            branch, commit = self.backend.prepare(
+                entry, self.store.data, self.scheduler.snapshot
+            )
+            if (branch, commit) != (intent["branch"], intent["commit"]):
+                raise RuntimeError("Checkout changed during submission; cannot retry")
+            self.cleanup(entry, intent, receipt)
+            intent["cleanliness_recovery"] = {
+                "at": now(),
+                "failed_log": str(self.backend.runtime / (label + ".log")),
+                "branch": branch,
+                "commit": commit,
+                "basis": "same clean checkout before and after failure; receipt has zero qsub calls",
+            }
+            self.store.save()
+            label += "-clean-retry"
+
     def submit(self, entry):
         snapshot = self.scheduler.refresh()
         branch, commit = self.backend.prepare(entry, self.store.data, snapshot)
@@ -232,17 +283,7 @@ class SubmissionManager:
         environment = dict(os.environ, **{RECEIPT_ENV: str(path)})
         environment.pop("LFVDDP_COMMIT_HASH", None)
         label = "submit-" + token
-        result = self.backend.command(
-            [
-                sys.executable,
-                os.environ["LFVDDP_ATLAS_RUNNER"],
-                "--worker",
-                "submit",
-                *args,
-            ],
-            label,
-            env=environment,
-        )
+        result, label = self.launch(entry, intent, environment, args, label)
         receipt = json.loads(path.read_text())
         if any(call.get("job_id") for call in receipt["calls"]):
             self.recover(entry)

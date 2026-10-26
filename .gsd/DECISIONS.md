@@ -294,3 +294,5 @@
   unchanged Adam and plotting entry points; NPLM rejects hybrid controls.
 - This change adds configuration support only; cluster requests and packs are
   not modified as part of the implementation.
+
+- Submission cleanliness is an observation, not permission to mutate Git index flags. An unchanged clean checkout bracketing a pre-qsub cleanliness failure permits one audited worker retry; scheduler calls must never be repeated by this recovery path. Operational workflow regressions remain skill-owned.
