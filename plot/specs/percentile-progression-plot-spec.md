@@ -63,6 +63,9 @@ each end. Early transients may be clipped. Constant curves receive padding of
 numerator or denominator; ordinary title suppression remains factory-controlled.
 The same renderer serves every dataset dimensionality.
 
+Run-hash stamps use Carpenter’s shared relative font height: 10 points per
+9 inches of canvas height (about 1.54%), matching d_dist for every canvas size.
+
 ## Output Contract
 
 - **Return type:** Matplotlib `Figure`.

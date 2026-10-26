@@ -1658,14 +1658,14 @@ def plot_prediction_process_2d(
             values[~mask] = np.nan
 
     carpenter = Carpenter(context)
-    fig = carpenter.figure()
     # More individually readable maps need a larger canvas, without 3D padding.
-    fig.set_size_inches(np.asarray(fig.get_size_inches()) * (1.6, 1.4))
+    fig = carpenter.figure(size_scale=(1.6, 1.4))
     layout_padding = 0.025
-    fig.texts[0].set_y(layout_padding / fig.get_figheight())
+    stamp = fig.texts[0]
+    stamp.set_y(layout_padding / config.plot__figure_size[1])
     stamp_top = (
-        layout_padding + 1.5 * config.plot__run_stamp_font_size / 72
-    ) / fig.get_figheight()
+        stamp.get_position()[1] + 1.5 * stamp.get_fontsize() / 72 / fig.get_figheight()
+    )
     fig.set_layout_engine(
         "constrained",
         h_pad=layout_padding,

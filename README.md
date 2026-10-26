@@ -231,6 +231,9 @@ when configuration files need target-significance signal amounts.
   24 prediction-process heatmaps include a matching signal zoom inset centered
   on the injected mean and extending one standard deviation per coordinate.
   Insets preserve the parent map's binning and color scale.
+- Run-hash stamps scale with canvas height, preserving the d_dist proportion
+  of 10 points on a 9-inch-high figure. `plot__run_stamp_relative_height`
+  configures this fraction of figure height, replacing `plot__run_stamp_font_size`.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
   significance is calibrated against background runs. Single-submission

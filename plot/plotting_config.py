@@ -99,7 +99,8 @@ class PlottingConfig:
     # Shared layout values used by Carpenter for every plot.
     plot__run_stamp_row_height: float = 0.12
     plot__run_stamp_y: float = 0.02
-    plot__run_stamp_font_size: int = 10
+    # Preserve the d_dist stamp proportion: 10 points on a 9-inch-high canvas.
+    plot__run_stamp_relative_height: float = 10 / (9 * 72)
     plot__standard_left_border: float = 0.125
     plot__standard_right_border: float = 0.9
     plot__standard_top_border: float = 0.88
