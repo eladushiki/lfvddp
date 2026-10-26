@@ -1,5 +1,6 @@
 from frame.context.execution_context import ExecutionContext
 from plot.plotting_config import PlottingConfig
+from plot.layout_constants import POINTS_PER_INCH
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -62,7 +63,7 @@ class Carpenter:
             s=f"run hash: {self._context.run_hash}",
             fontsize=self._config.plot__run_stamp_relative_height
             * fig.get_figheight()
-            * 72,
+            * POINTS_PER_INCH,
             verticalalignment="bottom",
             horizontalalignment="left",
         )

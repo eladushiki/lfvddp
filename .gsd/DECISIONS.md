@@ -305,3 +305,8 @@
   the final figure dimensions are known. Both 1D and ND plots use this path.
 - The enlarged prediction heatmaps scale their compact footer and stamp offset
   with the canvas height so the proportional stamp remains clear of the panels.
+- Review follow-up: define the points-per-inch conversion, reference canvas,
+  reference stamp font, and heatmap layout dimensions once in
+  `plot/layout_constants.py`. Footer clearance uses the configured relative
+  stamp height directly, avoiding a round trip through physical font units.
+  The layout constants preserve the previously rendered dimensions.
