@@ -157,3 +157,23 @@ context descriptors bound to the runner name. Submission/plot names must remain
 The private adapter tests exercise real descriptor construction after prior
 application imports, including both saved plotting debug modes. Existing tracked
 runner-named submission directories remain valid; do not rename active work.
+
+### Transient checkout failures
+
+Submission checks are read-only; they do not run `git update-index` or change
+assume-unchanged flags. Fresh and continuation guards confirm a dirty observation
+once and require an unchanged HEAD. Persistent changes report their paths.
+If the worker still fails specifically at the cleanliness guard, the routine may
+retry that worker once only when the receipt contains zero qsub calls and the
+same clean branch/commit is verified before and after the failure. It saves the
+failed log and clean-check evidence on the intent before retrying. A started,
+uncertain, accepted, or rejected qsub call is never retried by this path. Other
+failures and a second cleanliness failure stop the queue normally.
+
+Caller inventory: fresh and continuation execution contexts use the throwing
+guard; `is_same_as_commit` uses the read-only boolean guard; container workers
+retain their validated commit environment behavior. No model, training, prediction
+or plotting algorithms/configuration modes change. The Git tests cover real
+tracked/staged/untracked changes, ignored caches, transient changes, HEAD changes
+and container metadata absence. Private routine tests cover initial/continuation
+retry, durable evidence and all no-retry boundaries.

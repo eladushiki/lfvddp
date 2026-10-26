@@ -837,3 +837,64 @@ def test_unsupported_config_error_identifies_extensionless_path(tmp_path):
 
     with pytest.raises(ValueError, match=r"<none>.*\.config"):
         load_config_file(extensionless_path)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/short_1D_train_config_with_nuisance.json"
+            )
+        }
+    ],
+    indirect=True,
+)
+@pytest.mark.parametrize("continue_run", [False, True])
+@pytest.mark.parametrize("dirty", [False, True])
+def test_non_debug_context_uses_checkout_guard(
+    tmp_path, monkeypatch, function_execution_context, continue_run, dirty
+):
+    from unittest.mock import Mock
+    from frame.git_tools import DirtyGitHeadError
+
+    config_paths = function_execution_context.config_paths
+    config = _config_for_out_dir(function_execution_context, tmp_path)
+    args = _context_args()
+    args.debug = False
+    guard = Mock(side_effect=DirtyGitHeadError("dirty path") if dirty else None)
+    monkeypatch.setattr("frame.context.execution_context.require_clean_git_head", guard)
+    entrypoint = SUBMIT_TRAIN_SCRIPT_NAME
+    if continue_run:
+        initial_args = _context_args()
+        with version_controlled_execution_context(
+            config=config,
+            config_paths=config_paths,
+            command_line_args=[SUBMIT_TRAIN_SCRIPT_NAME],
+            args=initial_args,
+        ) as initial:
+            directory = initial.unique_out_dir
+            entrypoint = parse_run_descriptor(
+                initial.run_descriptor, dirsafe_runtag=config.config__dirsafe_runtag
+            ).entrypoint
+        saved = load_dict_from_json(directory / CONTEXT_FILE_NAME)
+        saved["is_debug_mode"] = False
+        from frame.file_system.textual_data import save_dict_to_json
+
+        save_dict_to_json(saved, directory / CONTEXT_FILE_NAME)
+        args = _context_args(continue_from=directory)
+        config = config_paths = None
+    invocation = version_controlled_execution_context(
+        config=config,
+        config_paths=config_paths,
+        command_line_args=[entrypoint],
+        args=args,
+    )
+    if dirty:
+        with pytest.raises(DirtyGitHeadError):
+            with invocation:
+                pass
+    else:
+        with invocation:
+            pass
+    guard.assert_called_once()

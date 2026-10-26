@@ -67,7 +67,7 @@ class Backend:
                 and required == migration["from"]
             ):
                 required = migration["to"]
-        if self.git("status", "--porcelain"):
+        if self.git("--no-optional-locks", "status", "--porcelain=v1"):
             raise PreparationRequired("Checkout is dirty")
         if branch != required:
             if not snapshot.idle:
