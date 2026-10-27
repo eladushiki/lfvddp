@@ -2,7 +2,11 @@
 
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import fields
 from pathlib import Path
+
+from data_tools.detector.detector_config import DetectorConfig
+from train.train_config import TrainConfig
 
 
 class ComparisonConfigError(ValueError):
@@ -21,7 +25,11 @@ def validate_comparison_configs(configs: Sequence[tuple[str, Mapping]]) -> None:
         raise ComparisonConfigError("Significance comparison has no configurations")
 
     def signature(label, config):
-        for required in ("train__epochs", "detector__detect_observable_names"):
+        for required in (
+            field.name
+            for schema in (TrainConfig, DetectorConfig)
+            for field in fields(schema)
+        ):
             if required not in config:
                 raise ComparisonConfigError(f"{label}: missing resolved {required}")
         return {

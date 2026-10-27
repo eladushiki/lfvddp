@@ -105,3 +105,14 @@ def test_real_enabled_nuisance_config_uses_the_same_resolved_signature(tmp_path)
         "remote_submission_directory": str(tmp_path),
     }
     backend.validate_comparison([saved, entry])
+
+
+@pytest.mark.parametrize(
+    "field", ["train__f", "train__adam_weight_decay", "detector__effect_b_error"]
+)
+def test_matching_incomplete_configs_are_not_evidence(field):
+    incomplete = {key: value for key, value in CASES["base"].items() if key != field}
+    with pytest.raises(ComparisonConfigError, match=field):
+        validate_comparison_configs(
+            [("background", incomplete), ("signal", incomplete)]
+        )
