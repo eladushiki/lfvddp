@@ -1,0 +1,40 @@
+{
+  "base": {
+    "train__epochs": 40000,
+    "train__optimizer_strategy": "adam",
+    "train__learning_rate": 0.001,
+    "train__final_learning_rate": null,
+    "train__adam_weight_decay": 0.0001,
+    "train__adam_warmup_epochs": null,
+    "train__adam_warmup_fraction": null,
+    "train__number_of_epochs_for_checkpoint": 100,
+    "train__backend": "lfvddp",
+    "train__f": {"family": "adaptive_neural", "options": {"hidden_layer_nodes": [8, 4]}},
+    "train__nuisance": {"family": "adaptive_neural", "options": {"hidden_layer_nodes": 4}},
+    "detector__detect_observable_names": ["x", "y"],
+    "detector__effect_a_efficiency": "0.8"
+  },
+  "mismatches": [
+    {"train__epochs": 10000},
+    {"train__optimizer_strategy": "adam_lbfgs"},
+    {"train__learning_rate": 0.03},
+    {"train__final_learning_rate": 0.0001},
+    {"train__adam_weight_decay": 0},
+    {"train__adam_warmup_epochs": 1000},
+    {"train__adam_warmup_fraction": 0.25},
+    {"train__number_of_epochs_for_checkpoint": 1000},
+    {"train__backend": "nplm"},
+    {"train__f": {"family": "adaptive_neural", "options": {"hidden_layer_nodes": [4, 4]}}},
+    {"train__nuisance": {"family": "disabled"}},
+    {"detector__detect_observable_names": ["y", "x"]},
+    {"detector__effect_a_efficiency": "0.7"},
+    {"train__future_control": 7}
+  ],
+  "allowed": {
+    "random_seed": 99,
+    "cluster__qsub_n_jobs": 100,
+    "config__out_dir": "different-output",
+    "plot__figure_scale": 2,
+    "dataset__definitions": [{"dataset__mean_number_of_signal_events": 40}]
+  }
+}

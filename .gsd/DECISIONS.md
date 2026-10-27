@@ -318,3 +318,17 @@
   warmup only. Use the backend's native Adam decay semantics without adding a
   penalty to the likelihood or changing L-BFGS. Existing optimizer checkpoints
   retain their saved parameter-group settings during continuation.
+
+### 2026-10-27: significance comparisons require the same fitting procedure
+
+- A background reference and every signal point must use identical resolved
+  training and detector fields, not merely the same epoch count or degrees of
+  freedom. Include future fields automatically rather than maintaining an
+  incomplete hyperparameter allowlist.
+- One shared validator gates planned group submission and saved-context
+  aggregation; missing evidence and mismatches fail closed with field/value
+  diagnostics. Preserve old outputs and never silently rewrite scientific packs.
+- Entry-point inventory: the full ATLAS runner and its submit/plots phases,
+  deployed held-lock launcher, explicit-membership worker, and direct
+  `performance_plot` (1D and ND) share this guard. Training, checkpoint restore
+  and prediction do not change; this is comparison validation only.

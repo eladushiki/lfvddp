@@ -510,6 +510,55 @@ class LockedStateTest(AtlasCase):
         self.assertEqual(json.loads(path.read_text())["calls"][0]["job_id"], result)
 
 
+class ComparisonGateTest(AtlasCase):
+    def test_submission_mismatch_stops_before_intent_or_qsub(self):
+        background = self.entry("background")
+        signal = self.entry("signal")
+        self.store.data["plot_groups"] = [
+            {
+                "id": "comparison",
+                "status": "pending",
+                "background_submission": background["id"],
+                "signal_submissions": [signal["id"]],
+            }
+        ]
+        backend = self.backend()
+        backend.validate_comparison.side_effect = ValueError("train__epochs differs")
+        manager = Mock()
+        runner = Runner(self.store, self.scheduler(), backend)
+        runner.submissions(manager)
+        manager.submit.assert_not_called()
+        self.assertEqual(background["status"], "blocked")
+        self.assertNotIn("pending_submission_intent", background)
+        self.assertIn("train__epochs", background["last_error"]["message"])
+
+    def test_aggregate_mismatch_precedes_restore_cleanup_and_plot(self):
+        background = self.entry("background", "analyzed")
+        signal = self.entry("signal", "analyzed")
+        self.directory(background)
+        self.directory(signal)
+        signal["artifact_archive"] = {"archive_path": "saved.tar.gz"}
+        group = {
+            "id": "comparison",
+            "status": "pending",
+            "background_submission": background["id"],
+            "signal_submissions": [signal["id"]],
+            "remote_multi_run_directory": background["output_root"],
+        }
+        self.store.data["plot_groups"] = [group]
+        backend = self.backend()
+        backend.validate_comparison.side_effect = ValueError("train__nuisance differs")
+        runner = Runner(self.store, self.scheduler(), backend)
+        runner.review_tree = Mock()
+        runner.groups()
+        runner.review_tree.assert_not_called()
+        backend.artifacts.restore.assert_not_called()
+        backend.plot.assert_not_called()
+        self.assertEqual(group["status"], "failed")
+        self.assertNotIn("pending_plot", group)
+        self.assertIn("train__nuisance", group["last_error"]["message"])
+
+
 class SchedulerTest(unittest.TestCase):
     def test_recovery_requires_token_owner_and_unique_parent(self):
         token = "a" * 32

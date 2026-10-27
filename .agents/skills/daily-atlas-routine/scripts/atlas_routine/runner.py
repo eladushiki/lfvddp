@@ -6,6 +6,7 @@ import shutil
 import time
 from collections import Counter
 from contextlib import contextmanager
+
 from atlas_routine.backend import Backend, PreparationRequired
 from atlas_routine.completion import (
     completion_evidence,
@@ -231,6 +232,7 @@ class Runner:
             with self.stage(group, "aggregate", failed_status="failed"):
                 tree = (self.store.root / group["remote_multi_run_directory"]).resolve()
                 tree.relative_to(self.store.root)
+                self.backend.validate_comparison(members, saved_only=True)
                 self.review_tree(group, tree)
                 for entry in members:
                     if entry.get("artifact_archive") and not entry.get(
@@ -349,6 +351,15 @@ class Runner:
                 if threshold is not None and config.cluster__qsub_n_jobs >= threshold:
                     self.report["quota_skipped"].append(entry["id"])
                     continue
+                for group in self.store.data["plot_groups"]:
+                    member_ids = [
+                        group["background_submission"],
+                        *group["signal_submissions"],
+                    ]
+                    if group["status"] != "retired" and entry["id"] in member_ids:
+                        self.backend.validate_comparison(
+                            [self.by_id[sid] for sid in member_ids]
+                        )
                 rejected_size = manager.submit(entry)
                 if rejected_size is not None:
                     threshold = rejected_size
