@@ -185,3 +185,14 @@ or plotting algorithms/configuration modes change. The Git tests cover real
 tracked/staged/untracked changes, ignored caches, transient changes, HEAD changes
 and container metadata absence. Private routine tests cover initial/continuation
 retry, durable evidence and all no-retry boundaries.
+
+Dataset comparability is checked by region/category, independent of definition
+order. Background yields (including explicitly fixed counts), generators,
+dimensions, induced nuisance settings, loaded file names, cuts, aliases,
+observable mappings, load limits and sampling/resampling policies must match.
+Only injected signal strength and shape may vary; a background reference may
+omit signal settings altogether. Signal shape (including positivity conditioning
+and the generated signal's observable mapping) separates curves; strength varies
+within each curve. Validation and curve grouping share the same dataset-field
+policy. Declared optional dataset defaults are normalized without realizing
+Poisson counts or loading event files.

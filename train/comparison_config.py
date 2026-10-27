@@ -6,6 +6,7 @@ from dataclasses import fields
 from pathlib import Path
 
 from data_tools.detector.detector_config import DetectorConfig
+from train.comparison_datasets import dataset_comparison_values
 from train.train_config import TrainConfig
 
 
@@ -17,8 +18,9 @@ def validate_comparison_configs(configs: Sequence[tuple[str, Mapping]]) -> None:
     """Compare every training and detector field, including future declared fields.
 
     Inputs are resolved configuration dictionaries, as persisted in run contexts.
-    Signal injection, seeds, array sizes, output paths and plotting controls are
-    deliberately outside this fitting signature. No fitting field is allowlisted
+    Dataset settings must agree per region except for injected signal strength
+    and shape, which define the plotted points and curves. Seeds, array sizes,
+    output paths and plotting controls are outside this fitting signature. No fitting field is allowlisted
     away: checkpoint cadence and optimizer phase controls must match too.
     """
     if not configs:
@@ -32,10 +34,25 @@ def validate_comparison_configs(configs: Sequence[tuple[str, Mapping]]) -> None:
         ):
             if required not in config:
                 raise ComparisonConfigError(f"{label}: missing resolved {required}")
-        return {
+        if "dataset__definitions" not in config:
+            raise ComparisonConfigError(f"{label}: missing dataset__definitions")
+        try:
+            dataset_values = dataset_comparison_values(config)
+        except (ValueError, KeyError) as error:
+            raise ComparisonConfigError(f"{label}: {error}") from error
+        return dataset_values | {
             key: json.loads(json.dumps(value, sort_keys=True))
             for key, value in config.items()
-            if key.startswith(("train__", "detector__"))
+            if key.startswith(
+                (
+                    "train__",
+                    "detector__",
+                    "dataset__",
+                    "dataset_loaded__",
+                    "dataset_generated__",
+                )
+            )
+            and key != "dataset__definitions"
         }
 
     reference_name, reference_config = configs[0]
