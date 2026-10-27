@@ -41,6 +41,14 @@ Receipt-confirmed jobs belong to an already saved request/intent; unrelated jobs
 are never adopted. Recover the context's missing qsub record from the verified
 receipt when necessary. Verified pre-qsub quota residues alone may be removed.
 
+Before any new group member is submitted, compare the resolved planned packs
+with the saved configurations of already submitted members. All `train__*` and
+`detector__*` fields must match across the entire explicit group. Recheck saved
+submission and available worker contexts before aggregate restoration, cleanup
+or plotting. Missing evidence or a mismatch stops that stage with field/value
+and path diagnostics; never bypass the guard or silently rewrite hyperparameters.
+Injection parameters, seeds, array sizes and plotting controls may differ.
+
 Continuations precede fresh requests. Quota rejections leave the request pending;
 for that run only, later arrays must be strictly smaller than the rejected size.
 Other submission failures stop the queue. An earlier blocked submission-stage
@@ -177,3 +185,14 @@ or plotting algorithms/configuration modes change. The Git tests cover real
 tracked/staged/untracked changes, ignored caches, transient changes, HEAD changes
 and container metadata absence. Private routine tests cover initial/continuation
 retry, durable evidence and all no-retry boundaries.
+
+Dataset comparability is checked by region/category, independent of definition
+order. Background yields (including explicitly fixed counts), generators,
+dimensions, induced nuisance settings, loaded file names, cuts, aliases,
+observable mappings, load limits and sampling/resampling policies must match.
+Only injected signal strength and shape may vary; a background reference may
+omit signal settings altogether. Signal shape (including positivity conditioning
+and the generated signal's observable mapping) separates curves; strength varies
+within each curve. Validation and curve grouping share the same dataset-field
+policy. Declared optional dataset defaults are normalized without realizing
+Poisson counts or loading event files.

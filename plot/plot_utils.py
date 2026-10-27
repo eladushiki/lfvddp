@@ -198,31 +198,18 @@ def utils__warn_for_context_discrepancies(
     )
 
 
-def utils__performance_group_key(
-    signal_context: ExecutionContext,
-) -> Tuple[Tuple[str, str, str, str, bool], ...]:
-    signal_config: DatasetConfig = signal_context.config
-    group_key = []
-    for category in DataBatch.REQUIRED_DATASET_CATEGORIES:
-        parameters = signal_config.get_parameters(category)
-        group_key.append(
-            (
-                category.name,
-                parameters.dataset__background_source_type,
-                parameters.dataset__background_source,
-                parameters.dataset__signal_source,
-                parameters.dataset__has_signal,
-            )
-        )
+def utils__performance_group_key(signal_context: ExecutionContext) -> str:
+    """Group by the same signal-shape variation allowed by comparison validation."""
+    from train.comparison_datasets import signal_curve_key
 
-    return tuple(group_key)
+    return signal_curve_key(ExecutionContext.serialize(signal_context.config))
 
 
 def utils__group_signal_contexts(
     signal_t_values_parent_directory: str,
 ) -> List[List[Tuple[ExecutionContext, Path]]]:
     groups: Dict[
-        Tuple[Tuple[str, str, str, str, bool], ...],
+        str,
         List[Tuple[ExecutionContext, Path]],
     ] = {}
     for signal_context, context_path in utils__discover_performance_contexts(

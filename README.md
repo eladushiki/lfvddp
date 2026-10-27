@@ -494,3 +494,21 @@ The entry point opts into the six array cases and starts the one-thread
 `/proc` sampler. Each PBS log contains a `THREAD_PROBE_RESULT` JSON record.
 Use this only for a new runtime investigation; do not add probe environment
 variables to normal submissions.
+
+Significance comparisons require identical resolved training and detector settings
+across all reference and signal runs. A mismatch (including epochs, optimizer,
+learning rate, regularization or either model function space) stops plotting and
+reports the affected paths and values. The ATLAS routine also checks the whole
+saved group before submission. Injection parameters, seeds and array sizes may
+vary; the guard never rewrites a configuration or resubmits an existing run.
+
+Dataset comparability is checked by region/category, independent of definition
+order. Background yields (including explicitly fixed counts), generators,
+dimensions, induced nuisance settings, loaded file names, cuts, aliases,
+observable mappings, load limits and sampling/resampling policies must match.
+Only injected signal strength and shape may vary; a background reference may
+omit signal settings altogether. Signal shape (including positivity conditioning
+and the generated signal's observable mapping) separates curves; strength varies
+within each curve. Validation and curve grouping share the same dataset-field
+policy. Declared optional dataset defaults are normalized without realizing
+Poisson counts or loading event files.

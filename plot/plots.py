@@ -547,6 +547,23 @@ def performance_plot(
             f"{signal_t_values_parent_directory}."
         )
 
+    # Validate every member, not only the first point of each curve.
+    from train.comparison_config import (
+        saved_comparison_configs,
+        validate_comparison_configs,
+    )
+
+    validate_comparison_configs(
+        [
+            item
+            for _, path in [
+                *background_contexts,
+                *(item for group in signal_groups for item in group),
+            ]
+            for item in saved_comparison_configs(path.parent)
+        ]
+    )
+
     source_types = {
         utils__context_background_source_type(context)
         for context, _ in background_contexts

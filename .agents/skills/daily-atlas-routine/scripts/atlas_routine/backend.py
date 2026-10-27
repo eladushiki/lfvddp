@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
 from atlas_routine.artifacts import Artifacts
 from atlas_routine.files import atomic_json
 from atlas_routine.state import now
@@ -41,17 +42,39 @@ class Backend:
         return result
 
     def configs(self, entry: dict):
+        from frame.context.execution_context import create_config_from_paramters
         from frame.file_system.textual_data import (
             expand_config_paths,
             load_config_params_from_paths,
         )
-        from frame.context.execution_context import create_config_from_paramters
 
         packs = entry.get("config_packs") or [entry["config_pack"]]
         files = expand_config_paths([self.root / pack for pack in packs])
         parameters = load_config_params_from_paths(files)
         config = create_config_from_paramters(parameters, out_dir=entry["output_root"])
         return config, files
+
+    def validate_comparison(self, members: list[dict], *, saved_only=False):
+        """Check planned packs against actual saved runs before any group side effect."""
+        from frame.context.execution_context import ExecutionContext
+        from train.comparison_config import (
+            saved_comparison_configs,
+            validate_comparison_configs,
+        )
+
+        configs = []
+        for entry in members:
+            directory = entry.get("remote_submission_directory")
+            if directory and (
+                saved_only or entry["status"] not in ("requested", "blocked")
+            ):
+                configs.extend(saved_comparison_configs(self.root / directory))
+            elif saved_only:
+                raise ValueError(f"Missing saved run configuration: {entry['id']}")
+            else:
+                config, _ = self.configs(entry)
+                configs.append((entry["id"], ExecutionContext.serialize(config)))
+        validate_comparison_configs(configs)
 
     def git(self, *args) -> str:
         return subprocess.check_output(
@@ -155,6 +178,7 @@ class Backend:
     def correct_walltime(self, entry: dict, expected: str) -> dict:
         _, files = self.configs(entry)
         import yaml
+
         from atlas_routine.files import atomic_bytes
 
         for path in reversed(files):

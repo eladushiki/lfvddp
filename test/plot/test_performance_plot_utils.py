@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +11,7 @@ from scipy.stats import norm
 from data_tools.data_utils import DataSet
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.histogram_binning import display_edges_by_observable
+from frame.context.execution_context import ExecutionContext
 from frame.file_system.data_samples import load_data_samples, save_data_samples
 from plot import plots
 from plot import plot_utils
@@ -249,7 +251,21 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     tmp_path,
     source_type,
     background_t_values,
+    session_execution_context,
 ):
+    # The rendering mocks still provide genuine compatible saved fit evidence.
+    for name in ("bkg", "signal"):
+        directory = tmp_path / name
+        directory.mkdir()
+        (directory / "context.json").write_text(
+            json.dumps(
+                {
+                    "config": ExecutionContext.serialize(
+                        session_execution_context.config
+                    ),
+                }
+            )
+        )
     context = SimpleNamespace(
         config=PlottingConfig(plot__plot_specifications=[]),
         run_hash=123,

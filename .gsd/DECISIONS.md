@@ -318,3 +318,32 @@
   warmup only. Use the backend's native Adam decay semantics without adding a
   penalty to the likelihood or changing L-BFGS. Existing optimizer checkpoints
   retain their saved parameter-group settings during continuation.
+
+### 2026-10-27: significance comparisons require the same fitting procedure
+
+- A background reference and every signal point must use identical resolved
+  training and detector fields, not merely the same epoch count or degrees of
+  freedom. Include future fields automatically rather than maintaining an
+  incomplete hyperparameter allowlist.
+- One shared validator gates planned group submission and saved-context
+  aggregation; missing evidence and mismatches fail closed with field/value
+  diagnostics. Preserve old outputs and never silently rewrite scientific packs.
+- Entry-point inventory: the full ATLAS runner and its submit/plots phases,
+  deployed held-lock launcher, explicit-membership worker, and direct
+  `performance_plot` (1D and ND) share this guard. Training, checkpoint restore
+  and prediction do not change; this is comparison validation only.
+
+### 2026-10-27: dataset invariants and significance curve identity
+
+- Extend comparison validation to all dataset settings except injected signal
+  strength and shape. Match categories rather than list positions; normalize
+  defaults from the declared parameter schemas without RNG or file I/O.
+- Preserve explicitly configured fixed background counts: these are scientific
+  configuration, unlike realized Poisson counts stored in DatasetParameters.
+- Reuse the signal variation policy for curve identity. Positivity conditioning
+  and loaded-signal observable mapping are shape controls and separate curves.
+- Caller inventory: `utils__performance_group_key` is used only by
+  `utils__group_signal_contexts`, consumed by the common 1D/ND performance plot.
+  Shared normalizer tests cover generated/loaded sources, nuisance, sampling,
+  multiple observables, absent background signal and curve splitting; model
+  training, restore and prediction interfaces are unaffected.

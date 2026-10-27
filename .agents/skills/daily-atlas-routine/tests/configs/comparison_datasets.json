@@ -1,0 +1,66 @@
+{
+  "generated": {
+    "source": "configs/basic-generated/generated_dataset_config.json",
+    "changes": [
+      {
+        "dataset__mean_number_of_background_events": 20000
+      },
+      {
+        "dataset__number_of_background_events": 100
+      },
+      {
+        "dataset__induced_shape_nuisance_value": 0.2
+      },
+      {
+        "dataset__induced_norm_nuisance_value": 0.2
+      },
+      {
+        "dataset_generated__number_of_dimensions": 4
+      },
+      {
+        "dataset_generated__background_generator": {
+          "function": "exponential_background",
+          "arguments": {
+            "exponential_scale": 2
+          }
+        }
+      }
+    ]
+  },
+  "loaded": {
+    "source": "configs/basic-loaded/loaded_dataset_config.json",
+    "changes": [
+      {
+        "dataset_loaded__file_name": "different.root"
+      },
+      {
+        "dataset_loaded__cut": "nTau > 1"
+      },
+      {
+        "dataset_loaded__aliases": {
+          "x": "other_x"
+        }
+      },
+      {
+        "dataset_loaded__observable_naming": {
+          "Muon_pt": "other_name"
+        }
+      },
+      {
+        "dataset_loaded__event_amount_load_limit": 2000
+      },
+      {
+        "dataset_loaded__sample_is_sample": false
+      },
+      {
+        "dataset_loaded__sample_is_replacement": true
+      },
+      {
+        "dataset_loaded__resample_is_resample": false
+      },
+      {
+        "dataset_loaded__resample_is_replacement": true
+      }
+    ]
+  }
+}

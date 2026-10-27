@@ -1,0 +1,214 @@
+{
+  "base": {
+    "train__epochs": 40000,
+    "train__optimizer_strategy": "adam",
+    "train__learning_rate": 0.001,
+    "train__final_learning_rate": null,
+    "train__adam_weight_decay": 0.0001,
+    "train__adam_warmup_epochs": null,
+    "train__adam_warmup_fraction": null,
+    "train__number_of_epochs_for_checkpoint": 100,
+    "train__backend": "lfvddp",
+    "train__f": {
+      "family": "adaptive_neural",
+      "options": {
+        "hidden_layer_nodes": [
+          8,
+          4
+        ]
+      }
+    },
+    "train__nuisance": {
+      "family": "adaptive_neural",
+      "options": {
+        "hidden_layer_nodes": 4
+      }
+    },
+    "detector__detect_observable_names": [
+      "x",
+      "y"
+    ],
+    "detector__effect_a_efficiency": "0.8",
+    "train__enable_progress_bar": true,
+    "train__profiling_enabled": false,
+    "train__profiling_warmup_epochs": 5,
+    "train__profiling_active_epochs": 10,
+    "train__function_space_xavier_gain": 1,
+    "train__nn_weight_clipping": false,
+    "train__nuisance_correction_types": "",
+    "train__shape_nuisance_std": 0,
+    "train__shape_nuisance_mean": 0,
+    "train__shape_nuisance_reference": 0,
+    "train__norm_nuisance_std": 0,
+    "train__norm_nuisance_mean": 0,
+    "train__norm_nuisance_reference": 0,
+    "detector__effect_a_efficiency_uncertainty": "",
+    "detector__effect_a_error": "",
+    "detector__effect_b_efficiency": "",
+    "detector__effect_b_efficiency_uncertainty": "",
+    "detector__effect_b_error": "",
+    "dataset__definitions": [
+      {
+        "name": "A",
+        "type": "generated",
+        "category": "a_sr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000,
+        "dataset__signal_generator": {
+          "function": "gaussian_signal",
+          "arguments": {
+            "location": 6.4,
+            "gaussian_signal_sigma": 0.16
+          }
+        },
+        "dataset__mean_number_of_signal_events": 100
+      },
+      {
+        "name": "B",
+        "type": "generated",
+        "category": "b_sr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000
+      },
+      {
+        "name": "A",
+        "type": "generated",
+        "category": "a_cr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000
+      },
+      {
+        "name": "B",
+        "type": "generated",
+        "category": "b_cr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000
+      }
+    ]
+  },
+  "mismatches": [
+    {
+      "train__epochs": 10000
+    },
+    {
+      "train__optimizer_strategy": "adam_lbfgs"
+    },
+    {
+      "train__learning_rate": 0.03
+    },
+    {
+      "train__final_learning_rate": 0.0001
+    },
+    {
+      "train__adam_weight_decay": 0
+    },
+    {
+      "train__adam_warmup_epochs": 1000
+    },
+    {
+      "train__adam_warmup_fraction": 0.25
+    },
+    {
+      "train__number_of_epochs_for_checkpoint": 1000
+    },
+    {
+      "train__backend": "nplm"
+    },
+    {
+      "train__f": {
+        "family": "adaptive_neural",
+        "options": {
+          "hidden_layer_nodes": [
+            4,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "train__nuisance": {
+        "family": "disabled"
+      }
+    },
+    {
+      "detector__detect_observable_names": [
+        "y",
+        "x"
+      ]
+    },
+    {
+      "detector__effect_a_efficiency": "0.7"
+    },
+    {
+      "train__future_control": 7
+    }
+  ],
+  "allowed": {
+    "random_seed": 99,
+    "cluster__qsub_n_jobs": 100,
+    "config__out_dir": "different-output",
+    "plot__figure_scale": 2,
+    "dataset__definitions": [
+      {
+        "name": "A",
+        "type": "generated",
+        "category": "a_sr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000,
+        "dataset__signal_generator": {
+          "function": "gaussian_signal",
+          "arguments": {
+            "location": 3,
+            "gaussian_signal_sigma": 0.8
+          }
+        },
+        "dataset__mean_number_of_signal_events": 40
+      },
+      {
+        "name": "B",
+        "type": "generated",
+        "category": "b_sr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000
+      },
+      {
+        "name": "A",
+        "type": "generated",
+        "category": "a_cr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000
+      },
+      {
+        "name": "B",
+        "type": "generated",
+        "category": "b_cr",
+        "dataset_generated__number_of_dimensions": 2,
+        "dataset_generated__background_generator": {
+          "function": "exponential_background"
+        },
+        "dataset__mean_number_of_background_events": 10000
+      }
+    ]
+  }
+}

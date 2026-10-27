@@ -126,3 +126,28 @@ median using the same Gaussian fit as its signal points; do not force that
 estimate to zero when the background median differs from its mean. This curve
 is a Gaussian-fit estimate, not a chi-square reference. The background marker
 is displayed once above the colored endpoints.
+
+### Fitting comparability gate
+
+Before producing a significance figure, every selected reference and signal
+submission and every available worker context must agree on all resolved
+`train__*` and `detector__*` fields. This includes optimizer strategy, total budget,
+learning-rate schedule, Adam weight decay and phase split, checkpoint cadence,
+backend, both function spaces and their full options, and observable selection
+and detector effects. Missing evidence or any mismatch raises an error naming
+the source paths, fields and values. This applies to both 1D and multidimensional
+significance plots. Injection parameters, random seeds, array size, output paths
+and display settings may differ. The cluster routine applies the same gate to
+all explicit group members before submission and before aggregate restoration,
+cleanup or plotting. It never silently changes hyperparameters to make them match.
+
+Dataset comparability is checked by region/category, independent of definition
+order. Background yields (including explicitly fixed counts), generators,
+dimensions, induced nuisance settings, loaded file names, cuts, aliases,
+observable mappings, load limits and sampling/resampling policies must match.
+Only injected signal strength and shape may vary; a background reference may
+omit signal settings altogether. Signal shape (including positivity conditioning
+and the generated signal's observable mapping) separates curves; strength varies
+within each curve. Validation and curve grouping share the same dataset-field
+policy. Declared optional dataset defaults are normalized without realizing
+Poisson counts or loading event files.
