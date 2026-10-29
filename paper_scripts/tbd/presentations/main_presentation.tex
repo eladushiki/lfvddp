@@ -29,7 +29,7 @@
     \begin{itemize}
         \item General steps of a classical search for BSM physics:
         \begin{itemize}
-            \item Hypothesize a BSM model
+            \item Hypothesize a model beyond the SM
             \item Derive production mechanisms and decay modes
             \item Define event selection
             \item Model background and signal processes
@@ -57,7 +57,7 @@
 \begin{frame}{LFV - DDP}
     \begin{itemize}
         \item The Standard Model postulates a $SU(3)_C \times SU(2)_L \times U(1)_Y$ local symmetry
-        \item In addition to the imposed symmetry group, the SM does not exclude several other global symmetries - those are accidental symmetries
+        \item In addition to the imposed symmetry group, the SM holds several other global symmetries - those are accidental symmetries
         \item One of the accidental global symmetries is the lepton flavor universality, by which the three lepton generations hold the same properties and interactions, except for their masses
         \item There is motivation to look for places in which this symmetry does not hold - driven by observed neutrino oscillations
         \item We'll use this symmetry assumption to compare pairs of equivalent datasets and look for differences without modelling
@@ -81,44 +81,44 @@
     \begin{itemize}
         \item We consider stochastic physical processes, which we repeat many times and gather statistics of their outcomes
     \end{itemize}
-
     \begin{center}
     \begin{columns}[c]
-
-        % Proton collision
-        \begin{column}{0.42\textwidth}
+        \begin{column}{0.42\textwidth} % Proton collision
             \centering
             \addpic{
                 figures/proton-proton-collision.png
             }
         \end{column}
-
-        % Arrow
-        \begin{column}{0.10\textwidth}
+        \begin{column}{0.10\textwidth} % Arrow
             \centering
-            {\Huge $\xrightarrow{\mathcal{L}}$}
+            {\Huge $\xrightarrow{}$}
         \end{column}
-
-        % Final state / next figure
-        \begin{column}{0.42\textwidth}
+        \begin{column}{0.42\textwidth} % Final state / next figure
             \centering
             \addgraph{
                 figures/generic-pt.png
             }
         \end{column}
-
     \end{columns}
     \end{center}
     \begin{itemize}
-        \item We record some $k$ physical quantities of each such event, $\event \in \mathbb{R}^k$, and gather them into datasets, $\dataset{A} = \{\event\}$
+        \item Each collision is an event, $\event$, that is represented as some $k$ physical quantities that we measure - center of mass energy, product $p_t$, etc.
+    \end{itemize}
+    \begin{equation}
+        \eventsymbol \in \mathbb{R}^k, \quad \event \sim \pdf, \quad \dataset{A} = \{\eventsymbol\}
+    \end{equation}
+    \begin{itemize}
+        \item $\dataset{A}$ is called a dataset, $\pdf$ is a parametrized underlying probability distribution
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Previous Work}
     \begin{itemize}
-        \item In the original work~\footfullcite{Italian_no_1_Learning_New_Physics_from_a_Machine} the sample dataset was compared to a larger reference dataset, which was assumed to contain no new physics
-        \item We propose the Symmetrized Formalism - comparing two samples, using their combination as the reference distribution, $\refdist$
-        \item With it, we express either distribution as a shift of $\refdist$, with functions that are neural network outputs: $f(\anyevent) \refdist$
+        \item In the original work~\footnote{\fullcite{Italian_no_1_Learning_New_Physics_from_a_Machine}} the sample dataset was single dimensional and compared to a larger reference dataset
+        \item The reference dataset was assumed to contain no new physics, and it's own statistical fluctuations were neglected
+        \item We propose the Symmetrized Formalism - comparing two samples, using their combination as the reference distribution, $\refdist[\eventsymbol]$
+        \item The usual event count expression, $n(\eventsymbol) = b(\eventsymbol) + \param s(\eventsymbol)$, is replaced with a more flexible one, $n(\eventsymbol) = N_{\dataset{A}} e^{\paramf(\eventsymbol)} \refdist[\eventsymbol]$
+        \item With it, we express either distribution as a shift of $\refdist[\eventsymbol]$, with parametrized functions that are neural network outputs: $\paramf(\eventsymbol)$ (full expression below)
     \end{itemize}
 \end{frame}
 
@@ -130,7 +130,9 @@
     \begin{columns}[c]
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\mathcal{L}_e$
+            \addsizedpic{0.7}{
+                figures/proton-proton-collision.png
+            }
         \end{column}
         \begin{column}{0.1\textwidth}
             \centering \[
@@ -139,27 +141,28 @@
         \end{column}
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\mathcal{L}_\mu$
+            \addsizedpic{0.7}{
+                figures/proton-proton-collision.png
+            }
         \end{column}
     \end{columns}
-    \vspace{0.3cm}
     \begin{columns}[c]
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\downarrow$
+            \huge $\downarrow$
         \end{column}
         \begin{column}{0.1\textwidth}
         \end{column}
         \begin{column}{0.4\textwidth}
             \centering
-            \Huge $\downarrow$
+            \huge $\downarrow$
         \end{column}
     \end{columns}
     \vspace{0.3cm}
     \begin{columns}[c]
         \begin{column}{0.4\textwidth}
             \centering
-            \addsizedgraph{0.8}{
+            \addsizedgraph{0.7}{
                 figures/electron-pt.png
             }
         \end{column}
@@ -167,7 +170,7 @@
         \end{column}
         \begin{column}{0.4\textwidth}
             \centering
-            \addsizedgraph{0.8}{
+            \addsizedgraph{0.7}{
                 figures/muon-pt.png
             }
         \end{column}
@@ -181,17 +184,14 @@
 \begin{frame}{Statistical Fluctuations}
     \begin{itemize}
         \item Consider doing the same experiment twice - same process, same outcomes, same duration
-        \item We still expect the resulting samples to differ - due to statistical fluctuations
-        \item This means that every histogram bar would be of different height, like the total number of events
+        \item We still expect the resulting samples to differ due to statistical fluctuations
+        \item This means that every histogram bar would be of different height, as well as the total number of events
         \item But we still claim, in this case, that the datasets are produced by symmetric physical processes
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Hypothesis Testing}
-    \begin{itemize}
-        \item Hypothesis formulation, symmterized formalism:
-    \end{itemize}
-    \begin{block}{null vs signal hypotheses}
+    \begin{block}{null and signal hypotheses, symmetrized formalism}
         \begin{equation}
         \begin{aligned}
             \nullhypothesis &: \quad
@@ -200,13 +200,13 @@
                 &=
                 \frac{N_{\dataset{A}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{h(\eventsymbol)} \refdist[\eventsymbol],
+                e^{\paramh(\eventsymbol)} \refdist[\eventsymbol],
                 \\
                 \pdf_{\dataset{B}}(\eventsymbol)
                 &=
                 \frac{N_{\dataset{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{h(\eventsymbol)+r} \refdist[\eventsymbol],
+                e^{\paramh(\eventsymbol)+\paramr} \refdist[\eventsymbol],
             \end{cases} \\
             \hypothesis{1} &: \quad
             \begin{cases}
@@ -214,42 +214,45 @@
                 &=
                 \frac{N_{\dataset{A}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{f(\eventsymbol)} \refdist[\eventsymbol],
+                e^{\paramf(\eventsymbol)} \refdist[\eventsymbol],
                 \\
                 \pdf_{\dataset{B}}(\eventsymbol)
                 &=
                 \frac{N_{\dataset{B}}}
                     {\int \refdist[\eventsymbol]\,d\eventsymbol}
-                e^{g(\eventsymbol)} \refdist[\eventsymbol].
+                e^{\paramg(\eventsymbol)} \refdist[\eventsymbol].
             \end{cases}
         \end{aligned}
         \end{equation}
     \end{block}
+    \begin{itemize}
+        \item Likelihood of a distribution given a dataset $\dataset{A}$ is the probability of observing $\dataset{A}$ had the distribution been true:
+    \end{itemize}
+    \begin{equation}
+        \likelihood(\parampdf | \dataset{A}) = P(\dataset{A} | \parampdf)
+    \end{equation}
     \begin{itemize}
         \item Test statistic
     \end{itemize}
     \begin{equation}
         t = 2 \log \left(
             \dfrac{
-                \max\limits_{f, g} \left(
+                \max\limits_{\param} \left(
                     \likelihood(\hypothesis{1}|\dataset{A}, \dataset{B})
                 \right)
             }{
-                \max\limits_{h, r} \left(
+                \max\limits_{\nparam} \left(
                     \likelihood(\nullhypothesis|\dataset{A}, \dataset{B})
                 \right)
             }
         \right)
     \end{equation}
-    \begin{itemize}
-        \item The maximization is done over each hypothesis space's degrees of freedom by the number of parameters in $f, g$ and $h, r$
-    \end{itemize}
 \end{frame}
 
 \begin{frame}{t Distribution}
     \begin{itemize}
+        \item The maximization is done over each hypothesis space's parameters is the main computational burden in the method
         \item Wilk's and Wald's theorems tell us that, in the lack of any difference, the distribution of $t$ should be $\chi^2$ with $r$ degrees of freedom, where $r = (\text{\#DoF in signal hypothesis}) - (\text{\#DoF in null hypothesis})$
-        \item The farther away the resulting $t$ distribution is from the $\chi^2$, the more likely it is that we have observed a signal
     \end{itemize}
     \begin{center}
     \begin{columns}[c]
@@ -262,7 +265,6 @@
             with signal
         \end{column}
     \end{columns}
-    \vspace{0.3cm}
     \begin{columns}[c]
         \begin{column}{0.45\textwidth}
             \centering
@@ -278,16 +280,22 @@
         \end{column}
     \end{columns}
     \end{center}
+    \TODO{these images show mean}
 \end{frame}
 
 \begin{frame}{Significance Progression}
     \begin{itemize}
-        \item We previously showed that with fully simulated samples, we can detect differences with some sensitivity penalty
+        \item The inverse cumulative gaussian of the median signal p-value is used to determine the significance of the observed signal: $Z = \Phi^{-1}(1 - p(t))$
+        \item We showed the fully simulated sensitivity:
     \end{itemize}
-    \vspace{1cm}
-    \addsizedgraph{1}{
-        figures/previous-significance-progression.png
-    }
+    \begin{figure}
+        \addsizedgraph{0.8}{
+            figures/previous-significance-progression.png
+        }
+        \caption{
+            Extracted from \footnote{\fullcite{LastDDPPaper}}
+        }
+    \end{figure}
 \end{frame}
 
 \begin{frame}
@@ -295,8 +303,8 @@
         \item Up to now, we talked about 1D fully simulated samples
         \item In our work, we add
         \begin{itemize}
-            \item Detector effects
-            \item Multiple dimension samples
+            \item Detector effects that break interaction point symmtery
+            \item Multiple observable quantities per sample
             \item CMS Open Data
         \end{itemize}
     \end{itemize}
@@ -304,73 +312,33 @@
 
 \section{Formulation}
 
-\begin{frame}{Observing Events}
-    \begin{itemize}
-        \item We consider stochastic physical processes (= collisions)
-        \item To probe their behavior, we repeat the same experiment many times and gather statistics of the results
-        \item Each collision is an event, $\event$, that is represented as some $k$ physical quantities that we measure - center of mass energy, product $p_t$, etc.
-    \end{itemize}
-    \begin{equation}
-        \event \in \mathbb{R}^k, \quad \event \sim \pdf, \quad \dataset{A} = \{\event\}
-    \end{equation}
-    \begin{itemize}
-        \item A group of observations, $\dataset{A}$, is called a dataset
-        \item $\pdf$ is some underlying probability distribution according to which $\event$'s are distributed.
-    \end{itemize}
-\end{frame}
-
 \begin{frame}{Underlying Probability Distributions}
+    \begin{figure}
+        \includegraphics[height=0.35\textheight, trim= 0 346 358 30, clip]{
+            figures/distributions-overlay.png
+        }
+    \end{figure}
     \begin{itemize}
-        \item \TODO{overlay distributions e,u,refdist}
         \item Looking at pairs of datasets, we express $\pdf$'s relatively to a common reference distribution and a series of shifts:
     \end{itemize}
     \begin{equation}
     \begin{aligned}
         \label{eq:parametrized_distribution}
-        \parampdf(\anyevent)^\dataset{A} = e^{\paramf(\anyevent)}(1 + \nparam(\anyevent)) \refdist \\
-        \parampdf(\anyevent)^\dataset{B} = e^{\paramg(\anyevent)}(1 - \nparam(\anyevent)) \refdist
+        \parampdf(\anyevent)^\dataset{A} = (1 + \paramf(\anyevent))(1 + \nparam(\anyevent)) \refdist \\
+        \parampdf(\anyevent)^\dataset{B} = (1 - \paramf(\anyevent))(1 - \nparam(\anyevent)) \refdist
     \end{aligned}
     \end{equation}
     \begin{itemize}
         \item the reference distribution, $\refdist$, is composed of the combined datasets
         \item $(1 \pm \nparam(\anyevent))$ represent shifts due to nuisance parameters of the system - in our case, detector effects
-        \item $e^{\paramf}, e^{\paramg}$ represent shifts due to potential signal
-        \item \TODO{we implement with CR}
+        \item $(1 \pm \paramf(\anyevent))$ represents shifts due to potential signal
     \end{itemize}
-\end{frame}
-
-\begin{frame}{Distribution Likelihood}
-    \begin{itemize}
-        \item this is what we skipped before
-        \item Likelihood of a distribution given a dataset $\dataset{A}$ is the probability of observing $\dataset{A}$ had the distribution been true:
-    \end{itemize}
-    \begin{equation}
-        \likelihood(\parampdf | \dataset{A}) = P(\dataset{A} | \parampdf)
-    \end{equation}
-    \begin{itemize}
-        \item Likelihood of a dataset generated from Poisson statistics then becomes
-    \end{itemize}
-    \begin{equation}
-    \label{eq:poisson-likelihood}
-        \likelihood(\parampdf | \dataset{A})
-        = \dfrac{e^{-N_{\dataset{A}}(\param, \nparam)}}{\abs{\dataset{A}}!}
-        \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
-        = \dfrac{e^{-\int \parampdf(\anyevent) d\anyevent}}{\abs{\dataset{A}}!}
-        \prod\limits_{\event \in \dataset{A}} \parampdf(\event)
-    \end{equation}
-    \begin{itemize}
-        \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
-    \end{itemize}
-    \begin{equation}
-    \label{eq:poisson-log-likelihood}
-        \llikelihood( \parampdf | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} e^{\paramf(\event)} (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A}
-    \end{equation}
 \end{frame}
 
 \begin{frame}{Data Regions}
     \begin{itemize}
         \item To study the nature of our system, we normally define a control region (CR) within the data
-        \item We assume there is no apparent new physics in the CR
+        \item We assume there is no apparent new physics in the CR, but systematic effects are still present, i.e., detector efficiency
         \item The data from which we study the new physics is then called the Signal Region (SR)
         \item The datasets we use are summed in the table:
         \end{itemize}
@@ -388,7 +356,7 @@
 
 \begin{frame}{Hypotheses}
     \begin{itemize}
-        \item We postulate two new hypotheses as follows:
+        \item We expand our postulates to the new regions as follows:
     \end{itemize}
     \begin{equation}
     \label{eq:hypothsis-formulation}
@@ -400,8 +368,8 @@
         \end{cases} \\
         \hypothesis{1} |_{SR} &: \quad
         \begin{cases}
-            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} e^{f(\anyevent)} (1 + {\nparam(\anyevent)}) \srrefdist \\
-            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} e^{g(\anyevent)} (1 - {\nparam(\anyevent)}) \srrefdist
+            {\srdist{\dataset{A}}^1} = N_\dataset{A}^{SR} (1 + \paramf(\anyevent)) (1 + {\nparam(\anyevent)}) \srrefdist \\
+            {\srdist{\dataset{B}}^1} = N_\dataset{B}^{SR} (1 - \paramf(\anyevent)) (1 - {\nparam(\anyevent)}) \srrefdist
         \end{cases} \\
         \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
         \begin{cases}
@@ -410,6 +378,33 @@
         \end{cases}
     \end{aligned}
     \end{equation}
+    \begin{itemize}
+        \item CR may come from a MC that models no signal
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Distribution Likelihood}
+    \begin{itemize}
+        \item Likelihood of a dataset generated from Poisson statistics then becomes
+    \end{itemize}
+    \begin{equation}
+    \label{eq:poisson-likelihood}
+        \likelihood(\srdist{\dataset{A}} | \dataset{A})
+        = \dfrac{e^{-N_{\dataset{A}}(\param, \nparam)}}{\abs{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}} \srdist{\dataset{A}}
+        = \dfrac{e^{-\int \srdist{\dataset{A}} d\anyevent}}{\abs{\dataset{A}}!}
+        \prod\limits_{\event \in \dataset{A}} \srdist{\dataset{A}}
+    \end{equation}
+    \begin{itemize}
+        \item which makes the log-likelihood of a distribution like in Eq.~\ref{eq:parametrized_distribution}
+    \end{itemize}
+    \begin{equation}
+    \label{eq:poisson-log-likelihood}
+        \llikelihood( \srdist{\dataset{A}} | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + \paramf(\anyevent)) (1 + \nparam(\anyevent)) \refdist \big) + C_\dataset{A}
+    \end{equation}
+    \begin{itemize}
+        \item a similar expression holds for $\dataset{B}$, and 
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Likelihood and Test Statistics}
@@ -418,9 +413,9 @@
     \end{itemize}
     \begin{equation}
         \Lambda(\param) = \dfrac{
-            \likelihood(\hat{\param},\hat{\nparam})
+            \likelihood(\hat{\paramf},\hat{\nparam})
         }{
-            \likelihood(\param = 0, \hat{\hat{\nparam}})
+            \likelihood(\paramf = 0, \hat{\hat{\nparam}})
         }
     \end{equation}
     \begin{itemize}
@@ -430,7 +425,7 @@
     \begin{aligned}
         t &= 2 \log \left(
             \frac{
-                \max\limits_{f, g, \nparam} (\likelihood(\hypothesis{1}(\param, \nparam)|\dataset{A}, \dataset{B}))
+                \max\limits_{\paramf, \nparam} (\likelihood(\hypothesis{1}(\paramf, \nparam)|\dataset{A}, \dataset{B}))
             }{
                 \max\limits_{\nparam} (\likelihood(\nullhypothesis(\nparam)|\dataset{A}, \dataset{B}))
         }\right)
@@ -440,7 +435,7 @@
 
 \begin{frame}{Minimization by Loss Function}
     \begin{itemize}
-        \item \TODO{reference the italian paper and why it's good - generic, parameterized}
+        \item D'Angelo et. al. proposed the machinery of neural networks as a generic and highly configurable way to minimize any expression within a parameter space
         \item To estimate $t$ we need to deal with two maximization operation
         \item For that, we define two loss functions
     \end{itemize}
@@ -448,42 +443,32 @@
     \begin{equation}
     \begin{aligned}
         L^\text{numerator}[f, g, \nparam]
-            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \paramg, \nparam) \\
-            &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr) \\
+            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \nparam)
+            \Bigm| \dataset{A}, \dataset{B}\Bigr) \\
         L^\text{denominator}[\nparam]
-            &= -\likelihood\Bigl(\nullhypothesis(\nparam) \\
-            &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr),
+            &= -\likelihood\Bigl(\nullhypothesis(\nparam)
+            \Bigm| \dataset{A}, \dataset{B}\Bigr),
     \end{aligned}
     \end{equation}
     }
     \begin{itemize}
-        \item and optimize for each using a simple machine learning model
+        \item and minimize for each
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Parameterization by Neural Networks}
     \begin{itemize}
-        \item Since $\paramf, \paramg$ should be as generic and as expressive as possible, we realize them as neural network outputs:
+        \item Since $\paramf$ should be as generic and as expressive as possible, we realize them as neural network outputs:
     \end{itemize}
-    \addsizedpic{0.5}{
+    \begin{equation}
+        \paramf(\anyevent) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \anyevent^j + b_\alpha)
+    \end{equation}
+    \addsizedpic{0.3}{
         figures/nn-illustration.png
     }
     \begin{itemize}
         \item This implementation lets us easily control the number of degrees of freedom of our hypothesis space, by controlling the number of neurons in the middle layer
-        \item $\nparam$ implementation is left for the methodology section, as it's arbitrary and would be furhter manipulated in the future
-    \end{itemize}
-\end{frame}
-
-\begin{frame}{Wilk's Theorem}
-    \begin{theorem}
-        \textbf{Wilk theorem}: Given a test statistic $\Lambda$ of a signal hypothesis vs. the null hypothesis, assuming the null hypothesis is true, the negative log-likelihood test statistic converges to a $\chi^2$:
-        \begin{equation*}
-            -2 \log \Lambda \to \chi^2_r
-        \end{equation*}
-        with $r$ the number of degrees of freedom of the signal hypothesis minus those of the null one.
-    \end{theorem}
-    \begin{itemize}
-        \item in calssical analysis f, g has assumptions on the size of a signal
+        \item $\nparam$ is implemented similarly, with a possibly different number of degrees of freedom
     \end{itemize}
 \end{frame}
 
@@ -504,208 +489,187 @@
     \end{itemize}
     \begin{adjustbox}{width=\textwidth}
     \begin{tikzpicture}[
-        font=\small,
-        >=Latex,
-        vector/.style={
-            draw,
-            rounded corners,
-            minimum width=18mm,
-            minimum height=11mm,
-            align=center,
-            fill=blue!8
+    font=\small,
+    >=Latex,
+    vector/.style={
+        draw,
+        rounded corners,
+        minimum width=18mm,
+        minimum height=11mm,
+        align=center,
+        fill=blue!8
+    },
+    splitpart/.style={
+        draw,
+        rounded corners,
+        minimum width=22mm,
+        minimum height=12mm,
+        align=center,
+        fill=orange!12
+    },
+    layer/.style={
+        draw,
+        rounded corners,
+        minimum width=16mm,
+        minimum height=10mm,
+        align=center,
+        fill=green!10
+    },
+    output/.style={
+        draw,
+        rounded corners,
+        minimum width=20mm,
+        minimum height=12mm,
+        align=center,
+        fill=purple!10
+    },
+    combine/.style={
+        draw,
+        circle,
+        minimum size=15mm,
+        align=center,
+        fill=yellow!18
+    },
+    group/.style={
+        draw,
+        dashed,
+        rounded corners,
+        inner sep=1mm
+    },
+    arrow/.style={
+        ->,
+        thick
+    }
+    ]
+    \tikzset{
+    stacked/.style={
+        draw,
+        fill=green!10,
+        minimum width=16mm,
+        minimum height=10mm,
+        rounded corners,
+        align=center,
+        preaction={
+        draw,
+        fill=green!10,
+        transform canvas={xshift=-3mm,yshift=3mm}
         },
-        splitpart/.style={
-            draw,
-            rounded corners,
-            minimum width=22mm,
-            minimum height=12mm,
-            align=center,
-            fill=orange!12
+        preaction={
+        draw,
+        fill=green!10,
+        transform canvas={xshift=-2mm,yshift=2mm}
         },
-        layer/.style={
-            draw,
-            rounded corners,
-            minimum width=16mm,
-            minimum height=10mm,
-            align=center,
-            fill=green!10
-        },
-        output/.style={
-            draw,
-            rounded corners,
-            minimum width=20mm,
-            minimum height=12mm,
-            align=center,
-            fill=purple!10
-        },
-        combine/.style={
-            draw,
-            circle,
-            minimum size=15mm,
-            align=center,
-            fill=yellow!18
-        },
-        group/.style={
-            draw,
-            dashed,
-            rounded corners,
-            inner sep=1mm
-        },
-        arrow/.style={
-            ->,
-            thick
+        preaction={
+        draw,
+        fill=green!10,
+        transform canvas={xshift=-1mm,yshift=1mm}
         }
-        ]
-        \tikzset{
-        stacked/.style={
-            draw,
-            fill=green!10,
-            minimum width=16mm,
-            minimum height=10mm,
-            rounded corners,
-            align=center,
-            preaction={
-            draw,
-            fill=green!10,
-            transform canvas={xshift=-3mm,yshift=3mm}
-            },
-            preaction={
-            draw,
-            fill=green!10,
-            transform canvas={xshift=-2mm,yshift=2mm}
-            },
-            preaction={
-            draw,
-            fill=green!10,
-            transform canvas={xshift=-1mm,yshift=1mm}
-            }
-        }
-        }
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % grid constants
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \def\fNNy{2.0}
-        \def\gNNy{0.0}
-        \def\nparamy{-2.0}
-        \def\spx{1.1}
-        \def\nninx{\spx + 3.7}
-        \def\nnmidx{\nninx + 4}
-        \def\nnoutx{\nnmidx + 3.5}
-        \def\arithmeticx{\nnoutx + 4}
-        \def\combx{\arithmeticx + 2.7}
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Coordinates (edit these!)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % input
-        \node[vector] (x) at (0,\gNNy) {
-        split
-        };
-        % split
-        \coordinate (split-point) at (\spx,\gNNy);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % NN 1 (upper)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (fin) at (\nninx,\fNNy) {$F_{in}$};
-        \node[stacked] (fmid) at (\nnmidx,\fNNy) {$F_{mid}$};
-        \node[layer] (fout) at (\nnoutx,\fNNy) {$F_{out}$};
-        \node[output] (expf) at (\arithmeticx,\fNNy) {
-        $e^{\{\}}$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % NN 2 (middle)
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (gin) at (\nninx,\gNNy) {$g_{in}$};
-        \node[stacked] (gmid) at (\nnmidx,\gNNy) {$g_{mid}$};
-        \node[layer] (gout) at (\nnoutx,\gNNy) {$g_{out}$};
-        \node[output] (expg) at (\arithmeticx,\gNNy) {
-        $e^{\{\}}$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % One-layer NN
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[layer] (nparam) at (\nnmidx,\nparamy) {
-        $\nparam$
-        };
-        \node[output] (pmnparam) at (\arithmeticx,\nparamy) {
-        $(1 \pm \{\})$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Combiner
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[combine] (comb) at (\combx,\gNNy) {
-        $\odot$
-        };
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Connections
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % incoming arrow
-        \draw[->] (-2.2,0) -- node[above] {
-        $N_{tot} \times k$
-        } (x.west);
-        % split
-        \draw (x.east) -- (split-point);
-        \draw[->] (split-point) |- node[above, pos=0.7]{
-        $\text{SR}, N^{SR} \times k$
-        }(fin.west);
-        \draw[->] (split-point) |- node[above, pos=0.7]{
-        $\text{SR}, N^{SR} \times k$
-        }(gin.west);
-        \draw[->] (split-point) |- node[above, pos=0.7]{
-        $\text{tot}, N_{tot} \times k$
-        }(nparam.west);
-        % f NN
-        \draw[->] (fin.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(fmid.west);
-        \draw[->] (fmid.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(fout.west);
-        \draw[->] (fout.east) -- node[above]{
-        $f(\anyevent), N^{SR} \times 1$
-        }(expf.west);
-        % g NN
-        \draw[->] (gin.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(gmid.west);
-        \draw[->] (gmid.east) -- node[above]{
-        $N^{SR} \times 1$
-        }(gout.west);
-        \draw[->] (gout.east) -- node[above]{
-        $g(\anyevent), N^{SR} \times 1$
-        }(expg.west);
-        % nparam
-        \draw[->] (nparam.east) -- node[above]{
-        $\nparam(\anyevent), N_{tot} \times 1$
-        }(pmnparam.west);
-        % combine
-        \draw[->] (expf.east) -| node[above, pos=0.3]{
-        $e^{f(\anyevent)}$
-        }(comb.north);
-        \draw[->] (expg.east) -| node[above, pos=0.3]{
-        $e^{g(\anyevent)}$
-        }(comb.west);
-        \draw[->] (pmnparam.east) -| node[above, pos=0.3]{
-        $1 \pm \nparam(\anyevent)$
-        }(comb.south);
-        % outgoing arrow
-        \draw[->] (comb.east) -- node[above] {
-        $L[f, g, \nparam]$
-        } (\combx + 2,\gNNy);
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % groups
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        \node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
-        \node[group, fit=(gin)(gmid)(expg)(expg)] (g) {};
-        \node[group, fit=(nparam)(pmnparam)] (nparam) {};
-        \node at ($(f.north)+(0,0.25)$) {\scriptsize f NN};
-        \node at ($(g.north)+(0,0.25)$) {\scriptsize g NN};
-        \node at ($(nparam.north)+(0,0.25)$) {\scriptsize $\nparam$ prediction};
+    }
+    }
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % grid constants
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \def\fNNy{1.0}
+    \def\zeroy{0.0}
+    \def\etay{-1.0}
+    \def\spx{1.1}
+    \def\nninx{\spx + 3.7}
+    \def\nnmidx{\nninx + 4}
+    \def\nnoutx{\nnmidx + 3.5}
+    \def\arithmeticx{\nnoutx + 4}
+    \def\combx{\arithmeticx + 2.7}
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Coordinates (edit these!)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % input
+    \node[vector] (x) at (0,\zeroy) {
+    split
+    };
+    % split
+    \coordinate (split-point) at (\spx,\zeroy);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % NN
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[layer] (fin) at (\nninx,\fNNy) {$F_{in}$};
+    \node[stacked] (fmid) at (\nnmidx,\fNNy) {$F_{mid}$};
+    \node[layer] (fout) at (\nnoutx,\fNNy) {$F_{out}$};
+    \node[output] (expf) at (\arithmeticx,\fNNy) {
+    $(1 \pm {})$
+    };
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % One-layer NN
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[layer] (etain) at (\nninx,\etay) {$\eta_{in}$};
+    \node[stacked] (etamid) at (\nnmidx,\etay) {$\eta_{mid}$};
+    \node[layer] (etaout) at (\nnoutx,\etay) {$\eta_{out}$};
+    \node[output] (pmeta) at (\arithmeticx,\etay) {
+    $(1 \pm \{\})$
+    };
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Combiner
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[combine] (comb) at (\combx,\zeroy) {
+    $\odot$
+    };
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Connections
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % incoming arrow
+    \draw[->] (-2.2,0) -- node[above] {
+    $N_{tot} \times k$
+    } (x.west);
+    % split
+    \draw (x.east) -- (split-point);
+    \draw[->] (split-point) |- node[above, pos=0.7]{
+    $\text{SR}, N^{SR} \times k$
+    }(fin.west);
+    \draw[->] (split-point) |- node[above, pos=0.7]{
+    $\text{tot}, N_{tot} \times k$
+    }(etain.west);
+    % f NN
+    \draw[->] (fin.east) -- node[above]{
+    $N^{SR} \times k$
+    }(fmid.west);
+    \draw[->] (fmid.east) -- node[above]{
+    $N^{SR} \times N_{neurons}$
+    }(fout.west);
+    \draw[->] (fout.east) -- node[above]{
+    $f(x), N^{SR} \times 1$
+    }(expf.west);
+    % g NN
+    % eta
+    \draw[->] (etain.east) -- node[above]{
+    $N_{tot} \times k$
+    }(etamid.west);
+    \draw[->] (etamid.east) -- node[above]{
+    $N_{tot} \times N_{neurons}$
+    }(etaout.west);
+    \draw[->] (etaout.east) -- node[above]{
+    $\eta(x), N_{tot} \times 1$
+    }(pmeta.west);
+    % combine
+    \draw[->] (expf.east) -| node[above, pos=0.3]{
+    $(1 \pm f(\anyevent))$
+    }(comb.north);
+    \draw[->] (pmeta.east) -| node[above, pos=0.3]{
+    $(1 \pm \eta(\anyevent))$
+    }(comb.south);
+    % outgoing arrow
+    \draw[->] (comb.east) -- node[above] {
+    $L[f, g, \eta]$
+    } (\combx + 2,\zeroy);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % groups
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
+    \node[group, fit=(etain)(etamid)(etaout)(pmeta)] (eta) {};
+    \node at ($(f.north)+(0,0.25)$) {\scriptsize $f(\anyevent)$ NN};
+    \node at ($(eta.north)+(0,0.25)$) {\scriptsize $\eta(\anyevent)$ NN};
     \end{tikzpicture}
     \end{adjustbox}
 \end{frame}
 
 \begin{frame}{t Value Calculation}
-    \TODO{possibly illustrate}
     \begin{algorithm}[H]
     \footnotesize
     \caption{Single $t$ value stochastic calculation}
