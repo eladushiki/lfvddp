@@ -77,8 +77,10 @@ class DataGeneration:
     def __init__(self, context: ExecutionContext):
         self._context = context
         self._config: DatasetConfig = context.config
+        self._sampled_components = {}
 
     def get_batch(self) -> DataBatch:
+        self._sampled_components = {}
         sr = self.__retrieve_regional_pair(DATASET_REGIONS.sr)
         cr = self.__retrieve_regional_pair(DATASET_REGIONS.cr)
         return DataBatch(
@@ -160,14 +162,29 @@ class DataGeneration:
                 is_random=dataset_parameters.dataset_loaded__sample_is_sample,
                 replacement=dataset_parameters.dataset_loaded__sample_is_replacement,
             )
+            self._sampled_components[dataset_parameters.category] = (
+                background_data,
+                signal_data,
+            )
             self._loaded_datasets[dataset_parameters.category] = (
                 background_remainder,
                 signal_remainder,
             )
-            
-        else:
-            raise ValueError(f"Unsupported dataset parameters type: {type(dataset_parameters)}")
 
-        complete_ds = background_data + signal_data
+        else:
+            raise ValueError(
+                f"Unsupported dataset parameters type: {type(dataset_parameters)}"
+            )
+
+        # Every source enters regional pooling in the same ordered observable space.
+        complete_ds = (background_data + signal_data).filter_observable_names(
+            self._context.config.detector__detect_observable_names
+        )
         complete_ds.category = dataset_parameters.category
         return complete_ds
+
+    def sampled_components(
+        self, category: DataSet.DataSetCategory
+    ) -> Tuple[DataSet, DataSet]:
+        """Return the loaded components drawn for the current training batch."""
+        return self._sampled_components[category]

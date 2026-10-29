@@ -1,0 +1,31 @@
+{
+  "format_version": 3,
+  "model_name": "legacy_widths",
+  "is_numerator": true,
+  "backend": "lfvddp",
+  "f": {
+    "family": "adaptive_neural",
+    "options": {
+      "input_dimension": 1,
+      "hidden_layer_nodes": 4,
+      "output_dimension": 1
+    }
+  },
+  "nuisance": {
+    "family": "adaptive_neural",
+    "options": {
+      "input_dimension": 1,
+      "hidden_layer_nodes": 2,
+      "output_dimension": 1
+    }
+  },
+  "config_fingerprint": "3914c528364b9d9de0ef260a6de63e4e114b7219e0799a5361723b48cb849431",
+  "normalization_factor": {
+    "factors": {
+      "param_0": 1.0
+    },
+    "offsets": {
+      "param_0": 0.0
+    }
+  }
+}

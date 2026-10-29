@@ -6,6 +6,8 @@ from scipy.stats import norm
 
 import data_tools.profile_likelihood as profile_likelihood
 from data_tools.profile_likelihood import (
+    calc_binned_injected_significance,
+    calc_injected_t_significance_by_sqrt_q0_binned,
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
     calc_t_significance_relative_to_background,
@@ -52,6 +54,50 @@ def test_continuous_injected_significance_handles_pdf_underflow():
     )
 
     np.testing.assert_allclose(significance, expected_significance)
+
+
+def test_binned_injected_significance_matches_evident_formula():
+    background_bin_counts = np.asarray([50.0, 50.0])
+    signal_bin_counts = np.asarray([0.0, 25.0])
+    expected_significance = np.sqrt(2 * (-25.0 + 75.0 * np.log(75.0 / 50.0)))
+
+    significance = calc_injected_t_significance_by_sqrt_q0_binned(
+        background_bin_counts,
+        signal_bin_counts,
+    )
+
+    np.testing.assert_allclose(significance, expected_significance)
+
+
+@pytest.mark.parametrize("shape", [(4,), (2, 2)])
+def test_binned_injected_significance_excludes_zero_background_bins(shape):
+    background = np.asarray([0.0, 50.0, 0.0, 50.0]).reshape(shape)
+    signal = np.asarray([12.5, 25.0, 0.0, 0.0]).reshape(shape)
+    result = calc_binned_injected_significance(background, signal)
+    expected = np.sqrt(2 * (-25.0 + 75.0 * np.log1p(25.0 / 50.0)))
+    assert result.significance == pytest.approx(expected)
+    assert result.ignored_signal_events == 12.5
+    assert result.ignored_bins == 1
+    assert (
+        calc_injected_t_significance_by_sqrt_q0_binned(background, signal)
+        == result.significance
+    )
+
+
+def test_binned_injected_significance_all_signal_excluded():
+    result = calc_binned_injected_significance([0.0], [1.25])
+    assert result.significance == 0
+    assert result.ignored_signal_events == 1.25
+    assert result.ignored_bins == 1
+
+
+@pytest.mark.parametrize(
+    "background,signal",
+    [([1], [1, 2]), ([-1], [1]), ([0], [-1]), ([np.nan], [1]), ([0], [np.inf])],
+)
+def test_binned_injected_significance_still_rejects_invalid_counts(background, signal):
+    with pytest.raises(ValueError):
+        calc_binned_injected_significance(background, signal)
 
 
 def test_signal_event_calibration_inverts_continuous_significance():
@@ -185,11 +231,14 @@ def test_continuous_injected_significance_matches_1d_for_uniform_2d_pdf():
 
 
 def test_multidimensional_significance_resolves_narrow_signal_peak():
-    signal = lambda coordinates: np.prod(
-        norm.pdf(coordinates, loc=4.0, scale=0.004),
-        axis=-1,
-    )
-    background = lambda coordinates: np.exp(-np.sum(coordinates, axis=-1))
+    def signal(coordinates):
+        return np.prod(
+            norm.pdf(coordinates, loc=4.0, scale=0.004),
+            axis=-1,
+        )
+
+    def background(coordinates):
+        return np.exp(-np.sum(coordinates, axis=-1))
 
     significance = calc_injected_t_significance_by_sqrt_q0_continuous(
         background_pdf=background,
@@ -348,3 +397,28 @@ def test_continuous_injected_significance_rejects_infinite_multidimensional_limi
             n_signal_events=1,
             upper_limit=np.array([1.0, np.inf]),
         )
+
+
+@pytest.mark.parametrize(
+    "values, expected_probabilities",
+    [
+        ([10.0, 20.0, 30.0, 40.0], [0.125, 0.375, 0.625, 0.875]),
+        ([10.0, 10.0, 30.0, 40.0], [0.25, 0.25, 0.625, 0.875]),
+        ([7.0, 7.0, 7.0], [0.5, 0.5, 0.5]),
+        ([7.0], [0.5]),
+    ],
+)
+def test_background_significance_summary(values, expected_probabilities):
+    median, spread = profile_likelihood.calc_background_significance_summary(
+        np.asarray(values)
+    )
+    scores = norm.ppf(expected_probabilities)
+    assert median == pytest.approx(np.median(scores))
+    assert spread == pytest.approx(np.std(scores))
+    assert np.isfinite(spread)
+
+
+@pytest.mark.parametrize("values", [[], [np.inf], [np.nan], [[1.0, 2.0]]])
+def test_background_significance_summary_rejects_invalid_values(values):
+    with pytest.raises(ValueError, match="nonempty finite 1D"):
+        profile_likelihood.calc_background_significance_summary(np.asarray(values))

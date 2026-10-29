@@ -362,9 +362,7 @@ def test_probe_can_force_direct_sequential_epoch_loops(
     monkeypatch.setenv(PROBE_FORCE_SEQUENTIAL_ENV, "1")
 
     assert (
-        select_train_launcher_class(
-            function_execution_context.config, _allocation(8)
-        )
+        select_train_launcher_class(function_execution_context.config, _allocation(8))
         is SequentialTrainLauncher
     )
 
@@ -543,9 +541,7 @@ def test_sequential_launcher_calculates_static_denominator_without_worker(
     isolated_data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     launcher = SequentialTrainLauncher(
         function_execution_context,
         detector_effect,
@@ -580,9 +576,7 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
     detector_effect,
     monkeypatch,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     launcher = SequentialTrainLauncher(
         function_execution_context,
         detector_effect,
@@ -603,9 +597,7 @@ def test_sequential_parent_path_applies_each_cpu_thread_assignment(
         training.result = 0.0
         return None, 0.0
 
-    monkeypatch.setattr(
-        "train.model_trainer.configure_cpu_runtime", record_cpu_runtime
-    )
+    monkeypatch.setattr("train.model_trainer.configure_cpu_runtime", record_cpu_runtime)
     monkeypatch.setattr(
         launcher, "_follow_instructions_for_t", complete_without_model_work
     )
@@ -650,7 +642,13 @@ def test_parallel_launcher_limits_parent_coordinator_threads(
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [ONE_DIMENSION_WITH_NUISANCE_CONFIG],
+    [
+        ONE_DIMENSION_WITH_NUISANCE_CONFIG,
+        ONE_DIMENSION_WITH_NUISANCE_CONFIG
+        | {
+            ConfigType.TRAIN: Path("test/configs/train/adam_lbfgs_neural_nuisance.json")
+        },
+    ],
     indirect=True,
 )
 def test_parallel_launcher_runs_trainable_branches_in_cpu_workers(
@@ -659,9 +657,7 @@ def test_parallel_launcher_runs_trainable_branches_in_cpu_workers(
     detector_effect,
     capsys,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     launcher = ParallelTrainLauncher(
         function_execution_context,
         detector_effect,
@@ -684,7 +680,10 @@ def test_parallel_launcher_runs_trainable_branches_in_cpu_workers(
         assert training.model is not None
         assert training.history is not None
         assert training.result is not None
-        assert training.model._epochs_executed == 100
+        assert (
+            training.model._epochs_executed
+            == function_execution_context.config.train__epochs
+        )
 
     output = capsys.readouterr().out
     numerator_begin = output.index("BEGIN TRAINING OUTPUT: parallel_True")
@@ -711,9 +710,7 @@ def test_parallel_placement_preserves_seeded_results(
     isolated_data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
 
     def histories_for(launcher_class, allocation):
         launcher = launcher_class(
@@ -757,9 +754,7 @@ def test_parallel_worker_failure_is_propagated(
     detector_effect,
     capsys,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     empty_sr_batch = DataBatch(
         (
             DataSet(
@@ -799,9 +794,7 @@ def test_parallel_worker_failure_is_propagated(
     failing_begin = output.index("BEGIN TRAINING OUTPUT: failing_numerator")
     failing_traceback = output.index("Traceback (most recent call last)")
     failing_end = output.index("END TRAINING OUTPUT: failing_numerator (FAILED)")
-    successful_begin = output.index(
-        "BEGIN TRAINING OUTPUT: successful_denominator"
-    )
+    successful_begin = output.index("BEGIN TRAINING OUTPUT: successful_denominator")
     assert failing_begin < failing_traceback < failing_end < successful_begin
 
 
@@ -816,9 +809,7 @@ def test_lfvnn_prepared_data_and_optimizer_use_assigned_cuda_device(
     isolated_data_generation,
     detector_effect,
 ):
-    detected_batch = detector_effect.affect_batch(
-        isolated_data_generation.get_batch()
-    )
+    detected_batch = detector_effect.affect_batch(isolated_data_generation.get_batch())
     model = DifferentiatingModel(
         context=function_execution_context,
         detector_effect=detector_effect,

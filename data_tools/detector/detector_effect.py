@@ -24,13 +24,16 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
     Applies detector efficiency and measurement error effects to datasets.
     """
     def __init__(
-            self,
-            context: ExecutionContext,
-        ):
-        self._context = context
-        if not isinstance(self._context.config, DetectorConfig):
-            raise TypeError(f"Expected DetectorConfig, got {self._context.config.__class__.__name__}")
-        self._config = self._context.config
+        self,
+        context: ExecutionContext | DetectorConfig,
+    ):
+        self._config = (
+            context if isinstance(context, DetectorConfig) else context.config
+        )
+        if not isinstance(self._config, DetectorConfig):
+            raise TypeError(
+                f"Expected DetectorConfig, got {self._config.__class__.__name__}"
+            )
         self.__dataset_parameters_for_detection = None
         self._observable_names = list(self._config.detector__detect_observable_names)
 
@@ -99,14 +102,17 @@ class DetectorEffect:  # TODO: binning functionality should be separated from th
         """Names of the observables selected for detection."""
         return tuple(self._observable_names)
 
-    def efficiency_values(self, dataset: DataSet) -> np.ndarray:
-        """Return the detector efficiency at each dataset point without sampling."""
+    def efficiency_values(
+        self, dataset: DataSet, *, nominal: bool = False
+    ) -> np.ndarray:
+        """Evaluate acceptance; nominal=True bypasses efficiency uncertainty."""
         if self.detection_parameters is None:
             raise RuntimeError(
                 "Detector efficiency cannot be evaluated before detection "
                 "parameters are set."
             )
-        return np.asarray(self._uncertain_efficiency(dataset._data))
+        efficiency = self._true_efficiency if nominal else self._uncertain_efficiency
+        return np.asarray(efficiency(dataset._data))
 
     def generate_true_efficiency_filter(self, dataset: DataSet) -> np.ndarray:
         """

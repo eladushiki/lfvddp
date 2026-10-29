@@ -4,6 +4,7 @@ Implementing ML machinery to differentiate between similar and different pairs o
 
 ## Development Principles
 - THE ONE DEFINITION RULE: Every variable value should be implemted once. Any logic should be implemented once and reused. Have a single source of truth.
+- Access configuration parameters directly through their declared fields. Never use `getattr` or fallback defaults to read configuration parameters.
 - SINGLE PURPOSE RULE: Each function, class or file should have a single purpose. If there are many, split.
 - TESTING PHILOSOPHY:
   - Any complex enough (not semantic) logic in the codebase should be tested at least once. Simple additions should not. Any configuration should be tested at least once with all its options, but not all possible combinations of them - just the interesting ones and the edge cases.
@@ -44,3 +45,11 @@ Implementing ML machinery to differentiate between similar and different pairs o
 ## Skills and Specs
 - Skills can be found in `.agents/skills` directory
 - Plot are designed according to specs, that appear in `plots/specs`. If a spec is updated, the plots should too. If a plot is updated, its spec should too.
+
+## Shared cluster submission state
+- Before any cluster queue or submission-state work, read
+  [.agents/submission-state.schema.md](.agents/submission-state.schema.md).
+  The only authoritative YAML is on the cluster at the configured remote
+  project root. Every change requires the shared lock helper; hold the lock
+  from the decision-making read through side effects and the atomic save.
+  Local snapshots must never drive submissions or overwrite remote state.

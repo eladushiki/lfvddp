@@ -1,23 +1,30 @@
+import pickle
 from pathlib import Path
+
 import numpy as np
 import pytest
 
-from test.environment import ConfigType
 from data_tools.data_generation import DataBatch
-from data_tools.data_utils import DataSet
+from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
 from data_tools.dataset_config import DatasetConfig
+from test.environment import ConfigType
+
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{
-        ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
-        ConfigType.TRAIN.value: Path(
-            "test/configs/train/adaptive_neural_nuisance.json"
-        ),
-        ConfigType.DETECTOR.value: Path(
-            "test/configs/detector/basic_1D_detector_config.json"
-        ),
-    }],
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+            ConfigType.TRAIN.value: Path(
+                "test/configs/train/adaptive_neural_nuisance.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_1D_detector_config.json"
+            ),
+        }
+    ],
     indirect=True,
 )
 def test_dataset_normalization(
@@ -34,11 +41,19 @@ def test_dataset_normalization(
         if np.ptp(raw.events) == 0:
             np.testing.assert_allclose(normalized.events, 0.0)
         else:
-            np.testing.assert_allclose(np.max(normalized.events), 1, rtol=1e-9, atol=1e-9)
-            np.testing.assert_allclose(np.min(normalized.events), -1, rtol=1e-9, atol=1e-9)
+            np.testing.assert_allclose(
+                np.mean(normalized.events, axis=0), 0, rtol=1e-9, atol=1e-9
+            )
+            np.testing.assert_allclose(
+                np.std(normalized.events, axis=0), 1, rtol=1e-9, atol=1e-9
+            )
 
-    np.testing.assert_array_almost_equal((normalized_A * norm_factor_A).events, A.events)
-    np.testing.assert_array_almost_equal((normalized_B * norm_factor_B).events, B.events)
+    np.testing.assert_array_almost_equal(
+        (normalized_A * norm_factor_A).events, A.events
+    )
+    np.testing.assert_array_almost_equal(
+        (normalized_B * norm_factor_B).events, B.events
+    )
 
 
 def test_dataset_normalization_maps_constant_observables_to_zero():
@@ -56,7 +71,9 @@ def test_dataset_normalization_maps_constant_observables_to_zero():
     normalized, normalization_factor = dataset.get_normalized()
 
     assert np.isfinite(normalized.events).all()
-    np.testing.assert_allclose(normalized.events[:, 0], [-1.0, 0.0, 1.0])
+    np.testing.assert_allclose(
+        normalized.events[:, 0], np.array([-1.0, 0.0, 1.0]) * np.sqrt(1.5)
+    )
     np.testing.assert_allclose(normalized.events[:, 1], 0.0)
     np.testing.assert_allclose(
         (normalized * normalization_factor).events,
@@ -76,16 +93,23 @@ def test_batch_normalization_uses_one_pooled_affine_map_for_every_category():
 
     normalized, normalization_factor = batch.get_normalized()
 
-    assert normalization_factor.get_offset("x") == 0.0
-    assert normalization_factor.get_factor("x") == 5.0
+    assert normalization_factor.get_offset("x") == 5.0
+    assert normalization_factor.get_factor("x") == np.sqrt(13.5)
     expected = normalization_factor.normalize_values(
         np.concatenate(
-            [raw_datasets[category].events for category in DataBatch.REQUIRED_DATASET_CATEGORIES]
+            [
+                raw_datasets[category].events
+                for category in DataBatch.REQUIRED_DATASET_CATEGORIES
+            ]
         ),
         ("x",),
     )
     actual = np.concatenate([dataset.events for dataset, _ in normalized])
     np.testing.assert_allclose(actual, expected)
+    pooled, _ = batch.unified_data.get_normalized()
+    np.testing.assert_allclose(actual, pooled.events)
+    np.testing.assert_allclose(actual.mean(axis=0), 0.0, atol=1e-15)
+    np.testing.assert_allclose(actual.std(axis=0), 1.0)
     for category, raw_dataset in raw_datasets.items():
         np.testing.assert_allclose(
             (normalized.datasets[category] * normalization_factor).events,
@@ -100,4 +124,55 @@ def test_dataset_config_owns_signal_configuration_fields():
     assert DatasetConfig.SIGNAL_CONFIGURATION_FIELDS == {
         "dataset__mean_number_of_signal_events",
         "dataset__signal_generator",
+        "dataset__signal_positive_only",
     }
+
+
+@pytest.mark.parametrize("constant", [0.1, 1.0, 1e20])
+def test_standardization_is_per_observable_and_keeps_constant_inputs_finite(constant):
+    dataset = DataSet(
+        np.array(
+            [[1.0, 100.0, constant], [3.0, 400.0, constant], [8.0, 1000.0, constant]]
+        ),
+        observable_names=["small", "large", "constant"],
+    )
+    normalized, factor = dataset.get_normalized()
+    np.testing.assert_allclose(normalized.events[:, :2].mean(axis=0), 0.0, atol=1e-15)
+    np.testing.assert_allclose(normalized.events[:, :2].std(axis=0), 1.0)
+    np.testing.assert_array_equal(normalized.events[:, 2], 0.0)
+    np.testing.assert_allclose((normalized * factor).events, dataset.events)
+    # Applying the fitted map to a subset must not refit its moments.
+    subset = DataSet(dataset.events[[0, 2]], dataset.observable_names)
+    np.testing.assert_array_equal((subset / factor).events, normalized.events[[0, 2]])
+    restored = ShiftAndNormalizationFactor.from_mapping(factor.to_mapping())
+    np.testing.assert_array_equal((subset / restored).events, (subset / factor).events)
+
+
+def test_legacy_affine_mapping_retains_its_minus_one_translation():
+    factor = ShiftAndNormalizationFactor.from_mapping(
+        {"factors": {"x": 2.0}, "offsets": {"x": 3.0}}
+    )
+    raw = np.array([[3.0], [5.0], [7.0]])
+    normalized = factor.normalize_values(raw, ["x"])
+    np.testing.assert_array_equal(normalized[:, 0], [-1.0, 0.0, 1.0])
+    np.testing.assert_array_equal(factor.denormalize_values(normalized, ["x"]), raw)
+    np.testing.assert_array_equal(factor.scale_values(raw, ["x"]), raw / 2.0)
+
+
+def test_legacy_pickled_affine_factor_keeps_its_historical_translation():
+    factor = ShiftAndNormalizationFactor({"x": 2.0}, {"x": 3.0})
+    # Old trained artifacts pickle this dataclass directly, without a shift.
+    factor.__dict__.pop("_shift")
+    restored = pickle.loads(pickle.dumps(factor))
+    np.testing.assert_array_equal(
+        restored.normalize_values(np.array([3.0, 5.0, 7.0]), ["x"]),
+        [-1.0, 0.0, 1.0],
+    )
+
+
+@pytest.mark.parametrize("constant", [1e20, -1e20])
+def test_repeated_large_constant_normalizes_to_exact_zero(constant):
+    dataset = DataSet(np.full((100, 1), constant), ["constant"])
+    normalized, factor = dataset.get_normalized()
+    np.testing.assert_array_equal(normalized.events, 0.0)
+    np.testing.assert_array_equal((normalized * factor).events, dataset.events)

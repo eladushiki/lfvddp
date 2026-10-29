@@ -1,0 +1,103 @@
+{
+  "dataset__definitions": [
+    {
+      "name": "a_sr",
+      "type": "generated",
+      "category": "a_sr",
+      "dataset_generated__number_of_dimensions": 2,
+      "dataset_generated__background_generator": {
+        "function": "exponential_background"
+      },
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 4000,
+      "dataset__signal_generator": {
+        "function": "gaussian_signal",
+        "arguments": {
+          "location": 0,
+          "gaussian_signal_sigma": 1
+        }
+      }
+    },
+    {
+      "name": "b_sr",
+      "type": "generated",
+      "category": "b_sr",
+      "dataset_generated__number_of_dimensions": 2,
+      "dataset_generated__background_generator": {
+        "function": "exponential_background"
+      },
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 4000,
+      "dataset__signal_generator": {
+        "function": "multivariate_gaussian_signal",
+        "arguments": {
+          "mean": [
+            0,
+            0
+          ],
+          "covariance": [
+            [
+              1,
+              0.8
+            ],
+            [
+              0.8,
+              1
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "a_cr",
+      "type": "generated",
+      "category": "a_cr",
+      "dataset_generated__number_of_dimensions": 2,
+      "dataset_generated__background_generator": {
+        "function": "exponential_background"
+      },
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 4000,
+      "dataset__signal_generator": [
+        {
+          "function": "gaussian_signal",
+          "arguments": {
+            "location": 0,
+            "gaussian_signal_sigma": 1
+          }
+        },
+        {
+          "function": "gaussian_signal",
+          "arguments": {
+            "location": 0,
+            "gaussian_signal_sigma": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "b_cr",
+      "type": "loaded",
+      "category": "b_cr",
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 4000,
+      "dataset__signal_generator": {
+        "function": "gaussian_signal",
+        "arguments": {
+          "location": 0,
+          "gaussian_signal_sigma": 1
+        }
+      },
+      "dataset_loaded__file_name": "events.npy",
+      "dataset_loaded__observable_naming": {
+        "x": "param_0",
+        "y": "param_1"
+      },
+      "dataset_loaded__signal_observable_names": [
+        "param_0",
+        "param_1"
+      ]
+    }
+  ],
+  "random_seed": 81723
+}

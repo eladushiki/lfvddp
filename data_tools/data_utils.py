@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -17,7 +17,7 @@ class DataSet:
     Each row in the stored _data is a single event. The whole 2D table represents the
     collection of them.
     """
-    
+
     class DataSetCategory(enum.Enum):
         A_SR = 1
         A_CR = 2
@@ -56,11 +56,11 @@ class DataSet:
             return DataSet.DataSetCategory.UNDEFINED
 
     def __init__(
-            self,
-            data: Optional[Union[npt.NDArray, pd.DataFrame]] = None,
-            observable_names: Optional[List[str]] = None,
-            category: DataSetCategory = DataSetCategory.UNDEFINED,
-        ):
+        self,
+        data: Optional[Union[npt.NDArray, pd.DataFrame]] = None,
+        observable_names: Optional[List[str]] = None,
+        category: DataSetCategory = DataSetCategory.UNDEFINED,
+    ):
         self._category = category
         if data is None:
             self._data = pd.DataFrame()
@@ -70,7 +70,9 @@ class DataSet:
             elif data.ndim == 1 or data.ndim == 2:
                 self._data = pd.DataFrame(data)
             else:
-                raise ValueError(f"Data as numpy array must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions.")
+                raise ValueError(
+                    f"Data as numpy array must be a 0D, 1D, or 2D array, but got {data.ndim} dimensions."
+                )
         elif isinstance(data, pd.DataFrame):
             self._data = data
         else:
@@ -80,7 +82,7 @@ class DataSet:
             self._data.columns = observable_names
         else:
             self._data.columns = [f"param_{i}" for i in range(self.n_observables)]
-        
+
     def __add__(self, other: DataSet) -> DataSet:
         if self.empty:
             return other
@@ -88,35 +90,41 @@ class DataSet:
             return self
         if self.observable_names != other.observable_names:
             raise ValueError("Observable names do not match between datasets.")
-        
+
         _data = pd.concat((self._data, other._data), axis=0)
         _data.reset_index(level=0, drop=True, inplace=True)
         category = self.category + other.category
 
-        return DataSet(data=_data, observable_names=self.observable_names, category=category)
-    
-    def __mul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
-        assert isinstance(other, ShiftAndNormalizationFactor), \
-            f"Dataset multiplication is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
+        return DataSet(
+            data=_data, observable_names=self.observable_names, category=category
+        )
 
-        result = self.create_copy()        
+    def __mul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
+        assert isinstance(other, ShiftAndNormalizationFactor), (
+            f"Dataset multiplication is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
+        )
+
+        result = self.create_copy()
         for obs in self.observable_names:
             try:
                 result._data[obs] = other.denormalize_values(
                     result._data[obs].to_numpy(), (obs,)
                 )
             except KeyError:
-                raise ArithmeticError(f"No factor for observable {obs} in multiplication")
-            
+                raise ArithmeticError(
+                    f"No factor for observable {obs} in multiplication"
+                )
+
         return result
 
     def __rmul__(self, other: ShiftAndNormalizationFactor) -> DataSet:
         return self.__mul__(other)
 
     def __truediv__(self, other: ShiftAndNormalizationFactor) -> DataSet:
-        assert isinstance(other, ShiftAndNormalizationFactor), \
+        assert isinstance(other, ShiftAndNormalizationFactor), (
             f"Dataset division is only allowed by a ShiftAndNormalizationFactor, not {type(other)}"
-        
+        )
+
         result = self.create_copy()
         for obs in self.observable_names:
             try:
@@ -125,7 +133,7 @@ class DataSet:
                 )
             except KeyError:
                 raise ArithmeticError(f"No factor for observable {obs} in division")
-            
+
         return result
 
     def __getitem__(self, item: Union[int, slice, npt.NDArray]) -> DataSet:
@@ -136,12 +144,16 @@ class DataSet:
         )
 
     def create_copy(self) -> DataSet:
-        return DataSet(data=self._data.copy(), observable_names=self.observable_names, category=self._category)
+        return DataSet(
+            data=self._data.copy(),
+            observable_names=self.observable_names,
+            category=self._category,
+        )
 
     @property
     def category(self) -> DataSetCategory:
         return self._category
-    
+
     @category.setter
     def category(self, new_category: DataSetCategory):
         self._category = new_category
@@ -173,7 +185,9 @@ class DataSet:
     def events(self) -> npt.NDArray:
         return self._data.to_numpy()
 
-    def slice_along_observable_indices(self, indices: Optional[Union[int, slice, npt.NDArray]] = None) -> npt.NDArray:
+    def slice_along_observable_indices(
+        self, indices: Optional[Union[int, slice, npt.NDArray]] = None
+    ) -> npt.NDArray:
         """
         Get a slice of all events along a single dimension.
         """
@@ -182,12 +196,16 @@ class DataSet:
 
         return self.slice_along_observable_names(self.observable_names[indices])
 
-    def slice_along_observable_names(self, observables: Union[str, List[str]]) -> npt.NDArray:
+    def slice_along_observable_names(
+        self, observables: Union[str, List[str]]
+    ) -> npt.NDArray:
         try:
             return self._data[observables].to_numpy()
         except KeyError as e:
-            raise KeyError(f"One or more observable names not found in dataset: {observables}") from e
-    
+            raise KeyError(
+                f"One or more observable names not found in dataset: {observables}"
+            ) from e
+
     def get_normalized(self) -> Tuple[DataSet, ShiftAndNormalizationFactor]:
         offsets = {}
         factors = {}
@@ -195,19 +213,17 @@ class DataSet:
         for obs in result.observable_names:
             obs_slice = result.slice_along_observable_names(obs)
 
-            # shift and scale to fit range [-1, 1]
-            minimum = np.min(obs_slice)
-            span = np.ptp(obs_slice)
-            if span == 0:
-                # A constant observable carries no variation for the model.
-                # Keep its transform finite and map it to zero.
-                offsets[obs] = minimum - 1
+            if np.ptp(obs_slice) == 0:
+                # Even the floating-point mean of a large constant can round
+                # away from that value; preserve it exactly before scaling.
+                offsets[obs] = obs_slice[0]
                 factors[obs] = 1.0
             else:
-                offsets[obs] = minimum
-                factors[obs] = span / 2
+                offsets[obs] = np.mean(obs_slice)
+                # Population moments describe the pooled events actually fitted.
+                factors[obs] = np.std(obs_slice)
 
-        normalization_factor = ShiftAndNormalizationFactor(factors, offsets)
+        normalization_factor = ShiftAndNormalizationFactor(factors, offsets, _shift=0.0)
         return result / normalization_factor, normalization_factor
 
     def filter(self, filter: np.ndarray) -> DataSet:
@@ -215,12 +231,18 @@ class DataSet:
         Filter the dataset according to a boolean mask.
         """
         filtered_data = self._data.iloc[filter, :]
-        return DataSet(data=filtered_data, observable_names=self.observable_names, category=self._category)
+        return DataSet(
+            data=filtered_data,
+            observable_names=self.observable_names,
+            category=self._category,
+        )
 
     def filter_observable_names(self, observables: Union[str, List[str]]) -> DataSet:
         return DataSet(
             data=self.slice_along_observable_names(observables),
-            observable_names=[observables] if isinstance(observables, str) else observables,
+            observable_names=[observables]
+            if isinstance(observables, str)
+            else observables,
             category=self._category,
         )
 
@@ -248,7 +270,9 @@ class DataSetRegions:
             return self.sr
         if self.cr.contains(category):
             return self.cr
-        raise KeyError(f"Dataset category '{category}' does not belong to an SR or CR pair.")
+        raise KeyError(
+            f"Dataset category '{category}' does not belong to an SR or CR pair."
+        )
 
     def is_a(self, category: DataSet.DataSetCategory) -> bool:
         return category == self.sr.a or category == self.cr.a
@@ -270,12 +294,12 @@ DATASET_REGIONS = DataSetRegions(
 
 
 def sample_events(
-        source_dataset: DataSet,
-        n_samples: int,
-        *,
-        is_random: bool,
-        replacement: bool = False,
-    ) -> Tuple[DataSet, DataSet]:
+    source_dataset: DataSet,
+    n_samples: int,
+    *,
+    is_random: bool,
+    replacement: bool = False,
+) -> Tuple[DataSet, DataSet]:
     """Select an exact number of events from a source dataset.
 
     A non-random selection keeps the first events in their source order.
@@ -313,35 +337,40 @@ def sample_events(
 class ShiftAndNormalizationFactor:
     """One explicit affine map shared by data and feature geometry.
 
-    For every nonconstant observable, ``normalize_values`` applies
-    ``(x - offset) / factor - 1`` and ``denormalize_values`` is its exact
-    inverse.  Constant observables use a finite, deliberately shifted offset
-    so their sole value maps to zero.
+    ``normalize_values`` applies ``(x - offset) / factor + shift`` and
+    ``denormalize_values`` is its inverse. New fits store the pooled mean,
+    population standard deviation, and zero shift. The historical minus-one
+    shift remains the default for old constructors and checkpoint mappings.
+    Constant observables use unit scale and map to zero in new fits.
     """
+
     _factors: Dict[str, float]
     _offsets: Dict[str, float]
+    _shift: float = -1.0
 
     def __post_init__(self, **kwargs):
         assert set(self._factors) == set(self._offsets)
         assert all(np.isfinite(value) and value > 0 for value in self._factors.values())
         assert all(np.isfinite(value) for value in self._offsets.values())
+        assert np.isfinite(self._shift)
 
     @property
     def n_dim(self) -> int:
         return len(self._factors)
-    
+
     def get_offset(self, key: str) -> float:
         return self._offsets[key]
 
     def get_factor(self, key: str) -> float:
         return self._factors[key]
 
-    def to_mapping(self) -> Dict[str, Dict[str, float]]:
+    def to_mapping(self) -> Dict[str, Any]:
         """Return a serializable copy of this affine coordinate map."""
 
         return {
             "factors": dict(self._factors),
             "offsets": dict(self._offsets),
+            "shift": self._shift,
         }
 
     @classmethod
@@ -352,12 +381,15 @@ class ShiftAndNormalizationFactor:
             factors = value["factors"]
             offsets = value["offsets"]
         except KeyError as error:
-            raise ValueError("Normalization mapping requires factors and offsets.") from error
+            raise ValueError(
+                "Normalization mapping requires factors and offsets."
+            ) from error
         if not isinstance(factors, Mapping) or not isinstance(offsets, Mapping):
             raise ValueError("Normalization factors and offsets must be mappings.")
         return cls(
             {str(key): float(item) for key, item in factors.items()},
             {str(key): float(item) for key, item in offsets.items()},
+            _shift=float(value.get("shift", -1.0)),
         )
 
     def normalize_values(
@@ -368,7 +400,7 @@ class ShiftAndNormalizationFactor:
         """Apply this factor's affine map along the observable axis."""
 
         array, offsets, factors = self._affine_parameters(values, observable_names)
-        return (array - offsets) / factors - 1
+        return (array - offsets) / factors + self._shift
 
     def denormalize_values(
         self,
@@ -378,7 +410,7 @@ class ShiftAndNormalizationFactor:
         """Invert :meth:`normalize_values` along the observable axis."""
 
         array, offsets, factors = self._affine_parameters(values, observable_names)
-        return (array + 1) * factors + offsets
+        return (array - self._shift) * factors + offsets
 
     def scale_values(
         self,

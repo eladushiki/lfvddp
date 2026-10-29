@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 import tarfile
@@ -62,11 +63,8 @@ def removable_children(submission: Path) -> list[Path]:
     )
 
 
-def debug_helper_source(submission: Path, sources: list[Path]) -> Path | None:
-    """Keep one array-worker directory in place for debug submissions."""
-    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
-    if context.get("is_debug_mode") is not True:
-        return None
+def retained_worker_source(sources: list[Path]) -> Path | None:
+    """Keep one array-worker directory in place."""
     return next(
         (
             source
@@ -107,35 +105,123 @@ def successful_worker_directories(submission: Path) -> list[Path]:
     )
     if not workers:
         raise ValueError(f"submission has no worker directories: {submission}")
-    failed = []
+    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
+    expected = context.get("config", {}).get("cluster__qsub_n_jobs")
+    contexts = {}
     for worker in workers:
-        context_path = worker / CONTEXT_FILE_NAME
         try:
-            successful = (
-                json.loads(context_path.read_text()).get("run_successful") is True
+            contexts[worker] = json.loads((worker / CONTEXT_FILE_NAME).read_text())
+            if not isinstance(contexts[worker], dict):
+                raise ValueError(f"worker context is not an object: {worker}")
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(f"worker context cannot be verified: {worker}") from error
+    successful = [
+        worker for worker in workers if contexts[worker].get("run_successful") is True
+    ]
+    if expected is not None and (
+        type(expected) is not int or expected < 1 or len(successful) != expected
+    ):
+        raise ValueError(
+            f"successful worker count {len(successful)} differs from expected {expected}"
+        )
+    superseded = [worker for worker in workers if worker not in successful]
+    # Legacy successful contexts need not have array indices. Superseded launches
+    # require complete, unambiguous element identity rather than directory counts.
+    indexed = superseded or any("array_index" in contexts[w] for w in successful)
+    by_index = {}
+    if indexed:
+        if type(expected) is not int or expected < 1:
+            raise ValueError("Indexed workers require a positive expected array size")
+        for worker in successful:
+            index = contexts[worker].get("array_index")
+            if type(index) is not int or index not in range(1, expected + 1):
+                raise ValueError(f"worker array index is invalid: {worker}")
+            if index in by_index:
+                raise ValueError(f"duplicate successful worker for array index {index}")
+            by_index[index] = worker
+        if set(by_index) != set(range(1, expected + 1)):
+            raise ValueError("Successful workers do not cover every expected element")
+    for worker in superseded:
+        launch = contexts[worker]
+        index = launch.get("array_index")
+        replacement = by_index.get(index) if type(index) is int else None
+        stamp = launch.get("time")
+        later_stamp = contexts[replacement].get("time") if replacement else None
+        if (
+            launch.get("run_successful") is not False
+            or replacement is None
+            or not isinstance(stamp, str)
+            or not stamp
+            or not isinstance(later_stamp, str)
+            or stamp >= later_stamp
+            or launch.get("products")
+            or set(worker.iterdir()) != {worker / CONTEXT_FILE_NAME}
+        ):
+            raise ValueError(
+                f"worker is not a verified superseded context-only launch: {worker}"
             )
-        except (OSError, json.JSONDecodeError):
-            successful = False
-        if not successful:
-            failed.append(worker.name)
-    if failed:
-        raise ValueError(f"worker contexts are not successful: {', '.join(failed[:5])}")
-    return workers
+        print(
+            f"retain superseded context-only launch for element {index}: {worker.name}"
+        )
+    return successful
 
 
 def verified_pbs_logs(submission: Path) -> list[Path]:
-    """Return only PBS outputs that prove zero exit status for every worker."""
+    """Verify completion and return only exit-zero logs eligible for removal.
+
+    A complete later walltime chunk recovers earlier walltime kills. Their
+    failure logs remain in place as audit evidence, including after pruning.
+    """
     logs = sorted(path for path in submission.glob("*.OU*") if path.is_file())
     if not logs:
         raise ValueError(f"submission has no PBS output logs: {submission}")
-    invalid = [
-        log.name
-        for log in logs
-        if not log.read_text(errors="ignore").rstrip().endswith("Job exit status: 0")
+    texts = {log: log.read_text(errors="ignore").rstrip() for log in logs}
+    successful = [
+        log for log, text in texts.items() if text.endswith("Job exit status: 0")
     ]
-    if invalid:
-        raise ValueError(f"PBS logs lack exit status 0: {', '.join(invalid[:5])}")
-    return logs
+    context = json.loads((submission / CONTEXT_FILE_NAME).read_text())
+    submissions = context.get("qsub_submissions", [])
+    if not submissions:
+        invalid = [log.name for log in logs if log not in successful]
+        if invalid:
+            raise ValueError(f"PBS logs lack exit status 0: {', '.join(invalid[:5])}")
+        return successful
+
+    parents = []
+    for attempt in submissions:
+        match = re.fullmatch(r"(\d+)\[\](?:\..+)?", attempt["job_id"])
+        if match is None or match[1] in parents:
+            raise ValueError("Continuation history requires distinct saved array IDs")
+        parents.append(match[1])
+    expected = context.get("config", {}).get("cluster__qsub_n_jobs")
+    if type(expected) is not int or expected < 1:
+        raise ValueError("Continuation history lacks a positive expected array size")
+    indices = set(range(1, expected + 1))
+    latest_logs = {}
+    for log, text in texts.items():
+        match = re.fullmatch(r"(\d+)\[(\d+)\](?:\.[^.]+)*\.OU[^/]*", log.name)
+        if match is None or match[1] not in parents or int(match[2]) not in indices:
+            raise ValueError(f"PBS log is outside saved array history: {log.name}")
+        parent, index = match[1], int(match[2])
+        if parent == parents[-1]:
+            if index in latest_logs:
+                raise ValueError(f"Duplicate continuation output for element {index}")
+            latest_logs[index] = log
+            if log not in successful:
+                raise ValueError(
+                    f"Continuation PBS log lacks exit status 0: {log.name}"
+                )
+        elif log not in successful:
+            if "PBS: job killed: walltime" not in text:
+                raise ValueError(
+                    f"Historical PBS failure is not a walltime kill: {log.name}"
+                )
+            print(f"retain recovered walltime log: {log.name}")
+    if set(latest_logs) != indices:
+        raise ValueError(
+            "Latest continuation does not have exit-zero logs for every element"
+        )
+    return successful
 
 
 def prune_finished_intermediates(submission: Path, *, dry_run: bool) -> None:
@@ -192,20 +278,20 @@ def archive_submission(
 ) -> None:
     archive = submission / ARCHIVE_NAME
     sources = removable_children(submission)
-    debug_helper = debug_helper_source(submission, sources)
-    archive_sources = [source for source in sources if source != debug_helper]
+    retained_worker = retained_worker_source(sources)
+    archive_sources = [source for source in sources if source != retained_worker]
     training_outcomes = training_outcome_directories(archive_sources)
     if not archive_sources:
         print(f"unchanged: {submission}")
-        if debug_helper is not None:
-            print(f"retained debug helper: {debug_helper.name}")
+        if retained_worker is not None:
+            print(f"retained worker: {retained_worker.name}")
         return
 
     print(f"archive: {archive}")
     for source in archive_sources:
         print(f"  {source.name}")
-    if debug_helper is not None:
-        print(f"retain debug helper: {debug_helper.name}")
+    if retained_worker is not None:
+        print(f"retain worker: {retained_worker.name}")
     if dry_run:
         return
 
@@ -250,8 +336,8 @@ def archive_submission(
             temporary_archive.unlink(missing_ok=True)
         raise
     print(f"archived and removed {len(archive_sources)} items: {submission}")
-    if debug_helper is not None:
-        print(f"retained debug helper: {debug_helper.name}")
+    if retained_worker is not None:
+        print(f"retained worker: {retained_worker.name}")
 
 
 def restore_submission(submission: Path, *, dry_run: bool) -> None:

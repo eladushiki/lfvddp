@@ -1,6 +1,6 @@
 import re
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from glob import glob
 from os.path import exists
 from pathlib import Path
@@ -22,8 +22,11 @@ from data_tools.data_utils import DataSet
 from data_tools.dataset_config import (
     DatasetConfig,
 )
+from data_tools.detector.analytic_efficiency import generated_detector_efficiency
 from data_tools.detector.detector_config import DetectorConfig
 from data_tools.profile_likelihood import (
+    calc_binned_injected_significance,
+    calc_injected_t_significance_by_sqrt_q0_binned as calc_injected_t_significance_by_sqrt_q0_binned,
     calc_injected_t_significance_by_sqrt_q0_continuous,
     calc_median_t_significance_relative_to_background,
     calc_t_significance_by_gaussian_fit_percentile,
@@ -33,9 +36,11 @@ from frame.aggregate import ResultAggregator, utils__get_signal_dataset_paramete
 from frame.context.execution_context import ExecutionContext
 from frame.file_structure import (
     CONFIGS_DIR_NAME,
+    SINGLE_TRAIN_SCRIPT_NAME,
     TRAINING_HISTORY_LOG_FILE_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
+from frame.file_system.data_samples import load_data_samples
 from frame.file_system.training_history import HistoryKeys
 from plot.plotting_config import PlottingConfig
 from train.train_config import TrainConfig
@@ -249,17 +254,21 @@ class _PerformanceCurve:
     observed_significance_lower_bounds: np.ndarray
     observed_significance_upper_bounds: np.ndarray
     gaussian_fit_significances: np.ndarray
+    ignored_signal_percentages: np.ndarray = field(default_factory=lambda: np.empty(0))
+    ignored_signal_percentages_max: np.ndarray = field(
+        default_factory=lambda: np.empty(0)
+    )
 
 
 @dataclass
 class _PerformanceSignalPoint:
-    x_value: float
     x_label: str
     show_reference_diagonal: bool
     connect_points: bool
     t_value_chunks: List[np.ndarray]
     injected_significance_chunks: List[np.ndarray]
     directories: List[Path]
+    ignored_signal_percentage_chunks: List[np.ndarray]
 
 
 def _integration_upper_limits_for_dimensions(
@@ -269,6 +278,96 @@ def _integration_upper_limits_for_dimensions(
     if number_of_dimensions == 1:
         return np.inf
     return np.full(number_of_dimensions, np.inf)
+
+
+def _expected_histogram_counts(
+    dataset: DataSet,
+    observable_names: List[str],
+    bin_edges: Tuple[np.ndarray, ...],
+    expected_events: float,
+) -> np.ndarray:
+    if expected_events <= 0:
+        return np.zeros(tuple(len(edges) - 1 for edges in bin_edges), dtype=float)
+    if dataset.empty:
+        raise ValueError(
+            "Cannot estimate loaded performance significance with positive "
+            "expected events from an empty dataset."
+        )
+    counts, _ = np.histogramdd(
+        dataset.filter_observable_names(observable_names).events,
+        bins=bin_edges,
+    )
+    counted_events = float(np.sum(counts))
+    if counted_events <= 0:
+        raise ValueError(
+            "No loaded performance events fell inside the configured bin edges."
+        )
+    return counts * (expected_events / counted_events)
+
+
+def _loaded_binned_injected_significance(
+    signal_context: ExecutionContext,
+    signal_dataset_parameters,
+    context_path: Path,
+    ignored_signal_percentages: Optional[List[float]] = None,
+) -> float:
+    if not isinstance(signal_context.config, DetectorConfig):
+        raise ValueError(
+            f"Expected signal_context.config to include {DetectorConfig}, got "
+            f"{type(signal_context.config)}."
+        )
+    samples = load_data_samples(context_path.parent)
+    background_data, signal_data = samples.background, samples.signal
+    if signal_data.empty:
+        if ignored_signal_percentages is not None:
+            ignored_signal_percentages.append(0.0)
+        return 0.0
+    observable_names = list(signal_context.config.detector__detect_observable_names)
+    if not set(observable_names).issubset(background_data.observable_names):
+        missing = sorted(set(observable_names) - set(background_data.observable_names))
+        raise ValueError(
+            "Loaded performance significance observables are missing from the "
+            f"background dataset: {missing}."
+        )
+    if not signal_data.empty and not set(observable_names).issubset(
+        signal_data.observable_names
+    ):
+        missing = sorted(set(observable_names) - set(signal_data.observable_names))
+        raise ValueError(
+            "Loaded performance significance observables are missing from the "
+            f"signal dataset: {missing}."
+        )
+
+    bin_edges = tuple(
+        samples.bin_edges_by_observable[name] for name in observable_names
+    )
+
+    background_counts = _expected_histogram_counts(
+        background_data,
+        observable_names,
+        bin_edges,
+        signal_dataset_parameters.dataset__mean_number_of_background_events,
+    )
+    intended_signal_events = (
+        signal_dataset_parameters.dataset__mean_number_of_signal_events
+    )
+    signal_counts = _expected_histogram_counts(
+        signal_data,
+        observable_names,
+        bin_edges,
+        intended_signal_events,
+    )
+    result = calc_binned_injected_significance(
+        background_counts,
+        signal_counts,
+    )
+    if ignored_signal_percentages is not None:
+        ignored_signal_percentages.append(
+            100.0 * result.ignored_signal_events / intended_signal_events
+            if intended_signal_events > 0
+            else 0.0
+        )
+    return result.significance
 
 
 def utils__context_background_source_type(context: ExecutionContext) -> str:
@@ -286,29 +385,68 @@ def utils__context_background_source_type(context: ExecutionContext) -> str:
     return source_types.pop()
 
 
-def _performance_x_value_for_signal(
+def _performance_x_values_for_signal(
+    signal_context: ExecutionContext,
     signal_dataset_parameters,
     source_type: str,
-) -> Tuple[float, str, bool, bool]:
+    context_path: Path,
+    ignored_signal_percentages: Optional[List[float]] = None,
+) -> Tuple[np.ndarray, str, bool, bool]:
     if source_type == "generated":
         return (
-            calc_injected_t_significance_by_sqrt_q0_continuous(
-                background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
-                signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
-                n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
-                n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
-                upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+            np.asarray(
+                [
+                    calc_injected_t_significance_by_sqrt_q0_continuous(
+                        background_pdf=signal_dataset_parameters.dataset_generated__background_pdf,
+                        signal_pdf=signal_dataset_parameters.dataset_generated__signal_pdf,
+                        n_background_events=signal_dataset_parameters.dataset__mean_number_of_background_events,
+                        n_signal_events=signal_dataset_parameters.dataset__mean_number_of_signal_events,
+                        upper_limit=signal_dataset_parameters.dataset_generated__integration_upper_limits,
+                        detector_efficiency=generated_detector_efficiency(
+                            signal_context, signal_dataset_parameters
+                        ),
+                    )
+                ]
             ),
             r"injected $\sqrt{q_0}$",
             True,
             True,
         )
     if source_type == "loaded":
+        # Performance grouping uses submission contexts, but training samples
+        # belong to individual workers. Do not load or duplicate the parent.
+        training_contexts = ExecutionContext.discover_run_contexts(
+            context_path.parent, entrypoint=SINGLE_TRAIN_SCRIPT_NAME
+        )
+        if training_contexts:
+            training_contexts = [
+                (context, path)
+                for context, path in training_contexts
+                if context.run_successful
+            ]
+            if not training_contexts:
+                raise ValueError(
+                    "Loaded performance significance has no successful training "
+                    f"workers in {context_path.parent}."
+                )
+        else:
+            # Standalone/legacy contexts can own their samples directly.
+            training_contexts = [(signal_context, context_path)]
         return (
-            signal_dataset_parameters.dataset__mean_number_of_signal_events,
-            "mean injected signal events",
+            np.asarray(
+                [
+                    _loaded_binned_injected_significance(
+                        context,
+                        utils__get_signal_dataset_parameters(context),
+                        path,
+                        ignored_signal_percentages,
+                    )
+                    for context, path in training_contexts
+                ]
+            ),
+            r"evident injected $\sqrt{q_0}$",
             False,
-            False,
+            True,
         )
     raise ValueError(
         "Unsupported dataset background source type for performance plot: "
@@ -410,16 +548,22 @@ def utils__calculate_performance_curve(
     observed_significance_lower_bounds = []
     observed_significance_upper_bounds = []
     gaussian_fit_significances = []
+    ignored_means = []
+    ignored_maxima = []
 
     signal_points: Dict[float, _PerformanceSignalPoint] = {}
     for signal_context, context_path in signal_group:
         signal_t_values_dir = context_path.parent
         signal_dataset_parameters = utils__get_signal_dataset_parameters(signal_context)
         signal_agg = ResultAggregator(signal_t_values_dir)
-        x_value, x_label, show_diagonal, should_connect = (
-            _performance_x_value_for_signal(
+        ignored_signal_percentages = []
+        injected_significances, x_label, show_diagonal, should_connect = (
+            _performance_x_values_for_signal(
+                signal_context,
                 signal_dataset_parameters,
                 source_type,
+                context_path,
+                ignored_signal_percentages,
             )
         )
         signal_strength = float(
@@ -427,31 +571,30 @@ def utils__calculate_performance_curve(
         )
         if signal_strength not in signal_points:
             signal_points[signal_strength] = _PerformanceSignalPoint(
-                x_value=x_value,
                 x_label=x_label,
                 show_reference_diagonal=show_diagonal,
                 connect_points=should_connect,
                 t_value_chunks=[],
                 injected_significance_chunks=[],
                 directories=[],
+                ignored_signal_percentage_chunks=[],
             )
         signal_point = signal_points[signal_strength]
         if (
             signal_point.x_label != x_label
             or signal_point.show_reference_diagonal != show_diagonal
             or signal_point.connect_points != should_connect
-            or not np.isclose(signal_point.x_value, x_value)
         ):
             raise ValueError(
                 "Duplicate configured signal strengths resolved to incompatible "
                 "performance x-axis values."
             )
         signal_point.t_value_chunks.append(signal_agg.all_t_values)
-        if source_type == "generated":
-            signal_point.injected_significance_chunks.append(
-                np.asarray([x_value])
-            )
+        signal_point.injected_significance_chunks.append(injected_significances)
         signal_point.directories.append(signal_t_values_dir)
+        signal_point.ignored_signal_percentage_chunks.append(
+            np.asarray(ignored_signal_percentages or [0.0])
+        )
 
     for signal_point in signal_points.values():
         signal_t_values = np.concatenate(signal_point.t_value_chunks)
@@ -470,14 +613,16 @@ def utils__calculate_performance_curve(
                 f"directories: {checked_directories}."
             )
 
-        x_values.append(signal_point.x_value)
-        if source_type == "generated":
-            injected_significances = np.concatenate(
-                signal_point.injected_significance_chunks
-            )
-            x_errors.append(float(np.std(injected_significances)))
-        else:
-            x_errors.append(0.0)
+        injected_significances = np.concatenate(
+            signal_point.injected_significance_chunks
+        )
+        x_values.append(float(np.mean(injected_significances)))
+        x_errors.append(float(np.std(injected_significances)))
+        ignored_percentages = np.concatenate(
+            signal_point.ignored_signal_percentage_chunks
+        )
+        ignored_means.append(float(np.mean(ignored_percentages)))
+        ignored_maxima.append(float(np.max(ignored_percentages)))
         x_labels.append(signal_point.x_label)
         show_reference_diagonal.append(signal_point.show_reference_diagonal)
         connect_points.append(signal_point.connect_points)
@@ -540,6 +685,8 @@ def utils__calculate_performance_curve(
             observed_significance_upper_bounds
         )[sort],
         gaussian_fit_significances=np.asarray(gaussian_fit_significances)[sort],
+        ignored_signal_percentages=np.asarray(ignored_means)[sort],
+        ignored_signal_percentages_max=np.asarray(ignored_maxima)[sort],
     )
 
 

@@ -9,7 +9,6 @@ from data_tools.data_utils import DataSet
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
 
-
 _DATASET_1D = Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json")
 _DETECTOR_1D = Path("test/configs/detector/basic_1D_detector_config.json")
 _DATASET_2D = Path("test/configs/dataset/disjoint_2D_generated_dataset_config.json")
@@ -175,15 +174,28 @@ def test_function_space_1d_training_matrix(
             {
                 ConfigType.DATASET: _DATASET_2D,
                 ConfigType.DETECTOR: _DETECTOR_2D,
-                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "two_dimensional_adaptive_neural_binned.json",
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR
+                / "two_dimensional_adaptive_neural_binned.json",
             },
             id="2d-adaptive-binned",
         ),
         pytest.param(
             {
+                ConfigType.DATASET: Path(
+                    "test/configs/dataset/generated_extra_observables.yaml"
+                ),
+                ConfigType.DETECTOR: _DETECTOR_2D,
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR
+                / "two_dimensional_adaptive_neural_binned.json",
+            },
+            id="2d-truncated-gaussian-signal",
+        ),
+        pytest.param(
+            {
                 ConfigType.DATASET: _DATASET_2D,
                 ConfigType.DETECTOR: _DETECTOR_2D,
-                ConfigType.TRAIN: _TRAIN_CONFIG_DIR / "two_dimensional_cubic_bspline_adaptive_neural.json",
+                ConfigType.TRAIN: _TRAIN_CONFIG_DIR
+                / "two_dimensional_cubic_bspline_adaptive_neural.json",
             },
             id="2d-cubic-neural",
         ),

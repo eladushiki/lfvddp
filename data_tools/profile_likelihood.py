@@ -1,10 +1,11 @@
+from dataclasses import dataclass
 from itertools import product
 from math import fsum
 from typing import Callable, Union
 import numpy as np
 from scipy.integrate import IntegrationWarning, cubature, nquad
 from scipy.special import erfinv, kl_div, rel_entr
-from scipy.stats import norm, chi2
+from scipy.stats import norm, chi2, rankdata
 from warnings import catch_warnings, simplefilter, warn
 
 
@@ -89,6 +90,23 @@ def calc_median_t_significance_relative_to_background(
     return calc_t_significance_relative_to_background(
         np.median(signal_t_values), background_only_t_values
     )
+
+
+def calc_background_significance_summary(
+    background_only_t_values: np.ndarray,
+) -> tuple[float, float]:
+    """Return the background median and population spread in significance units.
+
+    Average ranks assign tied statistics the same percentile. Midpoints of
+    empirical probability steps avoid infinite scores at the sample endpoints.
+    This is the spread of experiments, not the standard error of their median.
+    """
+    values = np.asarray(background_only_t_values, dtype=float)
+    if values.ndim != 1 or values.size == 0 or not np.all(np.isfinite(values)):
+        raise ValueError("Background statistics must be a nonempty finite 1D array.")
+    probabilities = (rankdata(values, method="average") - 0.5) / values.size
+    significances = norm.ppf(probabilities)
+    return float(np.median(significances)), float(np.std(significances))
 
 
 def _normalize_integration_upper_limits(
@@ -310,9 +328,14 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
     n_background_events: int,
     n_signal_events: int,
     upper_limit: Union[float, np.ndarray] = np.inf,
+    detector_efficiency: Callable | None = None,
 ):
     """Calculate formula (32) from 2024 paper, significance for distributions
     over one or more observables with known pdfs.
+
+    ``detector_efficiency`` accepts the same coordinates as the PDFs and
+    multiplies both event densities. Accepted densities are not renormalized;
+    the likelihood contribution includes the accepted signal subtraction.
 
     A scalar ``upper_limit`` defines the existing one-dimensional domain
     ``[0, upper_limit]``. A one-dimensional array supplies one upper bound per
@@ -331,7 +354,14 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         background_rate_density = n_background_events * _pdf_density_at_coordinates(
             background_pdf, coordinates
         )
-        return rel_entr(  # = a * log(a/b)
+        acceptance = (
+            1.0
+            if detector_efficiency is None
+            else _pdf_density_at_coordinates(detector_efficiency, coordinates)
+        )
+        signal_rate_density *= acceptance
+        background_rate_density *= acceptance
+        return rel_entr(
             signal_rate_density + background_rate_density,
             background_rate_density,
         )
@@ -347,6 +377,10 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
             background_rate_density = n_background_events * _pdf_densities_at_points(
                 background_pdf, points
             )
+            if detector_efficiency is not None:
+                acceptance = _pdf_densities_at_points(detector_efficiency, points)
+                signal_rate_density *= acceptance
+                background_rate_density *= acceptance
             return 2 * kl_div(
                 signal_rate_density + background_rate_density,
                 background_rate_density,
@@ -387,43 +421,110 @@ def calc_injected_t_significance_by_sqrt_q0_continuous(
         if not np.isfinite(q0):
             raise ValueError("Multidimensional significance integration was non-finite")
     else:
-        try:
-            with catch_warnings():
-                simplefilter("error", IntegrationWarning)
-                integral = fsum(
-                    nquad(
-                        integrand,
-                        interval_bounds,
-                        opts={
-                            "limit": _QUADRATURE_SUBDIVISION_LIMIT,
-                            "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
-                            "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
-                        },
-                    )[0]
-                    for interval_bounds in _one_dimensional_integration_regions(
-                        upper_limits.item()
-                    )
-                )
-        except IntegrationWarning as warning:
-            raise ValueError(
-                f"Integration unsuccessful up to upper limit {upper_limit}"
-            ) from warning
 
-        q0 = 2 * (-n_signal_events + integral)
+        def integrate_density(density):
+            try:
+                with catch_warnings():
+                    simplefilter("error", IntegrationWarning)
+                    return fsum(
+                        nquad(
+                            density,
+                            interval_bounds,
+                            opts={
+                                "limit": _QUADRATURE_SUBDIVISION_LIMIT,
+                                "epsabs": _QUADRATURE_ABSOLUTE_TOLERANCE,
+                                "epsrel": _QUADRATURE_RELATIVE_TOLERANCE,
+                            },
+                        )[0]
+                        for interval_bounds in _one_dimensional_integration_regions(
+                            upper_limits.item()
+                        )
+                    )
+            except IntegrationWarning as warning:
+                raise ValueError(
+                    f"Integration unsuccessful up to upper limit {upper_limit}"
+                ) from warning
+
+        def accepted_signal_density(*coordinates):
+            acceptance = (
+                1.0
+                if detector_efficiency is None
+                else _pdf_density_at_coordinates(detector_efficiency, coordinates)
+            )
+            return (
+                n_signal_events
+                * _pdf_density_at_coordinates(signal_pdf, coordinates)
+                * acceptance
+            )
+
+        accepted_signal_events = integrate_density(accepted_signal_density)
+        q0 = 2 * (integrate_density(integrand) - accepted_signal_events)
     return np.sqrt(q0)
 
 
 def calc_injected_t_significance_by_sqrt_q0_binned(
-    background_t_distribution: np.ndarray,
-    signal_t_distribution: np.ndarray,
-    n_signal_events: int,
-    background_fraction: float,
-):
+    background_bin_counts: np.ndarray,
+    signal_bin_counts: np.ndarray,
+) -> float:
+    """Return binned significance, excluding bins without expected background."""
+    return calc_binned_injected_significance(
+        background_bin_counts, signal_bin_counts
+    ).significance
+
+
+@dataclass(frozen=True)
+class BinnedInjectedSignificance:
+    significance: float
+    ignored_signal_events: float
+    ignored_bins: int
+
+
+def calc_binned_injected_significance(
+    background_bin_counts: np.ndarray,
+    signal_bin_counts: np.ndarray,
+) -> BinnedInjectedSignificance:
+    """Calculate injected significance from expected background and signal bins.
+
+    ``background_bin_counts`` contains expected background counts per bin
+    :math:`N_{b,i}` and ``signal_bin_counts`` contains expected signal counts
+    per bin :math:`N_{s,i}`. The returned value is
+    :math:`Z=\\sqrt{q_0}`, with
+    :math:`q_0=2[-N_s + \\sum_i (N_{b,i}+N_{s,i})\\log((N_{b,i}+N_{s,i})/N_{b,i})]`
+    and :math:`N_s=\\sum_i N_{s,i}`. Both sums include only bins with
+    positive expected background. Diagnostics report excluded expected signal
+    events, not raw histogram sample counts. This is a restricted-bin estimate,
+    not the full significance when excluded signal is nonzero.
+    """
+    background_bin_counts = np.asarray(background_bin_counts, dtype=float)
+    signal_bin_counts = np.asarray(signal_bin_counts, dtype=float)
+    if background_bin_counts.shape != signal_bin_counts.shape:
+        raise ValueError(
+            "Background and signal bin counts must have the same shape; got "
+            f"{background_bin_counts.shape} and {signal_bin_counts.shape}."
+        )
+    if np.any(~np.isfinite(background_bin_counts)) or np.any(
+        ~np.isfinite(signal_bin_counts)
+    ):
+        raise ValueError("Binned significance counts must be finite.")
+    if np.any(background_bin_counts < 0) or np.any(signal_bin_counts < 0):
+        raise ValueError("Binned significance counts must be non-negative.")
+
+    populated = background_bin_counts > 0
+    ignored_signal_events = float(np.sum(signal_bin_counts[~populated]))
+    ignored_bins = int(np.count_nonzero(~populated & (signal_bin_counts > 0)))
+    n_signal_events = float(np.sum(signal_bin_counts[populated]))
+    if n_signal_events <= 0:
+        return BinnedInjectedSignificance(0.0, ignored_signal_events, ignored_bins)
+
     q0 = 2 * (
         -n_signal_events
         + np.sum(
-            (mu * data + (bkg * background_fraction))
-            * np.log(mu * data / (bkg * background_fraction) + 1)
+            (background_bin_counts[populated] + signal_bin_counts[populated])
+            * np.log1p(signal_bin_counts[populated] / background_bin_counts[populated])
         )
     )
-    return np.sqrt(q0)
+    if not np.isfinite(q0):
+        raise ValueError("Binned significance was non-finite.")
+    return BinnedInjectedSignificance(
+        float(np.sqrt(max(q0, 0.0))), ignored_signal_events, ignored_bins
+    )

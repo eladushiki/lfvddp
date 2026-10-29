@@ -1,0 +1,24 @@
+{
+  "dataset__definitions": [
+    {
+      "name": "calibration",
+      "type": "generated",
+      "category": "a_sr",
+      "dataset_generated__number_of_dimensions": 1,
+      "dataset_generated__background_generator": {
+        "function": "exponential_background"
+      },
+      "dataset__mean_number_of_background_events": 1000,
+      "dataset__number_of_background_events": 1000,
+      "dataset__number_of_signal_events": 1,
+      "dataset__signal_generator": {
+        "function": "gaussian_signal",
+        "arguments": {
+          "location": 0,
+          "gaussian_signal_sigma": 1
+        }
+      },
+      "dataset__signal_positive_only": false
+    }
+  ]
+}

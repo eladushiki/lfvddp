@@ -1,0 +1,12 @@
+version: 5
+last_checked_at: null
+remote_checkout: {}
+branch_migrations: []
+submissions: []
+plot_groups: []
+worker_retention_policy:
+  rule: Retain the first lexicographic worker for every array, regardless of debug.
+completed_scientific_update:
+  status: complete
+  calibration:
+    status: complete

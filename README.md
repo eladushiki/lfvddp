@@ -90,6 +90,20 @@ Important configuration choices include:
   and records one.
 - `dataset__definitions` describes the A/B signal-region and control-region
   samples. See the two basic packs for generated and loaded examples.
+- `dataset__signal_positive_only` defaults to `true` for generated signals on
+  both generated and loaded backgrounds. Every signal coordinate must be
+  nonnegative. `gaussian_signal` uses a truncated normal; correlated and composed
+  generators redraw rejected whole events to retain the configured signal count.
+  The joint distribution is conditioned on that region, preserving
+  joint dependence rather than clipping values at zero. Its PDF is renormalized
+  for significance calibration. Set this field to `false` in a dataset definition
+  to retain negative signal coordinates. Calibration with `--configs` reads this
+  same setting; explicit-generator calibration uses the dataset default. This constraint
+  applies before detector effects and does not match other background bounds.
+- All datasets are projected onto the ordered `detector__detect_observable_names`
+  after component combination, before regional A/B pooling. Generated and loaded
+  sources use the same rule, including background-only categories. Extra loaded
+  columns remain available through cuts and component sampling.
 - Loaded-dataset resampling is configured per A/B region. When enabled for a
   region, LFVDDP first selects each category's configured background and signal
   counts, combines its two components, then resamples the complete regional A/B
@@ -104,10 +118,21 @@ Important configuration choices include:
 - `train__epochs`, checkpoint frequency, function-space dimensions, and
   learning-rate settings control optimization.
 
-To choose a generated signal yield from the same continuous injected-
-significance calculation used by generated-dataset performance plots, use the
-separate calibration entry point. It accepts the dataset generator
-specifications as JSON and can solve several target values in one invocation:
+To choose a generated signal yield for a detector-level injected significance
+target, give the calibration entry point the dataset and detector configuration
+files (or directories), in the same merge order as the run:
+
+```bash
+calibrate_signal_events \
+  --configs path/to/dataset_config.yaml path/to/detector_config.yaml \
+  --target-significance 1.6 3.2 4.8 6.4 8
+```
+
+This mode reads the signal dataset's PDFs, mean background yield, integration
+domain, and nominal A/B efficiency. It accepts generated datasets only and
+does not require a training model. Without detector configuration, the explicit
+generator mode below retains a generated-level target. Both modes can solve
+several targets in one invocation:
 
 ```bash
 calibrate_signal_events \
@@ -121,6 +146,27 @@ calibrate_signal_events \
 The command prints JSON containing the mean signal event count for each target.
 The repository `signal-count-estimate-by-dataset-parameters` skill uses this calibration workflow
 when configuration files need target-significance signal amounts.
+- `train__optimizer_strategy` defaults to `"adam"`. Select `"adam_lbfgs"`
+  for full-batch Adam warmup followed by L-BFGS with strong-Wolfe line search.
+  Each hypothesis has its own `train__epochs` budget: every full-data loss and
+  gradient evaluation counts once, including every L-BFGS line-search probe.
+  Adam receives the smaller of 5% of that budget (rounded down) and 2,000
+  evaluations. Budgets below 20 start directly with L-BFGS. The Adam learning
+  rate is `train__learning_rate`; `train__final_learning_rate` must be `null`.
+  L-BFGS uses initial step length 1 and 50 curvature-history entries.
+  `HybridOptimizer` is a PyTorch `Optimizer` supporting standard zero-argument
+  closures, optimizer hooks, and one parameter group. An attached learning-rate
+  scheduler can change the active optimizer's rate; the Adam-to-L-BFGS switch
+  explicitly resets that rate to 1 while preserving scheduler metadata.
+  Scheduler state must be saved separately when using one outside the training
+  pipeline; no external scheduler is configured by this strategy.
+  A conservative initial budget is 40,000 evaluations per hypothesis, preserving
+  the 2,000-update warmup used in our experiments; an optimal budget has not been
+  established. Best-state retention includes evaluated line-search probes.
+  Checkpoints preserve optimizer phase, counters, and curvature history.
+  Continuation may extend the budget with `--epochs-target`; the original
+  warmup boundary stays fixed. Switching strategy during continuation or
+  reducing its budget is rejected. NPLM does not support this strategy.
 - `train__backend` is the sole training-backend selector and defaults to
   `"lfvddp"`. `train__f` is a required function-space mapping with `family`
   and `options`; `train__nuisance` uses the same mapping or `null` when
@@ -132,7 +178,11 @@ when configuration files need target-significance signal amounts.
   do not share mutable geometry. Geometry comparable to observable axes
   (bin limits, spline knots, polynomial domains, centres, and widths) is given
   in physical observable units; LFVDDP applies the run's shared data
-  normalization before evaluating per-event function spaces.
+  normalization before evaluating per-event function spaces. New LFVDDP fits
+  subtract each observable's pooled mean and divide by its pooled population
+  standard deviation across all four categories. Constant observables map to
+  zero with unit scale. Checkpoint continuation reuses its saved coordinate
+  map, including the historical min/max map for older checkpoints.
   Deterministic per-dimension bases accept `tensor_product_basis: true` in
   their `options` to train one coefficient per Cartesian product of basis
   elements across observables. The option defaults to `true`.
@@ -140,15 +190,79 @@ when configuration files need target-significance signal amounts.
   changing its feature map. In tensor-product mode, `fixed_sigmoid` interprets
   nested `centers` and `widths` as per-observable lists and expands all joint
   centre-width combinations.
+- LFVDDP `adaptive_neural` options use `hidden_layer_nodes: 4` for one hidden
+  layer, `[4, 3]` for successive hidden layers, or `[]` for no hidden layers.
+  This applies independently to `train__f` and `train__nuisance`. Every hidden
+  layer is fully connected with sigmoid activation. The input width is inferred
+  from detector observables, and the output always has one node
+  with the existing smooth likelihood bound. Initialization uses the configured
+  Xavier gain and the existing bias range at every depth. Integer configurations
+  retain their single-layer checkpoint layout. Neither `input_dimension` nor
+  `output_dimension` is a neural configuration option. Obsolete dimension hints
+  in saved neural configurations are discarded during resolution; they cannot
+  override the observable count or scalar output.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
-  `input_dimension` and `hidden_layer_nodes`. Adaptive neural and NPLM studies
+  integer `hidden_layer_nodes`; input width is inferred from observables and
+  output width is fixed to one. List architectures are
+  supported only by LFVDDP. Adaptive neural and NPLM studies
   require empirical-null calibration rather than assigning Wilks degrees of
   freedom from parameter counts.
+- Multidimensional prediction-process figures use aligned heatmaps with external
+  labels and shared colorbars. Separate data and fitted-density maps retain the
+  full distributions. Their shared color limits come from observed histograms;
+  fitted values outside those limits use the endpoint colors. An A/B difference
+  map in counting-error units highlights localized discrepancies. Model-factor
+  maps use the distribution palette with separate shared linear limits
+  symmetric around unity. An A-minus-B
+  factor-difference column sits at the left of each signal/null row; all top
+  and bottom differences share one color scale centered at zero.
+  Hidden-observable model factors are displayed as uniform grid averages. The 1D view is unchanged.
+- For a resonant Gaussian injection with exactly two detected observables, all
+  24 prediction-process heatmaps include a matching signal zoom inset centered
+  on the injected mean and extending two standard deviations per coordinate.
+  Insets preserve the parent map's binning and color scale.
 - `plot__plot_specifications` selects the plots produced for a submission. Plot
   behavior is documented in [`plot/specs`](plot/specs). Multi-run performance
-  plots use analytic injected significance only for generated datasets; loaded
-  datasets are plotted against configured mean injected signal events instead.
+  significance is calibrated against background runs. Single-submission
+  test-statistic distribution and percentile-progression plots always show
+  diagnostic chi-square references: adaptive LFVDDP counts all signal-network weights and
+  biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed
+  families use their constrained dimension. Shared nuisance parameters do not
+  contribute to this reference. Parameter counting alone does not establish
+  Wilks validity. Separate `numerator_train_percentile_progression_plot` and
+  `denominator_train_percentile_progression_plot` entries show the component-loss
+  percentiles without chi-square references. Both standard plot configs enable
+  them; custom configs opt in explicitly. All three progression plots use the
+  same final-test-statistic run selection. Component axes show signed values
+  fitted to the final half of training. Multi-run performance plots use analytic
+  injected significance for generated datasets, with the configured nominal detector efficiency
+  multiplying both signal and background densities without renormalizing
+  accepted event counts. This efficiency-only benchmark excludes efficiency
+  uncertainty, measurement smearing, and nuisance profiling. The signal-yield
+  calibration CLI includes nominal efficiency when called with `--configs`;
+  explicit generator mode defaults to generated level. Loaded
+  datasets use a binned evident injected significance from expected background
+  and signal counts in detector-observable bins. Training saves its sampled
+  data and exact prediction-plot bin edges in `data_samples.npz`. For array
+  submissions, plotting reads each successful worker's artifact rather than
+  looking in the submission directory, and reports the mean and spread of
+  their evident injected significances. Workers with zero sampled signal
+  events contribute zero injected significance, even with a positive configured
+  mean signal count. Older runs
+  without this artifact must be rerun to plot evident injected significance.
+  The common background-only point has exactly zero injected significance
+  and a vertical bar showing the population spread in calibrated significance
+  units. Curves and uncertainty bands connect to this common point; the measured
+  significance axis starts at zero, clipping all negative values.
+  Both data sources use connected measured-significance curves and shaded
+  uncertainty bands. Loaded-data plots retain horizontal sample-spread error
+  bars and show the exclusion warning above the axes, clear of the legend.
+  Loaded significance excludes zero-background bins from both likelihood terms.
+  When signal is excluded, the graph visibly labels each affected point with
+  the mean and maximum **missing-signal percentages per run**, relative to
+  each run's intended mean signal count. One worker is one independent run. This is
+  a restricted-bin estimate, not evidence that the physical background is zero.
 - `cluster__qsub_n_jobs`, resource requests, and walltime control cluster jobs.
   `cluster__parallel_runtime_cpu_reserve` optionally holds CPU capacity back
   from Torch workers; it defaults to `0`.
@@ -174,6 +288,12 @@ python train/single_train.py --configs configs/my-study --debug
 Use `--out-dir <directory>` to override `config__out_dir` for a fresh run.
 
 ## Submit to the WIS ATLAS cluster
+
+Shared submission-state transactions use a fail-fast lock and a two-hour
+default timeout. For longer authorized routines, pass `--timeout-seconds`
+before `-- <command>` to `.agents/scripts/with_submission_state_lock.py`.
+Timeouts stop the transaction's child process group before releasing its lock;
+reconcile scheduler/output evidence before retrying interrupted work.
 
 Run the submission command from a configured cluster login environment:
 
@@ -235,6 +355,11 @@ Create the configured plots from one completed submission:
 python plot/create_plots.py <submission-directory>
 ```
 
+Prediction-process plots can use `plot__prediction_process_display_percentiles`
+(e.g. `[0, 99.5]`) to focus on the populated range of each observable independently.
+This option preserves training data, full-sample normalization, and significance
+histograms. Its default retains the full observed range.
+
 The submission must contain the staged `configs` directory and its training
 runs. The plotting command reads that saved configuration; it does not accept
 `--configs`. Use `--debug` while working with an uncommitted tree.
@@ -255,6 +380,11 @@ python plot/create_plots.py <signal-directory> \
   --background-directory <background-submission-directory>
 ```
 
+An explicit `--background-directory` may contain signal, for example when
+using a resampled signal-containing dataset as the null reference. Plotting
+warns and uses that saved distribution; measured significance is relative to
+that reference. Automatic discovery still selects background-only runs.
+
 Multi-run discovery can be disrupted by a stale timestamped directory from a
 submission that was empty, failed before or after `qsub`, or completed no more
 than 90% of its expected array jobs. Retain such directories while diagnosing
@@ -269,6 +399,15 @@ Runs are written below `config__out_dir` in a unique directory containing
 Git commit, seed, submission history, completion state, and produced files.
 Training histories, checkpoints, model weights, worker output, results, and
 plots are stored alongside that context as applicable.
+
+JSON outputs, including worker contexts, are published atomically from a unique
+temporary file in the same directory. Concurrent continuation readers therefore
+see a complete old or new document, never a truncated intermediate. Reads retry
+briefly for older workers that still write in place; persistent malformed JSON
+remains an error with its file path. Continuation and checkpoint discovery filter
+worker identities before reconstructing their configurations, without silently
+discarding corrupt contexts. Atomic publication prevents partial reads, not
+conflicting logical updates: only one training process should own a worker run.
 
 The `results/`, `data/`, and local configuration directories are intentionally
 ignored by Git. Back up important run directories and external datasets

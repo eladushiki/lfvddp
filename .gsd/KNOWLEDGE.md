@@ -7,6 +7,7 @@ Agents read this before every unit. Add entries when you discover something wort
 | # | Scope | Rule | Why | Added |
 |---|-------|------|-----|-------|
 | 1 | All GitHub operations | Interpret “gh app” as the repository-configured GSD Develop GitHub App. For PRs, comments, and other GitHub writes, mint its installation token and use `gh` before considering a Codex plugin, browser login, or personal `gh` authentication. | This preserves the repository’s configured authorization path and makes “gh app” unambiguous. | 2026-09-24 |
+| 2 | Configuration access | Do not probe config fields with `getattr`. Verify `isinstance` for the needed config type or combined config type, then access attributes directly. | Config attributes are part of the schema; direct typed access keeps missing schema composition visible instead of silently changing behavior. | 2026-10-06 |
 
 ## Patterns
 

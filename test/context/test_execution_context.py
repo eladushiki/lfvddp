@@ -626,6 +626,9 @@ def test_continuation_recreates_generated_and_resampled_datasets(
 def test_child_context_loading_matches_array_index(
     tmp_path,
     function_execution_context,
+    monkeypatch,
+    detector_effect,
+    differentiating_model_factory,
 ):
     config = _config_for_out_dir(function_execution_context, tmp_path)
     contexts = []
@@ -657,6 +660,74 @@ def test_child_context_loading_matches_array_index(
 
     assert selected.random_seed == 202
     assert selected.unique_out_dir == contexts[1].unique_out_dir
+
+    # A valid sibling's raw identity is enough to reject it. Do not rebuild
+    # its model/dataset config or reseed every backend while selecting index 2.
+    sibling_path = contexts[0].unique_out_dir / CONTEXT_FILE_NAME
+    original_reconstruct = ExecutionContext._from_saved_data
+    reconstructed_indices = []
+
+    def reconstruct(data):
+        reconstructed_indices.append(data.get("array_index"))
+        return original_reconstruct(data)
+
+    monkeypatch.setattr(ExecutionContext, "_from_saved_data", reconstruct)
+    assert (
+        ExecutionContext.load_child_run_context(
+            tmp_path, SINGLE_TRAIN_SCRIPT_NAME, 2
+        ).random_seed
+        == 202
+    )
+    assert reconstructed_indices == [2]
+
+    from train.checkpoints import (
+        find_latest_training_checkpoint,
+        save_training_checkpoint,
+    )
+
+    checkpoint_path = save_training_checkpoint(
+        contexts[1],
+        "test_model",
+        differentiating_model_factory(contexts[1], detector_effect),
+        None,
+        4,
+        {},
+    )
+    selected.is_continue = True
+    selected.continue_from = tmp_path
+    found_path, checkpoint = find_latest_training_checkpoint(selected, "test_model")
+    assert found_path == checkpoint_path
+    assert checkpoint["epoch"] == 4
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    def publish_context():
+        for _ in range(20):
+            contexts[1].save_self_to_out_file()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        publication = executor.submit(publish_context)
+        for _ in range(20):
+            assert (
+                ExecutionContext.load_child_run_context(
+                    tmp_path, SINGLE_TRAIN_SCRIPT_NAME, 2
+                ).random_seed
+                == 202
+            )
+            assert (
+                find_latest_training_checkpoint(selected, "test_model")[0]
+                == checkpoint_path
+            )
+        publication.result()
+
+    # Persistent malformed JSON is still an error, not a silently omitted run.
+    sibling_path.write_text("")
+    from json import JSONDecodeError
+
+    with pytest.raises(JSONDecodeError):
+        ExecutionContext.load_child_run_context(tmp_path, SINGLE_TRAIN_SCRIPT_NAME, 2)
+    with pytest.raises(JSONDecodeError):
+        find_latest_training_checkpoint(selected, "test_model")
 
 
 def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
@@ -703,19 +774,23 @@ def test_continuation_accepts_overrides_and_the_optional_debug_flag(capsys):
     with pytest.raises(SystemExit):
         parse_config_from_args(["--continue", "results/run", "--epochs-target", "0"])
     with pytest.raises(SystemExit):
-        parse_config_from_args([
-            "--configs",
-            "configs/basic-loaded/user_config.json",
-            "--extra-time",
-            "24:00:00",
-        ])
+        parse_config_from_args(
+            [
+                "--configs",
+                "configs/basic-loaded/user_config.json",
+                "--extra-time",
+                "24:00:00",
+            ]
+        )
     with pytest.raises(SystemExit):
-        parse_config_from_args([
-            "--configs",
-            "configs/basic-loaded/user_config.json",
-            "--epochs-target",
-            "750000",
-        ])
+        parse_config_from_args(
+            [
+                "--configs",
+                "configs/basic-loaded/user_config.json",
+                "--epochs-target",
+                "750000",
+            ]
+        )
     capsys.readouterr()
 
 

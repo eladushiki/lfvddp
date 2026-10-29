@@ -44,6 +44,7 @@ from frame.file_structure import CONTEXT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel, calc_min_LFVNN
 from neural_networks.utils import ContextedModel
+from train.hybrid_optimizer import validate_optimizer_continuation
 from train.checkpoints import find_latest_training_checkpoint
 from train.cpu_runtime import configure_cpu_runtime
 from train.runtime_resources import RuntimeAllocation
@@ -123,6 +124,10 @@ class TrainLauncher(ABC):
         return checkpoint
 
     def _checkpoint_finished_training(self, checkpoint: dict[str, Any]) -> bool:
+        schedule = checkpoint.get("optimizer_schedule")
+        validate_optimizer_continuation(
+            schedule, self._config.train__optimizer_strategy, self._config.train__epochs
+        )
         return int(checkpoint.get("epoch", -1)) >= self._config.train__epochs - 1
 
     def _checkpoint_result(self, checkpoint: dict[str, Any]) -> float:

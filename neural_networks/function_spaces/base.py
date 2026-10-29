@@ -7,6 +7,7 @@ from math import prod
 from types import MappingProxyType
 from typing import (
     Any,
+    Final,
     Iterable,
     Mapping,
     Optional,
@@ -22,10 +23,13 @@ from torch import nn
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
 
-from neural_networks.likelihood_parameterization import smoothly_bounded_likelihood_shift
+from neural_networks.likelihood_parameterization import (
+    smoothly_bounded_likelihood_shift,
+)
 
 
 EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
+SCALAR_OUTPUT_DIMENSION: Final = 1
 
 
 @runtime_checkable
@@ -36,23 +40,29 @@ class FunctionSpace(Protocol):
     options: Mapping[str, Any]
     feature_count: int
 
-    def forward(self, events: EventInput) -> torch.Tensor:
-        ...
+    def forward(self, events: EventInput) -> torch.Tensor: ...
 
-    def initialize_parameters(self, gain: float) -> None:
-        ...
+    def initialize_parameters(self, gain: float) -> None: ...
 
     @classmethod
     def from_options(
         cls,
         options: Mapping[str, Any],
+        *,
+        observable_names: Iterable[str] | None = None,
         **construction: Any,
-    ) -> "FunctionSpace":
-        ...
+    ) -> "FunctionSpace": ...
 
     @classmethod
     def validate_options(cls, options: Mapping[str, Any]) -> None:
         """Validate this family's configuration-owned geometry."""
+        ...
+
+    @classmethod
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
+    ) -> int | None:
+        """Return this family's configured diagnostic count using detector context."""
         ...
 
     def normalize_input_geometry(
@@ -64,7 +74,7 @@ class FunctionSpace(Protocol):
         ...
 
     def statistical_degrees_of_freedom(self) -> int | None:
-        """Return the fixed hypothesis-space dimension, when defined."""
+        """Return the family-owned diagnostic degree count, when defined."""
         ...
 
 
@@ -84,7 +94,9 @@ def immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
 
     def freeze(value: Any) -> Any:
         if isinstance(value, Mapping):
-            return MappingProxyType({deepcopy(key): freeze(item) for key, item in value.items()})
+            return MappingProxyType(
+                {deepcopy(key): freeze(item) for key, item in value.items()}
+            )
         if isinstance(value, (list, tuple)):
             return tuple(freeze(item) for item in value)
         return deepcopy(value)
@@ -92,7 +104,9 @@ def immutable_options(options: Mapping[str, Any]) -> Mapping[str, Any]:
     return MappingProxyType({key: freeze(value) for key, value in options.items()})
 
 
-def require_options(options: Mapping[str, Any], family: str, names: Iterable[str]) -> None:
+def require_options(
+    options: Mapping[str, Any], family: str, names: Iterable[str]
+) -> None:
     """Reject incomplete geometry with a family-specific error."""
 
     missing = [name for name in names if name not in options]
@@ -103,10 +117,11 @@ def require_options(options: Mapping[str, Any], family: str, names: Iterable[str
 def scalar_output_dimension(options: Mapping[str, Any], family: str) -> int:
     """Enforce the scalar likelihood-shift contract for every family."""
 
-    output_dimension = options.get("output_dimension", 1)
-    if output_dimension != 1:
-        raise ValueError(f"{family} must have output_dimension equal to 1.")
-    return 1
+    if "output_dimension" in options:
+        raise ValueError(
+            f"{family} output_dimension is not configurable; the output is always scalar."
+        )
+    return SCALAR_OUTPUT_DIMENSION
 
 
 def number_sequence(value: Any, name: str) -> tuple[float, ...]:
@@ -115,7 +130,11 @@ def number_sequence(value: Any, name: str) -> tuple[float, ...]:
     if isinstance(value, (str, bytes)):
         raise ValueError(f"{name} must be a numeric sequence.")
     try:
-        values = tuple(float(item) for item in value) if not np.isscalar(value) else (float(value),)
+        values = (
+            tuple(float(item) for item in value)
+            if not np.isscalar(value)
+            else (float(value),)
+        )
     except (TypeError, ValueError) as error:
         raise ValueError(f"{name} must be a numeric sequence.") from error
     if not values or not all(np.isfinite(item) for item in values):
@@ -179,7 +198,9 @@ def tensor_product_basis_enabled(
     return enabled
 
 
-def assembled_feature_count(feature_counts: Iterable[int], *, tensor_product_basis: bool) -> int:
+def assembled_feature_count(
+    feature_counts: Iterable[int], *, tensor_product_basis: bool
+) -> int:
     """Return additive or tensor-product width from per-dimension widths."""
 
     counts = tuple(int(count) for count in feature_counts)
@@ -229,10 +250,12 @@ class PerEventFunctionSpace(nn.Module):
         return None
 
     @classmethod
-    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int | None:
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
+    ) -> int | None:
         """Return the configured fixed-space dimension without constructing a module."""
 
-        del options
+        del options, observable_count
         return None
 
 
@@ -269,7 +292,10 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         return 0
 
     @classmethod
-    def analytic_degrees_of_freedom(cls, options: Mapping[str, Any]) -> int:
+    def analytic_degrees_of_freedom(
+        cls, options: Mapping[str, Any], *, observable_count: int | None = None
+    ) -> int:
+        del observable_count
         geometry = cls.geometry_from_options(options)
         output_dimension = scalar_output_dimension(options, cls.family)
         degrees_of_freedom = (
@@ -288,9 +314,16 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
         scalar_output_dimension(options, cls.family)
 
     @classmethod
-    def from_options(cls, options: Mapping[str, Any], **construction: Any) -> "FunctionSpace":
+    def from_options(
+        cls,
+        options: Mapping[str, Any],
+        *,
+        observable_names: Iterable[str] | None = None,
+        **construction: Any,
+    ) -> "FunctionSpace":
         """Build any fixed feature family through its common construction path."""
 
+        del observable_names
         return cls(
             cls.geometry_from_options(options),
             options=options,
@@ -308,14 +341,18 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
     ) -> None:
         super().__init__()
         if feature_count <= 0:
-            raise ValueError("A deterministic function space must have at least one feature.")
+            raise ValueError(
+                "A deterministic function space must have at least one feature."
+            )
         if output_dimension != 1:
             raise ValueError("Function-space output_dimension must equal 1.")
         self.feature_count = int(feature_count)
         self.output_dimension = int(output_dimension)
         self.options = immutable_options(options or {})
         self.coefficients = nn.Parameter(
-            torch.zeros(self.feature_count, self.output_dimension, dtype=dtype, device=device)
+            torch.zeros(
+                self.feature_count, self.output_dimension, dtype=dtype, device=device
+            )
         )
 
     @property
@@ -333,9 +370,7 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
     def statistical_degrees_of_freedom(self) -> int:
         """Return this family's independent, constrained coefficient count."""
 
-        return self.analytic_degrees_of_freedom(
-            {**self.options, "output_dimension": self.output_dimension}
-        )
+        return self.analytic_degrees_of_freedom(self.options)
 
     def _statistical_constraint_dimension(self) -> int:
         """Return fixed dependencies and observed-count constraints in this family."""

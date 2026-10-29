@@ -5,15 +5,15 @@ from typing import Any, Iterable, Mapping, Optional
 import torch
 
 from frame.context.execution_context import ExecutionContext
-from frame.context.run_descriptor import run_descriptor_matches
 from frame.file_structure import (
     CHECKPOINTS_DIR_NAME,
-    CONTEXT_FILE_NAME,
     SINGLE_TRAIN_SCRIPT_NAME,
     TRAINING_CHECKPOINT_SUFFIX,
     TRAINING_OUTCOMES_DIR_NAME,
 )
-
+from train.hybrid_optimizer import (
+    optimizer_schedule as get_optimizer_schedule,
+)
 
 CHECKPOINT_METADATA_KEY = "metadata"
 
@@ -72,17 +72,12 @@ def _single_train_checkpoint_paths(
     dirsafe_runtag = getattr(
         getattr(context, "config", None), "config__dirsafe_runtag", None
     )
-    for child_context_path in continue_from.glob(f"*/{CONTEXT_FILE_NAME}"):
-        child_context = ExecutionContext.load_from_run_dir(child_context_path.parent)
-        if child_context.array_index != context.array_index:
-            continue
-        if not run_descriptor_matches(
-            child_context.run_descriptor,
-            entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
-            dirsafe_runtag=dirsafe_runtag,
-        ):
-            continue
-
+    for _, child_context_path in ExecutionContext.discover_run_contexts(
+        continue_from,
+        entrypoint=SINGLE_TRAIN_SCRIPT_NAME,
+        dirsafe_runtag=dirsafe_runtag,
+        array_indices={context.array_index},
+    ):
         checkpoint_path = (
             child_context_path.parent
             / TRAINING_OUTCOMES_DIR_NAME
@@ -115,7 +110,10 @@ def save_training_checkpoint(
     best_model_state_dict: Optional[dict[str, Any]] = None,
     best_loss: Optional[float] = None,
     best_epoch: Optional[int] = None,
+    optimizer_schedule: Optional[Mapping[str, Any]] = None,
 ) -> Path:
+    if optimizer_schedule is None:
+        optimizer_schedule = get_optimizer_schedule(optimizer)
     checkpoint_dir = _checkpoint_dir(context)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = checkpoint_dir / checkpoint_filename(model_name)
@@ -123,6 +121,9 @@ def save_training_checkpoint(
 
     torch.save(
         {
+            "optimizer_schedule": dict(optimizer_schedule)
+            if optimizer_schedule is not None
+            else None,
             "model_name": model_name,
             "epoch": epoch,
             "model_state_dict": model.state_dict(),

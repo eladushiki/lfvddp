@@ -18,13 +18,15 @@ def _binned_spec():
 def _adaptive_spec():
     return {
         "family": "adaptive_neural",
-        "options": {"input_dimension": 1, "hidden_layer_nodes": 4},
+        "options": {"hidden_layer_nodes": 4},
     }
 
 
 def test_canonical_roles_use_independent_immutable_options():
-    options = {"input_dimension": 1, "hidden_layer_nodes": 4, "geometry": {"width": 1.0}}
-    resolved = resolve_dual_role_config(f={"family": "adaptive_neural", "options": options}, nuisance=_binned_spec())
+    options = {"hidden_layer_nodes": 4, "geometry": {"width": 1.0}}
+    resolved = resolve_dual_role_config(
+        f={"family": "adaptive_neural", "options": options}, nuisance=_binned_spec()
+    )
 
     assert resolved.backend is TrainingBackend.LFVDDP
     assert resolved.f.family == "adaptive_neural"
@@ -46,7 +48,9 @@ def test_null_nuisance_is_the_only_disabled_canonical_form():
 
 
 def test_backend_is_the_only_runtime_selector_and_validates_supported_spaces():
-    resolved = resolve_dual_role_config(backend="nplm", f=_adaptive_spec(), nuisance=_binned_spec())
+    resolved = resolve_dual_role_config(
+        backend="nplm", f=_adaptive_spec(), nuisance=_binned_spec()
+    )
     assert resolved.backend is TrainingBackend.NPLM
     with pytest.raises(ValueError, match="NPLM backend supports"):
         resolve_dual_role_config(
@@ -57,11 +61,11 @@ def test_backend_is_the_only_runtime_selector_and_validates_supported_spaces():
 
 
 def test_family_options_are_validated_by_train_configuration():
-    with pytest.raises(ValueError, match="positive input_dimension"):
+    with pytest.raises(ValueError, match="hidden_layer_nodes"):
         TrainConfig(
             train__epochs=100,
             train__number_of_epochs_for_checkpoint=10,
-            train__f={"family": "adaptive_neural", "options": {"hidden_layer_nodes": 4}},
+            train__f={"family": "adaptive_neural", "options": {}},
             train__nuisance=None,
         )
 
