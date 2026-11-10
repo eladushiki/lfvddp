@@ -20,47 +20,51 @@ Any signal that exists in either of our samples, that is captured by our definit
 
 The significance estimation of a $\invllratio$ value is carried out in several different ways;
 
-\begin{itemize}
-    \item Theoretic significance from PDFs
+
+    \paragraph{Theoretic significance from PDFs.}
 
     If analytic expressions of the PDFs of the distributions are known, we can express
 
-    \begin{equation}
+    \begin{wideequations}
+\begin{equation}
     \label{eq:analytic_significance_from_pdfs}
         Z_\text{analytic} = \sqrt{\invllratio} = \sqrt  {
             2 \left( -N_s + \int\limits_{\mathbb{R}^{k}} d\anyevent (N_b(\anyevent) + N_s(\anyevent)) \log \dfrac{N_s(\anyevent) + N_b(\anyevent)}{N_b(\anyevent)} \right)
         }
     \end{equation}
+\end{wideequations}
 
     with $N_s$ the \gls{ndf} of signal events at a point $\event$ and $N_b$ the number of background events.
 
-    \item Binned evident significance from run parameters
+    \paragraph{Binned evident significance from run parameters.}
 
     If the \glspl{ndf} are not necessarily known, but the mean amount of events is chosen when generating the datasets, we can rewrite
 
-    \begin{equation}
+    \begin{wideequations}
+\begin{equation}
     \label{eq:binwise_significacne}
         Z_\text{evident} = \sqrt{\invllratio} = \sqrt{
             2 \left( -N_s + \sum\limits_{\event} (N_b(\event) + N_s(\event)) \log \dfrac{N_s(\event) + N_b(\event)}{N_b(\event)} \right)
         }
     \end{equation}
+\end{wideequations}
 
-    \item Black box relative to $\chi^2$ or shuffle distribution
+    \paragraph{Black box relative to $\chi^2$ or shuffle distribution.}
 
     Either directly from the theoretical distribution of the test statistic or by direct estimation from running many experiments shuffling the two sets of samples, we have a solid estimation of the distribution of $\invllratio$. By comparing a value to it, we can estimate the significance with which we can claim for a discovery from a single $\invllratio$. In practice, we repeat the process and take the significance of the mean.
     
-\end{itemize}
+
 
 \iftrue % MATH NOTE 12  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 12 -- Eqs.~(26)--(27): the benchmark]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 12 -- Eqs.~(26)--(27): the benchmark]}\enspace
 Eq.~(26) is the Asimov significance of a one-sample test with a known
 background, a known signal shape and one parameter. Our test compares A
 with a finite sample B. The matching two-sample (on/off) benchmark is
 the unbinned limit of the Li--Ma formula. With $b,s$ the background and
 signal intensities in A, and $\tau=N_B^{\rm bkg}/N_A^{\rm bkg}$,
 \[
-Z^2_{\rm 2s}=2\int d^kx\left\{(b+s)\ln\frac{(1+\tau)(b+s)}{(1+\tau)b+s}
-+\tau b\,\ln\frac{(1+\tau)b}{(1+\tau)b+s}\right\}.
+Z^2_{\rm 2s}=2\int d^kx\Biggl\{\begin{aligned}(b+s)\ln\frac{(1+\tau)(b+s)}{(1+\tau)b+s}
+\\+\tau b\,\ln\frac{(1+\tau)b}{(1+\tau)b+s}\end{aligned}\Biggr\}.
 \]
 This reduces to Eq.~(26) as $\tau\to\infty$. For weak signals at
 $\tau=1$ it gives $Z\approx Z_{(26)}/\sqrt2$, so the ``perfect
@@ -73,7 +77,7 @@ background estimate instead.\par}\medskip
 \fi % end of MATH NOTE 12
  
 \iftrue % MATH NOTE 13  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 13 -- empirical significance]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 13 -- empirical significance]}\enspace
 With $M$ null toys, use $p=(1+r)/(1+M)$, where $r$ counts toys with
 $q_0\ge q_0^{\rm obs}$. The largest resolvable significance is
 $\Phi^{-1}(1-1/(M+1))\approx3.09$ for $M=1000$; the solid curve in

@@ -7,7 +7,7 @@
 \section{Computing the t value}\label{Appendix_Tvalue}
 
 \iftrue % MATH NOTE 18  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 18 -- App.~A, the integral substitution]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 18 -- App.~A, the integral substitution]}\enspace
 Replacing $\int y\,n_R$ by $\frac{1}{N}\sum_{\vec x_i}y(\vec x_i)$ makes
 the reference the weighted mixture $w_Ap_A+w_Bp_B$. This is where the
 problem of note~3 enters. Use per-event weights $1/(2N_A)$ and
@@ -21,7 +21,8 @@ Treating separately the numerator and denominator here, for they will soon requi
 
 
 
-{\scriptsize
+{
+\begin{wideequations}
 \begin{equation}
 \label{eq:overall_test_statistic_numerator}
 \begin{aligned}
@@ -40,9 +41,9 @@ Treating separately the numerator and denominator here, for they will soon requi
             \int \srdist{\dataset{A}}^1 + \srdist{\dataset{B}}^1
             + \crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0
         \right)
-        + \sum\limits_{\event \in \srdataset{A}} \log({N_\srdataset{A}} (1 + {\nparam(\anyevent)}) (1 + f(\anyevent)) \srrefdist) \\&
+        \\& + \sum\limits_{\event \in \srdataset{A}} \log({N_\srdataset{A}} (1 + {\nparam(\anyevent)}) (1 + f(\anyevent)) \srrefdist) \\&
         + \sum\limits_{\event \in \srdataset{B}} \log({N_\srdataset{B}}  (1 - {\nparam(\anyevent)}) (1 - f(\anyevent)) \srrefdist)
-        + \sum\limits_{\event \in \crdataset{A}} \log({N_\crdataset{A}} (1 + {\nparam(\anyevent)}) \crrefdist) \\&
+        \\& + \sum\limits_{\event \in \crdataset{A}} \log({N_\crdataset{A}} (1 + {\nparam(\anyevent)}) \crrefdist) \\&
         + \sum\limits_{\event \in \crdataset{B}} \log({N_\crdataset{B}}  (1 - {\nparam(\anyevent)}) \crrefdist)
     \Bigg)
     \\
@@ -56,18 +57,30 @@ Treating separately the numerator and denominator here, for they will soon requi
         + N_{\crdataset{B}}\log({N_\crdataset{B}})
         \\&
         + \sum\limits_{\event \in \srdataset{A}} [\log(1 + {\nparam(\anyevent)}) + \log(1 + f(\anyevent))]
-        + \sum\limits_{\event \in \srdataset{B}} [\log(1 - {\nparam(\anyevent)}) + \log(1 - f(\anyevent))] \\&
+        \\& + \sum\limits_{\event \in \srdataset{B}} [\log(1 - {\nparam(\anyevent)}) + \log(1 - f(\anyevent))] \\&
         + \sum\limits_{\event \in \crdataset{A}} \log(1 + {\nparam(\anyevent)})
         + \sum\limits_{\event \in \crdataset{B}} \log(1 - {\nparam(\anyevent)})
     \Bigg) + C
 \end{aligned}
 \end{equation}
+\end{wideequations}
 }
 
-\noindent leaving out the $C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist$ for it cancels in the division.
+\noindent leaving out the constant
+\begin{equation*}
+C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist,
+\end{equation*}
+since it cancels in the division.
 
-\noindent using the substitution $\srdist{\dataset{A}}^1 = (1 + f(\anyevent))\srdist{\dataset{A}}^0, \quad \srdist{\dataset{B}}^1 = (1 - f(\anyevent))\srdist{\dataset{B}}^0$.
+\noindent using the substitutions
+\begin{equation*}
+\begin{aligned}
+\srdist{\dataset{A}}^1 = (1 + f(\anyevent))\srdist{\dataset{A}}^0, \\
+\srdist{\dataset{B}}^1 = (1 - f(\anyevent))\srdist{\dataset{B}}^0.
+\end{aligned}
+\end{equation*}
 
+\begin{wideequations}
 \begin{equation}
 \label{eq:overall_test_statistic_denominator}
 \begin{aligned}
@@ -111,9 +124,11 @@ Treating separately the numerator and denominator here, for they will soon requi
 \Bigg) + C
 \end{aligned}
 \end{equation}
+\end{wideequations}
 
 Plugging back in the expressions cancels some independent terms. From Equations~\ref{eq:high_level_overall_test_statistic}, \ref{eq:overall_test_statistic_numerator} and \ref{eq:overall_test_statistic_denominator}:
 
+\begin{wideequations}
 \begin{equation}
 \begin{aligned}
 \invllratio &= 2 \max\limits_{f, g, \nparam} \Bigg(
@@ -165,6 +180,7 @@ Plugging back in the expressions cancels some independent terms. From Equations~
 \Bigg)
 \end{aligned}
 \end{equation}
+\end{wideequations}
 
 \noindent while we substituted the integral with its approximation, the sum over the according domain $\int y(\anyevent) \srrefdist d\anyevent \to \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} y(\event)$, and similarly for $CR$.
 

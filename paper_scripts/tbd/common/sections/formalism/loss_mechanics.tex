@@ -8,6 +8,7 @@
 
 Within our defined signal and null hypothesis spaces, we use a machine learning model to find the parameters that create the best fit. Each model is given a loss function to minimize, that stems directly from Equation~\ref{eq:high_level_overall_test_statistic}, and a (parametrized) function space to search within. The loss expression is broken to two, each of which minimize for one of the terms in the equation. Their explicit expression is stated in Eq.~\ref{eq:discrete_loss_functions}.
 
+\begin{wideequations}
 \begin{equation}
 \label{eq:discrete_loss_functions}
 \begin{aligned}
@@ -42,6 +43,7 @@ L^{denom}[\nparam] &= \Bigg(
 \Bigg)
 \end{aligned}
 \end{equation}
+\end{wideequations}
 
 A quick look convinces us that this function is indeed differentiable and finite, for each part of it is so, and so can serve as a loss function. After minimization, the test statistic is then obtained from the final training values:
 
@@ -51,7 +53,7 @@ A quick look convinces us that this function is indeed differentiable and finite
 \end{equation}.
 
 \iftrue % MATH NOTE 9  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 9 -- finiteness of the loss]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 9 -- finiteness of the loss]}\enspace
 The loss is finite only if $|f|<1$ and $|\theta|<1$. The output layer of
 Eq.~(22) is linear and unbounded, so $\log(1-f)$ can diverge or become
 undefined during training. Enforce the bound in the parametrization,

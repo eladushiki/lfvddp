@@ -7,7 +7,7 @@
 \subsection{Description of the Algorithm}
 The process is executed and evaluated as follows. The method for calculating a single $t$ value is described in Figure~\ref{alg:single_train_algorithm}.
 
-\begin{figure}
+\begin{figure*}
 \caption{Single $t$ value stochastic calculation}
 \label{alg:single_train_algorithm}
 \begin{algorithmic}[1]
@@ -38,7 +38,7 @@ The process is executed and evaluated as follows. The method for calculating a s
 \State \Return $t$
 
 \end{algorithmic}
-\end{figure}
+\end{figure*}
 
 In cases in which the data is generated, new events are drawn every time the process is carried. In case the dataset is loaded, a subset of the background events are taken randomly from a larger amount that is loaded from the data source, and an artificial signal is added in the cases in which it is needed.
 
@@ -49,7 +49,7 @@ The background only distribution estimation is straight forward when the data is
 Then, the same statistics are gathered with various shapes and intensities of signals. The significances of the median of the distribution, as well as the significance of the $\pm \sigma$ values from it, are estimated relative to the theoretical and evident background only distributions. Graphs displaying the progression of the detected significance of the detected signal as a function of the injected signal strength appear in many following cases.
 
 \iftrue % MATH NOTE 15  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 15 -- the algorithm of Fig.~3]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 15 -- the algorithm of Fig.~3]}\enspace
 (a) Lines 7--8 train the numerator and denominator independently.
 Nesting guarantees $\min\mathcal L_1\le\min\mathcal L_0$ only at global
 optima, so $q_0$ can be biased or negative. Train $H_0$ first, then
@@ -67,7 +67,7 @@ identically to null and signal toys.\par}\medskip
 \fi % end of MATH NOTE 15
 
 \iftrue % MATH NOTE 16  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 16 -- shuffling]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 16 -- shuffling]}\enspace
 The signal is not absent after shuffling. It is shared evenly between A
 and B, so it produces no asymmetry. This calibration is valid only when
 $\theta\equiv0$; with the nuisance active, use the resampling of

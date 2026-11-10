@@ -8,6 +8,7 @@
 
 Given our estimation for the appearing probability densities of the datasets we can get a likelihood value for each of them from Equation~\ref{eq:log_likelihood_of_a_learnable_distribution}. To estimate the likelihood of a hypothesis, we should multiply all its distributions' likelihoods in both regions:
 
+\begin{wideequations}
 \begin{equation}
 \begin{aligned}
 \likelihood(\hypothesis{i} | \dataset{A}, \dataset{B})
@@ -19,9 +20,11 @@ Given our estimation for the appearing probability densities of the datasets we 
        \cdot \likelihood(\crdist{\dataset{B}}^i|\crdataset{B})
 \end{aligned}
 \end{equation}
+\end{wideequations}
 
 \noindent for $i=0,1$. Then, to compare between the likelihood of both hypotheses, we use the inverse log likelihood ratio, as in Eq.~\ref{eq:inverse_log_likelihood_ratio}, to get:
 
+\begin{wideequations}
 \begin{equation*}
 \invllratio = 2 \log \left(
     \frac{
@@ -30,13 +33,16 @@ Given our estimation for the appearing probability densities of the datasets we 
         \max\limits_{\nparam} (\likelihood(\nullhypothesis|\dataset{A}, \dataset{B})
 }\right).
 \end{equation*}
+\end{wideequations}
 
 \noindent Since $\log$ is a monotonically increasing function, we have that
 
+\begin{wideequations}
 \begin{equation}
 \label{eq:high_level_overall_test_statistic}
     \invllratio = 2 \left( {\max\limits_{f, \nparam}(\log \likelihood(\hypothesis{1}|\dataset{A}, \dataset{B})} - {\max\limits_{\nparam}(\log \likelihood(\nullhypothesis|\dataset{A}, \dataset{B})} \right),
 \end{equation}
+\end{wideequations}
 
 \noindent the calculation of which is fully carried out in Appendix~\ref{Appendix_Tvalue}).
 
