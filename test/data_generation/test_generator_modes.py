@@ -20,14 +20,16 @@ from test.environment import ConfigType
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{
-        ConfigType.DATASET.value: Path(
-            "test/data_generation/configs/dataset/generator_modes_dataset_config.json"
-        ),
-        ConfigType.DETECTOR.value: Path(
-            "test/configs/detector/basic_2D_detector_config.json"
-        ),
-    }],
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/data_generation/configs/dataset/generator_modes_dataset_config.json"
+            ),
+            ConfigType.DETECTOR.value: Path(
+                "test/configs/detector/basic_2D_detector_config.json"
+            ),
+        }
+    ],
     indirect=True,
 )
 def test_joint_repeated_and_per_dimension_generators(
@@ -64,7 +66,9 @@ def test_joint_repeated_and_per_dimension_generators(
     repeated = config.get_parameters(DataSet.DataSetCategory.B_SR)
     repeated_background, _ = repeated.dataset__data
     assert repeated_background.events.shape == (100, 2)
-    assert np.all((repeated_background.events >= 1.0) & (repeated_background.events <= 2.0))
+    assert np.all(
+        (repeated_background.events >= 1.0) & (repeated_background.events <= 2.0)
+    )
     marginal = GaussianBackground(
         1,
         domain_min=1.0,
@@ -76,7 +80,30 @@ def test_joint_repeated_and_per_dimension_generators(
         marginal.pdf(1.5) ** 2,
     )
 
-    per_dimension = config.get_parameters(DataSet.DataSetCategory.A_CR)
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET: Path(
+                "test/data_generation/configs/dataset/generator_overlay_modes.json"
+            ),
+            ConfigType.DETECTOR: Path(
+                "test/configs/detector/basic_2D_detector_config.json"
+            ),
+        }
+    ],
+    indirect=True,
+)
+def test_per_dimension_and_loaded_overlay_generators(
+    tmp_path,
+    monkeypatch,
+    function_execution_context,
+    data_generation,
+):
+    np.save(tmp_path / "events.npy", np.arange(6, dtype=float).reshape(3, 2))
+    config = function_execution_context.config
+    per_dimension = config.get_parameters(DataSet.DataSetCategory.A_SR)
     per_dimension_background, _ = per_dimension.dataset__data
     assert np.all((per_dimension_background.events[:, 0] >= 0.0))
     assert np.all((per_dimension_background.events[:, 0] <= 1.0))
@@ -85,9 +112,9 @@ def test_joint_repeated_and_per_dimension_generators(
 
     with monkeypatch.context() as temporary_working_directory:
         temporary_working_directory.chdir(tmp_path)
-        loaded = config.get_parameters(DataSet.DataSetCategory.B_CR)
+        loaded = config.get_parameters(DataSet.DataSetCategory.B_SR)
         loaded_background, repeated_signal = loaded.dataset__data
-        loaded_with_signal, _ = data_generation[DataSet.DataSetCategory.B_CR]
+        loaded_with_signal, _ = data_generation[DataSet.DataSetCategory.B_SR]
     assert loaded.dataset__number_of_dimensions == 2
     assert loaded.dataset__background_source_type == "loaded"
     assert loaded.dataset__background_source == "events.npy"

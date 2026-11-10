@@ -27,14 +27,3 @@ dataset__definitions:
     dataset__number_of_signal_events: 0
     dataset__signal_number_of_events_to_generate: 0
     dataset__signal_generator: null
-  - <<: *loaded
-    category: a_cr
-    dataset__number_of_signal_events: 0
-    dataset__signal_number_of_events_to_generate: 0
-    dataset__signal_generator: null
-  - <<: *loaded
-    name: B
-    category: b_cr
-    dataset__number_of_signal_events: 0
-    dataset__signal_number_of_events_to_generate: 0
-    dataset__signal_generator: null

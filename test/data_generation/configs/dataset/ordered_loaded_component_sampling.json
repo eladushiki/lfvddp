@@ -23,24 +23,6 @@
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__sample_is_sample": false,
             "dataset__number_of_background_events": 3
-        },
-        {
-            "name": "A",
-            "type": "loaded",
-            "category": "a_cr",
-            "dataset_loaded__file_name": "a_cr.npy",
-            "dataset_loaded__observable_naming": {"param_0": "param_0"},
-            "dataset_loaded__sample_is_sample": false,
-            "dataset__number_of_background_events": 1
-        },
-        {
-            "name": "B",
-            "type": "loaded",
-            "category": "b_cr",
-            "dataset_loaded__file_name": "b_cr.npy",
-            "dataset_loaded__observable_naming": {"param_0": "param_0"},
-            "dataset_loaded__sample_is_sample": false,
-            "dataset__number_of_background_events": 4
         }
     ]
 }

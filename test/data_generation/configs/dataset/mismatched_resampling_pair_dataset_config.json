@@ -19,20 +19,6 @@
             "dataset_loaded__resample_is_resample": true,
             "dataset_loaded__resample_is_replacement": true,
             "dataset__number_of_background_events": 2
-        },
-        {
-            "name": "A",
-            "type": "generated",
-            "category": "a_cr",
-            "dataset_generated__background_generator": {"function": "exponential_background"},
-            "dataset__number_of_background_events": 2
-        },
-        {
-            "name": "B",
-            "type": "generated",
-            "category": "b_cr",
-            "dataset_generated__background_generator": {"function": "exponential_background"},
-            "dataset__number_of_background_events": 2
         }
     ]
 }

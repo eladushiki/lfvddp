@@ -1,5 +1,6 @@
 import json
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from dataclasses import dataclass, field
 from inspect import isabstract
 from os.path import isfile
@@ -601,38 +602,58 @@ class DatasetConfig:
 
     def load_dataset_parameters(self) -> None:
         """Construct each configured dataset once after the context RNG is seeded."""
-        dataset_types = self._dataset__types
-        parameters_by_category: Dict[
-            DataSet.DataSetCategory, DatasetParameters
-        ] = {}
-        for user_dataset_definitions in self.dataset__definitions:
-            try:
-                dataset_type = user_dataset_definitions[self._dataset__type_property]
-                dataset_category = user_dataset_definitions[self._dataset__category_property]
-                user_dataset_definitions[self._dataset__name_property]
-            except KeyError as error:
-                raise KeyError(
-                    "Dataset definition must contain 'name', 'type', and "
-                    "'category' keys."
-                ) from error
-
-            try:
-                dataset_class = dataset_types[dataset_type]
-            except KeyError as error:
-                raise KeyError(f"Dataset type '{dataset_type}' not defined") from error
-
-            category = DataSet.DataSetCategory.from_string(dataset_category)
-            if category == DataSet.DataSetCategory.UNDEFINED:
-                raise ValueError(f"Dataset category '{dataset_category}' is not defined")
-            if category in parameters_by_category:
-                raise ValueError(f"Duplicate dataset category '{dataset_category}'")
-
-            parameters_by_category[category] = dataset_class(
-                **user_dataset_definitions,
+        parameters_by_category = {
+            category: self._dataset__types[definition[self._dataset__type_property]](
+                **definition
             )
+            for category, definition in self.validated_dataset_definitions().items()
+        }
+        for sr_category, cr_category in (
+            (DATASET_REGIONS.sr.a, DATASET_REGIONS.cr.a),
+            (DATASET_REGIONS.sr.b, DATASET_REGIONS.cr.b),
+        ):
+            control = deepcopy(parameters_by_category[sr_category])
+            control.category = cr_category
+            control.dataset__mean_number_of_signal_events = 0
+            control.dataset__number_of_signal_events = 0
+            control.dataset__signal_number_of_events_to_generate = 0
+            parameters_by_category[cr_category] = control
 
         self._dataset__parameters_by_category = parameters_by_category
         self._validate_regional_split_policies()
+
+    def validated_dataset_definitions(
+        self,
+    ) -> Dict[DataSet.DataSetCategory, Dict[str, Any]]:
+        """Validate the public SR-only schema without sampling counts or reading data."""
+        if len(self.dataset__definitions) != 2:
+            raise ValueError(
+                "dataset__definitions requires exactly two definitions: a_sr and b_sr; "
+                "control regions are derived automatically."
+            )
+        definitions = {}
+        dataset_types = self._dataset__types
+        for definition in self.dataset__definitions:
+            try:
+                dataset_type = definition[self._dataset__type_property]
+                dataset_category = definition[self._dataset__category_property]
+                definition[self._dataset__name_property]
+            except KeyError as error:
+                raise KeyError(
+                    "Dataset definition must contain 'name', 'type', and 'category' keys."
+                ) from error
+            if dataset_type not in dataset_types:
+                raise KeyError(f"Dataset type '{dataset_type}' not defined")
+            category = DataSet.DataSetCategory.from_string(dataset_category)
+            if not DATASET_REGIONS.sr.contains(category):
+                raise ValueError(
+                    f"Dataset category '{dataset_category}' must be a_sr or b_sr; "
+                    "control regions are derived automatically."
+                )
+            if category in definitions:
+                raise ValueError(f"Duplicate dataset category '{dataset_category}'")
+            definitions[category] = definition
+        return definitions
 
     def _validate_regional_split_policies(self) -> None:
         """Require A and B to use one finalization policy within each region."""
