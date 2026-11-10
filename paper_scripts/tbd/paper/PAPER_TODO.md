@@ -27,14 +27,14 @@ Working checklist for Elad and collaborators. Items remain open until we review 
 ## Joint review: notes 1, 2, 3, 18, and part of 7
 
 - [x] Clarify in the formalism and Appendix A that equality concerns generated background means before Poisson sampling, detector effects, and injection; observed counts may differ.
-- [x] Require the signal-only normalization constraint `integral f n_R = 0` in the main-text formalism, with an equation label.
-- [x] Confirm the meaning of equal samples with Elad and inspect Poisson count generation in `data_tools/dataset_config.py`. This distinction was missing from the paper; it is now stated explicitly. Notes 3 and 18 remain applicable because observed counts can differ.
+- [ ] Reconcile the normalization paragraph with Elad’s later instruction to leave normalization to likelihood optimization. The equation was added earlier, but must not be presented as an enforced training constraint: the implementation does not enforce it.
+- [x] Confirm the meaning of equal samples with Elad and inspect Poisson count generation in `data_tools/dataset_config.py`. This distinction was missing from the paper; it is now stated explicitly. Observed counts can differ; whether this creates the claimed model mismatch still requires a consistent definition of the reference and its count prefactors.
 - [ ] Decide how the appendix should handle unequal-size samples: restrict the interpretation of the current pooled approximation or adopt and derive a consistent balanced-reference prescription. No likelihood or implementation change has been selected.
 - [ ] Resolve note 2 separately: equality of sample sizes does not establish the stated detector-efficiency/asymmetry relation or supply missing intensity factors.
 - [x] Correct note 7’s missing signal logarithm, retain the full parameter-dependent intensity integral, and correct the hypothesis reference. Trace the logarithms through Appendix A and correct its reference-only constant to a sum of logarithms. The final displayed loss and implemented logarithmic terms already have the correct form; no training-code change is needed for this correction.
 - [ ] Review normalization of the combined signal/nuisance factors with note 5; the signal-only constraint is insufficient. Paper compilation succeeded (24 pages); the existing combined detector-equation reference remains undefined.
 
-Working decision: treat these notes as one linked discussion, retain their source text for now, and record the clarified generation scope, signal-only constraint, and note 7 algebra correction as complete. No mathematical proposals in the notes are accepted solely by this status update.
+Working decision: treat these notes as one linked discussion, retain their source text for now, and record the clarified generation scope and note 7 algebra correction as complete; normalization and reference interpretation remain open. No mathematical proposals in the notes are accepted solely by this status update.
 
 ## Mathematical review notes
 
@@ -76,7 +76,7 @@ These items come from visible inconsistencies or sparse descriptions in the sour
 
 ## PR description details to publish
 
-No PR has been opened from this session: Git metadata writes are blocked. Include the following in the PR description when publishing becomes available.
+Published to PR #233 through the connected GitHub app, including the conflict-resolution merge. Local Git metadata remains unchanged because writes are blocked. The following note 7 details are included in the PR description.
 
 Note 7: Correct the missing logarithm in the expanded signal log-likelihood, retain the full parameter-dependent Poisson intensity integral, and cite the nuisance-inclusive hypothesis. Trace the event-intensity product through Appendix A: signal logarithms survive in the alternative, whereas the shared reference-density sums of logarithms and fixed event-count terms cancel in the likelihood ratio. Correct the appendix’s reference-only constant accordingly. The final displayed loss and implemented logarithmic terms already have the corrected form, so this correction requires no training-code change. Paper compilation succeeded (24 pages), with the existing malformed combined detector-equation reference warning.
 
@@ -87,3 +87,22 @@ Note 7: Correct the missing logarithm in the expanded signal log-likelihood, ret
 - [ ] If restricting to equal realized observed counts instead, document the required sampling/equalization procedure and its statistical consequences; equal generation means alone are insufficient.
 
 No reference or detector parametrization change has been selected in this discussion.
+
+## Audit after the reference discussion (2026-11-11)
+
+This status supersedes earlier conversational claims that the reference issue was resolved.
+
+Completed: clarify equal generated background means versus realized observed counts; correct note 7’s missing logarithm, parameter-dependent integral, and hypothesis reference; correct Appendix A’s shared reference constant and explain which terms cancel; preserve those edits through the merge conflict resolution; compile the conflict-resolved paper; publish the resolution and note 7 explanation to PR #233. The final loss and training code were not changed.
+
+Open edges:
+
+- [ ] Define explicitly whether each reference symbol is an event intensity, its normalized pooled density, or an equally weighted average of normalized shapes. The symbol macros do not establish this. The current text alternates between probability density, combined sample, and average.
+- [ ] Re-derive the full hypotheses with that definition AND their separate observed-count prefactors. Averaging intensities explains the pooled integration measure, but alone does not prove consistency of the symmetric factors with separate count prefactors; the previous conversational explanation did not resolve this.
+- [ ] Reconcile main-text and appendix commentary with the chosen definition. The balanced-reference paragraph proposed in chat was rejected and was not applied. No balanced weighting has been implemented.
+- [ ] Clarify normalization as an optimization property versus an imposed constraint; do not claim gradient descent automatically enforces every individual normalization identity without checking the objective and parametrization.
+- [ ] Resolve note 2’s efficiency/asymmetry interpretation and its missing count-factor convention. No detector equation or truth overlay has been changed. Its draft assertion about efficiencies above one must be checked against precisely defined raw versus normalized efficiencies; it should not be adopted as a blanket statement.
+- [ ] After resolving the reference convention, decide whether notes 3 and 18 require manuscript changes only or also a changed numerical integral and corresponding implementation validation. No closure claim based only on equal generation means is justified.
+- [ ] Remove or annotate note 7’s now-stale visible review text after agreement; the paper still displays it as though its algebra correction had not been made. Related combined signal/nuisance representability (note 5) remains a separate open question.
+- [ ] Clean up the legacy `g` in the symmetric B expression and appendix optimization variables, checking callers/uses before any rename. The draft states `g` was replaced by `f` but still writes `1-g` in one hypothesis.
+
+Validation scope: successful LaTeX compilation verifies syntax/build, not the unresolved statistical claims or optimizer normalization. The code was inspected for the existing logarithmic loss and Poisson configuration; no new mathematical-validation experiments were performed.
