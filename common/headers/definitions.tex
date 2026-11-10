@@ -189,3 +189,11 @@
 % =============================================================================
 % END OF DEFINITIONS
 % =============================================================================
+
+% Keep long derivations readable in the two-column paper, without resizing math.
+% Other documents retain their native single-column equation layout.
+\newenvironment{wideequations}{%
+    \ifdefined\paper\begin{widetext}\fi
+}{%
+    \ifdefined\paper\end{widetext}\fi
+}
