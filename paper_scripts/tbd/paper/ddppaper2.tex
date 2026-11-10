@@ -1,4 +1,4 @@
- %   This file uses a template that is part of the APS files in the
+%   This file uses a template that is part of the APS files in the
 %   REVTeX 4.2 distribution.
 %   Version 4.2a of REVTeX, December 2014
 %
@@ -18,14 +18,14 @@
 %  4)  latex apssamp.tex
 
 \documentclass[%
-preprint, linenumbers,
+reprint, linenumbers,
 groupedaddress,
 amsmath,amssymb,
 aps, physrev,
 ]{revtex4-2}
 
 \def\paper{}
-\input{../common/preamble}
+\input{common/headers/preamble}
 
 \newcommand{\SB}[1]{\textbf{\textcolor{blue}{[SB: #1]}}}
 \newcommand{\EK}[1]{\textbf{\textcolor{red}{[EK: #1]}}}
@@ -72,6 +72,12 @@ aps, physrev,
 \end{abstract}
 
 \maketitle
+\newpage
+
+\glsaddall[types={\acronymtype}]
+\printnoidxglossary[type=\acronymtype,title={List of Abbreviations}]
+\clearpage
+
 \tableofcontents
 \newpage
 
@@ -79,37 +85,40 @@ aps, physrev,
 % Article body
 % =============================================================================
 
-\subfile{sections/introduction.tex}
+\subfile{common/sections/introduction.tex}
 
 \section{Formalism}
 \subsection{Reminder}
-\subfile{sections/formalism/reminder}
+\subfile{common/sections/formalism/reminder}
 \subsection{Adding Dimensions}
-\subfile{sections/formalism/multiple_dimension_distributions}
+\subfile{common/sections/formalism/multiple_dimension_distributions}
 \subsection{Adding Nuisance Parameters}
-\subfile{sections/formalism/detector_affected_distributions}
-\subfile{sections/formalism/measuring_our_system}
-\subfile{sections/formalism/full_hypotheses}
+\subfile{common/sections/formalism/detector_affected_distributions}
+\subfile{common/sections/formalism/measuring_our_system}
+\subfile{common/sections/formalism/full_hypotheses}
 \subsection{Estimating Hypotheses}
-\subfile{sections/formalism/distribution_likelihood}
-\subfile{sections/formalism/hypothesis_log_likelihood_ratio}
-\subfile{sections/formalism/loss_mechanics}
+\subfile{common/sections/formalism/distribution_likelihood}
+\subfile{common/sections/formalism/hypothesis_log_likelihood_ratio}
+\subfile{common/sections/formalism/loss_mechanics}
 \subsection{Test Statistic Behavior}
-\subfile{sections/formalism/test_statistic_distribution}
-\subfile{sections/formalism/significance_estimation}
+\subfile{common/sections/formalism/hypothesis_space_bases}
+\subfile{common/sections/formalism/test_statistic_distribution}
+\subfile{common/sections/formalism/significance_estimation}
 
 \section{Methodology}
-\subsection{Implementation Choices}
-\subfile{sections/methodology/neural_network_compute}
-\subsection{Performance}
-\subfile{sections/methodology/datasets_and_signals}
-\subfile{sections/methodology/detector_nuisance}
-\subfile{sections/methodology/reproduction}
-\subfile{sections/methodology/multiple_dimensions}
-\subfile{sections/methodology/simulated_data}
+\subfile{common/sections/methodology/compute_framework}
+\subfile{common/sections/methodology/model_specs}
+\subfile{common/sections/methodology/test_statistic_algorithm}
+
+\section{Performance}
+\subfile{common/sections/results/datasets_and_signals}
+\subfile{common/sections/results/reproduction}
+\subfile{common/sections/results/detector_nuisance}
+\subfile{common/sections/results/multiple_dimensions}
+\subfile{common/sections/results/simulated_data}
 
 \section{Conclusion}
-\subfile{sections/conclusion}
+\subfile{common/sections/conclusion}
 
 % =============================================================================
 % Acknowledgments, appendices, bibliography
@@ -118,14 +127,16 @@ aps, physrev,
 \begin{acknowledgments}
 \TODO{acknowledge}
 \end{acknowledgments}
+\clearpage
 
 \appendix
-\subfile{sections/appendices/t_value_computation}
+\subfile{common/sections/appendices/t_value_computation}
+\subfile{common/sections/appendices/borken_Wilks_Wald}
 
 % Print out all entries in the bibliography, even if they are not cited in the text.
 % Produce the bibliography via BibTeX.
 \nocite{*}
 \bibliographystyle{apsrev4-2}
-\bibliography{../common/bibliography/bibliography}
+\bibliography{common/bibliography/bibliography}
 
 \end{document}

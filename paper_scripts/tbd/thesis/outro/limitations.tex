@@ -1,0 +1,84 @@
+\documentclass[thesis/Elad_Kliger_Thesis.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\subsection{Limitations of Signal Detection}
+
+While trying our method to detect signals of various shapes and intensities with various spanning function bases, I noticed that the signal shape greatly affects the ability to discover it, even when keeping the injected significance (Eq.~\ref{eq:analytic_significance_from_pdfs}) constant.
+
+This includes an inherent problem of detecting abnormalities within Poisson statistics, and another one in the definition of our hypotheses.
+
+\subsubsection{Limitation of Poisson Statistics}
+
+Let's follow the following thought experiment. We are familiar with the series of Gaussians that converge to a $\delta$ function:
+
+\begin{equation}
+\label{eq:delta_function_definition}
+    \delta(x) = \lim_{\sigma \to 0} \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{x^2}{2\sigma^2}}
+\end{equation}
+
+Now, imagine a signal whose generating \gls{pdf} is such a Gaussian, over a locally constant background \gls{pdf}. This could be any background, since the series of signals are local enough at some point for $\sigma \to 0$ so the background can be taken to be approximately constant.
+
+While a key characteristic of the whole series is that each element has a constant integral area, as the series continue the elements' effective area lives in a region in which there is a diminishing background area. At the limit, the significance (from Eq.~\ref{eq:analytic_significance_from_pdfs}) is:
+
+\begin{equation}
+\label{eq:delta_siganl_significance}
+\begin{aligned}
+    \lim_{\sigma \to 0} Z_\text{analytic} &=  \sqrt  {
+        2 \left( -N_s + \int\limits_{\mathbb{R}^{k}} d\anyevent (N_b(\anyevent) + N_s\delta(\anyevent - \anyevent_0)) \log \dfrac{N_s\delta(\anyevent - \anyevent_0) + N_b(\anyevent)}{N_b(\anyevent)} \right)
+    } \\&
+    = \sqrt  {
+        2 \left(
+            -N_s 
+            + \int\limits_{\mathbb{R}^{k} - \Omega_{\anyevent_0}} d\anyevent N_b(\anyevent) \log \dfrac{N_b(\anyevent)}{N_b(\anyevent)}
+            + \int\limits_{\Omega_{\anyevent_0}} d\anyevent (N_b(\anyevent_0) + N_s) \log \dfrac{N_s + N_b(\anyevent_0)}{N_b(\anyevent_0)}
+        \right)
+    }
+\end{aligned}
+\end{equation}
+
+While the integral goes to 0, we that in the second one the number of expected background events is approximately $N_b(\anyevent_0) \cdot \Omega_{\anyevent_0}$, it's value at the point times the area of integration. The number of signal events in the second integral remains constant, be the definition of the $\delta$ function. We get that for a vanishing area of integration around the signal:
+
+\begin{equation}
+    = \sqrt  {
+        2 \left(
+            -N_s 
+            + \int\limits_{\Omega_{\anyevent_0}} d\anyevent (N_b(\anyevent_0)\Omega_{\anyevent_0} + N_s) \log \dfrac{N_s + N_b(\anyevent_0)\Omega_{\anyevent_0}}{N_b(\anyevent_0)\Omega_{\anyevent_0}}
+        \right)
+    } \to \infty
+\end{equation}
+
+This means that for a signal with finite strength can have unbounded significance if it's concentrated enough. This is true for any $N_s$, so we can have, theoretically, a signal with $N_s = \dfrac{1}{\text{sample size}}$, practically meaning that any experiment would not be able to distinguish its existence.
+
+\subsubsection{Limitations of a Certain Hypothesis Space}
+
+Now, let's assume that exists an exact model of the signal and background that is able to capture a signal of some sort, that is of reasonable width, in contrary to what speculated above. We still work with an approximate model of the signal, which is heavily dependent on the way we compose it from the function space basis elements.
+
+Let's speculate an orthogonal bin basis, $\{b_1, \dots, b_n\}$, a Gaussian signal $s(\anyevent)$ of width $\sigma$ centered around $\anyevent_0$, over some background \gls{pdf} $b(\anyevent)$. Having the signal contained in a single bin (to whatever precision needed), we get from Eq.~\ref{eq:binwise_significacne} its significance:
+
+All the bins in which there is no signal cancel out, to get
+
+\begin{equation}
+    Z_\text{evident}^\text{single bin} = \sqrt{
+        2 \left(
+            -N_s
+            + (N_b(\anyevent_0) + N_s) \log \dfrac{N_s + N_b(\anyevent_0)}{N_b(\anyevent_0)}
+        \right)
+    }
+\end{equation}
+
+but is completely independent of $\sigma$. But we've seen that the continuous significance does depend on it, meaning that our decisions of modeling the signal can diminish event the theoretically possible discovery of it. For any choice of basis, if its elements are significantly "wider" than a signal, we may lose a lot of the ability to detect it.
+
+This is especially relevant using the function basis formulation we developed.
+
+We encountered a vivid illustration for this effect when running toy experiments. In Figure~\ref{fig:wide-and-narrow-gaussian-signals-significance} we observe two almost identical significance curves even though the signal shape was different. The function basis used was a 10-bspline base, making either gaussian significantly narrower in both dimensions than a basis element.
+
+\begin{figure}
+    \addgraph{thesis/outro/narrow-vs-narrower-signal-significance-2d/performance_plot_37099625437247244.png}
+    \caption{Significances detected for two similar signal shapes - a symmetric gaussian vs another which is wider in one of the dimensions.}
+    \label{fig:wide-and-narrow-gaussian-signals-significance}
+\end{figure}
+
+\end{document}

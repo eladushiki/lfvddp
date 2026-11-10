@@ -1,0 +1,85 @@
+\documentclass[paper/ddppaper2.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\subsubsection{Hypotheses}
+
+We now define the full null and alternative hypotheses in Eq~\ref{eq:sr_hypothesis_statement} 
+
+\begin{equation}
+\label{eq:sr_hypothesis_statement}
+\begin{aligned}
+    \nullhypothesis |_{SR} &: \quad
+    \begin{cases}
+        {\srdist{\dataset{A}}^0} = N_\srdataset{A} (1 + {\nparam(\anyevent)}) \srrefdist \\
+        {\srdist{\dataset{B}}^0} = N_\srdataset{B} (1 - {\nparam(\anyevent)}) \srrefdist
+    \end{cases} \\
+    \hypothesis{1} |_{SR} &: \quad
+    \begin{cases}
+        {\srdist{\dataset{A}}^1} = N_\srdataset{A} (1 + f(\anyevent)) (1 + {\nparam(\anyevent)}) \srrefdist \\
+        {\srdist{\dataset{B}}^1} = N_\srdataset{B} (1 - f(\anyevent)) (1 - {\nparam(\anyevent)}) \srrefdist
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+To which we add, for the control region as in Eq.~\ref{eq:cr_hypothesis_statement}
+
+\begin{equation}
+\label{eq:cr_hypothesis_statement}
+\begin{aligned}
+    \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
+    \begin{cases}
+        \crdist{\dataset{A}}^i = N_\crdataset{A} (1 + {\nparam(\anyevent)}) \crrefdist \\
+        \crdist{\dataset{B}}^i = N_\crdataset{B} (1 - {\nparam(\anyevent)}) \crrefdist
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+Note that we now have two separate reference distributions, that are built in the same manner - the combined sample in either region.
+
+\iftrue % MATH NOTE 4  (to hide: change \iftrue to \iffalse)
+\par\medskip\noindent{\color{blue}\textbf{[Math note 4 -- assumptions behind the control region]}\enspace
+State the assumptions the CR constraint relies on:
+(i) the CR is signal-free;
+(ii) transfer: the signal-free asymmetry is the same function of
+$\vec x$ in the SR and CR;
+(iii) the CR covers the SR range of $\vec x$, otherwise $\theta$ is
+extrapolated (cf.\ Figs.~7 and~13);
+(iv) A and B are disjoint and the four samples are independent, as
+Eq.~(18) needs.
+ 
+Caveat on (ii): suppose the true asymmetry depends on variables $z$ that
+are not in $\vec x$ (lepton $\eta$, isolation, pile-up). Then
+$\theta(\vec x)$ is a marginal over $z$, and it differs between regions
+whenever their $z$ distributions differ, even for an identical detector.
+This would mimic a signal. Two mitigations: let $\theta$ depend on
+$(\vec x,z)$, or add a constrained transfer term
+$\theta_{\rm SR}=\theta_{\rm CR}+\Delta$.\par}\medskip
+\fi % end of MATH NOTE 4
+
+\iftrue % MATH NOTE 5  (to hide: change \iftrue to \iffalse)
+\par\medskip\noindent{\color{blue}\textbf{[Math note 5 -- Eq.~(8): the composition $(1\pm f)(1\pm\theta)$ is not closed]}\enspace
+Take the balanced reference $\bar n_R=\frac12(p_A+p_B)$. The data then
+satisfy $r_A+r_B=2$, with $r_X=p_X/\bar n_R$, while
+\[
+(1+f)(1+\theta)+(1-f)(1-\theta)=2\,(1+f\theta).
+\]
+An exact fit therefore needs $f\theta=0$ at every point. Once the CR
+fixes $\theta\neq0$, $H_1$ cannot represent a different SR asymmetry.
+This costs power and makes $f$ hard to interpret.
+ 
+Minimal fix, by relativistic velocity addition:
+\[
+\lambda_A=N_A\,\frac{(1+f)(1+\theta)}{1+f\theta}\,\bar n_R,\qquad
+\lambda_B=N_B\,\frac{(1-f)(1-\theta)}{1+f\theta}\,\bar n_R .
+\]
+This form is closed and reduces to $H_0$ at $f=0$. It reaches any
+target asymmetry $a$ with $f=(a-\theta)/(1-a\theta)$, and the combined
+asymmetry stays in $(-1,1)$. Note~6 gives an equivalent, simpler form.\par}\medskip
+\fi % end of MATH NOTE 5
+ 
+ 
+
+\end{document}

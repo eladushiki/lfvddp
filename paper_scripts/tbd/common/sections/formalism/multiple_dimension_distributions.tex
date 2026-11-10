@@ -1,0 +1,76 @@
+\documentclass[paper/ddppaper2.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+Our hypothetical accelerator causes particles to collide, creating the sets $\true{A}$ and $\true{B}$ of events. Each event $\event \in \mathbb{R}^k$ is represented as a vector of its measured physical quantities. Each event set is then assumed to be the result of an inhomogeneous Poisson process with intensity of either
+
+\begin{equation}   
+\begin{aligned}
+    \dist{\true{A}}={N_{\true{A}}} p(\anyevent)\\
+    \dist{\true{B}}={N_{\true{B}}} p(\anyevent)
+\end{aligned}
+\end{equation}
+
+\noindent where $p(\anyevent)$ is the theoretical probability density to create an event in the specific point in the parameter space. Using items similar to the original formulation to express $p$, we restate this as:
+
+\begin{eqnarray}
+\label{eq:process_probability_distribution}
+\begin{aligned}
+    \dist{\true{A}}_\param = N_{\true{A}} (1+{\paramf(\anyevent)}) \refdist \\
+    \dist{\true{B}}_\param = N_{\true{B}} (1-{\paramf(\anyevent)}) \refdist
+\end{aligned}
+\end{eqnarray}
+
+\noindent For now, $f$ is arbitrary and is composed of parameters $\param$ that are of interest for us. The former $g$ formulation for the $\dataset{B}$ distribution is replaced with a negative $\paramf$, expressing the symmetric shift from $\refdist$, directly expected from its choice as both the distributions' mean.
+
+\iftrue % MATH NOTE 1  (to hide: change \iftrue to \iffalse)
+\par\medskip\noindent{\color{blue}\textbf{[Math note 1 -- Eq.~(3)]}\enspace
+The symmetric form $(1\pm f)$ follows from choosing $n_R$ as the mean of
+the two distributions only if $n_R$ is the \emph{unweighted} mean
+$\frac12(p_A+p_B)$. The pooled sample used in the loss (Eq.~(20),
+App.~A) is the weighted mixture $w_Ap_A+w_Bp_B$, with
+$w_X=N_X/(N_A+N_B)$. For that reference, normalization requires
+$\lambda_B\propto(1-\frac{w_A}{w_B}f)\,n_R$. Normalization also needs
+$\int f\,n_R\,d\vec x=0$, which should be stated. Note~3 gives the
+consequence.\par}\medskip
+\fi % end of MATH NOTE 1
+
+This gives us directly the n-dimensional form of our hypotheses:
+
+\begin{equation}
+\label{eq:learnable_distribution}
+\begin{aligned}
+    \nullhypothesis &: \quad
+    \begin{cases}
+        \dist{\true{A}}
+        &=
+        \frac{N_{\true{A}}}
+            {\int \refdist\,d\anyevent}
+        \refdist,
+        \\
+        \dist{\true{B}}
+        &=
+        \frac{N_{\true{B}}}
+            {\int \refdist\,d\anyevent}
+        \refdist,
+    \end{cases} \\
+    \hypothesis{1} &: \quad
+    \begin{cases}
+        \dist{\true{A}}
+        &=
+        \frac{N_{\true{A}}}
+            {\int \refdist\,d\anyevent}
+        (1 + f(\anyevent)) \refdist,
+        \\
+        \dist{\true{B}}
+        &=
+        \frac{N_{\true{B}}}
+            {\int \refdist\,d\anyevent}
+        (1 - g(\anyevent)) \refdist.
+    \end{cases}
+\end{aligned}
+\end{equation}
+
+\end{document}
