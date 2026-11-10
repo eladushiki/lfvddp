@@ -1,0 +1,212 @@
+\documentclass[paper/ddppaper2.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\subsubsection{Model Specs}
+
+As stated above, each network is a fully connected 3 layer \gls{nn} with Sigmoid activation function for the inner layer neurons. The full structure of our model can be observed in Figure~\ref{fig:model_implementation}. We chose $N=4$ for the number of neurons. Weights initialization is taken from a Xavier uniform, and biases are from a uniform distribution from the segment $[-0.3, 0.3]$.
+
+Before any given process, data is normalized such that all datasets would fit $[-1, 1]$ to allow for stable numerics of the Sigmoid functions.
+
+Detector segments are initialized from a normal distribution with std of $1e-3$, and are clamped in each step if reaching either $\pm 1$ within a distance of $1e-6$.
+
+Training batching is done with a single batch per train step, having all datasets as column vectors to allow for single pytorch operation for every arithmetic calculation.
+
+\TODO{describe hyperparameter selection eventually}
+
+\iftrue % MATH NOTE 14  (to hide: change \iftrue to \iffalse)
+\par\medskip\noindent{\color{blue}\textbf{[Math note 14 -- clamping]}\enspace
+Clamping at $\pm(1-10^{-6})$ kills gradients and produces boundary
+solutions, visible in Figs.~7 and~9. A bounded parametrization such as
+$\theta=\tanh(\cdot)$ avoids this.\par}\medskip
+\fi % end of MATH NOTE 14
+ 
+
+\begin{figure}
+\begin{adjustbox}{width=\textwidth}
+\begin{tikzpicture}[
+  font=\small,
+  >=Latex,
+  vector/.style={
+    draw,
+    rounded corners,
+    minimum width=18mm,
+    minimum height=11mm,
+    align=center,
+    fill=blue!8
+  },
+  splitpart/.style={
+    draw,
+    rounded corners,
+    minimum width=22mm,
+    minimum height=12mm,
+    align=center,
+    fill=orange!12
+  },
+  layer/.style={
+    draw,
+    rounded corners,
+    minimum width=16mm,
+    minimum height=10mm,
+    align=center,
+    fill=green!10
+  },
+  output/.style={
+    draw,
+    rounded corners,
+    minimum width=20mm,
+    minimum height=12mm,
+    align=center,
+    fill=purple!10
+  },
+  combine/.style={
+    draw,
+    circle,
+    minimum size=15mm,
+    align=center,
+    fill=yellow!18
+  },
+  group/.style={
+    draw,
+    dashed,
+    rounded corners,
+    inner sep=1mm
+  },
+  arrow/.style={
+    ->,
+    thick
+  }
+]
+\tikzset{
+  stacked/.style={
+    draw,
+    fill=green!10,
+    minimum width=16mm,
+    minimum height=10mm,
+    rounded corners,
+    align=center,
+    preaction={
+      draw,
+      fill=green!10,
+      transform canvas={xshift=-3mm,yshift=3mm}
+    },
+    preaction={
+      draw,
+      fill=green!10,
+      transform canvas={xshift=-2mm,yshift=2mm}
+    },
+    preaction={
+      draw,
+      fill=green!10,
+      transform canvas={xshift=-1mm,yshift=1mm}
+    }
+  }
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% grid constants
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\def\fNNy{1.0}
+\def\zeroy{0.0}
+\def\etay{-1.0}
+\def\spx{1.1}
+\def\nninx{\spx + 3.7}
+\def\nnmidx{\nninx + 4}
+\def\nnoutx{\nnmidx + 3.5}
+\def\arithmeticx{\nnoutx + 4}
+\def\combx{\arithmeticx + 2.7}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Coordinates (edit these!)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% input
+\node[vector] (x) at (0,\zeroy) {
+  split
+};
+% split
+\coordinate (split-point) at (\spx,\zeroy);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% NN
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[layer] (fin) at (\nninx,\fNNy) {$F_{in}$};
+\node[stacked] (fmid) at (\nnmidx,\fNNy) {$F_{mid}$};
+\node[layer] (fout) at (\nnoutx,\fNNy) {$F_{out}$};
+\node[output] (expf) at (\arithmeticx,\fNNy) {
+$(1 \pm {})$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% One-layer NN
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[layer] (etain) at (\nninx,\etay) {$\eta_{in}$};
+\node[stacked] (etamid) at (\nnmidx,\etay) {$\eta_{mid}$};
+\node[layer] (etaout) at (\nnoutx,\etay) {$\eta_{out}$};
+\node[output] (pmeta) at (\arithmeticx,\etay) {
+$(1 \pm \{\})$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Combiner
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[combine] (comb) at (\combx,\zeroy) {
+$\odot$
+};
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Connections
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% incoming arrow
+\draw[->] (-2.2,0) -- node[above] {
+  $N_{tot} \times k$
+} (x.west);
+% split
+\draw (x.east) -- (split-point);
+\draw[->] (split-point) |- node[above, pos=0.7]{
+  $\text{SR}, N^{SR} \times k$
+}(fin.west);
+\draw[->] (split-point) |- node[above, pos=0.7]{
+  $\text{tot}, N_{tot} \times k$
+}(etain.west);
+% f NN
+\draw[->] (fin.east) -- node[above]{
+  $N^{SR} \times k$
+}(fmid.west);
+\draw[->] (fmid.east) -- node[above]{
+  $N^{SR} \times N_{neurons}$
+}(fout.west);
+\draw[->] (fout.east) -- node[above]{
+  $f(x), N^{SR} \times 1$
+}(expf.west);
+% g NN
+% eta
+\draw[->] (etain.east) -- node[above]{
+  $N_{tot} \times k$
+}(etamid.west);
+\draw[->] (etamid.east) -- node[above]{
+  $N_{tot} \times N_{neurons}$
+}(etaout.west);
+\draw[->] (etaout.east) -- node[above]{
+  $\eta(x), N_{tot} \times 1$
+}(pmeta.west);
+% combine
+\draw[->] (expf.east) -| node[above, pos=0.3]{
+  $(1 \pm f(\anyevent))$
+}(comb.north);
+\draw[->] (pmeta.east) -| node[above, pos=0.3]{
+  $(1 \pm \eta(\anyevent))$
+}(comb.south);
+% outgoing arrow
+\draw[->] (comb.east) -- node[above] {
+  $L[f, g, \eta]$
+} (\combx + 2,\zeroy);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% groups
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\node[group, fit=(fin)(fmid)(fout)(expf)] (f) {};
+\node[group, fit=(etain)(etamid)(etaout)(pmeta)] (eta) {};
+\node at ($(f.north)+(0,0.25)$) {\scriptsize $f(\anyevent)$ NN};
+\node at ($(eta.north)+(0,0.25)$) {\scriptsize $\eta(\anyevent)$ NN};
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Implementation of the model optimizing either loss function. In each step, the data propagates through the model, loss is calculated and adjustable parameters in the model are changed accordingly.}
+\label{fig:model_implementation}
+\end{figure}
+
+\end{document}

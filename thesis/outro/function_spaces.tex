@@ -1,0 +1,88 @@
+\documentclass[thesis/Elad_Kliger_Thesis.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\subsection{Function Spaces}
+
+\subsubsection{\gls{nn} Structure in Multiple Dimensions}
+Moving to 2 or more dimensions, an over simplistic \gls{nn} structure would not be able to fit to signal shapes as easily. Taking, for example, a 2D gaussian signal over a flat background surface. A single neuron would express a 2D sigmoid, so expressing a step up and down shape requires two of them. As seen in Figure~\ref{fig:nn-approximations-for-a-2d-gaussian}, the best case scenario is heavily affected by the architecture. From our trials, it's to the point that having insufficient expressivity of the network causes the result to not detect the signal shape at all.
+
+\begin{figure}
+    \addpic{thesis/outro/gaussian-approximation-with-neurons.jpeg}
+    \caption{Theoretic approximations of a 2D gaussian made with various \gls{nn} architectures. Top left: the gaussian to approximate. Top right and bottom left: best output of a fully connected, one hidden layer \gls{nn} with sigmoid activation and 4 and 8 neurons in the middle layer. Bottom right: best approximation with an additional 2-neurons layer.}
+    \label{fig:nn-approximations-for-a-2d-gaussian}
+\end{figure}
+
+\subsubsection{Additional Function Spaces}
+We implemented a configurable function space from which the null and signal hypotheses are drawn. In practice, this means that the model predicting either $\param$'s or $\nparam$'s is composed of a set base orthogonal functions that span the space of the observable range, and free learnable parameters that multiply them. The accuracy and shape with which the final prediction can be describes is, of course, dependent on the number of base elements, and their type. We implemented the bases:
+
+\begin{itemize}
+    \item Legendre polynomials, defined independently in each dimension $j \in {1, ... k}$ to be orthogonal on $[-1,1]$ and are (stretched to our domain):
+
+    \begin{equation}
+        P_n(\anyevent^j) = \frac{1}{2^n n!}\frac{d^n}{dx^n}((\anyevent^j)^2-1)^n.
+    \end{equation}
+    
+    \item Chebyshev polynomials, defined also dimension-wise:
+
+    \begin{equation}
+        T_n(\anyevent^j) = \cos(n\arccos \anyevent^j)
+    \end{equation}
+    
+    \item Cubic B-splines, defined dimension-wise, using an ordered knot sequence $\tau_i^j$:
+
+    \begin{equation}
+    \begin{aligned}
+        B_{i,0}^j(\anyevent^j) &= \begin{cases}
+            1, \quad \tau_i^j \leq \anyevent^j \leq \tau_{i+1}^j \\
+            0, \quad \text{otherwise}
+        \end{cases} \\
+        B_{i,p}^j(\anyevent^j) &=
+            \frac{\anyevent^j-\tau_i}{\tau_{i+p}-\tau_i} B_{i,p-1}(\anyevent^j)
+            + \frac{\tau_{i+p+1}-\anyevent^j}{\tau_{i+p+1}-\tau_{i+1}} B_{i+1,p-1}(\anyevent^j).
+    \end{aligned}
+    \end{equation}
+
+    \item Bins (piecewise constant functions), for a set of evenly spaced bin edges $b_0, ... b_n$:
+
+    \begin{equation}
+        b^j(\anyevent^j) = \begin{cases}
+            \alpha_i^j, \quad \anyevent^j \in \left[b_i, b_{i+1}\right) \\
+            0, \quad \text{otherwise}
+        \end{cases}
+    \end{equation}
+    
+    \item Sum of locally set sigmoids - a variation of the \gls{nn}'s output that is not degenerated around the null hypothesis.
+    \item The original \gls{nn} is retained as an option, for performance comparison, and for backward compatibility.
+\end{itemize}
+
+\subsubsection{Generalizability vs Specialization of Signal Hypotheses}
+
+From my trials running our procedure countless time with various parameters, it seems to me that there is a single most important tradeoff we need to keep in mind when setting the configuration. That is, the generalizablity of the hypothesis spaces vs their ability to be sensitive to actual signals. There are few forces that are in operation here
+
+First, the Look elsewhere effect - inherently, the more "wide" the options are for what a signal is, the more it is likely that the Poissonian statistics that govern our formulation would generate a signal-like excess at some point in the data. It is visible in Figure~\ref{fig:bkg-only-t-dist-by-number-of-basis-elements}, in which we observe the t value changing with the number of signal hypothesis' basis elements.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{minipage}{0.5\textwidth}
+        % Replace with your actual \addgraph syntax
+        \addgraph{thesis/outro/look-elsewhere-bkg-only-15-splines/performance_plot_1289337612851642469}
+    \end{minipage}\hfill
+    \begin{minipage}{0.5\textwidth}
+        \addgraph{thesis/outro/look-elsewhere-bkg-only-30-splines/t_distribution_plot_4316289735974171630}
+    \end{minipage}
+    \caption{Background only distributions of $t$ values. We see the approximated $\chi^2_r$ contour. Left: using a spline base with 15 elements, right: using a spline base with 30 elements. We observe the element count's change effect on the $t$ values.}
+    \label{fig:bkg-only-t-dist-by-number-of-basis-elements}
+\end{figure}
+
+Second, we note the pre-assumptions embedded into the type and location of basis elements choice. While we previously (\cite{LastDDPPaper}) seen a similar fit among signal types, we now able to distinguish between signal shapes. In Figure~\ref{fig:look-elsewhere-significance-example} we observe a significance detection experiment we had with a 15-spline basis as the basis for the signal hypothesis space. We can see a significantly better fit, consistent across the significance range, of the resonance shaped signal vs the nonlocal one. That is assumed to be due to the assimilation of the gaussian resonance and the single spline natural shape.
+
+\begin{figure}
+    \addgraph{thesis/outro/look-elsewhere-significance-15-splines/performance_plot_1289337612851642469}
+    \caption{A demonstration of the significance progression during one of our test runs. Signal shapes are explicitly described in Eq.~\ref{eq:signal-shapes} We ran our program and measured the significance of various signal shapes, fitting a set of 15 spline function basis for $f$ and 5 more for $\nparam$'s. The measured significance of our method's detection ability is displayed vs the analytical calculation of significance from the number of generated toy signal and background events. We can see the difference between the goodness of detection of various signals.}
+    \label{fig:look-elsewhere-significance-example}
+\end{figure}
+
+\end{document}
