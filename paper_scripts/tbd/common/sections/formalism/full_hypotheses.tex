@@ -8,34 +8,38 @@
 
 We now define the full null and alternative hypotheses in Eq~\ref{eq:sr_hypothesis_statement} 
 
+\begin{wideequations}
 \begin{equation}
 \label{eq:sr_hypothesis_statement}
 \begin{aligned}
-    \nullhypothesis |_{SR} &: \quad
-    \begin{cases}
+    \nullhypothesis |_{SR} &:\\[-0.5ex]
+    &\begin{cases}
         {\srdist{\dataset{A}}^0} = N_\srdataset{A} (1 + {\nparam(\anyevent)}) \srrefdist \\
         {\srdist{\dataset{B}}^0} = N_\srdataset{B} (1 - {\nparam(\anyevent)}) \srrefdist
     \end{cases} \\
-    \hypothesis{1} |_{SR} &: \quad
-    \begin{cases}
+    \hypothesis{1} |_{SR} &:\\[-0.5ex]
+    &\begin{cases}
         {\srdist{\dataset{A}}^1} = N_\srdataset{A} (1 + f(\anyevent)) (1 + {\nparam(\anyevent)}) \srrefdist \\
         {\srdist{\dataset{B}}^1} = N_\srdataset{B} (1 - f(\anyevent)) (1 - {\nparam(\anyevent)}) \srrefdist
     \end{cases}
 \end{aligned}
 \end{equation}
+\end{wideequations}
 
 To which we add, for the control region as in Eq.~\ref{eq:cr_hypothesis_statement}
 
+\begin{wideequations}
 \begin{equation}
 \label{eq:cr_hypothesis_statement}
 \begin{aligned}
-    \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &: \quad
-    \begin{cases}
+    \nullhypothesis |_{CR} = \hypothesis{1} |_{CR} &:\\[-0.5ex]
+    &\begin{cases}
         \crdist{\dataset{A}}^i = N_\crdataset{A} (1 + {\nparam(\anyevent)}) \crrefdist \\
         \crdist{\dataset{B}}^i = N_\crdataset{B} (1 - {\nparam(\anyevent)}) \crrefdist
     \end{cases}
 \end{aligned}
 \end{equation}
+\end{wideequations}
 
 Note that we now have two separate reference distributions, that are built in the same manner - the combined sample in either region.
 
@@ -72,8 +76,10 @@ This costs power and makes $f$ hard to interpret.
  
 Minimal fix, by relativistic velocity addition:
 \[
-\lambda_A=N_A\,\frac{(1+f)(1+\theta)}{1+f\theta}\,\bar n_R,\qquad
-\lambda_B=N_B\,\frac{(1-f)(1-\theta)}{1+f\theta}\,\bar n_R .
+\begin{aligned}
+\lambda_A&=N_A\,\frac{(1+f)(1+\theta)}{1+f\theta}\,\bar n_R,\\
+\lambda_B&=N_B\,\frac{(1-f)(1-\theta)}{1+f\theta}\,\bar n_R .
+\end{aligned}
 \]
 This form is closed and reduces to $H_0$ at $f=0$. It reaches any
 target asymmetry $a$ with $f=(a-\theta)/(1-a\theta)$, and the combined

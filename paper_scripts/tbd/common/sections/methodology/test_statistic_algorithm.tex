@@ -7,7 +7,7 @@
 \subsection{Description of the Algorithm}
 The process is executed and evaluated as follows. The method for calculating a single $t$ value is described in Figure~\ref{alg:single_train_algorithm}.
 
-\begin{figure}
+\begin{figure*}
 \caption{Single $t$ value stochastic calculation}
 \label{alg:single_train_algorithm}
 \begin{algorithmic}[1]
@@ -38,7 +38,7 @@ The process is executed and evaluated as follows. The method for calculating a s
 \State \Return $t$
 
 \end{algorithmic}
-\end{figure}
+\end{figure*}
 
 In cases in which the data is generated, new events are drawn every time the process is carried. In case the dataset is loaded, a subset of the background events are taken randomly from a larger amount that is loaded from the data source, and an artificial signal is added in the cases in which it is needed.
 
