@@ -347,3 +347,18 @@
   Shared normalizer tests cover generated/loaded sources, nuisance, sampling,
   multiple observables, absent background signal and curve splitting; model
   training, restore and prediction interfaces are unaffected.
+
+## 2026-11-10 — Derive control-region parameters from SR definitions
+
+`dataset__definitions` now requires exactly `a` and `b`. Each CR is a deep
+copy of its already instantiated SR parameters, with its category changed and
+mean, realized, and generated-pool signal counts set to zero. This preserves the
+SR's realized background count rather than making another Poisson draw. Source,
+nuisance, observable, and resampling settings are copied; event data are still
+materialized independently. CR settings cannot be overridden in configuration.
+
+Runtime loading and significance-comparison grouping share schema validation
+without sampling during comparison. Fixtures that formerly covered different
+sources or generator modes in SR and CR now cover those modes in separate SR
+pairs. V11 cluster packs will be copied from the current V10 packs in a follow-up;
+this change does not edit cluster packs or submission state.

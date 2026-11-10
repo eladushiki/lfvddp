@@ -4,7 +4,7 @@
             "name": "joint",
             "dataset__signal_positive_only": false,
             "type": "generated",
-            "category": "a_sr",
+            "category": "a",
             "dataset_generated__number_of_dimensions": 2,
             "dataset_generated__background_generator": {
                 "function": "exponential_background"
@@ -26,7 +26,7 @@
         {
             "name": "repeated",
             "type": "generated",
-            "category": "b_sr",
+            "category": "b",
             "dataset_generated__number_of_dimensions": 2,
             "dataset_generated__background_generator": [
                 {
@@ -39,54 +39,6 @@
                 }
             ],
             "dataset__number_of_background_events": 100
-        },
-        {
-            "name": "per-dimension",
-            "type": "generated",
-            "category": "a_cr",
-            "dataset_generated__number_of_dimensions": 2,
-            "dataset_generated__background_generator": [
-                {
-                    "function": "gaussian_background",
-                    "arguments": {
-                        "domain_min": 0.0,
-                        "domain_max": 1.0,
-                        "mean": 0.5
-                    }
-                },
-                {
-                    "function": "gaussian_background",
-                    "arguments": {
-                        "domain_min": 9.0,
-                        "domain_max": 10.0,
-                        "mean": 9.5
-                    }
-                }
-            ],
-            "dataset__number_of_background_events": 100
-        },
-        {
-            "name": "loaded-with-generated-signal",
-            "type": "loaded",
-            "category": "b_cr",
-            "dataset_loaded__file_name": "events.npy",
-            "dataset_loaded__observable_naming": {
-                "param_0": "param_0",
-                "param_1": "param_1"
-            },
-            "dataset__number_of_background_events": 3,
-            "dataset__signal_generator": [
-                {
-                    "function": "gaussian_signal",
-                    "arguments": {
-                        "location": 4.0,
-                        "gaussian_signal_sigma": 0.1,
-                        "domain_max": 4.7
-                    }
-                }
-            ],
-            "dataset__number_of_signal_events": 20,
-            "dataset__signal_number_of_events_to_generate": 20
         }
     ]
 }

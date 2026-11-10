@@ -14,17 +14,22 @@ from data_tools.data_utils import DataSet, sample_events
 
 
 @pytest.mark.parametrize(
-        "function_execution_context",
-        [{
-            ConfigType.DATASET.value: Path("test/configs/dataset/disjoint_1D_generated_dataset_config.json"),
-        }],
-        indirect=True,
+    "function_execution_context",
+    [
+        {
+            ConfigType.DATASET.value: Path(
+                "test/configs/dataset/disjoint_1D_generated_dataset_config.json"
+            ),
+        }
+    ],
+    indirect=True,
 )
 def test_illegal_data_request(
-        data_generation,
+    data_generation,
 ):
     with pytest.raises(KeyError):
         _, _ = data_generation[DataSet.DataSetCategory.SR]
+
 
 @pytest.mark.parametrize(
     "function_execution_context",
@@ -88,7 +93,9 @@ def test_shuffled_regional_pair_preserves_pool_and_can_move_signal(monkeypatch):
     assert first_result.n_samples == first.n_samples
     assert second_result.n_samples == second.n_samples
     np.testing.assert_array_equal(
-        np.sort(np.concatenate((first_result.events, second_result.events), axis=0), axis=0),
+        np.sort(
+            np.concatenate((first_result.events, second_result.events), axis=0), axis=0
+        ),
         np.sort(np.concatenate((first.events, second.events), axis=0), axis=0),
     )
     assert 100.0 in second_result.events
@@ -125,7 +132,7 @@ def test_regional_resampling_with_replacement_can_repeat_events(monkeypatch):
 
 
 def test_component_sampling_supports_random_replacement_and_ordered_selection(
-        monkeypatch,
+    monkeypatch,
 ):
     source = DataSet(np.arange(3, dtype=float).reshape(-1, 1))
     monkeypatch.setattr(
@@ -193,9 +200,9 @@ def test_loaded_component_sampling_defaults_to_random_without_replacement():
     indirect=True,
 )
 def test_loaded_resampling_shuffles_complete_regional_pairs(
-        tmp_path,
-        monkeypatch,
-        isolated_data_generation,
+    tmp_path,
+    monkeypatch,
+    isolated_data_generation,
 ):
     for filename, values in {
         "sr_a.npy": np.arange(6, dtype=float),
@@ -226,7 +233,8 @@ def test_loaded_resampling_shuffles_complete_regional_pairs(
     sr_events = np.concatenate((a_sr.events, b_sr.events), axis=0)
     cr_events = np.concatenate((a_cr.events, b_cr.events), axis=0)
     assert np.all((sr_events < 20.0) | (sr_events > 500.0))
-    assert np.all((cr_events >= 100.0) & (cr_events < 206.0))
+    assert np.all((cr_events >= 0.0) & (cr_events < 16.0))
+    assert not np.any(cr_events > 500.0)
     assert np.any(b_sr.events > 500.0)
 
 
@@ -262,9 +270,9 @@ def test_dataset_config_rejects_mismatched_regional_resampling_policy(
     indirect=True,
 )
 def test_loaded_component_sampling_uses_first_events_and_exact_component_counts(
-        tmp_path,
-        monkeypatch,
-        isolated_data_generation,
+    tmp_path,
+    monkeypatch,
+    isolated_data_generation,
 ):
     for filename, values in {
         "a_sr.npy": np.arange(10, 15, dtype=float),
@@ -285,10 +293,10 @@ def test_loaded_component_sampling_uses_first_events_and_exact_component_counts(
 
     assert a_sr.n_samples == 3
     assert b_sr.n_samples == 3
-    assert a_cr.n_samples == 1
-    assert b_cr.n_samples == 4
+    assert a_cr.n_samples == 2
+    assert b_cr.n_samples == 3
     np.testing.assert_array_equal(a_sr.events[:2].ravel(), np.array([10.0, 11.0]))
     assert a_sr.events[2, 0] > 50.0
     np.testing.assert_array_equal(b_sr.events.ravel(), np.array([20.0, 21.0, 22.0]))
-    np.testing.assert_array_equal(a_cr.events.ravel(), np.array([30.0]))
-    np.testing.assert_array_equal(b_cr.events.ravel(), np.array([40.0, 41.0, 42.0, 43.0]))
+    np.testing.assert_array_equal(a_cr.events.ravel(), np.array([10.0, 11.0]))
+    np.testing.assert_array_equal(b_cr.events.ravel(), np.array([20.0, 21.0, 22.0]))

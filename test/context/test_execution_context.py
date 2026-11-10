@@ -522,9 +522,7 @@ def test_discover_run_contexts_finds_single_train_context(
     "function_execution_context",
     [
         {
-            ConfigType.DATASET.value: Path(
-                "test/context/configs/mixed_generated_and_resampled_datasets.json"
-            ),
+            ConfigType.DATASET.value: Path(dataset_path),
             ConfigType.DETECTOR.value: Path(
                 "test/configs/detector/basic_1D_detector_config.json"
             ),
@@ -532,6 +530,10 @@ def test_discover_run_contexts_finds_single_train_context(
                 "test/configs/train/short_1D_train_config_without_nuisance.json"
             ),
         }
+        for dataset_path in (
+            "test/context/configs/resampled_datasets.json",
+            "test/configs/dataset/disjoint_1D_generated_dataset_config.json",
+        )
     ],
     indirect=True,
 )
@@ -572,7 +574,11 @@ def test_continuation_recreates_generated_and_resampled_datasets(
             DataSet.DataSetCategory.A_CR,
             DataSet.DataSetCategory.B_CR,
         ):
-            assert initial_events[category].shape == (8, 1)
+            parameters = initial_context.config.get_parameters(category)
+            assert initial_events[category].shape == (
+                parameters.dataset__number_of_background_events,
+                1,
+            )
             assert not np.array_equal(
                 initial_events[category],
                 np.arange(8, dtype=float).reshape(-1, 1),
@@ -593,7 +599,7 @@ def test_continuation_recreates_generated_and_resampled_datasets(
             continuation_events = data_batch_events(continuation_context)
 
         assert continuation_context.unique_out_dir == initial_run_dir
-        assert continuation_context.random_seed == 314159
+        assert continuation_context.random_seed == initial_context.random_seed
         assert continuation_context.array_index is None
         assert (
             parse_run_descriptor(

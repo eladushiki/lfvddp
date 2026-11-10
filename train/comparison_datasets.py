@@ -4,7 +4,6 @@ import json
 from collections.abc import Mapping
 from dataclasses import MISSING, fields
 
-from data_tools.data_utils import DataSet
 from data_tools.dataset_config import DatasetConfig
 from data_tools.event_generation.distribution import (
     generator_selection_as_config,
@@ -32,19 +31,13 @@ def dataset_comparison_values(config: Mapping, *, include_signal_shape=False) ->
     definitions = config["dataset__definitions"]
     if not definitions:
         raise ValueError("Missing dataset definitions for significance comparison")
-    schemas = DatasetConfig(dataset__definitions=[])._dataset__types
+    dataset_config = DatasetConfig(dataset__definitions=definitions)
+    schemas = dataset_config._dataset__types
     values = {}
-    categories = set()
     ignored = SIGNAL_STRENGTH_FIELDS | (
         set() if include_signal_shape else SIGNAL_SHAPE_FIELDS
     )
-    for definition in definitions:
-        category = DataSet.DataSetCategory.from_string(definition["category"])
-        if category == DataSet.DataSetCategory.UNDEFINED or category in categories:
-            raise ValueError(
-                f"Invalid or duplicate dataset category: {definition['category']}"
-            )
-        categories.add(category)
+    for category, definition in dataset_config.validated_dataset_definitions().items():
         schema = schemas[definition["type"]]
         declared = {field.name: field for field in fields(schema) if field.init}
         unknown = definition.keys() - declared.keys()
