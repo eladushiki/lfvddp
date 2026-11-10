@@ -1,7 +1,7 @@
 {
   "dataset__definitions": [
     {
-      "name": "a_cr",
+      "name": "per-dimension-positive-signal",
       "type": "generated",
       "category": "a",
       "dataset_generated__number_of_dimensions": 2,
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "name": "b_cr",
+      "name": "loaded-with-positive-signal",
       "type": "loaded",
       "category": "b",
       "dataset__number_of_background_events": 10,

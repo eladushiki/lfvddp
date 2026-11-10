@@ -57,3 +57,23 @@ After shortening the public categories to `a` and `b`, 180 targeted cases passed
 checkpoint, and context cases. Four known context failures were deselected in
 that follow-up run. Internal category mapping and signal-free CR derivation
 remain covered by the existing copy/materialization tests.
+
+## Review clarification: generator fixture purposes
+
+- `positive_signal.json` checks independent and correlated Gaussian signals;
+  `positive_signal_overlay_modes.json` checks unequal per-axis Gaussian widths
+  and positive signal generation on a loaded background. All four paths check
+  event counts, positivity, density normalization, and conditional moments or
+  retained correlation. Pytest case IDs name the two fixture pairs.
+- `generator_modes_dataset_config.json` checks joint signal generation and one
+  background generator repeated across axes. Its test name reflects those modes.
+- `generator_overlay_modes.json` checks distinct background generators per axis
+  and a loaded background with a generated signal overlay, including separate
+  pool sizes, combined event count, and signal integration limits. An explicit
+  background shape assertion prevents interval checks on an empty sample.
+- Caller inventory: these fixture paths and test functions are used only by
+  their respective test modules; no runtime entry points or model paths change.
+
+Review validation: all 18 cases in `test_positive_signal.py` and
+`test_generator_modes.py` passed. Ruff formatting, Ruff F checks, and
+`git diff --check` passed.

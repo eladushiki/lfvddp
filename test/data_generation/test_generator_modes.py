@@ -32,14 +32,10 @@ from test.environment import ConfigType
     ],
     indirect=True,
 )
-def test_joint_repeated_and_per_dimension_generators(
-    tmp_path,
-    monkeypatch,
+def test_joint_and_repeated_generators(
     function_execution_context,
-    data_generation,
 ):
-    np.save(tmp_path / "events.npy", np.arange(6, dtype=float).reshape(3, 2))
-
+    """Check a joint correlated signal and one background generator reused per axis."""
     config = function_execution_context.config
     joint = config.get_parameters(DataSet.DataSetCategory.A_SR)
     assert config.get_parameters(DataSet.DataSetCategory.A_SR) is joint
@@ -101,10 +97,19 @@ def test_per_dimension_and_loaded_overlay_generators(
     function_execution_context,
     data_generation,
 ):
+    """Check the two generator modes in the overlay fixture's A/B definitions.
+
+    A generates background axes in distinct [0, 1] and [9, 10] intervals.
+    B loads three background events and adds 20 generated signal events, using
+    one Gaussian generator on both axes. Check the 23-event combined sample
+    and the signal integration limits as well as the separate source pools.
+    These cases use SR definitions because CR parameters are derived copies.
+    """
     np.save(tmp_path / "events.npy", np.arange(6, dtype=float).reshape(3, 2))
     config = function_execution_context.config
     per_dimension = config.get_parameters(DataSet.DataSetCategory.A_SR)
     per_dimension_background, _ = per_dimension.dataset__data
+    assert per_dimension_background.events.shape == (100, 2)
     assert np.all((per_dimension_background.events[:, 0] >= 0.0))
     assert np.all((per_dimension_background.events[:, 0] <= 1.0))
     assert np.all((per_dimension_background.events[:, 1] >= 9.0))

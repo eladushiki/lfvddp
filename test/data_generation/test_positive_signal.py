@@ -28,11 +28,20 @@ from test.environment import ConfigType
             )
         },
     ],
+    ids=["generated-independent-and-correlated", "per-dimension-and-loaded-overlay"],
     indirect=True,
 )
 def test_positive_signals_preserve_counts_and_conditional_statistics(
     function_execution_context, tmp_path, monkeypatch
 ):
+    """Check positive conditioning across four signal-generation paths.
+
+    The first fixture covers independent and correlated Gaussian signals on
+    generated backgrounds. The overlay fixture covers independent per-dimension
+    widths (1, 2) and a Gaussian signal added to a loaded background. Each path
+    must retain 4000 events and a normalized positive-only density; independent
+    marginals must have half-normal moments and correlation must survive.
+    """
     np.save(tmp_path / "events.npy", np.ones((10, 2)))
     monkeypatch.chdir(tmp_path)
     for category in ("A_SR", "B_SR"):
