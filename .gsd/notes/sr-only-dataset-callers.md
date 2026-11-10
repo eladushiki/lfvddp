@@ -1,4 +1,4 @@
-# SR-only dataset configuration caller inventory
+# A/B dataset configuration caller inventory
 
 - `DatasetConfig.load_dataset_parameters`, `dataset_parameters`, `get_parameters`,
   and `dataset__has_signal`: schema validation and deep-copy tests cover generated
@@ -48,3 +48,12 @@ assertion fails. One NPLM learning case (`function_execution_context3`) cannot r
 because TensorFlow is absent in the local macOS runtime; the same setup error
 reproduces on main. These paths are explicit validation limitations, not changes
 included in this feature.
+
+Public dataset categories are `a` and `b`; the loader maps them to internal
+A_SR/B_SR categories before constructing SR parameters and deriving CR copies.
+
+After shortening the public categories to `a` and `b`, 180 targeted cases passed:
+93 data/schema/calibration/detector cases and 87 training, model integration,
+checkpoint, and context cases. Four known context failures were deselected in
+that follow-up run. Internal category mapping and signal-free CR derivation
+remain covered by the existing copy/materialization tests.

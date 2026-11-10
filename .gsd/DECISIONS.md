@@ -350,7 +350,7 @@
 
 ## 2026-11-10 — Derive control-region parameters from SR definitions
 
-`dataset__definitions` now requires exactly `a_sr` and `b_sr`. Each CR is a deep
+`dataset__definitions` now requires exactly `a` and `b`. Each CR is a deep
 copy of its already instantiated SR parameters, with its category changed and
 mean, realized, and generated-pool signal counts set to zero. This preserves the
 SR's realized background count rather than making another Poisson draw. Source,

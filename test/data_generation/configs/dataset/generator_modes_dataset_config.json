@@ -4,7 +4,7 @@
             "name": "joint",
             "dataset__signal_positive_only": false,
             "type": "generated",
-            "category": "a_sr",
+            "category": "a",
             "dataset_generated__number_of_dimensions": 2,
             "dataset_generated__background_generator": {
                 "function": "exponential_background"
@@ -26,7 +26,7 @@
         {
             "name": "repeated",
             "type": "generated",
-            "category": "b_sr",
+            "category": "b",
             "dataset_generated__number_of_dimensions": 2,
             "dataset_generated__background_generator": [
                 {

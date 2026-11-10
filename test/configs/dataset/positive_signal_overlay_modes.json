@@ -3,7 +3,7 @@
     {
       "name": "a_cr",
       "type": "generated",
-      "category": "a_sr",
+      "category": "a",
       "dataset_generated__number_of_dimensions": 2,
       "dataset_generated__background_generator": {
         "function": "exponential_background"
@@ -30,7 +30,7 @@
     {
       "name": "b_cr",
       "type": "loaded",
-      "category": "b_sr",
+      "category": "b",
       "dataset__number_of_background_events": 10,
       "dataset__number_of_signal_events": 4000,
       "dataset__signal_generator": {

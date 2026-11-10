@@ -246,7 +246,7 @@ def test_control_parameters_are_independent_signal_free_sr_copies(
     [
         ("missing_b", ValueError, "exactly two definitions"),
         ("duplicate_a", ValueError, "Duplicate dataset category"),
-        ("explicit_cr", ValueError, "must be a_sr or b_sr"),
+        ("explicit_cr", ValueError, "must be a or b"),
         ("legacy_four", ValueError, "exactly two definitions"),
         ("missing_name", KeyError, "must contain"),
         ("unknown_type", KeyError, "not defined"),

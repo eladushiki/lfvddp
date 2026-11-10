@@ -3,7 +3,7 @@
         {
             "name": "A",
             "type": "loaded",
-            "category": "a_sr",
+            "category": "a",
             "dataset_loaded__file_name": "a_sr.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__sample_is_sample": false,
@@ -18,7 +18,7 @@
         {
             "name": "B",
             "type": "loaded",
-            "category": "b_sr",
+            "category": "b",
             "dataset_loaded__file_name": "b_sr.npy",
             "dataset_loaded__observable_naming": {"param_0": "param_0"},
             "dataset_loaded__sample_is_sample": false,

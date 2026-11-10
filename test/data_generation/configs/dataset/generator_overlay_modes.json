@@ -3,7 +3,7 @@
     {
       "name": "per-dimension",
       "type": "generated",
-      "category": "a_sr",
+      "category": "a",
       "dataset_generated__number_of_dimensions": 2,
       "dataset_generated__background_generator": [
         {
@@ -28,7 +28,7 @@
     {
       "name": "loaded-with-generated-signal",
       "type": "loaded",
-      "category": "b_sr",
+      "category": "b",
       "dataset_loaded__file_name": "events.npy",
       "dataset_loaded__observable_naming": {
         "param_0": "param_0",

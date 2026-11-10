@@ -3,7 +3,7 @@
         {
             "name": "A",
             "type": "generated",
-            "category": "a_sr",
+            "category": "a",
             "dataset_generated__number_of_dimensions": 2,
             "dataset__mean_number_of_background_events": 5,
             "dataset_generated__background_generator": {
@@ -18,7 +18,7 @@
         {
             "name": "B",
             "type": "generated",
-            "category": "b_sr",
+            "category": "b",
             "dataset_generated__number_of_dimensions": 2,
             "dataset__mean_number_of_background_events": 5,
             "dataset_generated__background_generator": {

@@ -550,6 +550,10 @@ class GeneratedDatasetParameters(DatasetWithGeneratedSignalParameters):
 
 @dataclass
 class DatasetConfig:
+    DEFINITION_CATEGORIES: ClassVar[Dict[str, DataSet.DataSetCategory]] = {
+        "a": DATASET_REGIONS.sr.a,
+        "b": DATASET_REGIONS.sr.b,
+    }
     RUN_VARIATION_FIELDS: ClassVar[set[str]] = {
         "dataset__number_of_background_events",
         "dataset__number_of_signal_events",
@@ -564,7 +568,6 @@ class DatasetConfig:
         "dataset__signal_positive_only",
     }
 
-    
     dataset__definitions: List[Dict[str, Any]]
     _dataset__parameters_by_category: Dict[
         DataSet.DataSetCategory, DatasetParameters
@@ -604,7 +607,7 @@ class DatasetConfig:
         """Construct each configured dataset once after the context RNG is seeded."""
         parameters_by_category = {
             category: self._dataset__types[definition[self._dataset__type_property]](
-                **definition
+                **(definition | {"category": category})
             )
             for category, definition in self.validated_dataset_definitions().items()
         }
@@ -628,7 +631,7 @@ class DatasetConfig:
         """Validate the public SR-only schema without sampling counts or reading data."""
         if len(self.dataset__definitions) != 2:
             raise ValueError(
-                "dataset__definitions requires exactly two definitions: a_sr and b_sr; "
+                "dataset__definitions requires exactly two definitions: a and b; "
                 "control regions are derived automatically."
             )
         definitions = {}
@@ -644,12 +647,13 @@ class DatasetConfig:
                 ) from error
             if dataset_type not in dataset_types:
                 raise KeyError(f"Dataset type '{dataset_type}' not defined")
-            category = DataSet.DataSetCategory.from_string(dataset_category)
-            if not DATASET_REGIONS.sr.contains(category):
+            try:
+                category = self.DEFINITION_CATEGORIES[dataset_category.lower()]
+            except KeyError as error:
                 raise ValueError(
-                    f"Dataset category '{dataset_category}' must be a_sr or b_sr; "
+                    f"Dataset category '{dataset_category}' must be a or b; "
                     "control regions are derived automatically."
-                )
+                ) from error
             if category in definitions:
                 raise ValueError(f"Duplicate dataset category '{dataset_category}'")
             definitions[category] = definition
