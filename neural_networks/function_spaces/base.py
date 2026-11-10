@@ -22,11 +22,10 @@ import torch
 from torch import nn
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
-
 from neural_networks.likelihood_parameterization import (
+    bounded_likelihood_shift_and_logs,
     smoothly_bounded_likelihood_shift,
 )
-
 
 EventInput: TypeAlias = torch.Tensor | npt.ArrayLike
 SCALAR_OUTPUT_DIMENSION: Final = 1
@@ -41,6 +40,10 @@ class FunctionSpace(Protocol):
     feature_count: int
 
     def forward(self, events: EventInput) -> torch.Tensor: ...
+
+    def forward_with_log_factors(
+        self, events: EventInput
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
 
     def initialize_parameters(self, gain: float) -> None: ...
 
@@ -364,6 +367,13 @@ class DeterministicFeatureFunction(PerEventFunctionSpace):
 
     def forward(self, events: EventInput) -> torch.Tensor:
         return smoothly_bounded_likelihood_shift(
+            self._linear_evaluation(self.features(events))
+        )
+
+    def forward_with_log_factors(
+        self, events: EventInput
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return bounded_likelihood_shift_and_logs(
             self._linear_evaluation(self.features(events))
         )
 
