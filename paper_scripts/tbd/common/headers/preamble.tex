@@ -5,7 +5,12 @@
 \input{common/headers/packages}
 \input{common/headers/definitions}
 \input{common/headers/abbreviations}
-\makenoidxglossaries
+% The paper defines acronyms inline and has no standalone glossary.
+\ifdefined\paper
+    \glsdisablehyper
+\else
+    \makenoidxglossaries
+\fi
 
 \newtoggle{ispaper}
 \newtoggle{isthesis}
