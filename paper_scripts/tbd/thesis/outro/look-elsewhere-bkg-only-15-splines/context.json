@@ -1,0 +1,207 @@
+{
+    "commit_hash": "388ca543f13e71a3987ccceecc18016f1488d822",
+    "config": {
+        "cluster__repo_url": "https://github.com/eladushiki/lfvddp.git",
+        "cluster__environment_activation_command": "source /cvmfs/sft.cern.ch/lcg/views/LCG_110/x86_64-el9-gcc13-opt/setup.sh && export PATH=\"/cvmfs/atlas.cern.ch/repo/containers/sw/singularity/x86_64-el9/current/bin:$PATH\"",
+        "cluster__singularity_executable": "singularity",
+        "cluster__qsub_queue": "N",
+        "cluster__qsub_n_jobs": 1000,
+        "cluster__qsub_walltime": "12:00:00",
+        "cluster__qsub_io": 1,
+        "cluster__qsub_mem": 2,
+        "cluster__qsub_ngpus_for_train": 0,
+        "cluster__qsub_ncpus": 4,
+        "cluster__parallel_runtime_cpu_reserve": 0,
+        "cluster__uv_cache_dir": "/storage/agrp/eladklig/.cache/uv",
+        "cluster__qsub_walltime_limit": "72:00:00",
+        "dataset__definitions": [
+            {
+                "name": "A_SR",
+                "type": "generated",
+                "category": "a_sr",
+                "dataset_generated__number_of_dimensions": 1,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 25000
+            },
+            {
+                "name": "B_SR",
+                "type": "generated",
+                "category": "b_sr",
+                "dataset_generated__number_of_dimensions": 1,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 25000
+            },
+            {
+                "name": "A_CR",
+                "type": "generated",
+                "category": "a_cr",
+                "dataset_generated__number_of_dimensions": 1,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 25000
+            },
+            {
+                "name": "B_CR",
+                "type": "generated",
+                "category": "b_cr",
+                "dataset_generated__number_of_dimensions": 1,
+                "dataset_generated__background_generator": {
+                    "function": "exponential_background"
+                },
+                "dataset__mean_number_of_background_events": 25000
+            }
+        ],
+        "detector__detect_observable_names": [
+            "param_0"
+        ],
+        "detector__effect_a_efficiency": "",
+        "detector__effect_a_efficiency_uncertainty": "",
+        "detector__effect_a_error": "",
+        "detector__effect_b_efficiency": "",
+        "detector__effect_b_efficiency_uncertainty": "",
+        "detector__effect_b_error": "",
+        "train__epochs": 20000,
+        "train__number_of_epochs_for_checkpoint": 100,
+        "train__learning_rate": 0.01,
+        "train__final_learning_rate": 0.0001,
+        "train__enable_progress_bar": false,
+        "train__profiling_enabled": false,
+        "train__profiling_warmup_epochs": 5,
+        "train__profiling_active_epochs": 10,
+        "train__function_space_xavier_gain": 1,
+        "train__backend": "lfvddp",
+        "train__f": {
+            "family": "cubic_bspline",
+            "options": {
+                "knots": [
+                    1,
+                    1.75,
+                    2.5,
+                    3.25,
+                    4,
+                    4.75,
+                    5.5,
+                    6.25,
+                    7,
+                    7.75,
+                    8.5,
+                    9.25,
+                    10
+                ]
+            }
+        },
+        "train__nuisance": {
+            "family": "cubic_bspline",
+            "options": {
+                "knots": [
+                    1,
+                    5.5,
+                    10
+                ]
+            }
+        },
+        "train__nn_weight_clipping": false,
+        "train__nuisance_correction_types": "",
+        "train__shape_nuisance_std": 0,
+        "train__shape_nuisance_mean": 0,
+        "train__shape_nuisance_reference": 0,
+        "train__norm_nuisance_std": 0,
+        "train__norm_nuisance_mean": 0,
+        "train__norm_nuisance_reference": 0,
+        "config__user": "eladklig",
+        "config__runtag": "plot-01-reproduction-bkg-1e5-events-bkg",
+        "config__out_dir": "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770",
+        "config__bind_directories": {
+            ".": "/app",
+            "/cvmfs/": "/cvmfs/"
+        },
+        "config__log_level": "INFO",
+        "plot__plot_specifications": [
+            {
+                "name": "t_distribution_plot",
+                "instructions": {}
+            },
+            {
+                "name": "t_train_percentile_progression_plot",
+                "instructions": {}
+            },
+            {
+                "name": "performance_plot",
+                "instructions": {}
+            }
+        ],
+        "plot__pyplot_styling": {
+            "rcParams": {
+                "font.family": "serif",
+                "font.size": 24
+            },
+            "style.use": "classic"
+        },
+        "plot__figure_styling": {
+            "patch_set_facecolor": "white",
+            "plot": {
+                "histogram_color": "plum",
+                "edge_color": "darkorchid",
+                "chi2_color": "grey",
+                "linewidth": 5,
+                "alpha": 0.8
+            }
+        },
+        "plot__figure_size": [
+            10,
+            9
+        ],
+        "plot__prediction_process_number_of_bins": 30,
+        "plot__prediction_process_normalize_each_prediction": true,
+        "plot__run_stamp_row_height": 0.12,
+        "plot__run_stamp_y": 0.02,
+        "plot__run_stamp_font_size": 10,
+        "plot__standard_left_border": 0.125,
+        "plot__standard_right_border": 0.9,
+        "plot__standard_top_border": 0.88
+    },
+    "config_paths": [
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0000_cluster_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0001_eladklig.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0002_plot_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0003_train_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0004_train_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0005_cluster_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0006_dataset_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0007_detector_config.yaml",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/configs/0008_train_config.yaml"
+    ],
+    "command_line_args": [
+        "/storage/agrp/eladklig/SymmetrizedDDP/plot/create_plots.py",
+        "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770"
+    ],
+    "run_hash": -145482361250976582,
+    "run_descriptor": "run_20260928_203636_1790616996.506306_plot-01-reproduction-bkg-1e5-events-bkg_run_of_create_plots.py_pid_1252997",
+    "time": "run_20260928_203636_1790616996.506306",
+    "random_seed": 1759081732,
+    "is_debug_mode": false,
+    "is_build_container": false,
+    "is_only_train": false,
+    "is_continue": false,
+    "continue_from": null,
+    "array_index": null,
+    "qsub_submissions": [],
+    "qsub_walltime_chunk": null,
+    "run_successful": true,
+    "products": {
+        "products": [
+            {
+                "store_path": "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/run_20260928_203636_1790616996.506306_plot-01-reproduction-bkg-1e5-events-bkg_run_of_create_plots.py_pid_1252997/t_distribution_plot_-145482361250976582.png"
+            },
+            {
+                "store_path": "results/highlights/2026-09/plots-v4/plot-01/run_20260928_134711_1790592431.130490_plot-01-reproduction-bkg-1e5-events-bkg_run_of_submit_train.py_pid_943770/run_20260928_203636_1790616996.506306_plot-01-reproduction-bkg-1e5-events-bkg_run_of_create_plots.py_pid_1252997/t_train_percentile_progression_plot_-145482361250976582.png"
+            }
+        ]
+    },
+    "is_reloaded": false
+}

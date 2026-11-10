@@ -16,6 +16,15 @@
 *.synctex
 *.synctex.gz
 *.toc
+*.acn
+*.glo
+*.ist
+
+## Beamer
+*.nav
+*.snm
+*.bcf
+*.run.xml
 
 ## Beamer
 *.nav

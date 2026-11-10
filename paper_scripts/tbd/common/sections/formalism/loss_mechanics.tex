@@ -1,0 +1,62 @@
+\documentclass[paper/ddppaper2.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\subsubsection{Loss Calculating Machinery of \texorpdfstring{$\invllratio$}{the Test Statistic}}
+
+Within our defined signal and null hypothesis spaces, we use a machine learning model to find the parameters that create the best fit. Each model is given a loss function to minimize, that stems directly from Equation~\ref{eq:high_level_overall_test_statistic}, and a (parametrized) function space to search within. The loss expression is broken to two, each of which minimize for one of the terms in the equation. Their explicit expression is stated in Eq.~\ref{eq:discrete_loss_functions}.
+
+\begin{equation}
+\label{eq:discrete_loss_functions}
+\begin{aligned}
+L^{num}[b^f, \omega^f, \nparam] &= \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        {N_\srdataset{A}} (1 + f(\anyevent)) (1 + {\nparam(\anyevent)})
+        + {N_\srdataset{B}} (1 - f(\anyevent)) (1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        {N_\crdataset{A}} (1 + {\nparam(\anyevent)})
+        + {N_\crdataset{B}} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \srdataset{A}} \log(1 + f(\anyevent))
+    - \sum\limits_{\event \in \srdataset{B}} \log(1 - f(\anyevent)) \\&
+    - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    \\&- \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\\
+L^{denom}[\nparam] &= \Bigg(
+    \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
+        {N_\srdataset{A}} (1 + {\nparam(\anyevent)})
+        + {N_\srdataset{B}} (1 - {\nparam(\anyevent)})
+    \right) \\&
+    + \dfrac{1}{N^{CR}} \sum\limits_{\event \in CR} \left(
+        {N_\crdataset{A}} (1 + {\nparam(\anyevent)})
+        + {N_\crdataset{B}} (1 - {\nparam(\anyevent)})
+    \right)
+    \\&
+    - \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
+    \\&- \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
+\Bigg)
+\end{aligned}
+\end{equation}
+
+A quick look convinces us that this function is indeed differentiable and finite, for each part of it is so, and so can serve as a loss function. After minimization, the test statistic is then obtained from the final training values:
+
+\begin{equation}
+\label{eq:t_value_from_two_losses}
+    \invllratio = -2 \cdot L^{num}[b^f, \omega^f, \nparam] + 2 \cdot L^{denom}[\nparam]
+\end{equation}.
+
+\iftrue % MATH NOTE 9  (to hide: change \iftrue to \iffalse)
+\par\medskip\noindent{\color{blue}\textbf{[Math note 9 -- finiteness of the loss]}\enspace
+The loss is finite only if $|f|<1$ and $|\theta|<1$. The output layer of
+Eq.~(22) is linear and unbounded, so $\log(1-f)$ can diverge or become
+undefined during training. Enforce the bound in the parametrization,
+e.g.\ $f=\tanh(\cdot)$, or use the logit form of note~6.\par}\medskip
+\fi % end of MATH NOTE 9
+ 
+
+\end{document}

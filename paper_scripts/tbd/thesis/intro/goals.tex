@@ -1,0 +1,26 @@
+\documentclass[thesis/Elad_Kliger_Thesis.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+% Goals
+% You must present a clear outline of the hypothesis behind your study, as well as a clear and concise statement as to the goals of this project. The scientific importance of the study should also be explained in brief.
+
+\begin{document}
+
+\section{Goals}
+
+In order for our formalism to be useful with real or simulated detector samples, we need to face a few differences that separate the toy models we used in our previous work and the formers' attributes.
+
+We would like to develop our method to be able to
+\begin{itemize}
+    \item Address samples that contain more than a single observable quantity
+    \item Formulate nuisance parameters, that describe uncertainties about our system
+    \item Fix discrepancies with theory, found also in our previous work
+    \item Demonstrate operation on simulated detector data, containing more complex backgrounds
+\end{itemize}
+
+Each of the incremental changes should be formulated, implemented in our codebase and then tested to measure the change in the detected signal significance loss (if exists) with various background and signal shapes and magnitudes.
+
+Being able to do so, would allow us to automatically scan a large amount of histograms and potentially find signal to indicate for further research.
+
+\end{document}
