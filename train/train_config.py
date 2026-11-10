@@ -84,6 +84,9 @@ class TrainConfig:
 
         validate_function_space_specs(resolved.f, resolved.nuisance)
 
+        if self.train__is_nplm and "output_mapping" in resolved.f.options:
+            raise ValueError("output_mapping is only supported by LFVDDP.")
+
         if (
             self.train__is_nplm
             and type(resolved.f.options["hidden_layer_nodes"]) is not int

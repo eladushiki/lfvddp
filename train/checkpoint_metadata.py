@@ -11,7 +11,8 @@ from typing import Any
 
 from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import SCALAR_OUTPUT_DIMENSION
-from train.function_space_config import ResolvedFunctionSpaceConfig
+from train.function_space_config import ResolvedFunctionSpaceConfig, TrainingBackend
+from train.neural_output_config import LEGACY_NEURAL_OUTPUT_MAPPING, NeuralOutputConfig
 
 
 def checkpoint_value(value: Any) -> Any:
@@ -67,6 +68,14 @@ def build_checkpoint_metadata(
         if (
             spec is not None
             and spec["family"] == "adaptive_neural"
+            and resolved_config.backend is TrainingBackend.LFVDDP
+        ):
+            spec["options"]["output_mapping"] = NeuralOutputConfig.from_options(
+                spec["options"]
+            ).output_mapping
+        if (
+            spec is not None
+            and spec["family"] == "adaptive_neural"
             and normalization_factor is not None
         ):
             # Preserve the historical fingerprint's structural input width,
@@ -101,7 +110,7 @@ def validate_checkpoint_metadata(
     # Old checkpoints could explicitly record the already-scalar output.
     # Canonicalize that redundant hint without relaxing input-width checks.
     actual_compatibility = checkpoint_value(actual_compatibility)
-    removed_output_hint = False
+    canonicalized = False
     for role in ("f", "nuisance"):
         spec = actual_compatibility.get(role)
         if isinstance(spec, dict) and spec.get("family") == "adaptive_neural":
@@ -111,8 +120,15 @@ def validate_checkpoint_metadata(
                 and options.get("output_dimension") == SCALAR_OUTPUT_DIMENSION
             ):
                 options.pop("output_dimension")
-                removed_output_hint = True
-    if removed_output_hint:
+                canonicalized = True
+            if (
+                actual_compatibility.get("backend") == TrainingBackend.LFVDDP.value
+                and "output_mapping" not in options
+            ):
+                # Absence in historical metadata means tanh, never the new default.
+                options["output_mapping"] = LEGACY_NEURAL_OUTPUT_MAPPING
+                canonicalized = True
+    if canonicalized:
         actual_compatibility["config_fingerprint"] = _compatibility_fingerprint(
             {
                 key: actual_compatibility[key]

@@ -12,7 +12,7 @@ from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.differentiating_model import DifferentiatingModel
 from test.environment import ConfigType
-from test.function_space_cases import NEURAL_DEPTH_CONFIGS
+from test.function_space_cases import NEURAL_DEPTH_CONFIGS, NEURAL_OUTPUT_CONFIGS
 from train.checkpoint_metadata import (
     build_checkpoint_metadata,
     validate_checkpoint_metadata,
@@ -46,7 +46,7 @@ _FUNCTION_SPACE_CASES = [
     ),
     *[
         pytest.param(config, id=config[ConfigType.TRAIN].stem)
-        for config in NEURAL_DEPTH_CONFIGS
+        for config in NEURAL_DEPTH_CONFIGS + NEURAL_OUTPUT_CONFIGS
     ],
     pytest.param(
         {
@@ -260,7 +260,7 @@ def test_checkpoint_round_trip_preserves_all_function_space_state(
     "function_execution_context",
     [
         pytest.param(config, id=config[ConfigType.TRAIN].stem)
-        for config in NEURAL_DEPTH_CONFIGS
+        for config in NEURAL_DEPTH_CONFIGS + NEURAL_OUTPUT_CONFIGS
     ],
     indirect=True,
 )
@@ -401,7 +401,7 @@ def test_checkpoint_without_embedded_metadata_is_rejected(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "function_execution_context", [NEURAL_DEPTH_CONFIGS[0]], indirect=True
+    "function_execution_context", [NEURAL_OUTPUT_CONFIGS[1]], indirect=True
 )
 def test_legacy_checkpoint_dimensions_remain_structural_metadata(
     function_execution_context,
