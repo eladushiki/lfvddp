@@ -61,10 +61,10 @@ For our test statistic, we consider the log-likelihood measure
     \llikelihood( \lambda_\param | \dataset{A}) = -\int \lambda(\anyevent)d\anyevent + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A},
 \end{equation}
 
-\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute Eq.~\ref{eq:learnable_distribution} into Eq.~\ref{eq:log_likelihood_of_a_distribution} to get
+\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute the signal-region intensity in Eq.~\ref{eq:sr_hypothesis_statement} into Eq.~\ref{eq:log_likelihood_of_a_distribution} to get
 
 \begin{equation}
-    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + f(\event)) (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A},
+    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}}\int (1+f(\anyevent))(1+\nparam(\anyevent))\refdist\,d\anyevent + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + f(\event)) (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A},
 \end{equation}
 
 \noindent which can be rewritten as
@@ -73,16 +73,21 @@ For our test statistic, we consider the log-likelihood measure
 \label{eq:log_likelihood_of_a_learnable_distribution}
 \begin{aligned}
     \llikelihood( \lambda_\param | \dataset{A}) ={}&
-    -N_{\dataset{A}}
+    -N_{\dataset{A}}\int (1+f(\anyevent))(1+\nparam(\anyevent))\refdist\,d\anyevent
     + N_{\dataset{A}}\log{N_{\dataset{A}}}
-    + \sum_{\event \in \dataset{A}} (1 + f(\event)) \\&
+    + \sum_{\event \in \dataset{A}} \log(1 + f(\event)) \\&
     + \sum_{\event \in \dataset{A}} \log(1 + \nparam(\event))
     + \sum_{\event \in \dataset{A}} \log \refdist[\event]
     + C'_\dataset{A},
 \end{aligned}
 \end{equation}
 
-\noindent while a similar expression holds for negative $f$ and $\dataset{B}$.
+\noindent Here $\dataset{A}$ denotes the signal-region sample; a similar
+expression holds for $\dataset{B}$ with both $f$ and $\nparam$ negated.
+The integral is retained because normalization of $f$ alone does not
+normalize the combined signal and nuisance factors. Its expansion and
+the cancellation of parameter-independent terms are given in
+Appendix~\ref{Appendix_Tvalue}.
 
 \iftrue % MATH NOTE 7  (to hide: change \iftrue to \iffalse)
 \par\medskip\noindent{\color{blue}\textbf{[Math note 7 -- Eqs.~(13)--(14)]}\enspace
