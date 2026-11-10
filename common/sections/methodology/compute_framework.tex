@@ -1,0 +1,13 @@
+\documentclass[paper/ddppaper2.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\subsubsection{Compute Framework}
+
+We chose to implement our project using Python, as a go-to programming language nowadays with several standard libraries for ML, data and plotting, including pytorch, numpy and matplotlib. Our project runs on Singularity containerization platform and using CERN's VM FS environment. Parallel runs are handled from within python and is fitted to use the current configuration of our department's computing cluster running OpenPBS engine.
+
+Some of the design principles were to encapsulate any new functionality while maintaining past capabilities, document and hash run details for traceability and separation of run parameter configuration from the code files in the codebase.
+
+\end{document}

@@ -8,7 +8,7 @@ aps, physrev,
 ]{revtex4-2}
 
 \def\thesis{}
-\input{../common/preamble}
+\input{common/headers/preamble}
 
 % Paper sections use paths relative to the paper's top-level directory.
 % Search there when those shared sections are compiled as part of the thesis.
@@ -50,10 +50,6 @@ aps, physrev,
 
 \includefullpage[1]{intro/elad-thesis-title-page.pdf}
 
-\glsaddall[types={\acronymtype}]
-\printnoidxglossary[type=\acronymtype,title={List of Abbreviations}]
-\newpage
-
 \subfile{intro/acknowledgements.tex}
 \newpage
 
@@ -61,21 +57,13 @@ aps, physrev,
 \newpage
 
 % ABBREVIATIONS
+\glsaddall[types={\acronymtype}]
+\printnoidxglossary[type=\acronymtype,title={List of Abbreviations}]
+\newpage
 
-% Abstract
-% The abstract will briefly summarize the background, results and conclusions of the thesis (up to one page).
-% Theses that are written in Hebrew (in Science Teaching), must include an abstract in English as well.
-\subfile{intro/abstract.tex}
-
-% Introduction
-% The Introduction chapter should review and summarize the current state of knowledge in your field in terms of scientific literature, raise questions, and note mistakes or possible gaps in this knowledge.
-    
-\subfile{intro/introduction.tex}
-
-% Goals
-% You must present a clear outline of the hypothesis behind your study, as well as a clear and concise statement as to the goals of this project. The scientific importance of the study should also be explained in brief.
-
-\subfile{intro/goals.tex}
+\subfile{thesis/intro/abstract.tex}
+\subfile{thesis/intro/introduction.tex}
+\subfile{thesis/intro/goals.tex}
 
 % =============================================================================
 % Article body
@@ -84,67 +72,55 @@ aps, physrev,
 % Methods
 % This chapter must include a description of the materials and methods used in your study. The information should be written so that a competent researcher can replicate your results based on your protocols. You may describe protocols in detail, or refer to a detailed reference in the literature (while nonetheless providing a brief overview of the protocol).
 
-
 \section{Formalism}
-\SB{start from a short reminder of the formalism in the original work. With citations.
-define the pdf as the sum of all events and explain the null and signal hypotheses used
-and also the fitting mechanism using \gls{nn}. You cal also add a sketch if it helps.}
-
-\SB{Once you remind what was done I would just describe the modifications to the signal and null hypotheses
-separately fro the addition of more variables (so no mention of \gls{cr}) and separately for the addition
-of nuisance parameters with a generic explanation how they can be constrained in a model.
-than say that here we demonstrate it with CRs}
-
-\SB{Only then write the full null and signal hypotheses. And show what the likelihood function looks like
-after the algebra}
-
-\subfile{formalism/lepton_flavor_universality_and_violation}
-
+\subsection{Reminder}
+\subfile{common/sections/formalism/reminder}
 \subsection{Adding Dimensions}
-\subfile{../paper/sections/formalism/multiple_dimension_distributions}
+\subfile{common/sections/formalism/multiple_dimension_distributions}
 \subsection{Adding Nuisance Parameters}
-\subfile{../paper/sections/formalism/detector_affected_distributions}
-\subfile{../paper/sections/formalism/measuring_our_system}
-\subfile{../paper/sections/formalism/full_hypotheses}
+\subfile{common/sections/formalism/detector_affected_distributions}
+\subfile{common/sections/formalism/measuring_our_system}
+\subfile{common/sections/formalism/full_hypotheses}
 \subsection{Estimating Hypotheses}
-\subfile{../paper/sections/formalism/distribution_likelihood}
-\subfile{../paper/sections/formalism/hypothesis_log_likelihood_ratio}
-\subfile{../paper/sections/formalism/loss_mechanics}
+\subfile{common/sections/formalism/distribution_likelihood}
+\subfile{common/sections/formalism/hypothesis_log_likelihood_ratio}
+\subfile{common/sections/formalism/loss_mechanics}
 \subsection{Test Statistic Behavior}
-\subfile{../paper/sections/formalism/test_statistic_distribution}
-\subfile{../paper/sections/formalism/significance_estimation}
+\subfile{common/sections/formalism/hypothesis_space_bases}
+\subfile{common/sections/formalism/test_statistic_distribution}
+\subfile{common/sections/formalism/significance_estimation}
 
 \section{Methodology}
 \subsection{Implementation Choices}
-\subfile{../paper/sections/methodology/neural_network_compute}
-\subsection{Performance}
-\subfile{../paper/sections/methodology/datasets_and_signals}
-\subfile{../paper/sections/methodology/detector_nuisance}
-\subfile{../paper/sections/methodology/reproduction}
-\subfile{../paper/sections/methodology/multiple_dimensions}
-\subfile{../paper/sections/methodology/simulated_data}
+\subfile{common/sections/methodology/compute_framework}
+\subfile{common/sections/methodology/model_specs}
+\subfile{common/sections/methodology/test_statistic_algorithm}
 
 % Results
 % This chapter must include a full description of the results obtained in your thesis work including results that you have already published in scientific papers. (The papers themselves, however, must not be included.) Whenever possible, the results should be presented in the form of figures, graphs or tables with appropriate statistical analysis, where relevant
 
-    % \subfile{sections/results.tex}
-\TODO{results}
+\section{Performance}
+\subfile{common/sections/results/datasets_and_signals}
+\subfile{common/sections/results/reproduction}
+\subfile{common/sections/results/detector_nuisance}
+\subfile{common/sections/results/multiple_dimensions}
+\subfile{common/sections/results/simulated_data}
 
 % Discussion
 % The Discussion section should provide a wide view of the subject matter of your thesis, its conclusions, implications, and potential future developments. The results obtained will be compared with the original hypothesis, and with results and conclusions of other investigators that appear in the scientific literature.
 
-    % \subfile{sections/discussion.tex}
-\TODO{discussion}
+\section{Discussion}
+\subfile{common/sections/appendices/borken_Wilks_Wald}
+\subfile{thesis/outro/function_spaces}
+\subfile{thesis/outro/limitations}
 
 \section{Conclusion}
-\subfile{../paper/sections/conclusion}
+\subfile{common/sections/conclusion}
+\clearpage
 
 % =============================================================================
 % Acknowledgments, appendices, bibliography
 % =============================================================================
-
-\appendix
-\subfile{../paper/sections/appendices/t_value_computation}
 
 % Literature
 % The literature cited in your thesis must be presented as is customary in scientific publications. Titles of articles must be presented in full.
@@ -153,6 +129,12 @@ after the algebra}
 % Produce the bibliography via BibTeX.
 \nocite{*}
 \bibliographystyle{apsrev4-2}
-\bibliography{../common/bibliography/bibliography}
+\section{Bibliography}
+\bibliography{common/bibliography/bibliography}
+\clearpage
+
+\appendix
+\subfile{common/sections/appendices/t_value_computation}
+\subfile{thesis/outro/region_relative_weight}
 
 \end{document}

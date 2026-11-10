@@ -1,12 +1,13 @@
-\documentclass[../Elad_Kliger_Thesis.tex]{subfiles}
+\documentclass[thesis/Elad_Kliger_Thesis.tex]{subfiles}
 
-\input{../common/preamble}
+\input{common/headers/preamble}
+
+% Introduction
+% The Introduction chapter should review and summarize the current state of knowledge in your field in terms of scientific literature, raise questions, and note mistakes or possible gaps in this knowledge.
 
 \begin{document}
 
 \section{Introduction}
-
-\SB{the subsections are not needed in the introduction for the paper. You can keep it. add more details and examples}
 
 \subsection{Beyond the Standard Model Searches}
 
@@ -18,9 +19,9 @@ The \gls{sm} of the elementary particles \cite{Grossman_StandardModel_2023} is k
     \item Leptogenesis models that, additional to neutrino masses, suggest CP violation to explain matter-antimatter asymmetry.
 \end{itemize}
 
-Particle accelerator are the most common tool used in search for \gls{bsm} physics, due to their ability not only to reach high energies but also huge luminosities. Example are the Large hadron Collider (LHC) \cite{CERN_Courier_LHC_Run3} with its state of the art collision energy of 13.6 TeV and expected total integrated luminosity of $550fb^{-1}$ since it's first collisions, and the foreseen future FCC-ee \cite{Benedikt_2026_FCC} with energy of 90 to 365 GeV and luminosity of $0.67ab^{-1}$ to $68ab^{-1}$ (depending on the interaction point) per year of operation. The hundreds of searches for \gls{bsm} physics conducted so far at the LHC data have not found any profound evidence for new processes. See, for example \cite{PDG_2024} and references therein. Yet, only a small fraction of possible scenarios have been probed. For example, in ATLAS pMSSM searches, about 40\% points excluded by ATLAS escape the currently available simplified model constraints \cite{Ambrogi_2018_pMSSM_misses}. In the search for BSM physics, powerful particle colliders such as the Large Hadron Collider (LHC) at CERN have been in use, due to their ability to poke into the high energy regime where new physics may manifest itself. Although current searches based upon the LHC data have failed to show any evidence for BSM physics (but have been used to rule out most theoretically motivated BSM models), much rich and complex data has been generated that can be used for future analysis. 
+Particle accelerators are the most common tool used in search for \gls{bsm} physics, due to their ability not only to reach high energies but also huge luminosities. Example are the Large hadron Collider (LHC) \cite{CERN_Courier_LHC_Run3} with its state of the art collision energy of 13.6 TeV and expected total integrated luminosity of $550fb^{-1}$ since it's first collisions, and the foreseen future FCC-ee \cite{Benedikt_2026_FCC} with energy of 90 to 365 GeV and luminosity of $0.67ab^{-1}$ to $68ab^{-1}$ (depending on the interaction point) per year of operation. The hundreds of searches for \gls{bsm} physics conducted so far at the LHC data have not found any profound evidence for new processes, since the discovery of the Higgs candidate. See, for example \cite{PDG_2024} and references therein. Yet, only a small fraction of possible scenarios have been probed. For example, in ATLAS pMSSM searches, about 40\% points excluded by ATLAS escape the currently available simplified model constraints \cite{Ambrogi_2018_pMSSM_misses}. In the search for BSM physics, powerful particle colliders such as the Large Hadron Collider (LHC) at CERN have been in use, due to their ability to poke into the high energy regime where new physics may manifest itself. Although current searches based upon the LHC data have failed to show any evidence for BSM physics (but have been used to rule out most theoretically motivated BSM models), much rich and complex data has been generated that can be used for future analysis. 
 
-A classic search for a \gls{bsm} physics model \cite{ATLAS_Higgs_2012} consists of several time-consuming and human-intensive steps, such as formulating selection criteria to enhance the signal of the \gls{sm} background, modeling the expected signal and background shapes, quantifying potential systematic uncertainties and constructing a solid statistical model. Yet, such steps take an extensive amount of time and labor to execute. 
+A classic search for a \gls{bsm} physics model \cite{ATLAS_Higgs_2012} consists of several manual steps, such as deriving production mechanisms and decay modes of new particles, defining event selection criteria to enhance the signal over the \gls{sm} background, quantifying potential systematic uncertainties and constructing a solid statistical model. Such steps take an extensive amount of time and effort to execute, while poking a small subspace of the \gls{bsm} possibilities.
 
 In our previous works \cite{Volkovich_2022_DDP, Birman_2022_Symmetries, LastDDPPaper} we suggested addressing these limitations with our \gls{ddp} for model agnostic searches. By efficiently scanning the detector generated data for deviations from \gls{sm}-predicted properties, our search could identify possible starting points for future studies. In particular, symmetries respected by the \gls{sm} set selection rules for, and relations between, different observable processes, and grant us an anchor from which to search for deviations. 
 
@@ -28,7 +29,7 @@ Here we generalize the symmetry method first proposed in \cite{LastDDPPaper}. Th
 
 We add mechanisms to cope with simulated data complexities, and use it to test data sample pairs which are predicted to by symmetric by the \gls{sm}. We added the ability to examine multiple observable quantities and to model nuisance parameters in our system and cancel out their effect on the samples.
 
-We continue our work to look into the lepton sector in search of lepton flavor violations, as it is a well motivated area for \gls{bsm} searches that fit's our model's abilities. This is done with by using CMS Open Data sample pairs which are symmetric ny the lepton flavor of the cuts made to create them.
+We continue our work to look into the lepton sector in search of lepton flavor violations, as it is a well motivated area for \gls{bsm} searches that fit's our model's abilities. This is done with by using CMS Open Data sample pairs which are symmetric by the lepton flavor of the cuts made to create them.
 
 \subsection{Scientific Background}
 
@@ -119,30 +120,74 @@ An accidental symmetry of the \gls{sm} is the lepton flavor symmetrty:
     U(1)_e \times U(1)_\mu \times U(1)_\tau.
 \end{equation}
 
-\noindent it constrains that the number of particles of each flavor is conserved throughout a process. This being said, evidence from the Kamiokande experiment~\cite{SuperKamiokande_1998_Oscillations} showed evidence that this is not the full description of nature. Running the detector experiment for 535 days, the team exhibits discrapency between the expected and the measured number $\nu_\mu$ that pass through the detector, and that this amount varies depending on the distacnce the particles travel from the sun. A possible explanation for this are "neutrino oscillations", the term coined to express that the PMNS matrix is not diagonal in the mass basis of the leptons, causing traveling leptons to change their mass state via the development of the Hamiltonian.
+\noindent it constrains that the number of particles of each flavor is conserved throughout a process. This being said, evidence from the Kamiokande experiment~\cite{SuperKamiokande_1998_Oscillations} showed evidence that this is not the full description of nature. Running the detector experiment for 535 days, the team exhibits discrapency between the expected and the measured number $\nu_\mu$ that pass through the detector, and that this amount varies depending on the distacnce the particles travel from the sun. A possible explanation for this are "neutrino oscillations", the term coined to express that the PMNS matrix is not diagonal in the mass basis of the leptons, causing traveling leptons to change their mass state via the free space propagator.
 
 \subsection{Searches for Deviations from the Standard Model}
-\TODO{write section}
 
-\subsection{symmetrized}
-\TODO{write section}
+In order to estimate from an experimental sample whether or not we're observing new physics, we need to formulate a hypothesis testing mechanism.
 
-\subsubsection{Search for Lepton Flavor Violating Processes}
-\SB{Again, in a paper you can refer to \gls{lfv} very shortly citing previous works.
-In a thesis, you'll need a dedicated chaper for theoretical backgroun where \gls{lfv} should be explain in some lengh}
+A hypothesis~\cite{Cowan_2013_Statistics_LHC} is a statement about the probability to find some sample $x$. $P(x|H)$ expresses the probability to find $x$ given that the hypothesis $H$ is true. The likelihood of the hypothesis is then, given a sample, $\likelihood(H|x) = P(x|H)$.
 
-One particular section of the \gls{sm} particles that draws attention to specific searches for new physics is the lepton sector. The \gls{sm} predicts that lepton sections of the three generations - the electron, the muon and the tau -  each contain a lepton and a neutrino. In addition, foundations of the \gls{sm} predict three identical generations that are broken only by Yukawa interactions, in which case we say that there is a \textbf{Lepton Flavor Universality} (LFU) in the \gls{sm}. However, behaviors such as neutrino oscillations suggest that there is physics we don't yet understand.
+Considering a null hypothesis, $\nullhypothesis$, which we want to test, and an alternative signal hypothesis, $\hypothesis{1}$. The Neymann-Pearson lemma states that the most powerful test is the (inverse) log likelihood ratio, defined as:
 
-\subsection{In this Paper}
+\begin{equation}
+    \invllratio = 2 \log \dfrac{\likelihood(\hypothesis{1}|x)}{\likelihood(\nullhypothesis|x)}
+\end{equation}
 
-%Our goal is to use a previously suggested method, the \textbf{Data-Directed Paradigm} (DDP), to look for hints of lepton flavor violating (LFV) evidence in simulated LHC data. To this end, we extend the existing method in several ways:
+In our context, signal hypotheses are hypotheses spaces - parametrized by parameters of interest, $\param$. In addition, both the signal and the null hypotheses are parametrized by nuisance parameters, $\nparam$'s, that are not of interest for our hypothesis and represent system uncertainties.
 
-\SB{In this paper, we generalize the symmetry method first proposed in \TBD{citation}. Say what was done not in bullets. In continuation to the discussion in you presentation to the group, here is the place to give a descriptive intuitive description of the purpose. }
+In this case, the log likelihood ratio would maximize over each hypothesis space to indicate which is more likely, and becomes:
 
-\begin{enumerate}
-    \item We look at multi-dimensional data, in terms of physical observables of the events.
-    \item We model our knowledge of the effects of a detector (and the potential error term created) using nuisance parameters, which we use to measure its effect on the discovery probability and significance estimation.
-    \item We proceed to run on simulated CMS datasets, rather than purely hypothetical samples.
-\end{enumerate}
+\begin{equation}
+    \invllratio = 2 \log \left( \dfrac{\max\limits_{\param, \nparam} \likelihood({\param},{\nparam})}{\max\limits_{\nparam} \likelihood(\param = 0, {\nparam})} \right)
+\end{equation}
+
+\subsection{Previous Works of the Symmetrized Formalism}
+
+The symmetrized formalism, presented in \cite{Italian_no_1_Learning_New_Physics_from_a_Machine, Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine}, suggests a method to perform an agnostic new physics search based on known measures of likelihood ratio. They do this by comparing symmetric samples rather than modeling the physics of the background and signal channels. They did so by applying neural networks to solve complex minimization expressions while maintaining a great expressiveness of the signal and null hypotheses spaces.
+
+the goal of the method is to solve for maximization of the test statistic:
+
+\begin{equation}
+\label{eq:italian_t_definition}
+    t(\mathcal{D}, \mathcal{A})
+    =
+    2 \log \left(
+    \frac{
+        \displaystyle \max_{\mathbf{w},\nu}
+        \left[
+            \mathcal{L}
+            \left(
+                \mathrm{H}_{\mathbf{w},\nu}
+                \mid
+                \mathcal{D},\mathcal{A}
+            \right)
+        \right]
+    }{
+        \displaystyle \max_{\nu}
+        \left[
+            \mathcal{L}
+            \left(
+                \mathrm{R}_{\nu}
+                \mid
+                \mathcal{D},\mathcal{A}
+            \right)
+        \right]
+    } \right) .
+\end{equation}
+
+with $\mathbf{w}$ and $\nu$ the parameters of interest and the nuisance parameters accordingly, $\likelihood$ is the likelihood of a parametrized signal (null) hypothesis, $\mathrm{H}$ ($\mathrm{R}$), given the data sample, $\mathcal{D}$, and the auxiliary sample ,$\mathcal{A}$.
+
+Hypotheses are formulated as:
+
+\begin{equation}
+    n(x|\mathrm{H}_{\mathbf{w}, \nu}) = e^{f(x;\mathbf{w}}n(x|\mathrm{R}_\nu)
+\end{equation}
+
+\noindent use the output of a neural network for $f$, allowing to later fit it to minimize a loss, extracted from the expressions in Equation~\ref{eq:italian_t_definition}. The exponantiated $f$ shifts a common "null" distribution, $n(x|\mathrm{R}_\nu)$, to allow for easy comparison between the two.
+
+Our previous work \cite{LastDDPPaper} applies the symmetric formalism for samples of arbitrary sizes, removing the requirement for one of them to be significantly larger than the other, while solving several computational difficulties arose there.
+
+with a similar test statistic objective, we redefined the hypothesis spaces as can be seen in Equation~\ref{eq:last_ddp_paper_hypotheses}. Maintaining the loss fitting mechanism for $f$ and $g$, we now have a two-fold hypothesis space, accounting for either sample's generating distribution. Both exponents modify a common reference distribution, $\refdist$, for straight-forward comparison.
 
 \end{document}

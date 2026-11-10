@@ -1,6 +1,6 @@
 \documentclass[notheorems]{beamer}
 
-\input{../common/preamble.tex}
+\input{common/headers/preamble.tex}
 
 \usetheme{Madrid} 
 \usecolortheme{default}
@@ -327,14 +327,14 @@
     \begin{equation}
     \begin{aligned}
         \label{eq:parametrized_distribution}
-        \parampdf(\anyevent)^\dataset{A} = e^{\paramf(\anyevent)}(1 + \nparam(\anyevent)) \refdist \\
-        \parampdf(\anyevent)^\dataset{B} = e^{\paramg(\anyevent)}(1 - \nparam(\anyevent)) \refdist
+        \parampdf(\anyevent)^\dataset{A} = (1 + \paramf(\anyevent))(1 + \nparam(\anyevent)) \refdist \\
+        \parampdf(\anyevent)^\dataset{B} = (1 - \paramf(\anyevent))(1 - \nparam(\anyevent)) \refdist
     \end{aligned}
     \end{equation}
     \begin{itemize}
         \item the reference distribution, $\refdist$, is composed of the combined datasets
         \item $(1 \pm \nparam(\anyevent))$ represent shifts due to nuisance parameters of the system - in our case, detector effects
-        \item $e^{\paramf}, e^{\paramg}$ represent shifts due to potential signal
+        \item $e^{\paramf}$ represent shifts due to potential signal, symmetrically around the mean of the two distributions, which is the choice for $\refdist$
         \item \TODO{we implement with CR}
     \end{itemize}
 \end{frame}
@@ -448,7 +448,7 @@
     \begin{equation}
     \begin{aligned}
         L^\text{numerator}[f, g, \nparam]
-            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \paramg, \nparam) \\
+            &= -\likelihood\Bigl(\hypothesis{1}(\paramf, \nparam) \\
             &\qquad\Bigm| \dataset{A}, \dataset{B}\Bigr) \\
         L^\text{denominator}[\nparam]
             &= -\likelihood\Bigl(\nullhypothesis(\nparam) \\
@@ -463,7 +463,7 @@
 
 \begin{frame}{Parameterization by Neural Networks}
     \begin{itemize}
-        \item Since $\paramf, \paramg$ should be as generic and as expressive as possible, we realize them as neural network outputs:
+        \item Since $\paramf$ should be as generic and as expressive as possible, we realize them as neural network outputs:
     \end{itemize}
     \addsizedpic{0.5}{
         figures/nn-illustration.png
