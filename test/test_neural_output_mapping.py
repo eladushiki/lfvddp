@@ -17,7 +17,23 @@ from train.checkpoint_metadata import (
     build_checkpoint_metadata,
     validate_checkpoint_metadata,
 )
+from train.neural_output_config import NeuralOutputConfig, NeuralOutputMapping
 from train.train_config import TrainConfig
+
+
+@pytest.mark.parametrize("mapping", list(NeuralOutputMapping))
+def test_output_mapping_enum_normalizes_strings_and_preserves_serialized_names(mapping):
+    config = NeuralOutputConfig(output_mapping=f" {mapping.value.upper()} ")
+    assert config.output_mapping is mapping
+    assert NeuralOutputConfig(output_mapping=mapping).output_mapping is mapping
+    assert json.loads(json.dumps({"output_mapping": mapping})) == {
+        "output_mapping": mapping.value
+    }
+    raw = torch.tensor([-2.0, 0.0, 2.0], dtype=torch.float64)
+    torch.testing.assert_close(
+        smoothly_bounded_likelihood_shift(raw, mapping),
+        smoothly_bounded_likelihood_shift(raw, mapping.value),
+    )
 
 
 @pytest.mark.parametrize("mapping", ["algebraic", "tanh"])
@@ -81,7 +97,7 @@ def test_file_backed_output_maps_are_independent_by_role(
             dtype=torch.float64,
             observable_names=config.detector__detect_observable_names,
         )
-        assert space.output_config.output_mapping == mapping
+        assert space.output_config.output_mapping is NeuralOutputMapping(mapping)
 
 
 @pytest.mark.parametrize("mapping", [None, True, 1, "sigmoid", "", [], {}])

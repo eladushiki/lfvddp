@@ -12,7 +12,7 @@ from typing import Any
 from data_tools.data_utils import ShiftAndNormalizationFactor
 from neural_networks.function_spaces.base import SCALAR_OUTPUT_DIMENSION
 from train.function_space_config import ResolvedFunctionSpaceConfig, TrainingBackend
-from train.neural_output_config import LEGACY_NEURAL_OUTPUT_MAPPING, NeuralOutputConfig
+from train.neural_output_config import NeuralOutputConfig, NeuralOutputMapping
 
 
 def checkpoint_value(value: Any) -> Any:
@@ -72,7 +72,7 @@ def build_checkpoint_metadata(
         ):
             spec["options"]["output_mapping"] = NeuralOutputConfig.from_options(
                 spec["options"]
-            ).output_mapping
+            ).output_mapping.value
         if (
             spec is not None
             and spec["family"] == "adaptive_neural"
@@ -126,7 +126,7 @@ def validate_checkpoint_metadata(
                 and "output_mapping" not in options
             ):
                 # Absence in historical metadata means tanh, never the new default.
-                options["output_mapping"] = LEGACY_NEURAL_OUTPUT_MAPPING
+                options["output_mapping"] = NeuralOutputMapping.TANH.value
                 canonicalized = True
     if canonicalized:
         actual_compatibility["config_fingerprint"] = _compatibility_fingerprint(
