@@ -6,7 +6,10 @@ import pytest
 
 from data_tools.data_generation import DataBatch
 from data_tools.data_utils import DataSet, ShiftAndNormalizationFactor
-from data_tools.dataset_config import DatasetConfig
+from data_tools.dataset_config import (
+    DatasetConfig,
+    GeneratedDatasetParameters,
+)
 from test.environment import ConfigType
 
 
@@ -176,3 +179,88 @@ def test_repeated_large_constant_normalizes_to_exact_zero(constant):
     normalized, factor = dataset.get_normalized()
     np.testing.assert_array_equal(normalized.events, 0.0)
     np.testing.assert_array_equal((normalized * factor).events, dataset.events)
+
+
+@pytest.mark.parametrize(
+    "function_execution_context",
+    [
+        {ConfigType.DATASET: Path(path)}
+        for path in (
+            "configs/basic-generated/generated_dataset_config.json",
+            "test/configs/dataset/positive_signal.json",
+            "test/configs/dataset/unrestricted_signal.json",
+            "test/configs/dataset/loaded_extra_observables_resampled.yaml",
+            "test/configs/dataset/loaded_extra_observables_replacement.yaml",
+            "test/configs/dataset/loaded_extra_observables_identity.yaml",
+            "test/configs/dataset/loaded_extra_observables_zero_signal.yaml",
+        )
+    ],
+    indirect=True,
+)
+def test_control_parameters_are_independent_signal_free_sr_copies(
+    function_execution_context,
+):
+    from dataclasses import asdict
+
+    from data_tools.data_utils import DATASET_REGIONS
+
+    config = function_execution_context.config
+    assert len(config.dataset__definitions) == 2
+    assert len(config.dataset_parameters) == 4
+    for sr_category, cr_category in (
+        (DATASET_REGIONS.sr.a, DATASET_REGIONS.cr.a),
+        (DATASET_REGIONS.sr.b, DATASET_REGIONS.cr.b),
+    ):
+        sr = config.get_parameters(sr_category)
+        cr = config.get_parameters(cr_category)
+        assert cr is config.get_parameters(cr_category)
+        assert sr is not cr
+        assert type(sr) is type(cr)
+        assert not cr.dataset__has_signal
+        expected = asdict(sr)
+        expected.update(
+            category=cr_category,
+            dataset__mean_number_of_signal_events=0,
+            dataset__number_of_signal_events=0,
+            dataset__signal_number_of_events_to_generate=0,
+        )
+        assert asdict(cr) == expected
+        if sr.dataset__signal_generator is not None:
+            assert cr.dataset__signal_generator is not sr.dataset__signal_generator
+        if isinstance(sr, GeneratedDatasetParameters):
+            assert (
+                cr.dataset_generated__background_generator
+                is not sr.dataset_generated__background_generator
+            )
+            _, control_signal = cr.dataset__data
+            assert control_signal.n_samples == 0
+        else:
+            assert (
+                cr.dataset_loaded__observable_naming
+                is not sr.dataset_loaded__observable_naming
+            )
+
+
+@pytest.mark.parametrize(
+    "fixture,error,message",
+    [
+        ("missing_b", ValueError, "exactly two definitions"),
+        ("duplicate_a", ValueError, "Duplicate dataset category"),
+        ("explicit_cr", ValueError, "must be a or b"),
+        ("legacy_four", ValueError, "exactly two definitions"),
+        ("missing_name", KeyError, "must contain"),
+        ("unknown_type", KeyError, "not defined"),
+    ],
+)
+def test_dataset_schema_is_shared_by_runtime_and_comparison(fixture, error, message):
+    import json
+
+    from train.comparison_datasets import dataset_comparison_values
+
+    config = json.loads(
+        Path(f"test/configs/dataset/invalid_{fixture}.json").read_text()
+    )
+    with pytest.raises(error, match=message):
+        DatasetConfig(**config).load_dataset_parameters()
+    with pytest.raises(error, match=message):
+        dataset_comparison_values(config)
