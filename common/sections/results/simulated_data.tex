@@ -4,34 +4,7 @@
 
 \begin{document}
 
-\subsection{Simulated Data}
-
-To demonstrate effectiveness on a real example, we apply our method to simulated CMS Open Data sample \cite{CMS_OpenData_VVTo2L2Nu_2016}. We choose cuts to search for \gls{lfv}: $\dataset{A}$ is the subset of events with exactly one $\tau$ and one $\mu$ in their final states, and $\dataset{B}$ is the one with exactly one $\tau$ and one $e$. In Figure~\ref{fig:cms_open_data_train} we observe the result of a training process made with said datasets.
-
-\begin{figure}
-    \addgraph{common/sections/results/plot07.1-cms-open-data-single-run-v8/dataset_process_plot_-4037792539531279774.png}
-    \caption{An example of a train result with a simulated dataset from CMS open data. A signal is injected in several intensities to test our method.}
-    \label{fig:cms_open_data_train}
-\end{figure}
-
-\begin{figure}
-    \addgraph{common/sections/results/plot07-cms-open-data-significances-v9/performance_plot_3973699260971712349.png}
-    \caption{Observed vs injected significances over simulated data, as in Figure~\ref{fig:cms_open_data_train}.}
-    \label{fig:cms_open_data_significances}
-\end{figure}
-
-A 2D test was also carried with the sample, as can be seen in Figure~\ref{fig:cms_open_data_train_2d}. The resulting discovery significances with various signals can be seen in Figure
-
-\begin{figure}
-    \addgraph{common/sections/results/plot08.1-cms-open-data-2d-single-run-v8/dataset_process_plot_6757743700194693226.png}
-    \caption{An example of a train carried with CMS Open Data sample picking two observable dimensions to analyze}
-    \label{fig:cms_open_data_train_2d}
-\end{figure}
-
-\begin{figure}
-    \addgraph{common/sections/results/plot08-cms-open-data-2d-significances-v8/performance_plot_8331139734469289285.png}
-    \caption{Significance progression plot of a 2D run with CMS Open Data samples, as is exhibited in Figure~\ref{fig:cms_open_data_train_2d}}
-    \label{fig:cms_open_data_2d_significances}
-\end{figure}
+\subfile{simulated_data_1d}
+\subfile{simulated_data_2d}
 
 \end{document}
