@@ -20,7 +20,10 @@
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
 \usepackage[acronym,toc]{glossaries}
-\usepackage{geometry}
+% Keep the paper on REVTeX's native page grid and float dimensions.
+\ifdefined\paper\else
+    \usepackage{geometry}
+\fi
 \usepackage{mathtools}
 \usepackage{microtype} % improves spacing overall
 \usepackage{physics}

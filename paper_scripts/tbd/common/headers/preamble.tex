@@ -21,7 +21,6 @@
 }{
     \ifdefined\paper
         % Apply this only when compiling the main paper
-        \geometry{letterpaper}
         \toggletrue{ispaper}
         \togglefalse{isthesis}
     \fi
@@ -38,10 +37,25 @@
 
 % Package additions from REVTeX templates
 \usepackage{dcolumn}% Align table columns on decimal point
+% REVTeX uses a legacy label implementation. On modern kernels restore the
+% hook-aware kernel version before hyperref/nameref initializes references.
+\ifdefined\paperKernelLabel
+    \IfFormatAtLeastTF{2023-06-01}{%
+        \let\label\paperKernelLabel
+        \let\ltx@label\paperKernelLabel % amsmath caches the label command
+    }{}
+\fi
 \usepackage{hyperref}% Load after packages that redefine cross-reference commands
 
 \ifdefined\paper
+    % lineno checks the kernel parbox wrapper; REVTeX extends that wrapper.
+    % Load against the kernel wrapper, then retain REVTeX's implementation.
+    \makeatletter
+    \let\paperParboxRestore\@parboxrestore
+    \def\@parboxrestore{\@arrayparboxrestore\let\\\@normalcr}
     \usepackage[mathlines]{lineno}
+    \let\@parboxrestore\paperParboxRestore
+    \makeatother
     \linenumbers\relax % Commence numbering lines in the paper
 \fi
 \ifdefined\thesis

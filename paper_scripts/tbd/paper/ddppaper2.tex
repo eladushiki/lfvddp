@@ -17,8 +17,10 @@
 %  3)  latex apssamp.tex
 %  4)  latex apssamp.tex
 
+% Preserve the modern kernel label implementation (including label hooks).
+\let\paperKernelLabel\label
 \documentclass[%
-reprint, linenumbers,
+reprint, linenumbers, floatfix,
 groupedaddress,
 amsmath,amssymb,
 aps, physrev,
@@ -75,7 +77,10 @@ aps, physrev,
 \newpage
 
 \glsaddall[types={\acronymtype}]
+\begingroup
+\raggedright
 \printnoidxglossary[type=\acronymtype,title={List of Abbreviations}]
+\endgroup
 \clearpage
 
 \tableofcontents
@@ -135,6 +140,7 @@ aps, physrev,
 
 % Print only entries cited in the paper; retain the shared BibTeX database.
 \bibliographystyle{apsrev4-2}
+\AtBeginEnvironment{thebibliography}{\raggedright}
 \bibliography{common/bibliography/bibliography}
 
 \end{document}

@@ -14,6 +14,7 @@ To expand the existing theory to cover for more observable dimensions and hence 
     \label{fig:2d_train}
 \end{figure}
 
+
 We follow the same process to create $t$ value distributions of various signal shapes and intensities, to evaluate our method's ability to detect them. In Figure~\ref{fig:2d_significances} we observe the detected significances vs the injected ones.
 
 \begin{figure}
@@ -21,6 +22,9 @@ We follow the same process to create $t$ value distributions of various signal s
     \caption{Observed vs injected significances for 2D processes, as in Figure~\ref{fig:2d_train}.}
     \label{fig:2d_significances}
 \end{figure}
+% Keep each dimensional comparison group together.
+\ifdefined\paper\clearpage\fi
+
 
 We further expand our testing to account for 4D runs of the same nature. In Figure~\ref{fig:4d_train} we see a projection of such a process on the first two observable quantities.
 
@@ -30,6 +34,7 @@ We further expand our testing to account for 4D runs of the same nature. In Figu
     \label{fig:4d_train}
 \end{figure}
 
+
 We then try again to measure the performance of the method and see its progression when adding more dimensions. In Figure~\ref{fig:4d_significances} we observe the significance measured performing the process in 4D.
 
 \begin{figure}
@@ -37,6 +42,9 @@ We then try again to measure the performance of the method and see its progressi
     \caption{Observed vs injected significances for 4D processes, as in Figure~\ref{fig:4d_train}.}
     \label{fig:4d_significances}
 \end{figure}
+% Keep each dimensional comparison group together.
+\ifdefined\paper\clearpage\fi
+
 
 \TODO{set the combinatorics of the plot we actually want here. I think there is no point in regressing to no-nuisance runs when proceeding to 2+D, we can display the detector affected stuff here right away(that's what happens now)}
 

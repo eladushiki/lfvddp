@@ -7,7 +7,7 @@
 \section{Computing the t value}\label{Appendix_Tvalue}
 
 \iftrue % MATH NOTE 18  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 18 -- App.~A, the integral substitution]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 18 -- App.~A, the integral substitution]}\enspace
 Replacing $\int y\,n_R$ by $\frac{1}{N}\sum_{\vec x_i}y(\vec x_i)$ makes
 the reference the weighted mixture $w_Ap_A+w_Bp_B$. This is where the
 problem of note~3 enters. Use per-event weights $1/(2N_A)$ and
@@ -66,9 +66,19 @@ Treating separately the numerator and denominator here, for they will soon requi
 \end{wideequations}
 }
 
-\noindent leaving out the $C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist$ for it cancels in the division.
+\noindent leaving out the constant
+\begin{equation*}
+C = \log \sum\limits_{\event \in \text{SR}}\srrefdist + \sum\limits_{\event \in \text{CR}} \crrefdist,
+\end{equation*}
+since it cancels in the division.
 
-\noindent using the substitution $\srdist{\dataset{A}}^1 = (1 + f(\anyevent))\srdist{\dataset{A}}^0, \quad \srdist{\dataset{B}}^1 = (1 - f(\anyevent))\srdist{\dataset{B}}^0$.
+\noindent using the substitutions
+\begin{equation*}
+\begin{aligned}
+\srdist{\dataset{A}}^1 = (1 + f(\anyevent))\srdist{\dataset{A}}^0, \\
+\srdist{\dataset{B}}^1 = (1 - f(\anyevent))\srdist{\dataset{B}}^0.
+\end{aligned}
+\end{equation*}
 
 \begin{wideequations}
 \begin{equation}
