@@ -114,25 +114,26 @@
 % Display Macros
 % =============================================================================
 
+% Size relative to the enclosing column, minipage, or slide column.
 \newcommand{\addsizedgraph}[2]{%
         \centering
         \includegraphics[
-            width=#1\textwidth,
+            width=#1\linewidth,
             keepaspectratio,
             trim=0 24bp 0 0,
             clip
         ]{#2}
 }
-\newcommand{\addgraph}[1]{\addsizedgraph{0.45}{#1}}
+\newcommand{\addgraph}[1]{\addsizedgraph{1}{#1}}
 
 \newcommand{\addsizedpic}[2]{%
         \centering
         \includegraphics[
-            width=#1\textwidth,
+            width=#1\linewidth,
             keepaspectratio
         ]{#2}
 }
-\newcommand{\addpic}[1]{\addsizedpic{0.45}{#1}}
+\newcommand{\addpic}[1]{\addsizedpic{1}{#1}}
 
 % Visible draft replacement for figures whose assets are not available yet.
 % Unlike \includegraphics{}, this keeps incomplete manuscripts compilable.
