@@ -34,25 +34,28 @@ def bounded_likelihood_shift_and_logs(
     unbounded_shift: torch.Tensor,
     output_mapping: NeuralOutputMapping | str = NeuralOutputMapping.TANH,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Evaluate the shift and both log factors without rounding tanh first.
+    """Evaluate the shift and both log factors before boundary rounding.
 
     For bound B and raw output z, 1 +/- B*tanh(z) equals
     (1-B) + 2*B*sigmoid(+/-2*z). Work in log space so the tiny
     sigmoid contribution and its derivative survive near the boundary.
+    The algebraic map equals B*tanh(asinh(z)), so the same log-domain
+    calculation applies after transforming its raw output with asinh.
     """
 
     mapping = NeuralOutputMapping.parse(output_mapping)
     shift = smoothly_bounded_likelihood_shift(unbounded_shift, mapping)
-    if mapping is NeuralOutputMapping.TANH:
-        floor = unbounded_shift.new_tensor(LOG_LIKELIHOOD_FLOOR)
-        doubled_shift = 2 * unbounded_shift
-        log_plus = torch.logaddexp(
-            floor, LOG_TWICE_LIKELIHOOD_BOUND + F.logsigmoid(doubled_shift)
-        )
-        log_minus = torch.logaddexp(
-            floor, LOG_TWICE_LIKELIHOOD_BOUND + F.logsigmoid(-doubled_shift)
-        )
-    else:
-        log_plus = torch.log1p(shift)
-        log_minus = torch.log1p(-shift)
+    tanh_argument = (
+        torch.asinh(unbounded_shift)
+        if mapping is NeuralOutputMapping.ALGEBRAIC
+        else unbounded_shift
+    )
+    floor = unbounded_shift.new_tensor(LOG_LIKELIHOOD_FLOOR)
+    doubled_argument = 2 * tanh_argument
+    log_plus = torch.logaddexp(
+        floor, LOG_TWICE_LIKELIHOOD_BOUND + F.logsigmoid(doubled_argument)
+    )
+    log_minus = torch.logaddexp(
+        floor, LOG_TWICE_LIKELIHOOD_BOUND + F.logsigmoid(-doubled_argument)
+    )
     return shift, log_plus, log_minus

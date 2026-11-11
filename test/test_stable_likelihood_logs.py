@@ -1,4 +1,4 @@
-"""Raw-output log factors retain derivatives lost by rounded tanh values."""
+"""Raw-output log factors retain derivatives lost by rounded output maps."""
 
 from math import exp
 from pathlib import Path
@@ -67,6 +67,36 @@ def test_tanh_log_gradient_survives_float32_rounding():
     assert torch.autograd.grad(rounded_log, raw)[0] == 0
 
 
+@pytest.mark.parametrize(
+    "dtype, magnitude", [(torch.float32, 1e4), (torch.float64, 1e8)]
+)
+@pytest.mark.parametrize("direction", [-1, 1])
+def test_algebraic_log_factors_retain_analytic_gradient_after_boundary_rounding(
+    dtype, magnitude, direction
+):
+    raw = torch.tensor(direction * magnitude, dtype=dtype, requires_grad=True)
+    shift, positive, negative = bounded_likelihood_shift_and_logs(raw, "algebraic")
+    assert abs(shift) == raw.new_tensor(LIKELIHOOD_SHIFT_BOUND)
+    inverse = 1 / magnitude
+    scaled_radius = (1 + inverse**2) ** 0.5
+    boundary_gap = inverse**2 / (scaled_radius * (scaled_radius + 1))
+    slope = LIKELIHOOD_SHIFT_BOUND * (inverse / scaled_radius) ** 3
+    for sign, logarithm in [(1, positive), (-1, negative)]:
+        factor = (
+            1 - LIKELIHOOD_SHIFT_BOUND + LIKELIHOOD_SHIFT_BOUND * boundary_gap
+            if sign * direction < 0
+            else 1 + LIKELIHOOD_SHIFT_BOUND - LIKELIHOOD_SHIFT_BOUND * boundary_gap
+        )
+        expected = raw.new_tensor(sign * slope / factor)
+        actual = torch.autograd.grad(logarithm, raw, retain_graph=True)[0]
+        assert actual != 0
+        torch.testing.assert_close(
+            actual, expected, rtol=2e-6 if dtype == torch.float32 else 1e-12, atol=0
+        )
+    rounded_log = torch.log1p(-direction * shift)
+    assert torch.autograd.grad(rounded_log, raw)[0] == 0
+
+
 @pytest.mark.parametrize("mapping", ["tanh", "algebraic"])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_log_factors_remain_finite_at_extreme_finite_raw_values(mapping, dtype):
@@ -91,17 +121,20 @@ def test_function_space_likelihood_path_preserves_predictions(family, options):
 
 
 @pytest.mark.parametrize(
-    "function_execution_context", [NEURAL_OUTPUT_CONFIGS[1]], indirect=True
+    "function_execution_context, magnitude",
+    [(NEURAL_OUTPUT_CONFIGS[0], 1e8), (NEURAL_OUTPUT_CONFIGS[1], 20.0)],
+    indirect=["function_execution_context"],
 )
 @pytest.mark.parametrize("is_numerator", [True, False])
-@pytest.mark.parametrize("raw_value", [-20.0, 20.0])
+@pytest.mark.parametrize("direction", [-1, 1])
 def test_training_uses_stable_logs_for_both_neural_roles(
     function_execution_context,
     isolated_data_generation,
     detector_effect,
     differentiating_model_factory,
     is_numerator,
-    raw_value,
+    magnitude,
+    direction,
 ):
     model = differentiating_model_factory(
         function_execution_context, detector_effect, is_numerator=is_numerator
@@ -114,7 +147,7 @@ def test_training_uses_stable_logs_for_both_neural_roles(
     with torch.no_grad():
         for space in spaces:
             space.output.weight.zero_()
-            space.output.bias.fill_(raw_value)
+            space.output.bias.fill_(direction * magnitude)
     loss = model(data)
     assert torch.isfinite(loss)
     loss.backward()
