@@ -46,6 +46,17 @@ The figure contains one axes:
 | Target distribution | Always show a chi-square probability-density curve using the shared diagnostic degree count reconstructed by the result aggregator from saved run contexts. |
 | Median statistic | Marked and labelled on the distribution. |
 | Significance | Derived from the median statistic and reported in the plot annotation. |
+| Goodness of fit | Reference legend entry shows the one-sample Kolmogorov–Smirnov statistic (`D`) and Anderson–Darling statistic (`A²`). |
+
+Both goodness-of-fit scores compare the exact retained, unbinned histogram sample
+to the same chi-square distribution and degree count as the reference curve.
+No degree, location, or scale parameters are fitted to the sample. Scores are
+independent of histogram binning; smaller scores indicate closer agreement.
+The Anderson–Darling score uses log-CDF and log-survival probabilities for tail
+precision; a zero-probability tail (including a retained zero) gives infinity.
+These are descriptive diagnostics after the configured sample filtering; no
+nominal p-values or rejection thresholds are reported for the selected sample.
+The same single-submission plot serves both 1D and multidimensional datasets.
 
 Adaptive LFVDDP networks use the raw count of all signal-network weights and
 biases at any depth, including no hidden layers; a 1-4-1 network therefore uses 13.
@@ -97,5 +108,6 @@ remain inside the plot frame without adding an empty tail to the histogram.
 - [x] The chi-square reference uses the configured diagnostic degree count, including adaptive networks and NPLM.
 - [x] The curve, legend entry, and median-based significance annotation are always shown for positive degree counts.
 - [ ] Median statistic, significance, and omitted-run information are readable.
+- [x] Both unbinned goodness-of-fit scores appear beside the chi-square reference in the legend.
 - [x] The x-axis includes all retained `t` values with 5% right-side headroom.
 - [ ] The figure is reproducible from the recorded submission results and configuration.
