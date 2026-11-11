@@ -41,7 +41,7 @@ parametrization; normalization of the combined signal and nuisance
 factors must also be checked.
 
 \iftrue % MATH NOTE 1  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 1 -- Eq.~(3)]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 1 -- Eq.~(3)]}\enspace
 The symmetric form $(1\pm f)$ follows from choosing $n_R$ as the mean of
 the two distributions only if $n_R$ is the \emph{unweighted} mean
 $\frac12(p_A+p_B)$. The pooled sample used in the loss (Eq.~(20),
@@ -57,8 +57,8 @@ This gives us directly the n-dimensional form of our hypotheses:
 \begin{equation}
 \label{eq:learnable_distribution}
 \begin{aligned}
-    \nullhypothesis &: \quad
-    \begin{cases}
+    \nullhypothesis &:\\[-0.5ex]
+    &\begin{cases}
         \dist{\true{A}}
         &=
         \frac{N_{\true{A}}}
@@ -71,8 +71,8 @@ This gives us directly the n-dimensional form of our hypotheses:
             {\int \refdist\,d\anyevent}
         \refdist,
     \end{cases} \\
-    \hypothesis{1} &: \quad
-    \begin{cases}
+    \hypothesis{1} &:\\[-0.5ex]
+    &\begin{cases}
         \dist{\true{A}}
         &=
         \frac{N_{\true{A}}}
