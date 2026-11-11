@@ -237,6 +237,15 @@ when configuration files need target-significance signal amounts.
   neural role. Changing the map changes the fitting procedure, so regenerate
   the empirical null calibration. Existing `train__adam_weight_decay` remains
   the parameter-regularization control; no additional output penalty is added.
+- LFVDDP evaluates `tanh` and algebraic likelihood log factors directly from raw
+  outputs using stable log-domain operations. This preserves small log-factor
+  gradients when a materialized output map has rounded to an endpoint. It applies
+  to neural
+  signal/nuisance roles and deterministic function spaces using the historical
+  bound. Predictions, the output bound, checkpoint layout, and the mathematical
+  likelihood are unchanged. The algebraic map reuses the same calculation
+  through its `tanh(asinh(raw_output))` identity. Continuing an old checkpoint
+  uses the improved numerical log calculation for subsequent optimization steps.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
   integer `hidden_layer_nodes`; input width is inferred from observables and
@@ -269,11 +278,14 @@ when configuration files need target-significance signal amounts.
   biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed
   families use their constrained dimension. Shared nuisance parameters do not
   contribute to this reference. Parameter counting alone does not establish
-  Wilks validity. Significance-plot vertical bands use the 15.87th and 84.13th
-  percentiles of `t`, mapped through the empirical background percentile, with
-  the median as the center. The
-  zero-injection endpoint uses the same calculation on the actual background
-  sample, so its band is not fixed to unit significance. Separate `numerator_train_percentile_progression_plot` and
+  Wilks validity. The t-distribution legend also reports Kolmogorov–Smirnov and
+  Anderson–Darling goodness-of-fit scores for the retained unbinned sample
+  against that same chi-square reference. Significance-plot vertical bands use
+  the 15.87th and 84.13th percentiles of `t`, mapped through the empirical
+  background percentile, with the median as the center. The zero-injection
+  endpoint uses the same calculation on the actual background sample, so its
+  band is not fixed to unit significance. Separate
+  `numerator_train_percentile_progression_plot` and
   `denominator_train_percentile_progression_plot` entries show the component-loss
   percentiles without chi-square references. Both standard plot configs enable
   them; custom configs opt in explicitly. All three progression plots use the

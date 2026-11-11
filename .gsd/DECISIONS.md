@@ -363,6 +363,40 @@ sources or generator modes in SR and CR now cover those modes in separate SR
 pairs. V11 cluster packs will be copied from the current V10 packs in a follow-up;
 this change does not edit cluster packs or submission state.
 
+## 2026-11-11 — Chi-square goodness-of-fit diagnostics
+
+The t-distribution plot reports one-sample KS and Anderson–Darling statistics
+against its existing fixed chi-square reference. Use the same retained unbinned
+sample as the histogram, so binning cannot change the scores. Report statistics
+without nominal p-values because the configured data-dependent filtering changes
+their null calibration. Evaluate AD with log-tail probabilities and preserve
+infinite scores at zero-probability tails. The common plot covers all dataset
+dimensions; percentile-progression plots do not display an empirical density.
+
+PR #234 review: delegate the AD statistic to SciPy `goodness_of_fit` with fixed
+`df`, `loc=0`, and `scale=1` rather than maintaining the formula locally. Use its
+minimum one Monte Carlo sample with an isolated seeded generator and discard the
+p-value; the observed statistic is deterministic and needs no calibration.
+
+## 2026-11-11 — Shared stable likelihood logs for both neural output maps
+
+Extend PR #232 to algebraic outputs using the identity that the algebraic map
+is tanh composed with asinh. Transform only the argument to the shared
+log-domain evaluator; retain the existing prediction map and checkpoint layout.
+This avoids duplicating the log-factor logic and preserves derivatives lost to
+boundary rounding for both signal and nuisance roles. Analytic tail checks in
+float32/float64 cover both log factors and both raw-output signs; file-backed
+role fixtures cover the complete training loss.
+
+Caller inventory: the shared evaluator is called only by the adaptive-neural
+and deterministic function-space likelihood methods, which feed signal and
+nuisance terms into DifferentiatingModel.forward. Deterministic spaces retain
+tanh. Prediction methods still use smoothly_bounded_likelihood_shift unchanged.
+Checkpoint, continuation, primary/secondary/nuisance prediction, enabled/disabled
+nuisance, both maps, mixed-role 2D, and deterministic-family paths are covered by
+the focused regression suite. Plot rendering is not affected: plotting consumes
+the unchanged prediction interface, whose returned values are checked exactly.
+
 ## 2026-11-11 — Percentile significance bands (PR #235 review)
 
 Use the empirical `t` quantiles at the standard normal CDF of minus/plus one
@@ -384,3 +418,16 @@ modes and symmetric/skewed backgrounds. Statistical tests cover tied/singleton
 samples, skewed asymmetric bounds, invalid arrays, and infinite reference tails.
 Model training, checkpoint restore, primary/secondary/nuisance prediction, and
 configuration modes are unaffected.
+
+
+## 2026-11-11 — Combine PR #235 with current main
+
+Preserve all three independent changes: chi-square KS/AD annotations in the
+single-submission t-distribution plot (PR #234), Gaussian one-sigma percentile
+bands and the actual background endpoint in significance plots (PR #235), and
+raw-output stable likelihood logarithms for tanh/algebraic neural maps (PR #232).
+The shared plotting module keeps both diagnostics; the stable-log model and
+prediction interfaces remain identical to main. Resolve the overlapping README
+paragraph and appended decisions by documenting all features, not selecting one
+side. Statistical interval, generated/loaded plot, and stable-log regressions
+validate the combined checkout.

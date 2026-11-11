@@ -29,6 +29,7 @@ from frame.file_structure import CONTEXT_FILE_NAME
 from frame.file_system.training_history import HistoryKeys
 from neural_networks.utils import prediction_to_sample_ndf_hypothesis_weights
 from plot.carpenter import Carpenter
+from plot.goodness_of_fit import chi_square_goodness_of_fit
 from plot.layout_constants import (
     PREDICTION_HEATMAP_FIGURE_SCALE,
     PREDICTION_HEATMAP_LAYOUT_PADDING_INCHES,
@@ -433,7 +434,12 @@ def t_distribution_plot(
     legend_handles.append(
         patches.Rectangle((0, 0), 1, 1, color=style["chi2_color"], alpha=style["alpha"])
     )
-    legend_labels.append(rf"$\chi^{{2}}_{{{chi2_dof}}}$")
+    ks_score, ad_score = chi_square_goodness_of_fit(t, chi2_dof)
+    legend_labels.append(
+        rf"$\chi^{{2}}_{{{chi2_dof}}}$"
+        f"\nKolmogorov–Smirnov $D={ks_score:.4g}$"
+        f"\nAnderson–Darling $A^2={ad_score:.4g}$"
+    )
     ax.legend(
         legend_handles,
         legend_labels,
