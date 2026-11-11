@@ -17,8 +17,10 @@
 %  3)  latex apssamp.tex
 %  4)  latex apssamp.tex
 
+% Preserve the modern kernel label implementation (including label hooks).
+\let\paperKernelLabel\label
 \documentclass[%
-reprint, linenumbers,
+reprint, linenumbers, floatfix,
 groupedaddress,
 amsmath,amssymb,
 aps, physrev,
@@ -37,7 +39,7 @@ aps, physrev,
 % Info
 % =============================================================================
 
-\title{TITLE WORK IN PROGRESS: A Lepton Flavor Violation Search by the Data Directed Paradigm}
+\title{TITLE WORK IN PROGRESS: A lepton flavor violation search by the Data Directed Paradigm}
 \date{\today}
 
 %% Authors
@@ -74,10 +76,6 @@ aps, physrev,
 \maketitle
 \newpage
 
-\glsaddall[types={\acronymtype}]
-\printnoidxglossary[type=\acronymtype,title={List of Abbreviations}]
-\clearpage
-
 \tableofcontents
 \newpage
 
@@ -102,7 +100,9 @@ aps, physrev,
 \subfile{common/sections/formalism/loss_mechanics}
 \subsection{Test Statistic Behavior}
 \subfile{common/sections/formalism/hypothesis_space_bases}
+\clearpage
 \subfile{common/sections/formalism/test_statistic_distribution}
+\clearpage
 \subfile{common/sections/formalism/significance_estimation}
 
 \section{Methodology}
@@ -110,12 +110,22 @@ aps, physrev,
 \subfile{common/sections/methodology/model_specs}
 \subfile{common/sections/methodology/test_statistic_algorithm}
 
+\clearpage
 \section{Performance}
 \subfile{common/sections/results/datasets_and_signals}
+\clearpage
 \subfile{common/sections/results/reproduction}
+\clearpage
 \subfile{common/sections/results/detector_nuisance}
-\subfile{common/sections/results/multiple_dimensions}
-\subfile{common/sections/results/simulated_data}
+\clearpage
+\subfile{common/sections/results/multiple_dimensions_2d}
+\clearpage
+\subfile{common/sections/results/multiple_dimensions_4d}
+\clearpage
+\subfile{common/sections/results/simulated_data_1d}
+\clearpage
+\subfile{common/sections/results/simulated_data_2d}
+\clearpage
 
 \section{Conclusion}
 \subfile{common/sections/conclusion}
@@ -133,10 +143,9 @@ aps, physrev,
 \subfile{common/sections/appendices/t_value_computation}
 \subfile{common/sections/appendices/borken_Wilks_Wald}
 
-% Print out all entries in the bibliography, even if they are not cited in the text.
-% Produce the bibliography via BibTeX.
-\nocite{*}
+% Print only entries cited in the paper; retain the shared BibTeX database.
 \bibliographystyle{apsrev4-2}
+\AtBeginEnvironment{thebibliography}{\raggedright}
 \bibliography{common/bibliography/bibliography}
 
 \end{document}
