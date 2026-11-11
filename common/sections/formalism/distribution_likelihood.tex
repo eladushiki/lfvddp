@@ -71,7 +71,7 @@ For our test statistic, we consider the log-likelihood measure
 \end{aligned}
 \end{equation}
 
-\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute the signal-region intensity in Eq.~\ref{eq:sr_hypothesis_statement} into Eq.~\ref{eq:log_likelihood_of_a_distribution} to get
+\noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute the signal-region intensity in Eq.~\ref{eq:sr_hypothesis_statement} and Eq.~\ref{eq:cr_hypothesis_statement} into Eq.~\ref{eq:log_likelihood_of_a_distribution} to get
 
 \begin{wideequations}
 \begin{equation}
@@ -90,7 +90,7 @@ For our test statistic, we consider the log-likelihood measure
 \begin{aligned}
     \llikelihood( \lambda_\param | \dataset{A}) ={}&
     -N_{\dataset{A}}\int (1+f(\anyevent))(1+\nparam(\anyevent))\refdist\,d\anyevent
-    + N_{\dataset{A}}\log{N_{\dataset{A}}}
+    \\& + N_{\dataset{A}}\log{N_{\dataset{A}}}
     \\& + \sum_{\event \in \dataset{A}} \log(1 + f(\event)) \\&
     + \sum_{\event \in \dataset{A}} \log(1 + \nparam(\event))
     \\& + \sum_{\event \in \dataset{A}} \log \refdist[\event]
@@ -98,30 +98,12 @@ For our test statistic, we consider the log-likelihood measure
 \end{aligned}
 \end{equation}
 
-\noindent Here $\dataset{A}$ denotes the signal-region sample; a similar
+\noindent Here $\dataset{A}$ denotes the first signal-region sample; a similar
 expression holds for $\dataset{B}$ with both $f$ and $\nparam$ negated.
 The integral is retained because normalization of $f$ alone does not
 normalize the combined signal and nuisance factors. Its expansion and
 the cancellation of parameter-independent terms are given in
 Appendix~\ref{Appendix_Tvalue}.
-
-\iftrue % MATH NOTE 7  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 7 -- Eqs.~(13)--(14)]}\enspace
-The first term should be
-$-\int\lambda_A\,d\vec x=-N_A\int(1+f)(1+\theta)\,n_R\,d\vec x$, which
-depends on $f$ and $\theta$. App.~A and Eq.~(20) keep this term
-correctly. Eq.~(14) also lacks the logarithm on $\sum(1+f)$, and
-Eq.~(13) should cite Eq.~(7), since Eq.~(4) contains no $\theta$.
-Corrected:
-\[
-\begin{aligned}
-\log L={}&-N_A\!\int\!(1+f)(1+\theta)\,n_R\,d\vec x\\&+N_A\log N_A
-\\&+\sum_{\vec x_i\in A}\bigl[\log(1+f)\\
-&\qquad+\log(1+\theta)+\log n_R\bigr]+C'_A .
-\end{aligned}
-\]\par}\medskip
-\fi % end of MATH NOTE 7
- 
 
 \subsubsection{Likelihood Comparison}
 
