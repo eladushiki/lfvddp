@@ -25,21 +25,6 @@ Our hypothetical accelerator causes particles to collide, creating the sets $\tr
 
 \noindent For now, $f$ is arbitrary and is composed of parameters $\param$ that are of interest for us. The former $g$ formulation for the $\dataset{B}$ distribution is replaced with a negative $\paramf$, expressing the symmetric shift from $\refdist$, directly expected from its choice as both the distributions' mean.
 
-In the generated examples, equality of A and B refers to the mean
-background event counts before Poisson sampling, detector effects, and
-signal injection. It does not imply equal realized or observed counts.
-Consequently, the pooled observed reference need not coincide with the
-unweighted mean of the two normalized observed densities.
-We require the signal deformation to preserve normalization:
-\begin{equation}
-\label{eq:signal_reference_normalization}
-    \int f(\anyevent)\refdist\,d\anyevent = 0.
-\end{equation}
-Thus, integrating either factor $(1\pm f)\refdist$ gives the same
-normalization as the reference. This condition applies to the signal-only
-parametrization; normalization of the combined signal and nuisance
-factors must also be checked.
-
 \iftrue % MATH NOTE 1  (to hide: change \iftrue to \iffalse)
 \par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 1 -- Eq.~(3)]}\enspace
 The symmetric form $(1\pm f)$ follows from choosing $n_R$ as the mean of
