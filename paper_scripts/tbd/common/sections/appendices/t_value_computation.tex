@@ -12,10 +12,6 @@ detector effects, and signal injection. The realized observed counts
 need not be equal. We therefore retain separate event counts
 $N_{\srdataset{A}}$, $N_{\srdataset{B}}$, $N_{\crdataset{A}}$, and
 $N_{\crdataset{B}}$ throughout this derivation.
-The pooled empirical reference in the final integral approximation is a
-count-weighted mixture. Equal generation means do not make it the
-unweighted mean of the observed densities; the reference-weighting
-issues in Math notes~1, 3, and~18 therefore remain to be resolved.
 
 \iftrue % MATH NOTE 18  (to hide: change \iftrue to \iffalse)
 \par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 18 -- App.~A, the integral substitution]}\enspace
@@ -88,10 +84,8 @@ It is a sum of logarithms, as follows from expanding the logarithm of
  cancels in their log-likelihood difference. The signal-dependent terms
  $\sum_{\event\in\srdataset{A}}\log(1+f(\event))$ and
  $\sum_{\event\in\srdataset{B}}\log(1-f(\event))$ do not cancel:
- they occur only in the alternative hypothesis. They are already
- retained below and in Eq.~\ref{eq:discrete_loss_functions}, so correcting
- the missing logarithm in the main-text expansion does not change the
- final loss.
+ they occur only in the alternative hypothesis. These terms are retained below and in
+ Eq.~\ref{eq:discrete_loss_functions}.
 
 \noindent using the substitutions
 \begin{equation*}
