@@ -362,3 +362,18 @@ without sampling during comparison. Fixtures that formerly covered different
 sources or generator modes in SR and CR now cover those modes in separate SR
 pairs. V11 cluster packs will be copied from the current V10 packs in a follow-up;
 this change does not edit cluster packs or submission state.
+
+## 2026-11-11 — Chi-square goodness-of-fit diagnostics
+
+The t-distribution plot reports one-sample KS and Anderson–Darling statistics
+against its existing fixed chi-square reference. Use the same retained unbinned
+sample as the histogram, so binning cannot change the scores. Report statistics
+without nominal p-values because the configured data-dependent filtering changes
+their null calibration. Evaluate AD with log-tail probabilities and preserve
+infinite scores at zero-probability tails. The common plot covers all dataset
+dimensions; percentile-progression plots do not display an empirical density.
+
+PR #234 review: delegate the AD statistic to SciPy `goodness_of_fit` with fixed
+`df`, `loc=0`, and `scale=1` rather than maintaining the formula locally. Use its
+minimum one Monte Carlo sample with an isolated seeded generator and discard the
+p-value; the observed statistic is deterministic and needs no calibration.
