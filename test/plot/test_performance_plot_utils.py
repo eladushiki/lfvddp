@@ -337,14 +337,12 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     background = next(
         container
         for container in figure.axes[0].containers
-        if container.get_label() == "Background only (median-centered RMS spread)"
+        if container.get_label() == "Background only (16–84% interval)"
     )
     np.testing.assert_array_equal(background.lines[0].get_xdata(orig=False), [0.0])
     np.testing.assert_allclose(background.lines[0].get_ydata(orig=False), [0.0])
-    median = np.median(background_t_values)
-    spread = np.sqrt(np.mean((background_t_values - median) ** 2))
     upper = plot_utils.calc_t_significance_relative_to_background(
-        median + spread, background_t_values
+        np.quantile(background_t_values, norm.cdf(1.0)), background_t_values
     )
     segments = background.lines[2][0].get_segments()
     np.testing.assert_allclose(segments, [[[0.0, 0.0], [0.0, upper]]])

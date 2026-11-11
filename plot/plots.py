@@ -673,7 +673,7 @@ def performance_plot(
         marker="o",
         linestyle="none",
         capsize=4,
-        label="Background only (median-centered RMS spread)",
+        label="Background only (16–84% interval)",
         zorder=5,
     )
 

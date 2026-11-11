@@ -92,33 +92,25 @@ def calc_median_t_significance_relative_to_background(
     )
 
 
-def calc_median_centered_spread(values: np.ndarray) -> tuple[float, float]:
-    """Return the median and population RMS deviation about that median.
-
-    This spread describes experiments, not the standard error of the median.
-    Unlike the conventional standard deviation, its center is the median.
-    """
-    values = np.asarray(values, dtype=float)
-    if values.ndim != 1 or values.size == 0 or not np.all(np.isfinite(values)):
-        raise ValueError("Statistics must be a nonempty finite 1D array.")
-    median = float(np.median(values))
-    return median, float(np.sqrt(np.mean(np.square(values - median))))
-
-
 def calc_t_significance_interval(
     t_values: np.ndarray, background_only_t_values: np.ndarray
 ) -> tuple[float, float, float]:
-    """Map the sample median and its median-centered RMS limits to significance.
+    """Map the median and Gaussian one-sigma sample quantiles to significance.
 
-    Use this same transformation for signal samples and the background endpoint.
-    Empirical percentiles at zero or one retain their infinite significances.
+    Return the center, lower, and upper significances. Bounds use the empirical
+    sample quantiles at the standard normal CDF of -1 and +1 (about 16% and 84%).
+    The same transformation serves signal samples and the background endpoint;
+    empirical reference percentiles of zero or one retain infinite significance.
     """
-    median, spread = calc_median_centered_spread(t_values)
+    values = np.asarray(t_values, dtype=float)
+    if values.ndim != 1 or values.size == 0 or not np.all(np.isfinite(values)):
+        raise ValueError("Statistics must be a nonempty finite 1D array.")
+    center_and_bounds = np.quantile(values, norm.cdf([0.0, -1.0, 1.0]))
     return tuple(
         float(
             calc_t_significance_relative_to_background(value, background_only_t_values)
         )
-        for value in (median, median - spread, median + spread)
+        for value in center_and_bounds
     )
 
 
