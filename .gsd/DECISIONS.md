@@ -372,3 +372,8 @@ without nominal p-values because the configured data-dependent filtering changes
 their null calibration. Evaluate AD with log-tail probabilities and preserve
 infinite scores at zero-probability tails. The common plot covers all dataset
 dimensions; percentile-progression plots do not display an empirical density.
+
+PR #234 review: delegate the AD statistic to SciPy `goodness_of_fit` with fixed
+`df`, `loc=0`, and `scale=1` rather than maintaining the formula locally. Use its
+minimum one Monte Carlo sample with an isolated seeded generator and discard the
+p-value; the observed statistic is deterministic and needs no calibration.

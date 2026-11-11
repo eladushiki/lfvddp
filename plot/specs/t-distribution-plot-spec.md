@@ -52,8 +52,9 @@ Both goodness-of-fit scores compare the exact retained, unbinned histogram sampl
 to the same chi-square distribution and degree count as the reference curve.
 No degree, location, or scale parameters are fitted to the sample. Scores are
 independent of histogram binning; smaller scores indicate closer agreement.
-The Anderson–Darling score uses log-CDF and log-survival probabilities for tail
-precision; a zero-probability tail (including a retained zero) gives infinity.
+The Anderson–Darling score uses SciPy `goodness_of_fit(statistic="ad")` with
+all chi-square parameters supplied as known. Its built-in log-tail calculation
+preserves tail precision; a zero-probability tail (including a retained zero) gives infinity.
 These are descriptive diagnostics after the configured sample filtering; no
 nominal p-values or rejection thresholds are reported for the selected sample.
 The same single-submission plot serves both 1D and multidimensional datasets.
