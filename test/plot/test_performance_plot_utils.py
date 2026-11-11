@@ -337,13 +337,17 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     background = next(
         container
         for container in figure.axes[0].containers
-        if container.get_label() == "Background only (one standard deviation)"
+        if container.get_label() == "Background only (median-centered RMS spread)"
     )
     np.testing.assert_array_equal(background.lines[0].get_xdata(orig=False), [0.0])
     np.testing.assert_allclose(background.lines[0].get_ydata(orig=False), [0.0])
-    spread = np.std(norm.ppf((np.arange(100) + 0.5) / 100))
+    median = np.median(background_t_values)
+    spread = np.sqrt(np.mean((background_t_values - median) ** 2))
+    upper = plot_utils.calc_t_significance_relative_to_background(
+        median + spread, background_t_values
+    )
     segments = background.lines[2][0].get_segments()
-    np.testing.assert_allclose(segments, [[[0.0, -spread], [0.0, spread]]])
+    np.testing.assert_allclose(segments, [[[0.0, 0.0], [0.0, upper]]])
     assert figure.axes[0].get_xlim()[0] < 0
     assert figure.axes[0].get_ylim()[0] == 0.0
 
@@ -376,7 +380,7 @@ def test_loaded_performance_plot_keeps_gaussian_fit_dashed_curve(
     )
     vertices = band.get_paths()[0].vertices
     at_zero = vertices[vertices[:, 0] == 0.0, 1]
-    np.testing.assert_allclose(np.unique(at_zero), [0.0, spread])
+    np.testing.assert_allclose(np.unique(at_zero), [0.0, upper])
     texts = [text.get_text() for text in figure.axes[0].texts]
     assert any(
         "Missing signal per run (% of intended mean signal count)" in text

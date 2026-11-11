@@ -362,3 +362,21 @@ without sampling during comparison. Fixtures that formerly covered different
 sources or generator modes in SR and CR now cover those modes in separate SR
 pairs. V11 cluster packs will be copied from the current V10 packs in a follow-up;
 this change does not edit cluster packs or submission state.
+
+## 2026-11-11 — Median-centered significance bands
+
+Use population RMS deviation about the median `t` for vertical significance
+bands. Map the median and both limits through the existing empirical background
+CDF for signal samples and the zero-injection background point alike. The old
+background-only normal-rank transformation erased the background shape and gave
+an approximately unit spread; remove that special path. Clip infinite tail
+limits to the displayed axes and reject a non-finite background center.
+Horizontal injected-significance summaries retain their existing mean and
+standard deviation; Gaussian fits retain their defining fitted mean and width.
+
+Caller inventory: the removed `calc_background_significance_summary` served only
+`performance_plot` and its unit tests. The new shared interval also serves
+`utils__calculate_performance_curve`; both generated and loaded source modes use
+this same 1D/ND plotting path. Existing rendering coverage checks both source
+modes and symmetric/skewed backgrounds. Model training, checkpoint restore,
+primary/secondary/nuisance prediction, and configuration modes are unaffected.

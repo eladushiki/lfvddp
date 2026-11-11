@@ -400,25 +400,49 @@ def test_continuous_injected_significance_rejects_infinite_multidimensional_limi
 
 
 @pytest.mark.parametrize(
-    "values, expected_probabilities",
+    "values, expected_median, expected_spread",
     [
-        ([10.0, 20.0, 30.0, 40.0], [0.125, 0.375, 0.625, 0.875]),
-        ([10.0, 10.0, 30.0, 40.0], [0.25, 0.25, 0.625, 0.875]),
-        ([7.0, 7.0, 7.0], [0.5, 0.5, 0.5]),
-        ([7.0], [0.5]),
+        ([1.0, 2.0, 3.0], 2.0, np.sqrt(2 / 3)),
+        ([0.0, 0.0, 9.0], 0.0, np.sqrt(27)),
+        ([7.0, 7.0, 7.0], 7.0, 0.0),
+        ([7.0], 7.0, 0.0),
     ],
 )
-def test_background_significance_summary(values, expected_probabilities):
-    median, spread = profile_likelihood.calc_background_significance_summary(
-        np.asarray(values)
-    )
-    scores = norm.ppf(expected_probabilities)
-    assert median == pytest.approx(np.median(scores))
-    assert spread == pytest.approx(np.std(scores))
-    assert np.isfinite(spread)
+def test_median_centered_spread(values, expected_median, expected_spread):
+    median, spread = profile_likelihood.calc_median_centered_spread(np.asarray(values))
+    assert median == pytest.approx(expected_median)
+    assert spread == pytest.approx(expected_spread)
 
 
 @pytest.mark.parametrize("values", [[], [np.inf], [np.nan], [[1.0, 2.0]]])
-def test_background_significance_summary_rejects_invalid_values(values):
+def test_median_centered_spread_rejects_invalid_values(values):
     with pytest.raises(ValueError, match="nonempty finite 1D"):
-        profile_likelihood.calc_background_significance_summary(np.asarray(values))
+        profile_likelihood.calc_median_centered_spread(np.asarray(values))
+
+
+@pytest.mark.parametrize("is_background", [False, True])
+def test_significance_interval_uses_actual_median_centered_t_spread(is_background):
+    background = np.arange(100, dtype=float) ** 2
+    sample = background if is_background else np.array([40.0, 40.0, 900.0])
+    median = np.median(sample)
+    spread = np.sqrt(np.mean((sample - median) ** 2))
+    result = profile_likelihood.calc_t_significance_interval(sample, background)
+    expected = [
+        calc_t_significance_relative_to_background(value, background)
+        for value in (median, median - spread, median + spread)
+    ]
+    np.testing.assert_allclose(result, expected)
+    assert result[0] == calc_median_t_significance_relative_to_background(
+        background, sample
+    )
+    if is_background:
+        assert result[2] != pytest.approx(1.0)
+
+
+def test_significance_interval_preserves_empirical_tail_limits():
+    center, lower, upper = profile_likelihood.calc_t_significance_interval(
+        np.array([0.0, 5.0, 100.0]), np.arange(10, dtype=float)
+    )
+    assert np.isfinite(center)
+    assert lower == -np.inf
+    assert upper == np.inf

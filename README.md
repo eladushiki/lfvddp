@@ -269,7 +269,10 @@ when configuration files need target-significance signal amounts.
   biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed
   families use their constrained dimension. Shared nuisance parameters do not
   contribute to this reference. Parameter counting alone does not establish
-  Wilks validity. Separate `numerator_train_percentile_progression_plot` and
+  Wilks validity. Significance-plot vertical bands use the RMS deviation of `t`
+  about its median, mapped through the empirical background percentile. The
+  zero-injection endpoint uses the same calculation on the actual background
+  sample, so its band is not fixed to unit significance. Separate `numerator_train_percentile_progression_plot` and
   `denominator_train_percentile_progression_plot` entries show the component-loss
   percentiles without chi-square references. Both standard plot configs enable
   them; custom configs opt in explicitly. All three progression plots use the
