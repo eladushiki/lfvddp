@@ -54,7 +54,7 @@ The plot factory discovers and injects the two parent directories for this multi
   - loaded datasets use an evident injected significance calculated from expected background and signal counts in detector-observable bins, because they do not define analytic background PDFs. Training saves the sampled background and signal data plus the prediction plot's exact bin edges in `data_samples.npz`; plotting reads this artifact from each successful training worker, using that worker's saved configuration and bin edges. Array submission contexts remain the grouping boundary and are not sample owners. The horizontal coordinate and error bar are the mean and standard deviation of the worker-level significances, including workers from repeated submissions at the same configured signal strength. Standalone runs continue to use their own artifact. A missing artifact in a successful worker is an error identifying its path rather than a reason to draw a new random sample or silently drop the worker. This lookup is shared by 1D and n-dimensional loaded-data plots.
 - Mixed generated and loaded datasets are rejected in one performance plot. They use different x-axis semantics and must not be overlaid.
 - A loaded-data worker with zero sampled injected signal events contributes zero injected significance, even when its configured mean signal count is positive. Keep that worker in the aggregate; its ignored-signal-event count is also zero. Missing sample artifacts remain errors.
-- For each signal distribution, the measured significance is the common-background percentile of that distribution's median `t`; uncertainty is reported from median `t` plus or minus one standard deviation.
+- For each signal distribution, the measured significance is the common-background percentile of that distribution's median `t`; uncertainty maps its empirical 15.8655th and 84.1345th percentiles through the same background percentile. These probabilities are the standard normal CDF at minus/plus one standard deviation. Bounds may be asymmetric about the median; no RMS spread or standard error is used.
 - Invalid or incompatible context data is surfaced by the discovery and aggregation utilities rather than silently combined. If outlier filtering leaves no usable background values, the error identifies the checked directories and raw, finite, and finite-nonnegative counts. A verified `array-job-artifacts.tar.gz` created before aggregate plotting must be restored rather than misclassified as a failed residue.
 
 ## Rendering
@@ -113,14 +113,17 @@ Appearance reference: the Plot 02 run recorded commit `b8691aa22880fdb353a4812df
 Draw the common background once as a black point at exactly zero injected
 significance for both loaded and generated datasets. It requires no sample-bin
 or PDF integration calculation and has no horizontal uncertainty. Its vertical
-center is the median of the background's calibrated significance scores; its
-symmetric error bar is their population standard deviation, not a standard
-error. Scores use normal inverse-CDF values of average-rank empirical step
-midpoints, so finite samples have finite endpoints and ties have equal scores.
+center is the significance of its median `t`, computed with the same empirical
+background percentile as the signal points. Its lower and upper limits use the
+actual background `t` quantiles at the standard normal CDF of minus/plus one
+(approximately 15.87% and 84.13%), transformed through that same percentile. Do not replace this spread with
+normal-rank scores or force its upper edge to one: skewness and ties in the
+background affect the endpoint. Infinite tail limits are clipped to the visible
+axes; a non-finite background center raises an explicit error.
 Keep zero visible on both axes. The measured-significance axis starts at exactly
 zero; clip the negative portions of all curves, bands, and the background bar.
 Each measured curve connects to the common background median, and its shaded
-band connects to the same background median plus/minus one standard deviation.
+band connects to the same background limits.
 The dashed Gaussian-fit curve connects to the estimate from the background
 median using the same Gaussian fit as its signal points; do not force that
 estimate to zero when the background median differs from its mean. This curve

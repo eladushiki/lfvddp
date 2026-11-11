@@ -280,7 +280,12 @@ when configuration files need target-significance signal amounts.
   contribute to this reference. Parameter counting alone does not establish
   Wilks validity. The t-distribution legend also reports Kolmogorov–Smirnov and
   Anderson–Darling goodness-of-fit scores for the retained unbinned sample
-  against that same chi-square reference. Separate `numerator_train_percentile_progression_plot` and
+  against that same chi-square reference. Significance-plot vertical bands use
+  the 15.87th and 84.13th percentiles of `t`, mapped through the empirical
+  background percentile, with the median as the center. The zero-injection
+  endpoint uses the same calculation on the actual background sample, so its
+  band is not fixed to unit significance. Separate
+  `numerator_train_percentile_progression_plot` and
   `denominator_train_percentile_progression_plot` entries show the component-loss
   percentiles without chi-square references. Both standard plot configs enable
   them; custom configs opt in explicitly. All three progression plots use the

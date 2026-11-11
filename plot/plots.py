@@ -16,7 +16,7 @@ from data_tools.data_utils import DataSet
 from data_tools.histogram_binning import display_edges_by_observable
 from data_tools.dataset_config import DatasetConfig
 from data_tools.profile_likelihood import (
-    calc_background_significance_summary,
+    calc_t_significance_interval,
     calc_t_significance_by_gaussian_fit_percentile,
     calc_median_t_significance_by_chi2_percentile,
 )
@@ -609,9 +609,14 @@ def performance_plot(
             "cannot be overlaid on the same axes."
         )
 
-    background_median, background_std = calc_background_significance_summary(
-        background_t_dist
+    background_median, background_lower, background_upper = (
+        calc_t_significance_interval(background_t_dist, background_t_dist)
     )
+    if not np.isfinite(background_median):
+        raise ValueError(
+            "Background median has an infinite empirical significance; "
+            "the reference needs more distinct test-statistic values."
+        )
 
     background_gaussian_fit = calc_t_significance_by_gaussian_fit_percentile(
         background_only_distribution=background_t_dist,
@@ -643,7 +648,9 @@ def performance_plot(
 
     clean_y_significances = np.append(
         clean_y_significances,
-        [background_median - background_std, background_median + background_std],
+        np.asarray([background_median, background_lower, background_upper])[
+            np.isfinite([background_median, background_lower, background_upper])
+        ],
     )
     max_x = max(all_x_values) + graph_border
     min_x = -0.05 * max_x
@@ -664,12 +671,15 @@ def performance_plot(
     ax.errorbar(
         0.0,
         background_median,
-        yerr=background_std,
+        yerr=[
+            [background_median - np.clip(background_lower, min_y, max_y)],
+            [np.clip(background_upper, min_y, max_y) - background_median],
+        ],
         color="black",
         marker="o",
         linestyle="none",
         capsize=4,
-        label="Background only (one standard deviation)",
+        label="Background only (16–84% interval)",
         zorder=5,
     )
 
@@ -683,11 +693,11 @@ def performance_plot(
         connected_x = np.r_[0.0, curve.x_values]
         connected_observed = np.r_[background_median, curve.observed_significances]
         connected_lower = np.r_[
-            background_median - background_std,
+            background_lower,
             curve.observed_significance_lower_bounds,
         ]
         connected_upper = np.r_[
-            background_median + background_std,
+            background_upper,
             curve.observed_significance_upper_bounds,
         ]
         ax.plot(

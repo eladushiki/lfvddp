@@ -396,3 +396,38 @@ Checkpoint, continuation, primary/secondary/nuisance prediction, enabled/disable
 nuisance, both maps, mixed-role 2D, and deterministic-family paths are covered by
 the focused regression suite. Plot rendering is not affected: plotting consumes
 the unchanged prediction interface, whose returned values are checked exactly.
+
+## 2026-11-11 — Percentile significance bands (PR #235 review)
+
+Use the empirical `t` quantiles at the standard normal CDF of minus/plus one
+(about 15.87% and 84.13%) for vertical significance bounds, retaining the median
+as the center. This supersedes the initial median-centered RMS interpretation.
+Map all three values through the same empirical background CDF for signal
+samples and the zero-injection background point. Bounds may be asymmetric.
+The background endpoint is computed from the actual sample rather than forced
+to unit significance. Clip infinite tail limits to the displayed axes and reject
+a non-finite background center. Horizontal injected-significance summaries retain
+their existing mean and standard deviation; Gaussian fits retain their defining
+fitted mean and width.
+
+Caller inventory: the removed `calc_median_centered_spread` served only
+`calc_t_significance_interval` and its unit tests. Interval consumers remain
+`performance_plot` and `utils__calculate_performance_curve`; generated and loaded
+sources share this 1D/ND path. Existing rendering coverage checks both source
+modes and symmetric/skewed backgrounds. Statistical tests cover tied/singleton
+samples, skewed asymmetric bounds, invalid arrays, and infinite reference tails.
+Model training, checkpoint restore, primary/secondary/nuisance prediction, and
+configuration modes are unaffected.
+
+
+## 2026-11-11 — Combine PR #235 with current main
+
+Preserve all three independent changes: chi-square KS/AD annotations in the
+single-submission t-distribution plot (PR #234), Gaussian one-sigma percentile
+bands and the actual background endpoint in significance plots (PR #235), and
+raw-output stable likelihood logarithms for tanh/algebraic neural maps (PR #232).
+The shared plotting module keeps both diagnostics; the stable-log model and
+prediction interfaces remain identical to main. Resolve the overlapping README
+paragraph and appended decisions by documenting all features, not selecting one
+side. Statistical interval, generated/loaded plot, and stable-log regressions
+validate the combined checkout.

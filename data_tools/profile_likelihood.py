@@ -5,7 +5,7 @@ from typing import Callable, Union
 import numpy as np
 from scipy.integrate import IntegrationWarning, cubature, nquad
 from scipy.special import erfinv, kl_div, rel_entr
-from scipy.stats import norm, chi2, rankdata
+from scipy.stats import norm, chi2
 from warnings import catch_warnings, simplefilter, warn
 
 
@@ -92,21 +92,26 @@ def calc_median_t_significance_relative_to_background(
     )
 
 
-def calc_background_significance_summary(
-    background_only_t_values: np.ndarray,
-) -> tuple[float, float]:
-    """Return the background median and population spread in significance units.
+def calc_t_significance_interval(
+    t_values: np.ndarray, background_only_t_values: np.ndarray
+) -> tuple[float, float, float]:
+    """Map the median and Gaussian one-sigma sample quantiles to significance.
 
-    Average ranks assign tied statistics the same percentile. Midpoints of
-    empirical probability steps avoid infinite scores at the sample endpoints.
-    This is the spread of experiments, not the standard error of their median.
+    Return the center, lower, and upper significances. Bounds use the empirical
+    sample quantiles at the standard normal CDF of -1 and +1 (about 16% and 84%).
+    The same transformation serves signal samples and the background endpoint;
+    empirical reference percentiles of zero or one retain infinite significance.
     """
-    values = np.asarray(background_only_t_values, dtype=float)
+    values = np.asarray(t_values, dtype=float)
     if values.ndim != 1 or values.size == 0 or not np.all(np.isfinite(values)):
-        raise ValueError("Background statistics must be a nonempty finite 1D array.")
-    probabilities = (rankdata(values, method="average") - 0.5) / values.size
-    significances = norm.ppf(probabilities)
-    return float(np.median(significances)), float(np.std(significances))
+        raise ValueError("Statistics must be a nonempty finite 1D array.")
+    center_and_bounds = np.quantile(values, norm.cdf([0.0, -1.0, 1.0]))
+    return tuple(
+        float(
+            calc_t_significance_relative_to_background(value, background_only_t_values)
+        )
+        for value in center_and_bounds
+    )
 
 
 def _normalize_integration_upper_limits(

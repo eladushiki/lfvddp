@@ -399,26 +399,51 @@ def test_continuous_injected_significance_rejects_infinite_multidimensional_limi
         )
 
 
+@pytest.mark.parametrize("values", [[], [np.inf], [np.nan], [[1.0, 2.0]]])
+def test_significance_interval_rejects_invalid_values(values):
+    with pytest.raises(ValueError, match="nonempty finite 1D"):
+        profile_likelihood.calc_t_significance_interval(
+            np.asarray(values), np.arange(100, dtype=float)
+        )
+
+
 @pytest.mark.parametrize(
-    "values, expected_probabilities",
+    "sample",
     [
-        ([10.0, 20.0, 30.0, 40.0], [0.125, 0.375, 0.625, 0.875]),
-        ([10.0, 10.0, 30.0, 40.0], [0.25, 0.25, 0.625, 0.875]),
-        ([7.0, 7.0, 7.0], [0.5, 0.5, 0.5]),
-        ([7.0], [0.5]),
+        np.array([10.0, 20.0, 30.0]),
+        np.array([40.0, 40.0, 900.0]),
+        np.array([7.0, 7.0, 7.0]),
+        np.array([7.0]),
+        np.arange(100, dtype=float) ** 2,
     ],
 )
-def test_background_significance_summary(values, expected_probabilities):
-    median, spread = profile_likelihood.calc_background_significance_summary(
-        np.asarray(values)
+def test_significance_interval_uses_gaussian_one_sigma_quantiles(sample):
+    background = np.arange(100, dtype=float) ** 2
+    result = profile_likelihood.calc_t_significance_interval(sample, background)
+    thresholds = np.quantile(sample, [0.5, 0.15865525393145707, 0.8413447460685429])
+    expected = [
+        calc_t_significance_relative_to_background(value, background)
+        for value in thresholds
+    ]
+    np.testing.assert_allclose(result, expected)
+    assert result[0] == calc_median_t_significance_relative_to_background(
+        background, sample
     )
-    scores = norm.ppf(expected_probabilities)
-    assert median == pytest.approx(np.median(scores))
-    assert spread == pytest.approx(np.std(scores))
-    assert np.isfinite(spread)
 
 
-@pytest.mark.parametrize("values", [[], [np.inf], [np.nan], [[1.0, 2.0]]])
-def test_background_significance_summary_rejects_invalid_values(values):
-    with pytest.raises(ValueError, match="nonempty finite 1D"):
-        profile_likelihood.calc_background_significance_summary(np.asarray(values))
+def test_significance_interval_keeps_asymmetric_bounds_for_skewed_samples():
+    sample = np.array([40.0, 40.0, 900.0])
+    center, lower, upper = profile_likelihood.calc_t_significance_interval(
+        sample, np.arange(1000, dtype=float)
+    )
+    assert lower == center
+    assert upper > center
+
+
+def test_significance_interval_preserves_empirical_tail_limits():
+    center, lower, upper = profile_likelihood.calc_t_significance_interval(
+        np.array([0.0, 0.0, 5.0, 100.0, 100.0]), np.arange(1, 11, dtype=float)
+    )
+    assert np.isfinite(center)
+    assert lower == -np.inf
+    assert upper == np.inf
