@@ -377,3 +377,22 @@ PR #234 review: delegate the AD statistic to SciPy `goodness_of_fit` with fixed
 `df`, `loc=0`, and `scale=1` rather than maintaining the formula locally. Use its
 minimum one Monte Carlo sample with an isolated seeded generator and discard the
 p-value; the observed statistic is deterministic and needs no calibration.
+
+## 2026-11-11 — Shared stable likelihood logs for both neural output maps
+
+Extend PR #232 to algebraic outputs using the identity that the algebraic map
+is tanh composed with asinh. Transform only the argument to the shared
+log-domain evaluator; retain the existing prediction map and checkpoint layout.
+This avoids duplicating the log-factor logic and preserves derivatives lost to
+boundary rounding for both signal and nuisance roles. Analytic tail checks in
+float32/float64 cover both log factors and both raw-output signs; file-backed
+role fixtures cover the complete training loss.
+
+Caller inventory: the shared evaluator is called only by the adaptive-neural
+and deterministic function-space likelihood methods, which feed signal and
+nuisance terms into DifferentiatingModel.forward. Deterministic spaces retain
+tanh. Prediction methods still use smoothly_bounded_likelihood_shift unchanged.
+Checkpoint, continuation, primary/secondary/nuisance prediction, enabled/disabled
+nuisance, both maps, mixed-role 2D, and deterministic-family paths are covered by
+the focused regression suite. Plot rendering is not affected: plotting consumes
+the unchanged prediction interface, whose returned values are checked exactly.

@@ -21,6 +21,7 @@ from neural_networks.function_spaces.neural_architecture import (
     neural_parameter_count,
 )
 from neural_networks.likelihood_parameterization import (
+    bounded_likelihood_shift_and_logs,
     smoothly_bounded_likelihood_shift,
 )
 from train.neural_output_config import NeuralOutputConfig
@@ -113,11 +114,21 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
             options=options,
         )
 
-    def forward(self, events: torch.Tensor) -> torch.Tensor:
+    def _raw_output(self, events: torch.Tensor) -> torch.Tensor:
         for layer in self.hidden_layers:
             events = self.activation(layer(events))
+        return self.output(events)
+
+    def forward(self, events: torch.Tensor) -> torch.Tensor:
         return smoothly_bounded_likelihood_shift(
-            self.output(events), self.output_config.output_mapping
+            self._raw_output(events), self.output_config.output_mapping
+        )
+
+    def forward_with_log_factors(
+        self, events: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return bounded_likelihood_shift_and_logs(
+            self._raw_output(events), self.output_config.output_mapping
         )
 
     @property

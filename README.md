@@ -237,6 +237,15 @@ when configuration files need target-significance signal amounts.
   neural role. Changing the map changes the fitting procedure, so regenerate
   the empirical null calibration. Existing `train__adam_weight_decay` remains
   the parameter-regularization control; no additional output penalty is added.
+- LFVDDP evaluates `tanh` and algebraic likelihood log factors directly from raw
+  outputs using stable log-domain operations. This preserves small log-factor
+  gradients when a materialized output map has rounded to an endpoint. It applies
+  to neural
+  signal/nuisance roles and deterministic function spaces using the historical
+  bound. Predictions, the output bound, checkpoint layout, and the mathematical
+  likelihood are unchanged. The algebraic map reuses the same calculation
+  through its `tanh(asinh(raw_output))` identity. Continuing an old checkpoint
+  uses the improved numerical log calculation for subsequent optimization steps.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
   integer `hidden_layer_nodes`; input width is inferred from observables and

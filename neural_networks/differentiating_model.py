@@ -184,11 +184,21 @@ class DifferentiatingModel(nn.Module, ContextedModel):
         )
         return optimizer
 
-    def _signal_region_shift(self, sr_events: torch.Tensor) -> torch.Tensor:
+    def _signal_likelihood_terms(
+        self, data: _PreparedTrainingData
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
         if not self._is_numerator:
-            raise RuntimeError("The denominator has no signal-region shift estimator.")
+            values = data.sr_events.new_zeros(data.N_sr)
+            zero = values.new_zeros(())
+            return values, (zero, zero)
         assert self.signal_region_shift_network is not None
-        return self.signal_region_shift_network(sr_events).squeeze(-1)
+        values, log_plus, log_minus = (
+            self.signal_region_shift_network.forward_with_log_factors(data.sr_events)
+        )
+        return values.squeeze(-1), (
+            -log_plus[: data.N_a_sr].sum(),
+            -log_minus[data.N_a_sr :].sum(),
+        )
 
     def forward(
         self,
@@ -197,29 +207,48 @@ class DifferentiatingModel(nn.Module, ContextedModel):
     ) -> torch.Tensor:
         profile_region = profiler.region if profiler is not None else nullcontext
         with profile_region("training/signal_region_shift"):
-            signal_hypothesis_sr_shift = (
-                self._signal_region_shift(data.sr_events)
-                if self._is_numerator
-                else data.sr_events.new_zeros(data.N_sr)
+            signal_hypothesis_sr_shift, signal_log_terms = (
+                self._signal_likelihood_terms(data)
             )
         with profile_region("training/nuisance_theta"):
-            nuisance_estimates = self._nuisance_values(data)
+            nuisance_estimates, nuisance_log_terms = self._nuisance_likelihood_terms(
+                data
+            )
         return self._assemble_loss(
             signal_hypothesis_sr_shift=signal_hypothesis_sr_shift,
             nuisance_estimates=nuisance_estimates,
             data=data,
+            signal_log_terms=signal_log_terms,
+            nuisance_log_terms=nuisance_log_terms,
         )
 
-    def _nuisance_values(
+    def _nuisance_likelihood_terms(
         self, data: _PreparedTrainingData
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         """Evaluate one shared nuisance space for all A/B and SR/CR event groups."""
 
         if self.nuisance_function_space is None:
             values = data.nuisance_events.new_zeros(data.nuisance_events.shape[0])
+            log_plus = log_minus = values
         else:
-            values = self.nuisance_function_space(data.nuisance_events).squeeze(-1)
-        return tuple(values.split((data.N_a_sr, data.N_b_sr, data.N_a_cr, data.N_b_cr)))
+            values, log_plus, log_minus = (
+                self.nuisance_function_space.forward_with_log_factors(
+                    data.nuisance_events
+                )
+            )
+        sizes = (data.N_a_sr, data.N_b_sr, data.N_a_cr, data.N_b_cr)
+        value_parts = tuple(values.reshape(-1).split(sizes))
+        positive_parts = log_plus.reshape(-1).split(sizes)
+        negative_parts = log_minus.reshape(-1).split(sizes)
+        return value_parts, (
+            -positive_parts[0].sum(),
+            -negative_parts[1].sum(),
+            -positive_parts[2].sum(),
+            -negative_parts[3].sum(),
+        )
 
     @staticmethod
     def _scaled_term(
@@ -251,6 +280,11 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
         ],
         data: _PreparedTrainingData,
+        signal_log_terms: tuple[torch.Tensor, torch.Tensor] | None = None,
+        nuisance_log_terms: tuple[
+            torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
+        ]
+        | None = None,
     ) -> torch.Tensor:
         """Assemble the negative log-likelihood used in the paper.
 
@@ -285,15 +319,24 @@ class DifferentiatingModel(nn.Module, ContextedModel):
 
         a_sr_nuisance, b_sr_nuisance, a_cr_nuisance, b_cr_nuisance = nuisance_estimates
         nuisance_sr_estimates = torch.cat((a_sr_nuisance, b_sr_nuisance))
-        common_a_sr_nuisance_log_term = -torch.log1p(a_sr_nuisance).sum()
-        common_b_sr_nuisance_log_term = -torch.log1p(-b_sr_nuisance).sum()
+        if nuisance_log_terms is None:
+            nuisance_log_terms = (
+                -torch.log1p(a_sr_nuisance).sum(),
+                -torch.log1p(-b_sr_nuisance).sum(),
+                -torch.log1p(a_cr_nuisance).sum(),
+                -torch.log1p(-b_cr_nuisance).sum(),
+            )
+        (
+            common_a_sr_nuisance_log_term,
+            common_b_sr_nuisance_log_term,
+            a_cr_log_term,
+            b_cr_log_term,
+        ) = nuisance_log_terms
 
         cr_linear_nuisance_term = DifferentiatingModel._scaled_term(
             data.nuisance_cr_coefficient,
             lambda: a_cr_nuisance.sum() + b_cr_nuisance.sum(),
         )
-        a_cr_log_term = -torch.log1p(a_cr_nuisance).sum()
-        b_cr_log_term = -torch.log1p(-b_cr_nuisance).sum()
         cr_loss = (
             data.number_of_cr_events
             + cr_linear_nuisance_term
@@ -310,13 +353,14 @@ class DifferentiatingModel(nn.Module, ContextedModel):
             )
             + torch.dot(signal_region_shift, nuisance_sr_estimates)
         )
+        if signal_log_terms is None:
+            signal_log_terms = DifferentiatingModel._signal_shift_log_terms(
+                signal_region_shift, data.N_a_sr
+            )
         (
             signal_hypothesis_a_sr_f_log_term,
             signal_hypothesis_b_sr_f_log_term,
-        ) = DifferentiatingModel._signal_shift_log_terms(
-            signal_region_shift,
-            data.N_a_sr,
-        )
+        ) = signal_log_terms
         signal_hypothesis_sr_loss = (
             signal_hypothesis_sr_integral
             + signal_hypothesis_a_sr_f_log_term
