@@ -5,15 +5,17 @@
 \begin{document}
 
 \iftrue % MATH NOTE 6  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 6 -- suggested reformulation of Sec.~II.D (label likelihood)]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 6 -- suggested reformulation of Sec.~II.D (label likelihood)]}\enspace
 Because $n_R$ is the empirical pooled density, all the information on
 $f$ and $\theta$ is in the A/B labels. Conditional on the event positions
 and regions, the labels are Bernoulli with
 $\pi_R(\vec x)=\lambda^R_A/(\lambda^R_A+\lambda^R_B)$. Parametrize
 \[
-H_0:\ \mathrm{logit}\,\pi_R=c_R+\eta(\vec x),\qquad
-H_1:\ \mathrm{logit}\,\pi_R=c_R+\eta(\vec x)
+\begin{aligned}
+H_0:\ \mathrm{logit}\,\pi_R&=c_R+\eta(\vec x),\\
+H_1:\ \mathrm{logit}\,\pi_R&=c_R+\eta(\vec x)
       +\mathbf 1[R={\rm SR}]\,\phi(\vec x).
+\end{aligned}
 \]
 The symbols map onto the draft's as follows:
 \begin{itemize}
@@ -26,7 +28,8 @@ The symbols map onto the draft's as follows:
   exactly.
 \end{itemize}
 The loss becomes the binary cross-entropy, and
-$q_0=2\,[\min\mathcal L_0-\min\mathcal L_1]$. This replaces
+\[q_0=2\,[\min\mathcal L_0-\min\mathcal L_1].\]
+This replaces
 Eqs.~(19)--(21) and most of App.~A, and fixes notes~3, 5 and~9 for any
 $N_A/N_B$. With a fixed basis, $\phi=\sum_{j=1}^d\beta_j b_j(\vec x)$,
 $H_1$ is a logistic GLM. Its Fisher information
@@ -47,25 +50,38 @@ Likelihood of observed data $\dataset{A}$ and a statistical model with parameter
 
 \begin{equation}
 \label{eq:likelihood_of_a_distribution}
+\begin{aligned}
     \likelihood(\lambda_{\param} | \dataset{A})
-    = \dfrac{e^{-N_{\dataset{A}}(\param)}}{\abs{\dataset{A}}!}
+    &= \dfrac{e^{-N_{\dataset{A}}(\param)}}{\abs{\dataset{A}}!}
     \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event)
-    = \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{\abs{\dataset{A}}!}
+    \\
+    &= \dfrac{e^{-\int \lambda_\param(\anyevent) d\anyevent}}{\abs{\dataset{A}}!}
     \prod\limits_{\event \in \dataset{A}}\lambda_{\param}(\event).
+\end{aligned}
 \end{equation}
 
 For our test statistic, we consider the log-likelihood measure
 
 \begin{equation}
 \label{eq:log_likelihood_of_a_distribution}
-    \llikelihood( \lambda_\param | \dataset{A}) = -\int \lambda(\anyevent)d\anyevent + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A},
+\begin{aligned}
+    \llikelihood( \lambda_\param | \dataset{A}) &={}\\
+    & -\int \lambda(\anyevent)d\anyevent\\
+    &\quad + \sum_{\event \in \dataset{A}} \log\lambda(\event) + C_\dataset{A},
+\end{aligned}
 \end{equation}
 
 \noindent where the value of $C_{\dataset{A}}$ is independent of $\param$. We can substitute Eq.~\ref{eq:learnable_distribution} into Eq.~\ref{eq:log_likelihood_of_a_distribution} to get
 
+\begin{wideequations}
 \begin{equation}
-    \llikelihood( \lambda_\param | \dataset{A}) = -N_{\dataset{A}} + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + f(\event)) (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A},
+\begin{aligned}
+    \llikelihood( \lambda_\param | \dataset{A}) &={}\\
+    & -N_{\dataset{A}}\\
+    &\quad + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + f(\event)) (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A},
+\end{aligned}
 \end{equation}
+\end{wideequations}
 
 \noindent which can be rewritten as
 
@@ -75,9 +91,9 @@ For our test statistic, we consider the log-likelihood measure
     \llikelihood( \lambda_\param | \dataset{A}) ={}&
     -N_{\dataset{A}}
     + N_{\dataset{A}}\log{N_{\dataset{A}}}
-    + \sum_{\event \in \dataset{A}} (1 + f(\event)) \\&
+    \\& + \sum_{\event \in \dataset{A}} (1 + f(\event)) \\&
     + \sum_{\event \in \dataset{A}} \log(1 + \nparam(\event))
-    + \sum_{\event \in \dataset{A}} \log \refdist[\event]
+    \\& + \sum_{\event \in \dataset{A}} \log \refdist[\event]
     + C'_\dataset{A},
 \end{aligned}
 \end{equation}
@@ -85,7 +101,7 @@ For our test statistic, we consider the log-likelihood measure
 \noindent while a similar expression holds for negative $f$ and $\dataset{B}$.
 
 \iftrue % MATH NOTE 7  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 7 -- Eqs.~(13)--(14)]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 7 -- Eqs.~(13)--(14)]}\enspace
 The first term should be
 $-\int\lambda_A\,d\vec x=-N_A\int(1+f)(1+\theta)\,n_R\,d\vec x$, which
 depends on $f$ and $\theta$. App.~A and Eq.~(20) keep this term
@@ -93,8 +109,11 @@ correctly. Eq.~(14) also lacks the logarithm on $\sum(1+f)$, and
 Eq.~(13) should cite Eq.~(7), since Eq.~(4) contains no $\theta$.
 Corrected:
 \[
-\log L=-N_A\!\int\!(1+f)(1+\theta)\,n_R\,d\vec x+N_A\log N_A
-+\sum_{\vec x_i\in A}\left[\log(1+f)+\log(1+\theta)+\log n_R\right]+C'_A .
+\begin{aligned}
+\log L={}&-N_A\!\int\!(1+f)(1+\theta)\,n_R\,d\vec x\\&+N_A\log N_A
+\\&+\sum_{\vec x_i\in A}\bigl[\log(1+f)\\
+&\qquad+\log(1+\theta)+\log n_R\bigr]+C'_A .
+\end{aligned}
 \]\par}\medskip
 \fi % end of MATH NOTE 7
  
@@ -122,7 +141,7 @@ Using $\llikelihood$ as a measure for plausibility of a distribution, we would l
 \end{equation}
 
 \iftrue % MATH NOTE 8  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 8 -- Eq.~(17)]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 8 -- Eq.~(17)]}\enspace
 $Z_0=\sqrt{q_0}$ [10] holds for a single parameter of interest with a
 one-sided $q_0$. Here $f$ has $d$ parameters. If Wilks' theorem applied,
 $Z=\Phi^{-1}\!\left(1-F_{\chi^2_d}(q_0)\right)$; otherwise $Z$ must come

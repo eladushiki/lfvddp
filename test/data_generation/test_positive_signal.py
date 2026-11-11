@@ -20,15 +20,31 @@ from test.environment import ConfigType
 
 @pytest.mark.parametrize(
     "function_execution_context",
-    [{ConfigType.DATASET: Path("test/configs/dataset/positive_signal.json")}],
+    [
+        {ConfigType.DATASET: Path("test/configs/dataset/positive_signal.json")},
+        {
+            ConfigType.DATASET: Path(
+                "test/configs/dataset/positive_signal_overlay_modes.json"
+            )
+        },
+    ],
+    ids=["generated-independent-and-correlated", "per-dimension-and-loaded-overlay"],
     indirect=True,
 )
 def test_positive_signals_preserve_counts_and_conditional_statistics(
     function_execution_context, tmp_path, monkeypatch
 ):
+    """Check positive conditioning across four signal-generation paths.
+
+    The first fixture covers independent and correlated Gaussian signals on
+    generated backgrounds. The overlay fixture covers independent per-dimension
+    widths (1, 2) and a Gaussian signal added to a loaded background. Each path
+    must retain 4000 events and a normalized positive-only density; independent
+    marginals must have half-normal moments and correlation must survive.
+    """
     np.save(tmp_path / "events.npy", np.ones((10, 2)))
     monkeypatch.chdir(tmp_path)
-    for category in ("A_SR", "B_SR", "A_CR", "B_CR"):
+    for category in ("A_SR", "B_SR"):
         parameters = function_execution_context.config.get_parameters(
             DataSet.DataSetCategory[category]
         )
@@ -41,10 +57,14 @@ def test_positive_signals_preserve_counts_and_conditional_statistics(
         assert pdf(np.array([-0.5, 0.5])) == 0
         integral = dblquad(lambda y, x, pdf=pdf: pdf(np.array([x, y])), 0, 12, 0, 12)[0]
         assert integral == pytest.approx(1, abs=2e-6)
-        if category == "B_SR":
+        if "multivariate_gaussian_signal" in parameters.dataset__signal_source:
             assert np.corrcoef(signal.events, rowvar=False)[0, 1] > 0.4
         else:
-            scales = np.array([1, 2]) if category == "A_CR" else np.ones(2)
+            scales = (
+                np.array([1, 2])
+                if isinstance(parameters.dataset__signal_generator, list)
+                else np.ones(2)
+            )
             np.testing.assert_allclose(
                 signal.events.mean(axis=0), halfnorm.mean() * scales, atol=0.07
             )

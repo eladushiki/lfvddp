@@ -88,8 +88,15 @@ Important configuration choices include:
 - `config__runtag` names the study and `config__out_dir` selects its output root.
 - `random_seed` reproduces a fresh run when supplied; otherwise LFVDDP creates
   and records one.
-- `dataset__definitions` describes the A/B signal-region and control-region
-  samples. See the two basic packs for generated and loaded examples.
+- `dataset__definitions` contains exactly two entries, with categories `a` and
+  `b`, describing the A/B signal regions. Control-region parameters are independent
+  deep copies of their signal-region counterparts, with all signal event counts set
+  to zero. Background counts (including the sampled Poisson count), sources, nuisance
+  settings, and resampling settings are preserved. Event data are materialized
+  separately; the copy applies to parameters. Existing four-entry configurations
+  must remove their `a_cr` and `b_cr` entries and rename the remaining categories
+  from `a_sr`/`b_sr` to `a`/`b`.
+  See the two basic packs for generated and loaded examples.
 - `dataset__signal_positive_only` defaults to `true` for generated signals on
   both generated and loaded backgrounds. Every signal coordinate must be
   nonnegative. `gaussian_signal` uses a truncated normal; correlated and composed
@@ -270,7 +277,9 @@ when configuration files need target-significance signal amounts.
   biases (13 for a 1-4-1 network), NPLM uses its unchanged raw count, and fixed
   families use their constrained dimension. Shared nuisance parameters do not
   contribute to this reference. Parameter counting alone does not establish
-  Wilks validity. Separate `numerator_train_percentile_progression_plot` and
+  Wilks validity. The t-distribution legend also reports Kolmogorov–Smirnov and
+  Anderson–Darling goodness-of-fit scores for the retained unbinned sample
+  against that same chi-square reference. Separate `numerator_train_percentile_progression_plot` and
   `denominator_train_percentile_progression_plot` entries show the component-loss
   percentiles without chi-square references. Both standard plot configs enable
   them; custom configs opt in explicitly. All three progression plots use the

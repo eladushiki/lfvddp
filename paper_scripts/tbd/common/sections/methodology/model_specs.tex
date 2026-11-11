@@ -17,7 +17,7 @@ Training batching is done with a single batch per train step, having all dataset
 \TODO{describe hyperparameter selection eventually}
 
 \iftrue % MATH NOTE 14  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 14 -- clamping]}\enspace
+\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 14 -- clamping]}\enspace
 Clamping at $\pm(1-10^{-6})$ kills gradients and produces boundary
 solutions, visible in Figs.~7 and~9. A bounded parametrization such as
 $\theta=\tanh(\cdot)$ avoids this.\par}\medskip

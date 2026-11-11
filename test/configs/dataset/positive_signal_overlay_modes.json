@@ -1,0 +1,55 @@
+{
+  "dataset__definitions": [
+    {
+      "name": "per-dimension-positive-signal",
+      "type": "generated",
+      "category": "a",
+      "dataset_generated__number_of_dimensions": 2,
+      "dataset_generated__background_generator": {
+        "function": "exponential_background"
+      },
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 4000,
+      "dataset__signal_generator": [
+        {
+          "function": "gaussian_signal",
+          "arguments": {
+            "location": 0,
+            "gaussian_signal_sigma": 1
+          }
+        },
+        {
+          "function": "gaussian_signal",
+          "arguments": {
+            "location": 0,
+            "gaussian_signal_sigma": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "loaded-with-positive-signal",
+      "type": "loaded",
+      "category": "b",
+      "dataset__number_of_background_events": 10,
+      "dataset__number_of_signal_events": 4000,
+      "dataset__signal_generator": {
+        "function": "gaussian_signal",
+        "arguments": {
+          "location": 0,
+          "gaussian_signal_sigma": 1
+        }
+      },
+      "dataset_loaded__file_name": "events.npy",
+      "dataset_loaded__observable_naming": {
+        "x": "param_0",
+        "y": "param_1"
+      },
+      "dataset_loaded__signal_observable_names": [
+        "param_0",
+        "param_1"
+      ]
+    }
+  ],
+  "random_seed": 81723
+}
