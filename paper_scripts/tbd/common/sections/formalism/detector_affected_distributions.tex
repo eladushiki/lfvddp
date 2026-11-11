@@ -79,31 +79,5 @@ i.e.\ efficiencies above one. Eq.~(6) also lacks the factors $N_A$ and
 $N_B$. The fit itself is unaffected, since $\theta$ is learned. The
 interpretation and any truth overlay (needed in Fig.~7) are affected.\par}\medskip
 \fi % end of MATH NOTE 2
-
-\iftrue % MATH NOTE 3  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 3 -- Eq.~(7): the null cannot absorb a detector asymmetry when $N_A\neq N_B$]}\enspace
-The loss replaces $\int g\,n_R\,d\vec x$ by $\frac1N\sum_{A\cup B}g$,
-so $n_R=w_Ap_A+w_Bp_B$. Under $H_0$,
-$\lambda_A/N_A+\lambda_B/N_B=2n_R$ for every $\theta$, whereas the data
-give $p_A+p_B$, and
-\[
-2n_R-(p_A+p_B)=(w_A-w_B)(p_A-p_B).
-\]
-Pointwise, with $\pi_A=w_Ap_A/n_R$, an exact fit needs
-$1+\theta=\pi_A/w_A$ and $1-\theta=\pi_B/w_B$. For $w_A\neq w_B$ this
-holds only where $p_A=p_B$.
- 
-So with unequal sample sizes, $H_0$ cannot describe any A/B shape
-difference, including the detector effect it is meant to absorb.
-Instead $f$ absorbs the misfit, and $q_0$ grows linearly with $N$ under
-the null. This hits exactly the detector-effect toys (thinning A gives
-$N_A<N_B$) and the $\tau\mu$ vs $\tau e$ comparison.
- 
-Fix: use the balanced reference,
-$\int g\,\bar n_R\to\frac{1}{2N_A}\sum_A g+\frac{1}{2N_B}\sum_B g$, or
-the label likelihood of note~6. Check: run background-only toys with
-$N_A:N_B=1:2$ and Eq.~(30) active. Under the current loss, the $q_0$
-distribution should drift upward with $N$.\par}\medskip
-\fi % end of MATH NOTE 3
  
 \end{document}
