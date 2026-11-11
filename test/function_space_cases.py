@@ -39,3 +39,18 @@ FUNCTION_SPACE_OPTIONS = {
     "fixed_sigmoid": {"centers": [-1.0, 1.0], "widths": [0.5, 0.5]},
     "gaussian_radial_basis": {"centers": [-1.0, 1.0], "widths": [0.5, 0.5]},
 }
+
+NEURAL_OUTPUT_CONFIGS = [
+    {
+        ConfigType.DATASET: Path(
+            f"test/configs/dataset/disjoint_{dimension}D_generated_dataset_config.json"
+        ),
+        ConfigType.DETECTOR: Path(
+            f"test/configs/detector/basic_{dimension}D_detector_config.json"
+        ),
+        ConfigType.TRAIN: Path(
+            f"test/configs/train/neural_output_{name}_{dimension}D.json"
+        ),
+    }
+    for name, dimension in [("algebraic", 1), ("tanh", 1), ("mixed", 2)]
+]

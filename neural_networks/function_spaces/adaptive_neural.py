@@ -23,6 +23,7 @@ from neural_networks.function_spaces.neural_architecture import (
 from neural_networks.likelihood_parameterization import (
     smoothly_bounded_likelihood_shift,
 )
+from train.neural_output_config import NeuralOutputConfig
 
 
 class AdaptiveNeuralFunction(PerEventFunctionSpace):
@@ -41,6 +42,7 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
         super().__init__()
         self.architecture = neural_architecture(input_dimension, hidden_size)
         self.options = immutable_options(options or {})
+        self.output_config = NeuralOutputConfig.from_options(self.options)
         self.input_dimension = input_dimension
         self.hidden_size = (
             hidden_size if type(hidden_size) is int else tuple(hidden_size)
@@ -82,6 +84,7 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
             )
         scalar_output_dimension(options, cls.family)
         hidden_layer_widths(options.get("hidden_layer_nodes"))
+        NeuralOutputConfig.from_options(options)
 
     @classmethod
     def from_options(
@@ -113,7 +116,9 @@ class AdaptiveNeuralFunction(PerEventFunctionSpace):
     def forward(self, events: torch.Tensor) -> torch.Tensor:
         for layer in self.hidden_layers:
             events = self.activation(layer(events))
-        return smoothly_bounded_likelihood_shift(self.output(events))
+        return smoothly_bounded_likelihood_shift(
+            self.output(events), self.output_config.output_mapping
+        )
 
     @property
     def hidden_layers(self) -> tuple[nn.Linear, ...]:

@@ -223,6 +223,20 @@ when configuration files need target-significance signal amounts.
   `output_dimension` is a neural configuration option. Obsolete dimension hints
   in saved neural configurations are discarded during resolution; they cannot
   override the observable count or scalar output.
+- LFVDDP `adaptive_neural` options also accept `output_mapping: "algebraic"`
+  (the new default) or `"tanh"`, independently for `train__f` and
+  `train__nuisance`. For raw linear output `z`, the algebraic map returns
+  `B * z / sqrt(1 + z*z)` and the historical map returns `B * tanh(z)`, where
+  `B = 0.999999` is the common log-safe bound. The algebraic map approaches
+  the bound more slowly and retains useful gradients at larger raw outputs;
+  it does not guarantee that saturation cannot occur. Hidden sigmoid layers,
+  deterministic function spaces, and NPLM output behavior are unchanged.
+  NPLM rejects this LFVDDP-only option. Checkpoints record the resolved map;
+  changing it during continuation is rejected. To continue a checkpoint made
+  before this option existed, explicitly select `"tanh"` for every enabled
+  neural role. Changing the map changes the fitting procedure, so regenerate
+  the empirical null calibration. Existing `train__adam_weight_decay` remains
+  the parameter-regularization control; no additional output penalty is added.
 - `train__backend: "nplm"` selects the separate NPLM backend. NPLM is not a
   function-space family. Its adaptive function-space options explicitly supply
   integer `hidden_layer_nodes`; input width is inferred from observables and

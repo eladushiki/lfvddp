@@ -19,7 +19,11 @@ from neural_networks.likelihood_parameterization import (
     smoothly_bounded_likelihood_shift,
 )
 from test.environment import DEFAULT_CONFIG_PATHS, ConfigType
-from test.function_space_cases import NEURAL_DEPTH_CASES, NEURAL_DEPTH_CONFIGS
+from test.function_space_cases import (
+    NEURAL_DEPTH_CASES,
+    NEURAL_DEPTH_CONFIGS,
+    NEURAL_OUTPUT_CONFIGS,
+)
 from train.function_space_config import FunctionSpaceSpec
 from train.train_config import TrainConfig
 
@@ -82,7 +86,8 @@ def test_neural_topology_initialization_gradients_and_count(
             torch.nn.functional.linear(expected, layer.weight, layer.bias)
         )
     expected = smoothly_bounded_likelihood_shift(
-        torch.nn.functional.linear(expected, space.output.weight, space.output.bias)
+        torch.nn.functional.linear(expected, space.output.weight, space.output.bias),
+        space.output_config.output_mapping,
     )
     actual = space(events)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
@@ -98,7 +103,9 @@ def test_neural_topology_initialization_gradients_and_count(
 
 
 @pytest.mark.parametrize(
-    "function_execution_context", NEURAL_DEPTH_CONFIGS, indirect=True
+    "function_execution_context",
+    NEURAL_DEPTH_CONFIGS + NEURAL_OUTPUT_CONFIGS,
+    indirect=True,
 )
 def test_neural_depth_training_all_predictions_and_denominator(
     function_execution_context,
@@ -170,7 +177,9 @@ def test_integer_and_single_list_preserve_legacy_state_and_random_order():
         )
     list_space.load_state_dict(integer_space.state_dict(), strict=True)
     events = torch.tensor([[-1.0], [0.1], [1.0]], dtype=torch.float64)
-    expected = smoothly_bounded_likelihood_shift(output(torch.sigmoid(hidden(events))))
+    expected = smoothly_bounded_likelihood_shift(
+        output(torch.sigmoid(hidden(events))), list_space.output_config.output_mapping
+    )
     torch.testing.assert_close(list_space(events), expected, rtol=0, atol=0)
 
 
