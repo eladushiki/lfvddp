@@ -64,15 +64,6 @@ While the last two options are discussed in previous work and are widely used in
 
 Without any restriction for \gls{nn}'s weights and biases, in the form of weight clipping or Adam optimizer weight decay, we experience a virtually-unbounded improvement of the loss minimization in our case. While seeing reasonably convincing convergence after a few tens of thousands of epochs, as seen in Figure~\ref{fig:2d-nonconverging-percentiles}, we can go on and see improvement of the resulting $t$ as long as we keep training.
 
-\iftrue % MATH NOTE 20  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 20 -- Fig.~17]}\enspace
-The reference $\chi^2_{32}$ is inconsistent with Eq.~(23), which gives
-17 for $k=2$, $N=4$ (and for $N=4$ always gives an odd number). The
-continued growth of $q_0$ is the expected behaviour of the supremum in
-note~19, so the training budget must be fixed and identical for null
-and signal toys.\par}\medskip
-\fi % end of MATH NOTE 20
-
 \begin{figure}
     \addgraph{thesis/outro/nonconverging-2d-train/t_train_percentile_progression_plot_2801744295516239952.png}
     \caption{Percentiles of the trained $t$ values as training progresses, relative to the expected $\chi^2$ percentiles. In this training, a \gls{nn} with single hidden layer of 4 neurons was trained for $5\cdot 10^5$ epochs with an Adam optimizer.}
