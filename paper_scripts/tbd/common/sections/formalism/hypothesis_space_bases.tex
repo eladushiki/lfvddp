@@ -16,6 +16,8 @@ Our 3 layered, fully connected, sigmoid activated
     f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha).
 \end{equation}
 
+Output is passed through tanh to prevent logarithms in the likelihood expression from diverging.
+
 The \gls{dof} of a hypothesis space spanned by a \gls{nn}, then, goes by
 
 \begin{equation}
@@ -31,18 +33,8 @@ When considering the free parameters of either hypothesis space the following ca
 
 When counting the \gls{dof} of a hypothesis, we need to take into consideration those of $f$ and those of $\nparam$. This being said, the behavior of the $t$ distribution depends on the difference between the number of \gls{dof} of the singnal and null spaces. The null hypothesis sapce containing the $\nparam$ \gls{dof} as well, we get that the difference is exactly the \gls{dof} of $f$.
 
-\iftrue % MATH NOTE 10  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 10 -- Eq.~(24)]}\enspace
-Wilks' theorem requires an identifiable model, with the null as a single
-interior point and a nonsingular Fisher information. These conditions
-fail for the network parametrization (note~19). Eq.~(24) should
-therefore be presented as a heuristic here, not as the expected
-distribution. (The null result is Wilks [11]; Wald [12] concerns the
-behaviour under alternatives.)\par}\medskip
-\fi % end of MATH NOTE 10
-
 \iftrue % MATH NOTE 11  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 11 -- permutation calibration with an active nuisance]}\enspace
+\par\medskip\noindent{\color{blue}\textbf{[Math note 11 -- permutation calibration with an active nuisance]}\enspace
 A permutation test is valid only if A and B are exchangeable under the
 null, i.e.\ $\theta\equiv0$. The null of interest has $\theta\neq0$,
 $\theta_{\rm SR}=\theta_{\rm CR}$ and no signal. Permuting then erases

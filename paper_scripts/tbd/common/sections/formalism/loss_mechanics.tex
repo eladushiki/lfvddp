@@ -52,13 +52,4 @@ A quick look convinces us that this function is indeed differentiable and finite
     \invllratio = -2 \cdot L^{num}[b^f, \omega^f, \nparam] + 2 \cdot L^{denom}[\nparam]
 \end{equation}.
 
-\iftrue % MATH NOTE 9  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 9 -- finiteness of the loss]}\enspace
-The loss is finite only if $|f|<1$ and $|\theta|<1$. The output layer of
-Eq.~(22) is linear and unbounded, so $\log(1-f)$ can diverge or become
-undefined during training. Enforce the bound in the parametrization,
-e.g.\ $f=\tanh(\cdot)$, or use the logit form of note~6.\par}\medskip
-\fi % end of MATH NOTE 9
- 
-
 \end{document}
