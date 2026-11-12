@@ -26,8 +26,8 @@ That is, given our reference distribution, we expect the two detected samples to
 
 \begin{equation}
 \begin{aligned}
-    \dist{\dataset{A}} &= (1 + \nparam(\anyevent))\refdist \\
-    \dist{\dataset{B}} &= (1 - \nparam(\anyevent))\refdist
+    \dist{\dataset{A}} &= N_{\dataset{A}}(1 + \nparam(\anyevent))\refdist \\
+    \dist{\dataset{B}} &= N_{\dataset{B}}(1 - \nparam(\anyevent))\refdist
 \end{aligned}
 \end{equation}
 
@@ -64,20 +64,4 @@ This gives us directly the detector efficiency modified hypotheses:
 
 The discrepancy between the samples in the null hypothesis in now fully addressed by the effects of our system. Normalization is swallowed for we are now using the evident amounts of events.
 
-\iftrue % MATH NOTE 2  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 2 -- Eqs.~(5)--(6)]}\enspace
-Take observed densities $p_X=\delta_X\,p/\varepsilon_X$, with
-$\varepsilon_X=\int\delta_X\,p\,d\vec x$, and the balanced reference
-$\frac12(p_A+p_B)$. Then $1+\theta=2p_A/(p_A+p_B)$, i.e.
-\[
-\theta(\vec x)=\frac{\tilde\delta_A(\vec x)-\tilde\delta_B(\vec x)}
-                    {\tilde\delta_A(\vec x)+\tilde\delta_B(\vec x)},
-\qquad \tilde\delta_X=\delta_X/\varepsilon_X .
-\]
-The form $(\delta_A-\delta_B)/2$ would require $\delta_A+\delta_B=2$,
-i.e.\ efficiencies above one. Eq.~(6) also lacks the factors $N_A$ and
-$N_B$. The fit itself is unaffected, since $\theta$ is learned. The
-interpretation and any truth overlay (needed in Fig.~7) are affected.\par}\medskip
-\fi % end of MATH NOTE 2
- 
 \end{document}
