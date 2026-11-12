@@ -10,7 +10,7 @@ We would like to learn about our system's effect of the samples, expressed via $
 
 \begin{table}[ht]%[H] add [H] placement to break table across pages
 \centering
-\caption{Division of available data into signal and control regions.\label{table:division_of_data}}
+\caption{\label{table:division_of_data}}
 \begin{ruledtabular}
 \begin{tabular}{lcc}
  & $\dataset{A}$ & $\dataset{B}$ \\
@@ -19,7 +19,15 @@ SR & $\dataset{A_{SR}}$ & $\dataset{B_{SR}}$ \\
 CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
 \end{tabular}
 \end{ruledtabular}
+\caption{Division of available data from different cuts into subsets for signal and control regions.}
 \end{table}
+
+The requirements from the \gls{cr} is as follows:
+\begin{enumerate}
+    \item The CR lacks new physics effects
+    \item The system acts on \gls{sr} and \gls{cr} events in the same manner, as a function of $\anyevent$. In particular, their range is identical.
+    \item All samples are disjoint.
+\end{enumerate}
 
 The \gls{cr} dataset pair would serve as a constraint to the nuisance parameters, which are incorporated to the \gls{sr} hypothesis as well.
 
