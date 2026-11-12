@@ -4,7 +4,9 @@
 
 \begin{document}
 
-\subsection{Description of the Algorithm}
+\iftoggle{ispaper}{%
+To estimate the detection abilities of our method, we repeatedly compare pairs of samples with and without injected signals of varying shapes and strengths. For each run, we load or generate disjoint signal-region and control-region sample pairs, inject a signal into the first signal-region sample when required, and construct a reference sample by combining the two samples in each region. We fit the alternative and null hypotheses by minimizing their respective loss functions, with the signal function fixed to zero under the null hypothesis and nuisance parameters fitted when enabled. The minimized losses determine the test statistic through Eq.~\ref{eq:t_value_from_two_losses}.
+}{%
 The process is executed and evaluated as follows. The method for calculating a single $t$ value is described in Figure~\ref{alg:single_train_algorithm}.
 
 \begin{figure*}
@@ -40,8 +42,8 @@ The process is executed and evaluated as follows. The method for calculating a s
 
 \end{algorithmic}
 \end{figure*}
+}
 
-In cases in which the data is generated, new events are drawn every time the process is carried. In case the dataset is loaded, a subset of the background events are taken randomly from a larger amount that is loaded from the data source, and an artificial signal is added in the cases in which it is needed.
 
 Repeating this procedure many times gives us a set of $t$ values, which, at a large repetition limit, should converge to a $\chi^2_r$. Graphs estimating the compatibility between the theoretical and the evident distributions are generated and appear in many instances here as well.
 

@@ -1,0 +1,49 @@
+% Shared paper/thesis core. Keep the rewrite outline in one place.
+\section{Formalism}
+\subsection{Recap of the previous framework}
+\subfile{common/sections/formalism/recap_previous_framework}
+\subsection{Extension to multiple dimensions}
+\subfile{common/sections/formalism/extension_multiple_dimensions}
+\subsection{Nuisance parameters and detector effects}
+\subfile{common/sections/formalism/detector_affected_distributions}
+\subfile{common/sections/formalism/measuring_our_system}
+\iftoggle{ispaper}{\clearpage}{}
+\subfile{common/sections/formalism/full_hypotheses}
+\subsection{From likelihood to loss function}
+\subfile{common/sections/formalism/distribution_likelihood}
+\subfile{common/sections/formalism/hypothesis_log_likelihood_ratio}
+\subfile{common/sections/formalism/loss_mechanics}
+\subfile{common/sections/formalism/hypothesis_space_bases}
+\iftoggle{ispaper}{\clearpage}{}
+\subfile{common/sections/formalism/test_statistic_distribution}
+\subsubsection{Alternatives to neural networks}
+% Leave the detailed alternatives discussion in the paper appendix and thesis discussion.
+% The outline's brief introduction is deferred; do not invent prose during relocation.
+
+\iftoggle{ispaper}{\clearpage}{}
+\section{Methodology}
+\subsection{Dataset preparation}
+\subfile{common/sections/methodology/dataset_preparation}
+\subsection{Measurement objectives}
+\subfile{common/sections/methodology/measurement_objectives}
+\subfile{common/sections/methodology/significance_estimation}
+\iftoggle{isthesis}{%
+    \paragraph{Implementation Choices}
+    \subfile{common/sections/methodology/compute_framework}
+    \subfile{common/sections/methodology/model_specs}
+}{}
+
+\clearpage
+\section{Results}
+\subsection{Reproducing previous results}
+\subfile{common/sections/results/reproducing_previous_results}
+\clearpage
+\subsection{Sensitivity in one, two, and three dimensions}
+\subfile{common/sections/results/sensitivity_multiple_dimensions}
+\clearpage
+\subsection{Nuisance parameters and detector effects in one dimension}
+\subfile{common/sections/results/nuisance_detector_effects_1d}
+\clearpage
+\subsection{CMS Open Data in one and two dimensions}
+\subfile{common/sections/results/cms_open_data}
+\clearpage

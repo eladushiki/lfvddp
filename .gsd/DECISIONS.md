@@ -431,3 +431,42 @@ prediction interfaces remain identical to main. Resolve the overlapping README
 paragraph and appended decisions by documenting all features, not selecting one
 side. Statistical interval, generated/loaded plot, and stable-log regressions
 validate the combined checkout.
+
+## 2026-11-12 — Paper outline migration and shared thesis structure
+
+Keep the Formalism, Methodology, and Results outline in
+`common/sections/study_structure.tex`, included by both DDP paper 2 and the thesis.
+Adopt the rewrite specification's headings; demote other core headings to
+paragraphs. Preserve existing prose, equations, captions, and figure assets when
+moving or splitting files. The sole prose replacement is the paper's algorithm
+figure and introduction: use a paragraph that states the detection-performance
+objective and describes the same per-run procedure. The thesis retains the
+original algorithm, computing framework, model specifications, introductory
+material, Discussion, Conclusion, and additional appendices.
+
+Keep the degrees-of-freedom discussion in `hypothesis_space_bases.tex`, alongside
+its function parameterization. Keep detailed alternatives and convergence
+material in the paper appendix and thesis Discussion; do not move it into the
+new alternatives subsection. The brief introduction for that outline slot is
+deferred. Move existing 4D results verbatim into the dimensional sensitivity
+section pending the later 3D conversion. Add a TODO for the missing discussion
+of sensitivity loss with increasing dimensionality; do not infer that discussion
+from the existing 4D results. Move 1D sensitivity out of reproduction so the
+existing 1D, 2D, and 4D sensitivity studies form one sequence without duplication.
+
+Caller inventory: both manuscript entry points include the shared structure;
+result wrappers and every renamed subfile reference are updated. The research
+proposal has no shared section includes, and the presentation references only
+unchanged figure paths. Preserve shared subsection standalone compilation via
+the existing subfiles parent. Validate both manuscript builds, their outlines,
+paper/thesis visibility differences, and conservation of original content.
+
+Validation: both documents compile with latexmk (24-page paper, 57-page thesis).
+All 181 original body blocks remain verbatim in shared sources after stripping
+structural commands and normalizing whitespace. PDF outline checks confirm the
+specified core headings and exclusion of demoted paragraphs. The thesis retains
+all original labels; the paper omits only the algorithm and model-architecture
+figure labels. Both figures are present only in the thesis. The paper has no
+unresolved references, stuck floats, or overfull-box warnings. The thesis's two
+overfull equation warnings also occur in the baseline build. Flush result floats
+between study groups and before the thesis Discussion to preserve their context.

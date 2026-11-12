@@ -4,7 +4,6 @@
 
 \begin{document}
 
-\subsection{Data and Signals}
 
 In the following graphs we use several sources for background and signal data sources.
 
@@ -53,5 +52,9 @@ When injecting signals, we add a desired average amount of excessive events from
     \qquad \eventsymbol \geq 0,
 \end{aligned}
 \end{equation}
+
+Before any given process, data is normalized such that all datasets would fit $[-1, 1]$ to allow for stable numerics of the Sigmoid functions.
+
+In cases in which the data is generated, new events are drawn every time the process is carried. In case the dataset is loaded, a subset of the background events are taken randomly from a larger amount that is loaded from the data source, and an artificial signal is added in the cases in which it is needed.
 
 \end{document}
