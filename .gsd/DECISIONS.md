@@ -470,3 +470,26 @@ figure labels. Both figures are present only in the thesis. The paper has no
 unresolved references, stuck floats, or overfull-box warnings. The thesis's two
 overfull equation warnings also occur in the baseline build. Flush result floats
 between study groups and before the thesis Discussion to preserve their context.
+
+## 2026-11-12 — Compact paper layout without losing float grouping
+
+Replace the paper's explicit study-boundary page breaks with `placeins` float
+barriers through `studyboundary`. Permit figures above/below a boundary on the
+same page so following section text can fill available space; barriers still
+bound the study groups across pages. Keep REVTeX's original figure-placement
+defaults. Use ragged bottoms rather than stretching vertical gaps, and remove
+paper-only front-matter column breaks. The thesis branch of the shared boundary
+command remains `clearpage`, preserving its existing layout.
+
+The small SR/CR table fits a paper column: use an ordinary table with h/t/b/p
+placement for the paper and retain the thesis's original full-width table.
+This removes the table-only page without changing table contents or its caption.
+
+Validation: the paper compiles to 16 pages instead of 24; the table shares page 3
+with its control-region discussion. All original labels and manuscript content
+are retained, with only layout commands changing. Both manuscripts compile;
+all 57 thesis pages have identical extracted text and pagination to the prior
+build. Rendered paper pages and text bounds were checked for clipping. REVTeX
+still emits float-queue and widetext vertical-box diagnostics in the compact
+paper; all figures appear within their study groups (allowing a shared boundary
+page), all text remains within the page, and no references are unresolved.
