@@ -4,14 +4,14 @@
 
 \begin{document}
 
-\subsubsection{Building an Observed Dataset}
+\paragraph{Building an Observed Dataset}
 \label{sec:building_an_observed_dataset}
 
 During a HEP experiment, the collision events occur inside a detector. When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components and angles. Due to limited detector efficiency, not all events that occur inside the detector are successfully reconstructed, so we say that only a subset of the true events is observed.
 
 We denote by $\detector(\event)$ the probability with which an event $\event$ is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\dataset{A}$ to be the dataset after stochastically removing events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\detector(\event)$. We denote the observed number of events by $|\dataset{A}| = N_\dataset{A}$. 
 
-\subsubsection{Modeling Detector Efficiency as Nuisance Parameters}
+\paragraph{Modeling Detector Efficiency as Nuisance Parameters}
 
 We know our model of the detector's behavior is not perfect, and even more - can be different for our $\dataset{A}$ and $\dataset{B}$ samples, and hence break an originally-true symmetry of them. We now formulate our accounting to deviations and uncertainties of this kind.
 

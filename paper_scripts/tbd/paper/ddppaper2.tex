@@ -33,6 +33,7 @@ aps, physrev,
 \newcommand{\EK}[1]{\textbf{\textcolor{red}{[EK: #1]}}}
 
 \begin{document}
+\raggedbottom
 \preprint{WIS/DDP-01}
 
 % =============================================================================
@@ -74,10 +75,8 @@ aps, physrev,
 \end{abstract}
 
 \maketitle
-\newpage
 
 \tableofcontents
-\newpage
 
 % =============================================================================
 % Article body
@@ -85,47 +84,7 @@ aps, physrev,
 
 \subfile{common/sections/introduction.tex}
 
-\section{Formalism}
-\subsection{Reminder}
-\subfile{common/sections/formalism/reminder}
-\subsection{Adding Dimensions}
-\subfile{common/sections/formalism/multiple_dimension_distributions}
-\subsection{Adding Nuisance Parameters}
-\subfile{common/sections/formalism/detector_affected_distributions}
-\subfile{common/sections/formalism/measuring_our_system}
-\subfile{common/sections/formalism/full_hypotheses}
-\subsection{Estimating Hypotheses}
-\subfile{common/sections/formalism/distribution_likelihood}
-\subfile{common/sections/formalism/hypothesis_log_likelihood_ratio}
-\subfile{common/sections/formalism/loss_mechanics}
-\subsection{Test Statistic Behavior}
-\subfile{common/sections/formalism/hypothesis_space_bases}
-\clearpage
-\subfile{common/sections/formalism/test_statistic_distribution}
-\clearpage
-\subfile{common/sections/formalism/significance_estimation}
-
-\section{Methodology}
-\subfile{common/sections/methodology/compute_framework}
-\subfile{common/sections/methodology/model_specs}
-\subfile{common/sections/methodology/test_statistic_algorithm}
-
-\clearpage
-\section{Performance}
-\subfile{common/sections/results/datasets_and_signals}
-\clearpage
-\subfile{common/sections/results/reproduction}
-\clearpage
-\subfile{common/sections/results/detector_nuisance}
-\clearpage
-\subfile{common/sections/results/multiple_dimensions_2d}
-\clearpage
-\subfile{common/sections/results/multiple_dimensions_4d}
-\clearpage
-\subfile{common/sections/results/simulated_data_1d}
-\clearpage
-\subfile{common/sections/results/simulated_data_2d}
-\clearpage
+\input{common/sections/study_structure}
 
 \section{Conclusion}
 \subfile{common/sections/conclusion}
@@ -137,7 +96,7 @@ aps, physrev,
 \begin{acknowledgments}
 \TODO{acknowledge}
 \end{acknowledgments}
-\clearpage
+\studyboundary
 
 \appendix
 \subfile{common/sections/appendices/t_value_computation}

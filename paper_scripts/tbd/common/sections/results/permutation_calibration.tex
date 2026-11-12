@@ -1,0 +1,25 @@
+\documentclass[paper/ddppaper2.tex]{subfiles}
+
+\input{common/headers/preamble}
+
+\begin{document}
+
+\paragraph{In the Lack of Pure Background}
+
+When examining a real experimental sample, we would not be able to extract properties from a background-only toy, since all we have is the sample itself that may or may not contain a signal.
+As in the previous work~\cite{LastDDPPaper}, we observe this background-only behavior by performing permutation tests - shuffling the $\dataset{A}$ and $\dataset{B}$ samples, then estimating the test statistic. Repeating this process generates a distribution that is indistinguishable from background only behavior, as demonstrated in Figure~\ref{fig:permutation_test}
+
+\begin{figure}
+    \centering
+    \begin{minipage}{0.48\linewidth}
+        \addgraph{common/sections/results/plot00-permutation-t-distribution-v9/t_distribution_plot_1672468229609717126.png}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\linewidth}
+        \addgraph{common/sections/results/plot00-permutation-significance-v9/performance_plot_-8078064096124264868.png}
+    \end{minipage}
+    \caption{Permutation tests performed on a sample from CMS Open data. The same sample is used twice - once, premuted, as a background reference, and an additional time as a signal sample. Left: distribution of the $t$ values of the permuted sample, with background-only expected $\chi^2$ contour for reference. Right: the significance of the non-permuted test with relation to the background only behavior. We can see in later Figures~that this discovery significance is identical to the one acieved with background only data.}
+    \label{fig:permutation_test}
+\end{figure}
+
+\end{document}
