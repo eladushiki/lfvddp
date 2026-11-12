@@ -74,14 +74,15 @@ Treating separately the numerator and denominator here, for they will soon requi
     C = \sum_{\event\in\mathrm{SR}}\log \srrefdist[\event]
       + \sum_{\event\in\mathrm{CR}}\log \crrefdist[\event].
 \end{equation}
-It is a sum of logarithms, as follows from expanding the logarithm of
- the product of event intensities. This same contribution, together with
- the event-count terms $N_X\log N_X$, appears in both hypotheses and
- cancels in their log-likelihood difference. The signal-dependent terms
- $\sum_{\event\in\srdataset{A}}\log(1+f(\event))$ and
- $\sum_{\event\in\srdataset{B}}\log(1-f(\event))$ do not cancel:
- they occur only in the alternative hypothesis. These terms are retained below and in
- Eq.~\ref{eq:discrete_loss_functions}.
+Expanding the product of event intensities gives this sum of logarithms.
+The same reference contribution and event-count terms $N_X\log N_X$
+appear in both hypotheses and cancel in their log-likelihood difference.
+The signal terms do not cancel, since they occur only in the alternative:
+\begin{equation*}
+    \sum_{\event\in\srdataset{A}}\log(1+f(\event))
+    + \sum_{\event\in\srdataset{B}}\log(1-f(\event)).
+\end{equation*}
+These terms are retained below and in Eq.~\ref{eq:discrete_loss_functions}.
 
 \noindent using the substitutions
 \begin{equation*}

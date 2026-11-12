@@ -4,40 +4,6 @@
 
 \begin{document}
 
-\iftrue % MATH NOTE 6  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 6 -- suggested reformulation of Sec.~II.D (label likelihood)]}\enspace
-Because $n_R$ is the empirical pooled density, all the information on
-$f$ and $\theta$ is in the A/B labels. Conditional on the event positions
-and regions, the labels are Bernoulli with
-$\pi_R(\vec x)=\lambda^R_A/(\lambda^R_A+\lambda^R_B)$. Parametrize
-\[
-\begin{aligned}
-H_0:\ \mathrm{logit}\,\pi_R&=c_R+\eta(\vec x),\\
-H_1:\ \mathrm{logit}\,\pi_R&=c_R+\eta(\vec x)
-      +\mathbf 1[R={\rm SR}]\,\phi(\vec x).
-\end{aligned}
-\]
-The symbols map onto the draft's as follows:
-\begin{itemize}
-\item $\eta=2\,\mathrm{artanh}\,\theta$ and $\phi=2\,\mathrm{artanh}\,f$, so
-  adding logits is exactly the velocity addition of note~5.
-\item $c_R$ is one free constant per region, which keeps the test
-  shape-only, as it is now.
-\item For symmetric production, $\mathrm{logit}\,\pi=\ln(\delta_A/\delta_B)$,
-  independent of $R$. This is the SR/CR transfer assumption stated
-  exactly.
-\end{itemize}
-The loss becomes the binary cross-entropy, and
-\[q_0=2\,[\min\mathcal L_0-\min\mathcal L_1].\]
-This replaces
-Eqs.~(19)--(21) and most of App.~A, and fixes notes~3, 5 and~9 for any
-$N_A/N_B$. With a fixed basis, $\phi=\sum_{j=1}^d\beta_j b_j(\vec x)$,
-$H_1$ is a logistic GLM. Its Fisher information
-$\sum_{\rm SR}\hat\pi_0(1-\hat\pi_0)\,b\,b^{\mathsf T}$ is nonsingular,
-so $q_0\to\chi^2_d$ (cf.\ note~19).\par}\medskip
-\fi % end of MATH NOTE 6
- 
-
 \subsubsection{Distribution Likelihood}
 
 Likelihood of observed data $\dataset{A}$ and a statistical model with parameters $\param$ is defined to be
@@ -81,7 +47,6 @@ For our test statistic, we consider the log-likelihood measure
     &\quad + \sum_{\event \in \dataset{A}} \log\big({N}_{\dataset{A}} (1 + f(\event)) (1 + \nparam(\event)) \refdist[\event]\big) + C_\dataset{A},
 \end{aligned}
 \end{equation}
-\end{wideequations}
 
 \noindent which can be rewritten as
 
@@ -105,6 +70,8 @@ normalize the combined signal and nuisance factors. Its expansion and
 the cancellation of parameter-independent terms are given in
 Appendix~\ref{Appendix_Tvalue}.
 
+\end{wideequations}
+
 \subsubsection{Likelihood Comparison}
 
 Using $\llikelihood$ as a measure for plausibility of a distribution, we would like to have a relative measure between the two distributions. For that goal, we define the profile log-likelihood ratio test statistic to be
@@ -126,16 +93,5 @@ Using $\llikelihood$ as a measure for plausibility of a distribution, we would l
 \begin{equation}
     Z_0 = \sqrt{\invllratio}. 
 \end{equation}
-
-\iftrue % MATH NOTE 8  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 8 -- Eq.~(17)]}\enspace
-$Z_0=\sqrt{q_0}$ [10] holds for a single parameter of interest with a
-one-sided $q_0$. Here $f$ has $d$ parameters. If Wilks' theorem applied,
-$Z=\Phi^{-1}\!\left(1-F_{\chi^2_d}(q_0)\right)$; otherwise $Z$ must come
-from the empirical null. For $d=13$, the null median $q_0\approx12.3$
-would give $\sqrt{q_0}\approx3.5$, although $Z=0$. ($\sqrt{q_0}$ remains
-appropriate for the one-parameter oracle of Eqs.~(26)--(27).)\par}\medskip
-\fi % end of MATH NOTE 8
- 
 
 \end{document}
