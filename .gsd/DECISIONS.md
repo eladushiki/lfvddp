@@ -493,3 +493,19 @@ build. Rendered paper pages and text bounds were checked for clipping. REVTeX
 still emits float-queue and widetext vertical-box diagnostics in the compact
 paper; all figures appear within their study groups (allowing a shared boundary
 page), all text remains within the page, and no references are unresolved.
+
+## 2026-11-12 — Flatten result includes
+
+Remove the `sensitivity_multiple_dimensions.tex` and `cms_open_data.tex` wrapper
+subfiles. Include their six leaf study files directly from `study_structure.tex`,
+which already owns the shared section order. Retain every study boundary, the
+existing 4D-study comment, and the sensitivity-loss heading/TODO in the same
+sequence. The shared structure is the wrappers' only caller; the two manuscript
+entry points exercise it, including the thesis-only implementation features.
+No prose, equation, caption, or figure asset changes are part of this cleanup.
+
+Validation: paper and thesis builds pass. Before/after PDFs retain identical
+text content (ignoring page furniture and whitespace), labels, table-of-contents
+entries, and total page counts: 16 and 56 respectively on current main. One
+bibliography line in each document reflows onto the following page after removal
+of the wrapper groups; study pages and float grouping remain unchanged.
