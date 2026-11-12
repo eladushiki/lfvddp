@@ -10,10 +10,15 @@
 Wilks and Wald's theorems gives us an expected behavior of the test statistic we constructed. According to Wilks~\cite{Wilks_Original} and Wald~\cite{Wald_Original}, we have that the distribution of $\invllratio$ itself should converge to a $\chi^2_d$
 
 \begin{equation}
+\label{eq:inverse-log-likelihood-ratio-limit}
     \invllratio \sim \chi^2_{d}
 \end{equation}
 
 \noindent with $d$ of the number of degrees of freedom on our signal hypothesis minus those of the null hypothesis.
+
+Although previous work in~\cite{LastDDPPaper} and~\cite{Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine}, and our reproduction of the results in the following, show approximate convergence to this behavior - this is not an exact limit. Wilks~\cite{Wilks_Original} and Wald~\cite{Wald_Original} require an identifiable model, with the null as a single point and a non singular Fisher information. These conditions fail for this \gls{nn} parameterization for there is degeneracy of the description of the null hypothesis in this space. The expression in Eq.~\ref{eq:neural_net_explicit} exhibits the null hypothesis for vanishing $w_\alpha$ weights and any other values for the rest of the parameters. Therefore, the statistical behavior should be regarded as a heuristic approximation rather than a hard limit.
+
+In our experiments we showed, that by spanning the function space as a linear combination of basis elements we do get Eq.~\ref{eq:inverse-log-likelihood-ratio-limit} as a hard limit, but it introduced different problems which are not discussed here.
 
 and so, given no new signal in \gls{sr}, we should count the number of free parameters in our signal hypothesis and be able to approximate the behavior of $\invllratio$.
 

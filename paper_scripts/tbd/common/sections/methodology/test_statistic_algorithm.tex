@@ -18,12 +18,13 @@ The process is executed and evaluated as follows. The method for calculating a s
 \Require Configuration of model internal parameters, $\nparam$ usage, dataset source and criteria, number of epochs
 
 \State Load or generate a sample and randomly divide to $A^{SR}, B^{SR}$ of dimension $\mathit{k}$
-\State Load or generate a sample and randomly divide to $A^{CR}, B^{CR}$ of dimension $\mathit{k}$
-\State $\text{reference}^{SR} \gets A^{SR} + B^{SR}$ and same for $CR$
 
 \If{\textit{should inject signal}}
     \State Inject the signal to $A^{SR}$
 \EndIf
+
+\State Load or generate a sample and randomly divide to $A^{CR}, B^{CR}$ of dimension $\mathit{k}$
+\State $\text{reference}^{SR} \gets A^{SR} + B^{SR}$ and same for $CR$
 
 \State Numerator model $\gets \text{Model}(f, \nparam, \text{loss} = L^{\text{numerator}})$
 \State Denominator model $\gets \text{Model}(f = 0, \nparam, \text{loss} = L^{\text{denominator}})$
@@ -47,32 +48,5 @@ Repeating this procedure many times gives us a set of $t$ values, which, at a la
 The background only distribution estimation is straight forward when the data is generated. When it is loaded, the background only reference $t$ value behavior is estimated from repeating the calculation while shuffling $\dataset{A}$ and $\dataset{B}$ samples in each region, with the signal, and re-partitioning them into samples of the original sizes. In this manner, on average, each sample carries the exact statistics of the reference distribution, which is composed of both. In this case, it's as if all signals are absent from the statistics.
 
 Then, the same statistics are gathered with various shapes and intensities of signals. The significances of the median of the distribution, as well as the significance of the $\pm \sigma$ values from it, are estimated relative to the theoretical and evident background only distributions. Graphs displaying the progression of the detected significance of the detected signal as a function of the injected signal strength appear in many following cases.
-
-\iftrue % MATH NOTE 15  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 15 -- the algorithm of Fig.~3]}\enspace
-(a) Lines 7--8 train the numerator and denominator independently.
-Nesting guarantees $\min\mathcal L_1\le\min\mathcal L_0$ only at global
-optima, so $q_0$ can be biased or negative. Train $H_0$ first, then
-initialize $H_1$ from its optimum with the output layer of $f$ set to
-zero (so $f\equiv0$ at the start) and give it the same budget. This
-makes $q_0\ge0$ by construction.
- 
-(b) Line~3 builds the reference before the injection in line~5. With
-real data the reference necessarily contains the signal, so the order
-should be reversed; please check the code.
- 
-(c) The non-convergence filter (2.0\% of toys in Fig.~1, 3.8\% in
-Fig.~6) is part of the test statistic. Define it, and apply it
-identically to null and signal toys.\par}\medskip
-\fi % end of MATH NOTE 15
-
-\iftrue % MATH NOTE 16  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 16 -- shuffling]}\enspace
-The signal is not absent after shuffling. It is shared evenly between A
-and B, so it produces no asymmetry. This calibration is valid only when
-$\theta\equiv0$; with the nuisance active, use the resampling of
-note~11.\par}\medskip
-\fi % end of MATH NOTE 16
-  
 
 \end{document}
