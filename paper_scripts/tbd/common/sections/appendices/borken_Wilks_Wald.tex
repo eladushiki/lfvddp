@@ -12,59 +12,41 @@
 \label{sec:broken_Wilks_Wald}
 
 In previous work \cite{Italian_no_1_Learning_New_Physics_from_a_Machine, Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine} the signal hypothesis (similarly to Eq. \ref{eq:last_ddp_paper_hypotheses}) is expressed as a multiplicative transformation of the $\refdist$ and an output of a N-neuron hidden layer fully connected neural network.
-A problem arose from that - the convergence of the test statistic (Eq. \ref{eq:inverse_log_likelihood_ratio}) to the Wilks theorem's predicted $\chi^2$ was not accurate. Two coping mechanisms were introduced:
-\begin{itemize}
-    \item A cutoff was set for the \gls{nn}'s weights and biases ("weight clipping")
-    \item The model training's hyper parameters (number of epochs, learning rate, etc.) are fixed
-\end{itemize}
+A problem arose from that - the convergence of the test statistic (Eq. \ref{eq:inverse_log_likelihood_ratio}) to the Wilks theorem's predicted $\chi^2$ was not accurate.
 
 While this assimilates the evident distributions to the expected $\chi^2$ contour lines, one could claim that this is not a physical phenomenon, but merely engineered parameters to comply with the theory. In the paper itself there is evidence that this is not the whole picture - section IV D in \cite{Italian_no_1_Learning_New_Physics_from_a_Machine} discusses it, and discrepancies in a 2D examples are presented in section IV C.
 
 Our group's previous work \cite{LastDDPPaper} experienced this problem as well. While figuring out a way to bypass the weight clipping with the symmetrized mechanism, a fixation of the hyper parameters is still needed to get theory-compliant results. In section 6.2 there, overfitting is discussed. It's clear that the procedure is indeed dependent on hyper parameters.
 
+Two coping mechanisms were introduced:
+\begin{itemize}
+    \item A cutoff was set for the \gls{nn}'s weights and biases ("weight clipping")
+    \item The model training's hyper parameters (number of epochs, learning rate, etc.) are fixed
+\end{itemize}
+
 Our investigation of the Wilks and Wald's theorems' validity with regards to the methods offers a possible explanation.
 
 \subsection{Broken Wilks and Wald}
-
-\iftrue % MATH NOTE 19  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\raggedright\textbf{[Math note 19 -- App.~B.a: Fisher information and Wilks' theorem]}\enspace
-At a null point ($b_0=v_j=0$), $\partial f/\partial b_0=1$ and
-$\partial f/\partial v_j=\sigma(w_j\cdot\vec x+b_j)\neq0$. Only
-$\partial f/\partial w_j$ and $\partial f/\partial b_j$ ($j\ge1$)
-vanish. Zero score components remove whole rows and columns of the
-Fisher information, not its diagonal, so its rank is at most $N+1=5$,
-not 4.
  
-The null set is also larger than stated. It includes $w_j=0$ for all
-$j$ with $b_0=-\sum_jv_j\sigma(b_j)$, and pairs of identical hidden
-units with $v_j=-v_{j'}$. Hidden-unit permutation symmetry makes the
-Fisher matrix singular even away from the null.
- 
-The hidden-layer parameters are identified only under $H_1$; this is
-the Davies problem. The null distribution of $q_0$ is that of the
-supremum of a $\chi^2$ random field. It is stochastically larger than
-$\chi^2_{N+1}$, and in general it is not $\chi^2_{(k+2)N+1}$.
-Consequently $q_0$ is defined by the training procedure. Either
-calibrate empirically with that procedure frozen, or use a fixed basis
-for $f$ (note~6), for which the asymptotic $\chi^2_d$ is exact.\par}\medskip
-\fi % end of MATH NOTE 19
- 
-
 Let's reiterate our \gls{nn}'s output formula:
 
 \begin{equation}
     f(\anyevent | v_i, w_i, b_i) = b_0 + \sum\limits_{j=1}^4 v_j \sigma(w_j \anyevent + b_j)
-    \end{equation}
+\end{equation}
 
-In our formulation, the null hypothesis is equivalent to the point in the signal hypothesis space in which $f=0$. It is described by the parameterization: $b_0 = v_i = 0$, while the other parameters can carry any value. In that point also $\dfrac{\partial f}{\partial w_j} = \dfrac{\partial f}{\partial b_i} = 0$. These terms directly compose the diagonal of the Fisher information matrix, which is, in this case, of the rank of at most 4.
+In our formulation, the null hypothesis is equivalent to the point in the signal hypothesis space in which $f = 0$. It is described by the parameterization: $b_0 = v_i = 0$, while the other parameters can carry any value. In that point also $\dfrac{\partial f}{\partial w_j} = 0 \forall j$ and $\dfrac{\partial f}{\partial b_i} = 0 \forall i \neq 0$. These terms nullify entire columns and rows of the Fisher information, which is now of the rank of at most 5.
+
+The null set is even larger considering parameter combination such as $w_j=0$ for all $j$ with $b_0=-\sum_jv_j\sigma(b_j)$, and pairs of identical hidden units with $v_j=-v_{j'}$. Hidden-unit permutation symmetry makes the Fisher matrix singular even away from the null.
 
 For the free parameter count to be the degree of the converged $\chi^2$, the following (among other stuff) is required \cite{Wilks_Original, Wald_Original}:
 \begin{enumerate}
     \item The null hypothesis should be identified with one set of parameters withing the signal hypothesis space. That is, a "$\param$ = 0" as in signal strength hypothesis testing.
-    \item The Fisher information matrix of the signal hypothesis space is nonsingular
+    \item The Fisher information matrix of the signal hypothesis space is non singular
 \end{enumerate}
 
 For the limit to hold, these should too. Hence, what we evidently saw, was merely an approximation of the behavior we knew to be looking for.
+
+The hidden-layer parameters are identified only under $H_1$; this is the Davies problem. The null distribution of $q_0$ is that of the supremum of a $\chi^2$ random field. It is stochastically larger than $\chi^2_{N+1}$, and in general it is not $\chi^2_{(k+2)N+1}$.
 
 \subsubsection{Possible solutions}
 To solve this and get the exact distribution, in order to estimate the predicting power of our method without modeling the background \gls{pdf}, a few directions might be chosen:
