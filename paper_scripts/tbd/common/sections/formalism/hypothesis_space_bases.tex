@@ -32,32 +32,5 @@ When considering the free parameters of either hypothesis space the following ca
 \end{itemize}
 
 When counting the \gls{dof} of a hypothesis, we need to take into consideration those of $f$ and those of $\nparam$. This being said, the behavior of the $t$ distribution depends on the difference between the number of \gls{dof} of the singnal and null spaces. The null hypothesis sapce containing the $\nparam$ \gls{dof} as well, we get that the difference is exactly the \gls{dof} of $f$.
-
-\iftrue % MATH NOTE 11  (to hide: change \iftrue to \iffalse)
-\par\medskip\noindent{\color{blue}\textbf{[Math note 11 -- permutation calibration with an active nuisance]}\enspace
-A permutation test is valid only if A and B are exchangeable under the
-null, i.e.\ $\theta\equiv0$. The null of interest has $\theta\neq0$,
-$\theta_{\rm SR}=\theta_{\rm CR}$ and no signal. Permuting then erases
-$\theta$ and tests the stronger null $p_A=p_B$. The resulting
-distribution misses three contributions: the error in $\theta$
-transferred from the CR to the SR, the capacity limits of the $\theta$
-network, and the misspecification of note~3. It is therefore too narrow,
-and significances are overstated.
- 
-Null-preserving alternative (a parametric bootstrap, also called a
-conditional randomization test):
-\begin{enumerate}
-\item Fit $H_0$ to get $\hat\pi_0(\vec x,R)$.
-\item For $m=1,\dots,M$: keep all $\vec x_i$ and regions, draw
-  $y_i\sim{\rm Bernoulli}\big(\hat\pi_0(\vec x_i,R_i)\big)$, refit both
-  hypotheses, and record $q_0^{(m)}$.
-\item Report $p=\big(1+\#\{q_0^{(m)}\ge q_0^{\rm obs}\}\big)/(M+1)$.
-\end{enumerate}
-Validate it by checking that the unmodified $\tau\mu/\tau e$ simulation
-gives uniform $p$-values.\par}\medskip
-\fi % end of MATH NOTE 11
- 
-  
-
  
 \end{document}
