@@ -4,7 +4,7 @@
 
 \begin{document}
 
-\subsubsection{Expressing the Hypothesis Spaces}
+\paragraph{Expressing the Hypothesis Spaces}
 
 Previously~\cite{LastDDPPaper}, we used a neural network to express the signal hypothesis space. The arguments for choosing it are straight forward - it is a highly expressive function space, that can fit various signal shapes and strengths, while having a clear and sizable set of parameters, that is its degrees of freedom (which will matter in a bit). The downsize is an overfitting tendency and is only approximately conforming of Wilks and Wald (Section~\ref{sec:Wilks_Wald}), a problem which was briefly discussed in \cite{LastDDPPaper} and is further explained in \iftoggle{ispaper}{Appendix}{Section}~\ref{sec:broken_Wilks_Wald}.
 
@@ -24,7 +24,7 @@ The \gls{dof} of a hypothesis space spanned by a \gls{nn}, then, goes by
     N_\text{DOF} = (k + 2) \times N + 1
 \end{equation}
 
-\subsubsection{\texorpdfstring{$\chi^2$}{Chi-squared} Degrees of Freedom (DOF)}
+\paragraph{\texorpdfstring{$\chi^2$}{Chi-squared} Degrees of Freedom (DOF)}
 When considering the free parameters of either hypothesis space the following calculation follows:
 \begin{itemize}
     \item In $\hypothesis{1}$, the degrees of freedom are in $f$ and $\nparam$ and $\refdist$.

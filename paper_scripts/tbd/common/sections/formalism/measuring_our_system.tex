@@ -4,11 +4,11 @@
 
 \begin{document}
 
-\subsubsection{Measuring Systematic Uncertainties}
+\paragraph{Measuring Systematic Uncertainties}
 
 We would like to learn about our system's effect of the samples, expressed via $\nparam$'s, in order to tell them apart from real signals. This can be done in an environment that is clean of signal. For our process, we introduce two additional samples that would be called the \gls{cr}. The original pair is now called the \gls{sr}, and the new physics is assumed to be expressed only there. Dataset names are elaborated in Table~\ref{table:division_of_data}.
 
-\begin{table*}[t]
+\iftoggle{ispaper}{\begin{table}[htbp]}{\begin{table*}[t]}
 \centering
 \begin{ruledtabular}
 \begin{tabular}{lcc}
@@ -20,7 +20,7 @@ CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
 \end{ruledtabular}
 \caption{Division of available data from different cuts into subsets for signal and control regions.}
 \label{table:division_of_data}
-\end{table*}
+\iftoggle{ispaper}{\end{table}}{\end{table*}}
 
 The requirements from the \gls{cr} is as follows:
 \begin{enumerate}

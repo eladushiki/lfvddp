@@ -15,6 +15,15 @@
 \newtoggle{ispaper}
 \newtoggle{isthesis}
 
+% Keep paper floats inside their study without starting a new page when none wait.
+% The thesis retains its existing explicit page breaks.
+\ifdefined\paper
+    \usepackage[above,below]{placeins}
+\fi
+\newcommand{\studyboundary}{%
+    \iftoggle{ispaper}{\FloatBarrier}{\clearpage}%
+}
+
 \makeatletter  % set paper size if not included in presentation
 \@ifclassloaded{beamer}{
     \usepackage[
