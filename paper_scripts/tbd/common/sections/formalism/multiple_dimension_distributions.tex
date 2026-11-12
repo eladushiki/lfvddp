@@ -23,7 +23,7 @@ Our hypothetical accelerator causes particles to collide, creating the sets $\tr
 \end{aligned}
 \end{eqnarray}
 
-\noindent For now, $f$ is arbitrary and is composed of parameters $\param$ that are of interest for us. The former $g$ formulation for the $\dataset{B}$ distribution is replaced with a negative $\paramf$, expressing the symmetric shift from $\refdist$, directly expected from its choice as both the distributions' mean.
+\noindent The function $f$ is parametrized by the parameters of interest $\param$. We use the same function with opposite signs for the two samples, expressing symmetric shifts from $\refdist$, the mean of the two distributions.
 
 This gives us directly the n-dimensional form of our hypotheses:
 
@@ -56,7 +56,7 @@ This gives us directly the n-dimensional form of our hypotheses:
         &=
         \frac{N_{\true{B}}}
             {\int \refdist\,d\anyevent}
-        (1 - g(\anyevent)) \refdist.
+        (1 - f(\anyevent)) \refdist.
     \end{cases}
 \end{aligned}
 \end{equation}

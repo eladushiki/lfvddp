@@ -134,7 +134,7 @@ Plugging back in the expressions cancels some independent terms. From Equations~
 \begin{wideequations}
 \begin{equation}
 \begin{aligned}
-\invllratio &= 2 \max\limits_{f, g, \nparam} \Bigg(
+\invllratio &= 2 \max\limits_{f, \nparam} \Bigg(
     - \int ((1 + f(\anyevent))\srdist{\dataset{A}}^0 + (1 - f(\anyevent))\srdist{\dataset{B}}^0)
     - \int (\crdist{\dataset{A}}^0 + \crdist{\dataset{B}}^0)
     \\&
@@ -151,7 +151,7 @@ Plugging back in the expressions cancels some independent terms. From Equations~
     + \sum\limits_{\event \in \dataset{A}} \log(1 + {\nparam(\anyevent)})
     + \sum\limits_{\event \in \dataset{B}} \log(1 - {\nparam(\anyevent)})
 \Bigg) \\
-&= - 2 \min\limits_{f, g, \nparam} \Bigg(
+&= - 2 \min\limits_{f, \nparam} \Bigg(
     \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} \left(
         N_\srdataset{A} (1 + f(\anyevent)) (1 + {\nparam(\anyevent)})
         + N_\srdataset{B}(1 - f(\anyevent)) (1 - {\nparam(\anyevent)})
