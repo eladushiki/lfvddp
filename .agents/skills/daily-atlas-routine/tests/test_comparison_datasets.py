@@ -2,9 +2,12 @@
 
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
+from atlas_routine.backend import Backend
 
+from frame.context.execution_context import ExecutionContext
 from train.comparison_config import ComparisonConfigError, validate_comparison_configs
 from train.comparison_datasets import (
     SIGNAL_SHAPE_FIELDS,
@@ -138,12 +141,6 @@ def test_loaded_signal_observable_mapping_is_shape_not_background_configuration(
 def test_resampling_on_off_warns_for_planned_and_saved_runs(
     tmp_path, monkeypatch, reverse, saved_only
 ):
-    from unittest.mock import Mock
-
-    from atlas_routine.backend import Backend
-
-    from frame.context.execution_context import ExecutionContext
-
     config = BASE | json.loads((ROOT / CASES["loaded"]["source"]).read_text())
     unresampled = config | {
         "dataset__definitions": [
