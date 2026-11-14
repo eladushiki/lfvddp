@@ -1,6 +1,7 @@
 """Require the same fitting procedure for a calibrated significance comparison."""
 
 import json
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import fields
 from pathlib import Path
@@ -19,9 +20,11 @@ def validate_comparison_configs(configs: Sequence[tuple[str, Mapping]]) -> None:
 
     Inputs are resolved configuration dictionaries, as persisted in run contexts.
     Dataset settings must agree per region except for injected signal strength
-    and shape, which define the plotted points and curves. Seeds, array sizes,
-    output paths and plotting controls are outside this fitting signature. No fitting field is allowlisted
-    away: checkpoint cadence and optimizer phase controls must match too.
+    and shape, which define the plotted points and curves. A boolean difference
+    in the loaded resampling on/off flag warns instead of blocking. Seeds, array
+    sizes, output paths and plotting controls are outside this fitting signature.
+    No fitting field is allowlisted away: checkpoint cadence and optimizer phase
+    controls must match too.
     """
     if not configs:
         raise ComparisonConfigError("Significance comparison has no configurations")
@@ -58,17 +61,34 @@ def validate_comparison_configs(configs: Sequence[tuple[str, Mapping]]) -> None:
     reference_name, reference_config = configs[0]
     reference = signature(reference_name, reference_config)
     differences = []
+    resampling_differences = []
     for name, config in configs[1:]:
         candidate = signature(name, config)
         for key in sorted(reference.keys() | candidate.keys()):
             before = reference.get(key, "<missing>")
             after = candidate.get(key, "<missing>")
             if before != after:
-                differences.append(f"{name}: {key}: {before!r} -> {after!r}")
+                difference = f"{name}: {key}: {before!r} -> {after!r}"
+                if (
+                    key.rsplit(".", 1)[-1] == "dataset_loaded__resample_is_resample"
+                    and isinstance(before, bool)
+                    and isinstance(after, bool)
+                ):
+                    resampling_differences.append(difference)
+                else:
+                    differences.append(difference)
     if differences:
         raise ComparisonConfigError(
             f"Incompatible significance comparison against {reference_name}:\n"
             + "\n".join(differences)
+        )
+
+    if resampling_differences:
+        warnings.warn(
+            f"Significance comparison against {reference_name} differs in loaded "
+            "resampling on/off settings:\n" + "\n".join(resampling_differences),
+            UserWarning,
+            stacklevel=2,
         )
 
 

@@ -509,3 +509,20 @@ text content (ignoring page furniture and whitespace), labels, table-of-contents
 entries, and total page counts: 16 and 56 respectively on current main. One
 bibliography line in each document reflows onto the following page after removal
 of the wrapper groups; study pages and float grouping remain unchanged.
+
+## 2026-11-14 — Warn for significance-reference resampling on/off differences
+
+An intentionally resampled reference may be compared with an unresampled signal
+run. The shared submission/aggregation validator warns only for boolean changes
+to `dataset_loaded__resample_is_resample`; all other dataset, training and detector
+mismatches remain errors, including the resampling replacement policy. Missing
+or malformed flag evidence is not exempted. Signal-curve identity is unchanged.
+The same validator covers 1D and multidimensional performance plots.
+
+Validation: 164 operational tests and 23 subtests pass, including planned and
+saved configurations, both resampling directions, malformed flags, unchanged
+curve grouping, and continued rejection of replacement, dataset and fitting
+mismatches. Updated the existing comparison fixture from four regional
+definitions to the current public a/b schema so its existing guards execute.
+No training/model code or plot rendering changed; the shared performance-plot
+entry point calls this validator in every dimension.
