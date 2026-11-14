@@ -56,9 +56,6 @@
         "dataset_loaded__sample_is_replacement": true
       },
       {
-        "dataset_loaded__resample_is_resample": false
-      },
-      {
         "dataset_loaded__resample_is_replacement": true
       }
     ]

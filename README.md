@@ -542,10 +542,15 @@ vary; the guard never rewrites a configuration or resubmits an existing run.
 Dataset comparability is checked by region/category, independent of definition
 order. Background yields (including explicitly fixed counts), generators,
 dimensions, induced nuisance settings, loaded file names, cuts, aliases,
-observable mappings, load limits and sampling/resampling policies must match.
-Only injected signal strength and shape may vary; a background reference may
+observable mappings, load limits and sampling/resampling policies must match,
+except that a boolean difference in `dataset_loaded__resample_is_resample`
+(the resampling on/off flag) emits a warning. Replacement-policy differences
+remain errors. This exception applies before submission and during plotting;
+it does not change signal-curve grouping.
+Injected signal strength and shape may vary; a background reference may
 omit signal settings altogether. Signal shape (including positivity conditioning
 and the generated signal's observable mapping) separates curves; strength varies
-within each curve. Validation and curve grouping share the same dataset-field
-policy. Declared optional dataset defaults are normalized without realizing
-Poisson counts or loading event files.
+within each curve. Apart from the warning-only resampling exception, validation
+and curve grouping share the same dataset-field policy. Declared optional
+dataset defaults are normalized without realizing Poisson counts or loading
+event files.
