@@ -6,31 +6,30 @@
 
 \paragraph{Expressing the Hypothesis Spaces}
 
-Previously~\cite{LastDDPPaper}, we used a neural network to express the signal hypothesis space. The arguments for choosing it are straight forward - it is a highly expressive function space, that can fit various signal shapes and strengths, while having a clear and sizable set of parameters, that is its degrees of freedom (which will matter in a bit). The downsize is an overfitting tendency and is only approximately conforming of Wilks and Wald (Section~\ref{sec:Wilks_Wald}), a problem which was briefly discussed in \cite{LastDDPPaper} and is further explained in \iftoggle{ispaper}{Appendix}{Section}~\ref{sec:broken_Wilks_Wald}.
+Following Ref.~\cite{LastDDPPaper}, we use a neural network to parametrize the signal hypothesis space. Neural networks can represent a wide range of signal shapes and strengths with an explicit, adjustable number of parameters, which sets the nominal number of degrees of freedom. However, they are susceptible to overfitting, and the Wilks--Wald behavior is only approximate (Section~\ref{sec:Wilks_Wald}). This limitation was discussed briefly in Ref.~\cite{LastDDPPaper} and is examined further in \iftoggle{ispaper}{Appendix}{Section}~\ref{sec:broken_Wilks_Wald}.
 
-Our 3 layered, fully connected, sigmoid activated 
-\gls{nn}'s output is expressed by:
+The output of our three-layer, fully connected \gls{nn} with sigmoid activation is
 
 \begin{equation}
 \label{eq:neural_net_explicit}
     f(\event) = b_{0} + \sum\limits_{\alpha = 1}^{N} \omega_{\alpha} \sigma(\sum\limits_{j = 1}^{k}\omega^j_{\alpha} \event^j + b_\alpha).
 \end{equation}
 
-Output is passed through tanh to prevent logarithms in the likelihood expression from diverging.
+The output is passed through tanh to prevent divergences of the logarithms in the likelihood.
 
-The \gls{dof} of a hypothesis space spanned by a \gls{nn}, then, goes by
+The number of \gls{dof} of the hypothesis space spanned by the \gls{nn} is then
 
 \begin{equation}
     N_\text{DOF} = (k + 2) \times N + 1
 \end{equation}
 
 \paragraph{\texorpdfstring{$\chi^2$}{Chi-squared} Degrees of Freedom (DOF)}
-When considering the free parameters of either hypothesis space the following calculation follows:
+The free parameters enter the two hypothesis spaces as follows:
 \begin{itemize}
     \item In $\hypothesis{1}$, the degrees of freedom are in $f$ and $\nparam$ and $\refdist$.
     \item In $\nullhypothesis$, the degrees of freedom are in $\nparam$ and $\refdist$.
 \end{itemize}
 
-When counting the \gls{dof} of a hypothesis, we need to take into consideration those of $f$ and those of $\nparam$. This being said, the behavior of the $t$ distribution depends on the difference between the number of \gls{dof} of the singnal and null spaces. The null hypothesis sapce containing the $\nparam$ \gls{dof} as well, we get that the difference is exactly the \gls{dof} of $f$.
- 
+The parameter count includes the \gls{dof} of both $f$ and $\nparam$. The distribution of $t$, however, depends on the difference between the numbers of \gls{dof} in the signal and null spaces. Since $\nparam$ also enters the null hypothesis, this difference is the number of \gls{dof} of $f$.
+
 \end{document}

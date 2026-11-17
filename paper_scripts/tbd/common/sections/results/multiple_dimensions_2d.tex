@@ -4,16 +4,15 @@
 
 \begin{document}
 
-To expand the existing theory to cover for more observable dimensions and hence for more complex cuts in the future, we generalized the mechanism to work for any number of observable parameters describing each event, as in Section~\ref{sec:building_an_observed_dataset}. To this end, changes were added to the detector module, the dataset creation module and to the neural network architecture to handle richer data.
+To extend the method to more observables and, ultimately, more complex selections, we allow each event to be described by an arbitrary number of observable quantities, as in Section~\ref{sec:building_an_observed_dataset}. The detector module, dataset generation, and neural network architecture were extended accordingly.
 
 \begin{figure}
     \addsizedgraph{1}{common/sections/results/plot05.1-2d-single-run-v10/dataset_process_plot_6222853000396261065.png}
-    \caption{An example of training in 2D. Top: the reference distribution along with each separate dataset, on the \gls{sr} (left) and the \gls{cr} (right) regions. Bottom: fitted signal and background hypotheses' predictions of the multiplicative term in Eqs.\ref{eq:sr_hypothesis_statement} and \ref{eq:cr_hypothesis_statement} in each region. Background only events are included in both samples. Each observable's values are drawn independently from the same exponential distribution as in Figure~\ref{fig:detector_effect_with_nuisance_train}.}
+    \caption{An example of training in 2D. Top: the reference distribution along with each separate dataset, in the \gls{sr} (left) and \gls{cr} (right). Bottom: fitted signal and background hypotheses' predictions of the multiplicative term in Eqs.~\ref{eq:sr_hypothesis_statement} and \ref{eq:cr_hypothesis_statement} in each region. Background only events are included in both samples. Each observable's values are drawn independently from the same exponential distribution as in Figure~\ref{fig:detector_effect_with_nuisance_train}.}
     \label{fig:2d_train}
 \end{figure}
 
-
-We follow the same process to create $t$ value distributions of various signal shapes and intensities, to evaluate our method's ability to detect them. In Figure~\ref{fig:2d_significances} we observe the detected significances vs the injected ones.
+We repeat the procedure for signals of different shapes and strengths to obtain distributions of $t$ and evaluate the sensitivity. Figure~\ref{fig:2d_significances} compares the detected and injected significances.
 
 \begin{figure}
     \addgraph{common/sections/results/plot05-2d-significance-v10/performance_plot_4303471653011908088.png}

@@ -5,7 +5,7 @@
 \begin{document}
 
 \iftoggle{ispaper}{%
-To estimate the detection abilities of our method, we repeatedly compare pairs of samples with and without injected signals of varying shapes and strengths. For each run, we load or generate disjoint signal-region and control-region sample pairs, inject a signal into the first signal-region sample when required, and construct a reference sample by combining the two samples in each region. We fit the alternative and null hypotheses by minimizing their respective loss functions, with the signal function fixed to zero under the null hypothesis and nuisance parameters fitted when enabled. The minimized losses determine the test statistic through Eq.~\ref{eq:t_value_from_two_losses}.
+To evaluate the sensitivity of the method, we repeatedly compare sample pairs with and without injected signals of different shapes and strengths. For each run, we load or generate disjoint signal-region and control-region sample pairs, inject a signal into the first signal-region sample when required, and construct a reference sample by combining the two samples in each region. We fit the alternative and null hypotheses by minimizing their respective loss functions, with the signal function fixed to zero under the null hypothesis and nuisance parameters fitted when enabled. The minimized losses determine the test statistic through Eq.~\ref{eq:t_value_from_two_losses}.
 }{%
 The process is executed and evaluated as follows. The method for calculating a single $t$ value is described in Figure~\ref{alg:single_train_algorithm}.
 
@@ -44,11 +44,10 @@ The process is executed and evaluated as follows. The method for calculating a s
 \end{figure*}
 }
 
+Repeating the procedure yields a sample of $t$ values whose distribution should approach $\chi^2_r$ in the limit of many repetitions. We compare the empirical and theoretical distributions in the plots presented below.
 
-Repeating this procedure many times gives us a set of $t$ values, which, at a large repetition limit, should converge to a $\chi^2_r$. Graphs estimating the compatibility between the theoretical and the evident distributions are generated and appear in many instances here as well.
+For generated data, the background-only distribution of $t$ can be estimated directly. For loaded data, we estimate it by combining $\dataset{A}$ and $\dataset{B}$ within each region, including any signal, and repeatedly repartitioning the events into samples of the original sizes. Each sample then follows, on average, the statistics of the combined reference distribution. The signal contribution therefore no longer produces a statistical difference between the samples.
 
-The background only distribution estimation is straight forward when the data is generated. When it is loaded, the background only reference $t$ value behavior is estimated from repeating the calculation while shuffling $\dataset{A}$ and $\dataset{B}$ samples in each region, with the signal, and re-partitioning them into samples of the original sizes. In this manner, on average, each sample carries the exact statistics of the reference distribution, which is composed of both. In this case, it's as if all signals are absent from the statistics.
-
-Then, the same statistics are gathered with various shapes and intensities of signals. The significances of the median of the distribution, as well as the significance of the $\pm \sigma$ values from it, are estimated relative to the theoretical and evident background only distributions. Graphs displaying the progression of the detected significance of the detected signal as a function of the injected signal strength appear in many following cases.
+We repeat the procedure for signals of different shapes and strengths. The significances corresponding to the median and the $\pm \sigma$ values of the resulting distribution are evaluated relative to both the theoretical and empirical background-only distributions. The plots below show the detected significance as a function of the injected signal strength.
 
 \end{document}

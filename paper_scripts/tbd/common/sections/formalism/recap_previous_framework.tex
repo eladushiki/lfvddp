@@ -4,7 +4,7 @@
 
 \begin{document}
 
-In our original work~\cite{LastDDPPaper}, we postulated the signal and null hypotheses as:
+In Ref.~\cite{LastDDPPaper}, the signal and null hypotheses were defined as
 
 \begin{equation}
 \label{eq:last_ddp_paper_hypotheses}
@@ -40,8 +40,8 @@ In our original work~\cite{LastDDPPaper}, we postulated the signal and null hypo
 \end{aligned}
 \end{equation}
 
-\noindent Here, $\hypothesis{1}$ and $\nullhypothesis$ are the signal and null hypotheses, accordingly. The $\pdf$'s are probability distributions, that we assume to be the underlying distributions of either of the samples - $\dataset{A}$ and $\dataset{B}$. All distributions reference a common probability distribution, $\refdist[\eventsymbol]$, that is taken to be the combined sample, and allows us to easily compare between them, $\eventsymbol$ being a single real number that fully describes an event. $f$ and $g$ express shifts between the two distributions due to a signal, while $h$ and $r$ express a communal shift due to system effects and scale effects only. The rest are normalization factors.
+\noindent Here, $\hypothesis{1}$ and $\nullhypothesis$ denote the signal and null hypotheses, respectively. The $\pdf$'s describe the assumed underlying probability distributions of $\dataset{A}$ and $\dataset{B}$. Both are expressed relative to a common distribution, $\refdist[\eventsymbol]$, constructed from the combined sample. This provides a common reference for the comparison, with each event described by a single real number, $\eventsymbol$. The functions $f$ and $g$ describe signal-induced shifts between the distributions; $h$ and $r$ account for a common systematic shift and a relative scale, respectively. The remaining factors set the normalization.
 
-$f, g, h$ and $r$ are parameters of the hypotheses, hence this formulates a hypothesis space. Given two samples, neural networks are used to find the best fitting hypothesis parameters from within each space. As claimed in \cite{LastDDPPaper}, $h$ and $r$ are the most accurate at an analytic 0. $h$ for the distributions are of the same shape, $r$ for the scale factor is swallowed in the normalization factor in any case. So we won't further bother to write them in the first place.
+The parameters $f, g, h$ and $r$ define the hypothesis spaces. For a given sample pair, neural networks determine the best fit within each space. As argued in Ref.~\cite{LastDDPPaper}, the optimal values of $h$ and $r$ are analytically zero: the distributions have the same shape ($h$), and the scale factor is absorbed into the normalization ($r$). We therefore omit these terms below.
 
 \end{document}

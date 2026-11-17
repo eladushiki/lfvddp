@@ -7,22 +7,22 @@
 \paragraph{Building an Observed Dataset}
 \label{sec:building_an_observed_dataset}
 
-During a HEP experiment, the collision events occur inside a detector. When detected, some $k$ physical attributes of each event are measured, e.g., energy, momentum components and angles. Due to limited detector efficiency, not all events that occur inside the detector are successfully reconstructed, so we say that only a subset of the true events is observed.
+In a HEP experiment, collisions occur inside a detector. For each detected event, $k$ physical attributes, such as energy, momentum components, and angles, are measured. The detector efficiency is finite, so only a subset of the true events is reconstructed and observed.
 
-We denote by $\detector(\event)$ the probability with which an event $\event$ is detected, and hence appears in the observed dataset. We define the observed (filtered) dataset $\dataset{A}$ to be the dataset after stochastically removing events, i.e. the set of all $\event \in \dataset{A}$ that are retained with probability $\detector(\event)$. We denote the observed number of events by $|\dataset{A}| = N_\dataset{A}$. 
+Let $\detector(\event)$ denote the probability that an event $\event$ is detected and included in the observed dataset. The observed (filtered) dataset $\dataset{A}$ is obtained by stochastic removal of events: each event $\event \in \dataset{A}$ is retained with probability $\detector(\event)$. The observed event count is denoted by $|\dataset{A}| = N_\dataset{A}$.
 
 \paragraph{Modeling Detector Efficiency as Nuisance Parameters}
 
-We know our model of the detector's behavior is not perfect, and even more - can be different for our $\dataset{A}$ and $\dataset{B}$ samples, and hence break an originally-true symmetry of them. We now formulate our accounting to deviations and uncertainties of this kind.
+The detector response is not known perfectly and can differ between $\dataset{A}$ and $\dataset{B}$. Such differences can break a symmetry of the underlying samples. We account for these effects and their uncertainties as follows.
 
-We denote by $\nparam(\anyevent)$ half of the difference between the probability to detect an event of either sample within a specific point in the observable space
+We define $\nparam(\anyevent)$ as half the difference between the detection probabilities for the two samples at a given point in observable space:
 
 \begin{equation}
 \label{eq:nuisance_from_detector_efficiencies}
     \nparam(\anyevent) \coloneqq \frac{\detector_{A}(\anyevent) - \detector_{B}(\anyevent)}{2}   
 \end{equation}
 
-That is, given our reference distribution, we expect the two detected samples to be shifted as:
+Relative to the reference distribution, the detected samples are then expected to take the form
 
 \begin{equation}
 \begin{aligned}
@@ -31,7 +31,7 @@ That is, given our reference distribution, we expect the two detected samples to
 \end{aligned}
 \end{equation}
 
-This gives us directly the detector efficiency modified hypotheses:
+The hypotheses including detector efficiency are therefore
 
 \begin{equation}
 \begin{aligned}
@@ -62,6 +62,6 @@ This gives us directly the detector efficiency modified hypotheses:
 \end{aligned}
 \end{equation}
 
-The discrepancy between the samples in the null hypothesis in now fully addressed by the effects of our system. Normalization is swallowed for we are now using the evident amounts of events.
+Under the null hypothesis, the difference between the samples is attributed entirely to detector effects. Normalization is absorbed by using the observed event counts.
 
 \end{document}

@@ -6,7 +6,7 @@
 
 \paragraph{Measuring Systematic Uncertainties}
 
-We would like to learn about our system's effect of the samples, expressed via $\nparam$'s, in order to tell them apart from real signals. This can be done in an environment that is clean of signal. For our process, we introduce two additional samples that would be called the \gls{cr}. The original pair is now called the \gls{sr}, and the new physics is assumed to be expressed only there. Dataset names are elaborated in Table~\ref{table:division_of_data}.
+To distinguish detector effects, described by $\nparam$, from a signal, we constrain them using signal-free data. We introduce an additional pair of samples, referred to as the \gls{cr}. The original pair defines the \gls{sr}, to which the new physics contribution is assumed to be confined. The sample notation is summarized in Table~\ref{table:division_of_data}.
 
 \iftoggle{ispaper}{\begin{table}[htbp]}{\begin{table*}[t]}
 \centering
@@ -22,13 +22,13 @@ CR & $\dataset{A_{CR}}$ & $\dataset{B_{CR}}$ \\
 \label{table:division_of_data}
 \iftoggle{ispaper}{\end{table}}{\end{table*}}
 
-The requirements from the \gls{cr} is as follows:
+The \gls{cr} must satisfy the following requirements:
 \begin{enumerate}
-    \item The CR lacks new physics effects
-    \item The system acts on \gls{sr} and \gls{cr} events in the same manner, as a function of $\anyevent$. In particular, their range is identical.
+    \item The CR contains no new physics effects.
+    \item The detector acts on \gls{sr} and \gls{cr} events in the same way as a function of $\anyevent$. In particular, the observable ranges are identical.
     \item All samples are disjoint.
 \end{enumerate}
 
-The \gls{cr} dataset pair would serve as a constraint to the nuisance parameters, which are incorporated to the \gls{sr} hypothesis as well.
+The \gls{cr} samples constrain the nuisance parameters that also enter the \gls{sr} hypotheses.
 
 \end{document}

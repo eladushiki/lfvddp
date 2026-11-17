@@ -6,7 +6,7 @@
 
 \paragraph{Distribution Likelihood}
 
-Likelihood of observed data $\dataset{A}$ and a statistical model with parameters $\param$ is defined to be
+For observed data $\dataset{A}$ and a statistical model with parameters $\param$, the likelihood is defined by
 
 \begin{equation}
     \likelihood(\lambda_{\param} | \dataset{A}) = P(\dataset{A} | \lambda_{\param}),
@@ -26,7 +26,7 @@ Likelihood of observed data $\dataset{A}$ and a statistical model with parameter
 \end{aligned}
 \end{equation}
 
-For our test statistic, we consider the log-likelihood measure
+We use the corresponding log-likelihood to construct the test statistic:
 
 \begin{equation}
 \label{eq:log_likelihood_of_a_distribution}
@@ -74,21 +74,21 @@ Appendix~\ref{Appendix_Tvalue}.
 
 \paragraph{Likelihood Comparison}
 
-Using $\llikelihood$ as a measure for plausibility of a distribution, we would like to have a relative measure between the two distributions. For that goal, we define the profile log-likelihood ratio test statistic to be
+Using $\llikelihood$ to quantify the relative plausibility of the two distributions, we define the profile likelihood ratio
 
 \begin{equation}
 \label{eq:profile_likelihood_ratio}
 \plratio = \dfrac{\likelihood(\param, \hat{\hat{\nparam}}(\param))}{\likelihood(\hat{\param}, \hat{\nparam})},
 \end{equation}
 
-\noindent from which we derive the inverse log likelihood ratio, of a signal hypothesis with respect to the null hypothesis
+\noindent and the inverse log-likelihood ratio for testing the signal hypothesis against the null hypothesis,
 
 \begin{equation}
 \label{eq:inverse_log_likelihood_ratio}
     \invllratio = - 2 \log \plratio = 2 \log \left( \dfrac{\likelihood(\hat{\param}, \hat{\nparam})}{\likelihood(\param = 0, \hat{\hat{\nparam(0)}})} \right)
 \end{equation}
 
-\noindent to favor the signal hypothesis. In the large sample limit, from~\cite{Cowan_and_Eilam_PL_formulation} we get that
+\noindent which favors the signal hypothesis for larger values. In the large-sample limit, Ref.~\cite{Cowan_and_Eilam_PL_formulation} gives
 
 \begin{equation}
     Z_0 = \sqrt{\invllratio}. 

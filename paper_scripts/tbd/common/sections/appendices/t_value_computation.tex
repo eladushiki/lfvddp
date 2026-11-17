@@ -13,7 +13,7 @@ need not be equal. We therefore retain separate event counts
 $N_{\srdataset{A}}$, $N_{\srdataset{B}}$, $N_{\crdataset{A}}$, and
 $N_{\crdataset{B}}$ throughout this derivation.
 
-Treating separately the numerator and denominator here, for they will soon require handling on their own
+We evaluate the numerator and denominator separately, since each will be optimized independently.
 
 {
 \begin{wideequations}
@@ -75,7 +75,7 @@ The signal terms do not cancel, since they occur only in the alternative:
 \end{equation*}
 These terms are retained below and in Eq.~\ref{eq:discrete_loss_functions}.
 
-\noindent using the substitutions
+\noindent The substitutions used above are
 \begin{equation*}
 \begin{aligned}
 \srdist{\dataset{A}}^1 = (1 + f(\anyevent))\srdist{\dataset{A}}^0, \\
@@ -129,7 +129,7 @@ These terms are retained below and in Eq.~\ref{eq:discrete_loss_functions}.
 \end{equation}
 \end{wideequations}
 
-Plugging back in the expressions cancels some independent terms. From Equations~\ref{eq:high_level_overall_test_statistic}, \ref{eq:overall_test_statistic_numerator} and \ref{eq:overall_test_statistic_denominator}:
+Substituting these expressions into the likelihood ratio cancels the parameter-independent terms. Equations~\ref{eq:high_level_overall_test_statistic}, \ref{eq:overall_test_statistic_numerator}, and \ref{eq:overall_test_statistic_denominator} give
 
 \begin{wideequations}
 \begin{equation}
@@ -185,6 +185,6 @@ Plugging back in the expressions cancels some independent terms. From Equations~
 \end{equation}
 \end{wideequations}
 
-\noindent while we substituted the integral with its approximation, the sum over the according domain $\int y(\anyevent) \srrefdist d\anyevent \to \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} y(\event)$, and similarly for $CR$.
+\noindent Here, we approximate the integral by the corresponding sum, $\int y(\anyevent) \srrefdist d\anyevent \to \dfrac{1}{N^{SR}} \sum\limits_{\event \in SR} y(\event)$, and similarly for $CR$.
 
 \end{document}

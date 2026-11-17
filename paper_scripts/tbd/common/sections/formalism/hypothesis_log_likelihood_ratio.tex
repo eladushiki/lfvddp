@@ -6,7 +6,7 @@
 
 \paragraph{Hypothesis Log Likelihood Ratio}
 
-Given our estimation for the appearing probability densities of the datasets we can get a likelihood value for each of them from Equation~\ref{eq:log_likelihood_of_a_learnable_distribution}. To estimate the likelihood of a hypothesis, we should multiply all its distributions' likelihoods in both regions:
+The estimated probability densities determine the likelihood of each dataset through Eq.~\ref{eq:log_likelihood_of_a_learnable_distribution}. The likelihood of a hypothesis is the product of the likelihoods for both samples in both regions:
 
 \begin{wideequations}
 \begin{equation}
@@ -21,7 +21,7 @@ Given our estimation for the appearing probability densities of the datasets we 
 \end{aligned}
 \end{equation}
 
-\noindent for $i=0,1$. Then, to compare between the likelihood of both hypotheses, we use the inverse log likelihood ratio, as in Eq.~\ref{eq:inverse_log_likelihood_ratio}, to get:
+\noindent for $i=0,1$. Comparing the hypotheses using the inverse log-likelihood ratio of Eq.~\ref{eq:inverse_log_likelihood_ratio} gives
 
 \begin{equation*}
 \invllratio = 2 \log \left(
@@ -32,7 +32,7 @@ Given our estimation for the appearing probability densities of the datasets we 
 }\right).
 \end{equation*}
 
-\noindent Since $\log$ is a monotonically increasing function, we have that
+\noindent Since $\log$ is monotonically increasing, this can be written as
 
 \begin{equation}
 \label{eq:high_level_overall_test_statistic}
@@ -40,6 +40,6 @@ Given our estimation for the appearing probability densities of the datasets we 
 \end{equation}
 \end{wideequations}
 
-\noindent the calculation of which is fully carried out in Appendix~\ref{Appendix_Tvalue}).
+\noindent The full derivation is given in Appendix~\ref{Appendix_Tvalue}.
 
 \end{document}

@@ -4,11 +4,11 @@
 
 \begin{document}
 
-We further investigate the correlation between the significance of an injected signal and its significance as detected by our machinery. Again, similarly as what was done before.
+Following the earlier study, we examine the relation between the significance of an injected signal and the significance detected by the method.
 
 \begin{figure}
     \addgraph{common/sections/results/plot02-recreated-significances-v7/performance_plot_3059286201789781495.png}
-    \caption{Observed significances of the detection process by their injected significance. The process is run several times, with varying signal strength. The background only detection process is run 1000 times to generate a sample of the $\plratio$. Three signal shapes are picked, each is run for 100 times for each intensity from a varying set. The injected significance is calculated directly from the signal and background \gls{ndf}, as in Eq.~\ref{eq:analytic_significance_from_pdfs}. The observed significance is calculated twice; once by the percentile of the mean of the signal $\plratio$s within the background only distribution (solid line), and the number of \glspl{std} it is above the mean of the background distribution (dashed line). All $\plratio$s are calculated from datasets with identical parameters and hyper parameters as in the background only runs, apart from the added signal.}
+    \caption{Observed significance as a function of injected significance. The background-only procedure is repeated 1000 times to obtain a sample of $\plratio$ values. Three signal shapes are tested, with 100 repetitions at each of several signal strengths. The injected significance is calculated from the signal and background \gls{ndf} using Eq.~\ref{eq:analytic_significance_from_pdfs}. The observed significance is evaluated from the percentile of the mean signal $\plratio$ in the background-only distribution (solid line), and from its displacement above the background mean in units of \glspl{std} (dashed line). All $\plratio$ values are calculated from datasets that, apart from the injected signal, use the same parameters and hyperparameters as the background-only runs.}
     \label{fig:observed_vs_injected_significances}
 \end{figure}
 
