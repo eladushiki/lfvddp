@@ -6,8 +6,7 @@
 
 \paragraph{In the Lack of Pure Background}
 
-When examining a real experimental sample, we would not be able to extract properties from a background-only toy, since all we have is the sample itself that may or may not contain a signal.
-As in the previous work~\cite{LastDDPPaper}, we observe this background-only behavior by performing permutation tests - shuffling the $\dataset{A}$ and $\dataset{B}$ samples, then estimating the test statistic. Repeating this process generates a distribution that is indistinguishable from background only behavior, as demonstrated in Figure~\ref{fig:permutation_test}
+For an experimental sample that may contain a signal, a background-only toy sample is not available. Following Ref.~\cite{LastDDPPaper}, we estimate the background-only behavior through permutation tests: the $\dataset{A}$ and $\dataset{B}$ samples are shuffled and the test statistic is recalculated. Repetition yields a distribution indistinguishable from the background-only distribution, as shown in Figure~\ref{fig:permutation_test}.
 
 \begin{figure}
     \centering
@@ -18,7 +17,7 @@ As in the previous work~\cite{LastDDPPaper}, we observe this background-only beh
     \begin{minipage}{0.48\linewidth}
         \addgraph{common/sections/results/plot00-permutation-significance-v9/performance_plot_-8078064096124264868.png}
     \end{minipage}
-    \caption{Permutation tests performed on a sample from CMS Open data. The same sample is used twice - once, premuted, as a background reference, and an additional time as a signal sample. Left: distribution of the $t$ values of the permuted sample, with background-only expected $\chi^2$ contour for reference. Right: the significance of the non-permuted test with relation to the background only behavior. We can see in later Figures~that this discovery significance is identical to the one acieved with background only data.}
+    \caption{Permutation tests on a CMS Open Data sample. The sample is used both as a permuted background reference and as an unpermuted signal sample. Left: the distribution of $t$ for the permuted sample, compared with the expected background-only $\chi^2$ curve. Right: the significance of the unpermuted test relative to this background-only behavior. The discovery significance is identical to that obtained with background-only data in the later figures.}
     \label{fig:permutation_test}
 \end{figure}
 

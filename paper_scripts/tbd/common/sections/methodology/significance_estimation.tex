@@ -6,9 +6,9 @@
 
 \paragraph{Effect of Existing Signal}
 
-What happens in the optimization process is that the flexibility of the signal hypothesis' signal definition captures the most-likely accidental signal-like deviation that stems from the Poisson statistics that govern the problem, and does not originate from a real signal. This is the probability distribution that is captured by Wilks and Wald, and is closely related to the look elsewhere effect.
+During optimization, the flexible signal parametrization fits the most likely signal-like deviation arising from Poisson fluctuations, even in the absence of a true signal. The distribution of these fluctuations is described by Wilks and Wald and is closely related to the look-elsewhere effect.
 
-Any signal that exists in either of our samples, that is captured by our definition of what is a signal, should favor the signal hypothesis in the LR test (Eq.~\ref{eq:inverse_log_likelihood_ratio}) and generate larger $t$ values than those of the background only case. Our test for rejecting the background only hypothesis is then quantified by a significance measure,
+A signal in either sample that can be represented by the signal parametrization should favor the signal hypothesis in the likelihood-ratio test (Eq.~\ref{eq:inverse_log_likelihood_ratio}), yielding larger $t$ values than in the background-only case. We quantify rejection of the background-only hypothesis by the significance
 
 \begin{equation}
     Z = \Phi^{-1}(1-p)
@@ -18,12 +18,12 @@ Any signal that exists in either of our samples, that is captured by our definit
 
 \paragraph{Significance Estimation}
 
-The significance estimation of a $\invllratio$ value is carried out in several different ways;
+We estimate the significance of a $\invllratio$ value in several ways.
 
 
     \paragraph{Theoretic significance from PDFs.}
 
-    If analytic expressions of the PDFs of the distributions are known, we can express
+    When analytic expressions for the PDFs are known, the significance is
 
     \begin{wideequations}
 \begin{equation}
@@ -38,7 +38,7 @@ The significance estimation of a $\invllratio$ value is carried out in several d
 
     \paragraph{Binned evident significance from run parameters.}
 
-    If the \glspl{ndf} are not necessarily known, but the mean amount of events is chosen when generating the datasets, we can rewrite
+    When the \glspl{ndf} are not necessarily known, but the mean event counts are specified in generating the datasets, the expression can be written as
 
     \begin{wideequations}
 \begin{equation}
@@ -51,6 +51,6 @@ The significance estimation of a $\invllratio$ value is carried out in several d
 
 \paragraph{Black box relative to $\chi^2$ or shuffle distribution.}
 
-Either directly from the theoretical distribution of the test statistic or by direct estimation from running many experiments shuffling the two sets of samples, we have a solid estimation of the distribution of $\invllratio$. By comparing a value to it, we can estimate the significance with which we can claim for a discovery from a single $\invllratio$. In practice, we repeat the process and take the significance of the mean.
+The distribution of $\invllratio$ can be estimated from its theoretical form or empirically by repeating the experiment with shuffled sample pairs. Comparing a single $\invllratio$ value with this distribution gives its discovery significance. In practice, we repeat the procedure and evaluate the significance of the mean.
 
 \end{document}

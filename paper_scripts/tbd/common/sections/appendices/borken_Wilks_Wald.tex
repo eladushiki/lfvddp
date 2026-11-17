@@ -11,58 +11,57 @@
 }
 \label{sec:broken_Wilks_Wald}
 
-In previous work \cite{Italian_no_1_Learning_New_Physics_from_a_Machine, Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine} the signal hypothesis (similarly to Eq. \ref{eq:last_ddp_paper_hypotheses}) is expressed as a multiplicative transformation of the $\refdist$ and an output of a N-neuron hidden layer fully connected neural network.
-A problem arose from that - the convergence of the test statistic (Eq. \ref{eq:inverse_log_likelihood_ratio}) to the Wilks theorem's predicted $\chi^2$ was not accurate.
+In previous work~\cite{Italian_no_1_Learning_New_Physics_from_a_Machine, Italian_no_2_Learning_New_Physics_from_an_Imperfect_Machine}, the signal hypothesis is written as a multiplicative deformation of $\refdist$, parametrized by a fully connected neural network with N hidden neurons, similarly to Eq.~\ref{eq:last_ddp_paper_hypotheses}. The resulting test statistic (Eq.~\ref{eq:inverse_log_likelihood_ratio}) did not converge accurately to the $\chi^2$ distribution predicted by Wilks' theorem.
 
-While this assimilates the evident distributions to the expected $\chi^2$ contour lines, one could claim that this is not a physical phenomenon, but merely engineered parameters to comply with the theory. In the paper itself there is evidence that this is not the whole picture - section IV D in \cite{Italian_no_1_Learning_New_Physics_from_a_Machine} discusses it, and discrepancies in a 2D examples are presented in section IV C.
+Agreement between the empirical distribution and the expected $\chi^2$ curve can reflect parameter tuning rather than physical behavior. The earlier study itself indicates that the picture is more complicated: Section IV D of Ref.~\cite{Italian_no_1_Learning_New_Physics_from_a_Machine} discusses this issue, and Section IV C presents discrepancies in two-dimensional examples.
 
-Our group's previous work \cite{LastDDPPaper} experienced this problem as well. While figuring out a way to bypass the weight clipping with the symmetrized mechanism, a fixation of the hyper parameters is still needed to get theory-compliant results. In section 6.2 there, overfitting is discussed. It's clear that the procedure is indeed dependent on hyper parameters.
+Our previous study~\cite{LastDDPPaper} encountered the same difficulty. The symmetrized method removes the need for weight clipping, but agreement with the theoretical distribution still requires fixed hyperparameters. The discussion of overfitting in Section 6.2 of that work makes this dependence explicit.
 
-Two coping mechanisms were introduced:
+Two measures were introduced to address this behavior:
 \begin{itemize}
-    \item A cutoff was set for the \gls{nn}'s weights and biases ("weight clipping")
-    \item The model training's hyper parameters (number of epochs, learning rate, etc.) are fixed
+    \item A cutoff is imposed on the \gls{nn} weights and biases (weight clipping).
+    \item The training hyperparameters, including the number of epochs and learning rate, are fixed.
 \end{itemize}
 
-Our investigation of the Wilks and Wald's theorems' validity with regards to the methods offers a possible explanation.
+Examining the applicability of the Wilks and Wald theorems to this method suggests a possible explanation.
 
 \subsection{Broken Wilks and Wald}
- 
-Let's reiterate our \gls{nn}'s output formula:
+
+Recall the output of the \gls{nn}:
 
 \begin{equation}
     f(\anyevent | v_i, w_i, b_i) = b_0 + \sum\limits_{j=1}^4 v_j \sigma(w_j \anyevent + b_j)
 \end{equation}
 
-In our formulation, the null hypothesis is equivalent to the point in the signal hypothesis space in which $f = 0$. It is described by the parameterization: $b_0 = v_i = 0$, while the other parameters can carry any value. In that point also $\dfrac{\partial f}{\partial w_j} = 0 \forall j$ and $\dfrac{\partial f}{\partial b_i} = 0 \forall i \neq 0$. These terms nullify entire columns and rows of the Fisher information, which is now of the rank of at most 5.
+The null hypothesis is represented in the signal hypothesis space by $f = 0$. One such parametrization is $b_0 = v_i = 0$, with arbitrary values of the other parameters. At this point, $\dfrac{\partial f}{\partial w_j} = 0 \forall j$ and $\dfrac{\partial f}{\partial b_i} = 0 \forall i \neq 0$. Entire rows and columns of the Fisher information therefore vanish, and its rank is at most 5.
 
-The null set is even larger considering parameter combination such as $w_j=0$ for all $j$ with $b_0=-\sum_jv_j\sigma(b_j)$, and pairs of identical hidden units with $v_j=-v_{j'}$. Hidden-unit permutation symmetry makes the Fisher matrix singular even away from the null.
+The null set is even larger considering parameter combinations such as $w_j=0$ for all $j$ with $b_0=-\sum_jv_j\sigma(b_j)$, and pairs of identical hidden units with $v_j=-v_{j'}$. Hidden-unit permutation symmetry makes the Fisher matrix singular even away from the null.
 
-For the free parameter count to be the degree of the converged $\chi^2$, the following (among other stuff) is required \cite{Wilks_Original, Wald_Original}:
+For the asymptotic $\chi^2$ degrees of freedom to equal the free parameter count, the requirements include~\cite{Wilks_Original, Wald_Original}:
 \begin{enumerate}
-    \item The null hypothesis should be identified with one set of parameters withing the signal hypothesis space. That is, a "$\param$ = 0" as in signal strength hypothesis testing.
-    \item The Fisher information matrix of the signal hypothesis space is non singular
+    \item The null hypothesis should be identified with one set of parameters within the signal hypothesis space. That is, a "$\param$ = 0" as in signal strength hypothesis testing.
+    \item The Fisher information matrix of the signal hypothesis space is nonsingular.
 \end{enumerate}
 
-For the limit to hold, these should too. Hence, what we evidently saw, was merely an approximation of the behavior we knew to be looking for.
+These conditions are required for the limit to hold. The observed behavior is therefore only an approximation to the expected distribution.
 
 The hidden-layer parameters are identified only under $H_1$; this is the Davies problem. The null distribution of $q_0$ is that of the supremum of a $\chi^2$ random field. It is stochastically larger than $\chi^2_{N+1}$, and in general it is not $\chi^2_{(k+2)N+1}$.
 
 \subsubsection{Possible solutions}
-To solve this and get the exact distribution, in order to estimate the predicting power of our method without modeling the background \gls{pdf}, a few directions might be chosen:
+To obtain the exact distribution and evaluate the sensitivity without modeling the background \gls{pdf}, several approaches can be considered:
 
 \begin{enumerate}
     \item Parametrize a \gls{nn}'s output in a way such that the null hypothesis is expressible by only a single set of parameter values.
-    \item Parametrize $f$ in some other way, such that the function space is spanned in a clear way by a well understood number of base elements.
-    \item Engineer the hyper parameters to achieve the expected distribution and keep them fixed, as was done until now. \label{item:param_fix}
-    \item In addition to \ref{item:param_fix}, generate the expected background only distribution with a shuffling practice and compare solely to it, rather than expecting any theoretical behavior, as was done in \cite{LastDDPPaper}.
+    \item Parametrize $f$ in some other way, such that the function space is spanned in a clear way by a well-defined number of basis elements.
+    \item Tune the hyperparameters to achieve the expected distribution and keep them fixed, as was done until now. \label{item:param_fix}
+    \item In addition to \ref{item:param_fix}, generate the expected background only distribution by shuffling and compare solely to it, rather than expecting any theoretical behavior, as was done in \cite{LastDDPPaper}.
 \end{enumerate}
 
-While the last two options are discussed in previous work and are widely used in our paper as well, we implemented all options to experiment with them. The general feeling is that they work variably well in the different configurations shown above.
+The last two options were discussed in previous work and are used extensively here. We also implemented the other options to study their behavior. Their performance appears to vary across the configurations considered above.
 
 \subsubsection{Example: convergence in 2D}
 
-Without any restriction for \gls{nn}'s weights and biases, in the form of weight clipping or Adam optimizer weight decay, we experience a virtually-unbounded improvement of the loss minimization in our case. While seeing reasonably convincing convergence after a few tens of thousands of epochs, as seen in Figure~\ref{fig:2d-nonconverging-percentiles}, we can go on and see improvement of the resulting $t$ as long as we keep training.
+Without restrictions on the \gls{nn} weights and biases, through either weight clipping or Adam optimizer weight decay, the loss continues to decrease with training, with virtually no bound observed. Apparent convergence after a few tens of thousands of epochs, as in Figure~\ref{fig:2d-nonconverging-percentiles}, does not prevent further improvement in the resulting $t$ as training continues.
 
 \begin{figure}
     \addgraph{thesis/outro/nonconverging-2d-train/t_train_percentile_progression_plot_2801744295516239952.png}

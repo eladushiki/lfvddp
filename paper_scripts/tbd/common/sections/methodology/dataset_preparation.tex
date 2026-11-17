@@ -4,10 +4,9 @@
 
 \begin{document}
 
+The results below use several sources of background and signal events.
 
-In the following graphs we use several sources for background and signal data sources.
-
-For the background distributions, we mostly use exponentially decaying pdfs in each dimension separately:
+Most background samples are generated from exponentially falling PDFs, separately in each dimension:
 
 \begin{equation}
     \dist{\text{background}} = \prod\limits_{j=0}^k (\dfrac{1}{a} \cdot e^{a\anyevent^j})
@@ -15,7 +14,7 @@ For the background distributions, we mostly use exponentially decaying pdfs in e
 
 For simulated data, we use the CMS Open Data simulated \texttt{VVTo2L2Nu} sample corresponding to the 2016 collision dataset~\cite{CMS_OpenData_VVTo2L2Nu_2016}.
 
-When injecting signals, we add a desired average amount of excessive events from either distributions:
+Signals are injected with a chosen mean number of additional events, drawn from one of the following distributions:
 
 \begin{equation}
 \label{eq:signal-shapes}
@@ -53,8 +52,8 @@ When injecting signals, we add a desired average amount of excessive events from
 \end{aligned}
 \end{equation}
 
-Before any given process, data is normalized such that all datasets would fit $[-1, 1]$ to allow for stable numerics of the Sigmoid functions.
+Before each run, the data are normalized to the range $[-1, 1]$ to ensure numerical stability of the sigmoid functions.
 
-In cases in which the data is generated, new events are drawn every time the process is carried. In case the dataset is loaded, a subset of the background events are taken randomly from a larger amount that is loaded from the data source, and an artificial signal is added in the cases in which it is needed.
+For generated datasets, new events are drawn in each run. For loaded datasets, background events are selected randomly from a larger sample obtained from the data source. An artificial signal is added when required.
 
 \end{document}

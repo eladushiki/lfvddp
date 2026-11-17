@@ -6,15 +6,14 @@
 
 \label{sec:reproduction}
 
-We introduced a massive amount of changes to our codebase, while maintaining a configurable option to mimic the runs that were already made in our previous work~\cite{LastDDPPaper}. The first expected thing to do, then, is to recreate some representing results.
-In Figure~\ref{fig:t_distribution_plot_reproduction} we observe the background only distribution of $t$ values, in comparison to a $\chi^2$ distribution of the number of degrees of freedom. The data contains a single observable that is drawn from an exponentially decaying probability distribution.
+The implementation has undergone substantial changes, while retaining a configuration that reproduces the runs of Ref.~\cite{LastDDPPaper}. We therefore first reproduce representative results from that work. Figure~\ref{fig:t_distribution_plot_reproduction} compares the background-only distribution of $t$ with a $\chi^2$ distribution with the corresponding number of degrees of freedom. Each event has a single observable drawn from an exponentially falling probability distribution.
 
 \begin{figure}
     \addgraph{common/sections/results/plot01-background-only-t-dist-recreation-v7/t_distribution_plot_-3734364174182558256.png}
-    \caption{Training results of two equivalent datasets, lacking a signal and a detector effect. Background samples are drawn from an exponentially decaying \gls{pdf}. Each dataset contains a number of events drawn from a Poisson distribution with a mean of $1e5$.}
+    \caption{Training results for two equivalent datasets with no signal or detector effect. Background samples are drawn from an exponentially decaying \gls{pdf}. Each dataset contains a number of events drawn from a Poisson distribution with a mean of $1e5$.}
     \label{fig:t_distribution_plot_reproduction}
 \end{figure}
 
-As can be seen, using similar parameters, we achieved an approximate convergence to a $\chi^2$ distribution, similarly to what was achieved before. This being said, we observe a relatively stable convergence this time, rather than the specifically chosen epoch cutoff that was used earlier.
+With similar parameters, the distribution approximately approaches $\chi^2$, as in the earlier study. Here, the convergence is relatively stable, in contrast to the specific epoch cutoff used previously.
 
 \end{document}

@@ -4,7 +4,7 @@
 
 \begin{document}
 
-Our hypothetical accelerator causes particles to collide, creating the sets $\true{A}$ and $\true{B}$ of events. Each event $\event \in \mathbb{R}^k$ is represented as a vector of its measured physical quantities. Each event set is then assumed to be the result of an inhomogeneous Poisson process with intensity of either
+Consider two sets of collision events, $\true{A}$ and $\true{B}$, produced by a hypothetical accelerator. Each event $\event \in \mathbb{R}^k$ is represented by a vector of measured physical quantities. We assume that each set follows an inhomogeneous Poisson process, with intensities
 
 \begin{equation}   
 \begin{aligned}
@@ -13,7 +13,7 @@ Our hypothetical accelerator causes particles to collide, creating the sets $\tr
 \end{aligned}
 \end{equation}
 
-\noindent where $p(\anyevent)$ is the theoretical probability density to create an event in the specific point in the parameter space. Using items similar to the original formulation to express $p$, we restate this as:
+\noindent where $p(\anyevent)$ is the theoretical probability density for producing an event at a given point in parameter space. Following the original formulation, we express $p$ through
 
 \begin{eqnarray}
 \label{eq:process_probability_distribution}
@@ -23,9 +23,9 @@ Our hypothetical accelerator causes particles to collide, creating the sets $\tr
 \end{aligned}
 \end{eqnarray}
 
-\noindent The function $f$ is parametrized by the parameters of interest $\param$. In the earlier formulation~\cite{LastDDPPaper}, the two samples had separate deformation functions, $f$ and $g$. Here, we replace the independent deformation of $\dataset{B}$ with the opposite shift, $-\paramf$, expressing symmetric shifts from $\refdist$, the mean of the two distributions.
+\noindent The function $f$ is parametrized by the parameters of interest $\param$. The earlier formulation~\cite{LastDDPPaper} used separate deformation functions, $f$ and $g$, for the two samples. Here, the independent deformation of $\dataset{B}$ is replaced by $-\paramf$. The two distributions thus have opposite shifts about their mean, $\refdist$.
 
-This gives us directly the n-dimensional form of our hypotheses:
+The corresponding hypotheses in multiple dimensions are
 
 \begin{equation}
 \label{eq:learnable_distribution}
